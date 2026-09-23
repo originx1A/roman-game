@@ -40,17 +40,19 @@ Vite uses a relative `base: './'` so the same `dist/` works on any static host (
 
 ## Deploy (share with anyone)
 
+**Live:** https://roman-game.surge.sh
+
 ```bash
 npm run build
 ```
 
 Then host `dist/` on any static host:
 
-- **Surge**: `npx surge ./dist your-name.surge.sh`
+- **Surge**: `npx surge ./dist roman-game.surge.sh`
 - **Cloudflare Pages** / **Netlify**: upload `dist/` or connect the git repo
 - **GitHub Pages**: publish `dist/` (e.g. `npx gh-pages -d dist`) → `https://<user>.github.io/roman-game/`
 
-Challenge links use the page hash, so they keep working on any domain.
+Share the live URL, or a challenge link (hash-based — works on any domain).
 
 ## How saves work
 
