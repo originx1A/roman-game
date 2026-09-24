@@ -1,0 +1,4 @@
+scripts/payload/**/*.gz binary
+scripts/payload/**/*.gz.b64 binary
+scripts/payload/**/*.gz.b64.p* text eol=lf
+scripts/payload/**/*.sha256 text eol=lf
