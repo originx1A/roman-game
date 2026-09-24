@@ -51,6 +51,19 @@ function readGzB64(dir, base) {
 function assemble(prefix, outPath) {
   const dir = path.dirname(prefix)
   const base = path.basename(prefix)
+
+  // 1. Prefer binary gzip (source of truth)
+  const gzPath = path.join(dir, base + '.gz')
+  if (fs.existsSync(gzPath)) {
+    const buf = zlib.gunzipSync(fs.readFileSync(gzPath))
+    checkSha(buf, base, dir)
+    fs.mkdirSync(path.dirname(outPath), { recursive: true })
+    fs.writeFileSync(outPath, buf)
+    console.log('wrote', outPath, buf.length, 'from binary gzip')
+    return
+  }
+
+  // 2. Single-file or fragmented base64 gzip
   const b64 = readGzB64(dir, base)
   if (b64 != null) {
     const buf = zlib.gunzipSync(Buffer.from(b64, 'base64'))
@@ -60,6 +73,8 @@ function assemble(prefix, outPath) {
     console.log('wrote', outPath, buf.length, 'from gzip b64')
     return
   }
+
+  // 3. Plaintext shards
   const parts = fs
     .readdirSync(dir)
     .filter((f) => f.startsWith(base + '.') && f.endsWith('.txt'))
