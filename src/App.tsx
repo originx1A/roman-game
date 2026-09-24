@@ -5,6 +5,7 @@ import { PrizeWheel } from './components/PrizeWheel'
 import { ShareBar } from './components/ShareBar'
 import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './components/SparkCritter'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
+import { WinScreen } from './components/WinScreen'
 import {
   applyHint,
   clearBuddy,
@@ -15,7 +16,7 @@ import {
   scoreRun,
 } from './game/logic'
 import { PUZZLES, getPuzzle, puzzlesByDifficulty } from './game/puzzles'
-import type { CellState, Challenge, Profile, Puzzle, Screen } from './game/types'
+import type { CellState, Challenge, Draft, Profile, Puzzle, Screen } from './game/types'
 import { DIFFICULTY_LABEL } from './game/types'
 import {
   createChallenge,
@@ -117,7 +118,8 @@ export default function App() {
   const [celebrate, setCelebrate] = useState(false)
   const [defeated, setDefeated] = useState(false)
   const [lives, setLives] = useState(MAX_LIVES)
-  const [, setLastScore] = useState<number | null>(null)
+  const [lastScore, setLastScore] = useState<number | null>(null)
+  const [winSaying, setWinSaying] = useState('')
   const [toast, setToast] = useState('')
   const [incoming, setIncoming] = useState<Challenge | null>(null)
   const [, setChallenges] = useState(() => loadChallenges())
@@ -133,7 +135,7 @@ export default function App() {
   const recordedRef = useRef(false)
 
   const byDiff = useMemo(() => puzzlesByDifficulty(), [])
-  const draft = loadDraft()
+  const draft = loadDraft<Draft>()
   const draftPuzzle = draft ? getPuzzle(draft.puzzleId) : undefined
   const playUrl = typeof window !== 'undefined' ? window.location.href.split('#')[0] : 'https://roman-game-pebble.netlify.app'
 
@@ -214,13 +216,15 @@ export default function App() {
   function pushBanter(
     event: Parameters<typeof banterFor>[0],
     conflict?: BanterConflictKind,
-  ) {
+    opts?: { skipToast?: boolean },
+  ): ReturnType<typeof banterFor> {
     const line = banterFor(event, conflict)
-    if (line.silent && !line.giggle) return
-    if (line.text) showToast(line.text)
+    if (line.silent && !line.giggle) return line
+    if (line.text && !opts?.skipToast) showToast(line.text)
     // place-good: Board already plays buddy giggle — don't speak here
-    if (line.giggle || !line.speak || !line.clip) return
+    if (line.giggle || !line.speak || !line.clip) return line
     playBanterClip(line.clip, line.voiceMood, line.text)
+    return line
   }
 
   function persistWallet(next: Wallet) {
@@ -238,6 +242,7 @@ export default function App() {
     setDefeated(false)
     setShowWheel(false)
     setLastScore(null)
+    setWinSaying('')
     setHintIndex(null)
     setHintText('')
     setFuture([])
@@ -245,7 +250,7 @@ export default function App() {
     // Quiet start — no theme blob/voice; board stays fully visible
 
     if (resume) {
-      const d = loadDraft()
+      const d = loadDraft<Draft>()
       if (d && d.puzzleId === p.id) {
         setCells(d.cells as CellState[])
         setElapsedMs(d.elapsedMs)
@@ -335,7 +340,8 @@ export default function App() {
       setRunning(false)
       setCelebrate(true)
       sfxWin()
-      pushBanter('win')
+      const winLine = pushBanter('win', undefined, { skipToast: true })
+      setWinSaying(winLine?.text || 'Roman says: Veni, vidi, vici!')
       const perfect = hintsUsed === 0
       const score = scoreRun({
         size: puzzle.size,
@@ -801,26 +807,28 @@ export default function App() {
           />
 
           {celebrate && !showWheel && (
-            <div className="win-banner win-fx">
-              <p>Cleared · {formatMs(elapsedMs)}</p>
-              <div className="cta-row">
-                {wallet.spins > 0 ? (
-                  <button type="button" className="btn primary" onClick={openPrizeWheel}>
-                    Spin ({wallet.spins})
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  className="btn ghost"
-                  onClick={() => {
-                    const idx = PUZZLES.findIndex((p) => p.id === puzzle.id)
-                    startPuzzle(PUZZLES[idx + 1] ?? PUZZLES[0])
-                  }}
-                >
-                  Next board
-                </button>
-              </div>
-            </div>
+            <WinScreen
+              puzzleName={puzzle.name}
+              difficultyLabel={DIFFICULTY_LABEL[puzzle.difficulty]}
+              themeLabel={THEMES[puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)].label}
+              timeLabel={formatMs(elapsedMs)}
+              score={lastScore ?? 0}
+              hintsUsed={hintsUsed}
+              livesLeft={lives}
+              maxLives={MAX_LIVES}
+              sparkCount={wallet.critterStash ?? 0}
+              romanSaying={winSaying || 'Roman says: Veni, vidi, vici!'}
+              spins={wallet.spins}
+              perfect={hintsUsed === 0}
+              onNext={() => {
+                const idx = PUZZLES.findIndex((p) => p.id === puzzle.id)
+                startPuzzle(PUZZLES[idx + 1] ?? PUZZLES[0])
+              }}
+              onReplay={resetBoard}
+              onLevels={() => setScreen('levels')}
+              onHome={() => setScreen('home')}
+              onSpin={wallet.spins > 0 ? openPrizeWheel : undefined}
+            />
           )}
 
           {defeated && (

@@ -1,0 +1,126 @@
+        saveDraft(null)
+        sfxLose()
+        pushBanter('lose')
+        setAwaitingComeback(true)
+      }
+    } else if (meta.kind === 'stone') {
+      pushBanter('place-good')
+      setGiggleIndex(meta.index)
+      window.setTimeout(() => setGiggleIndex((g) => (g === meta.index ? null : g)), 900)
+    }
+
+    if (puzzle) {
+      saveDraft({
+        puzzleId: puzzle.id,
+        cells: next,
+        elapsedMs,
+        hintsUsed,
+        startedAt: new Date().toISOString(),
+      })
+    }
+
+    if (puzzle && isSolved(puzzle, next) && !recordedRef.current) {
+      recordedRef.current = true
+      setRunning(false)
+      setCelebrate(true)
+      sfxWin()
+      const winLine = pushBanter('win', undefined, { skipToast: true })
+      setWinSaying(winLine?.text || 'Roman says: Veni, vidi, vici!')
+      const perfect = hintsUsed === 0
+      const score = scoreRun({
+        size: puzzle.size,
+        elapsedMs,
+        hintsUsed,
+        perfect,
+      })
+      setLastScore(score)
+      const prog = recordClear({
+        puzzleId: puzzle.id,
+        elapsedMs,
+        score,
+        hintsUsed,
+      })
+      setProgress(prog)
+      setProfile(loadProfile())
+      saveDraft(null)
+
+      let w: Wallet = {
+        ...wallet,
+        coins: wallet.coins + Math.max(20, Math.floor(score / 8)),
+        totalWins: wallet.totalWins + 1,
+        perfectWins: wallet.perfectWins + (perfect ? 1 : 0),
+      }
+      if (awaitingComeback) {
+        w = unlockIf(w, 'comeback')
+        setAwaitingComeback(false)
+      }
+      const evaled = evaluateAchievements(w, {
+        perfect,
+        difficulty: puzzle.difficulty,
+        justWon: true,
+      })
+      w = evaled.wallet
+      persistWallet(w)
+      if (evaled.newly.length) {
+        // Let the win Roman punchline finish before achievement voice/toast
+        const achievementName = evaled.newly[0]
+        window.setTimeout(() => {
+          sfxAchievement()
+          pushBanter('achievement')
+          showToast(`Achievement: ${achievementName}`)
+        }, 3400)
+      }
+      if (shellRef.current) burstConfetti(shellRef.current)
+    }
+  }
+
+  function undo() {
+    if (!history.length || celebrate || defeated) return
+    sfxUndo()
+    const prev = history[history.length - 1]
+    setFuture((f) => [cells, ...f])
+    setHistory((h) => h.slice(0, -1))
+    setCells(prev)
+  }
+
+  function redo() {
+    if (!future.length || celebrate || defeated) return
+    sfxUndo()
+    const [next, ...rest] = future
+    setHistory((h) => [...h, cells])
+    setFuture(rest)
+    setCells(next)
+  }
+
+  function onHint() {
+    if (!puzzle || celebrate || defeated) return
+    const hint = findHint(puzzle, cells)
+    if (!hint) {
+      showToast('No hint available')
+      return
+    }
+    let w = { ...wallet }
+    if (w.freeHints > 0) {
+      w = { ...w, freeHints: w.freeHints - 1 }
+    } else if (w.coins >= HINT_COST) {
+      w = { ...w, coins: w.coins - HINT_COST }
+      showToast(`−${HINT_COST} coins`)
+    } else {
+      showToast(`Need ${HINT_COST} coins or a free hint`)
+      return
+    }
+    persistWallet(w)
+    sfxHint()
+    pushBanter('hint')
+    setHintIndex(hint.index)
+    setHintText(hint.explanation)
+    setHintsUsed((n) => n + 1)
+    onBoardChange(applyHint(cells, hint), {
+      kind: hint.kind === 'stone' ? 'stone' : 'mark',
+      conflict: false,
+      index: hint.index,
+    })
+  }
+
+  /** Rare rescue: clear a buddy that does not belong (wrong spot / conflict) */
+  function onRescue() {

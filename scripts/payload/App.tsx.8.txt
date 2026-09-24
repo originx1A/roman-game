@@ -1,0 +1,93 @@
+                  Revive · {REVIVE_COST} coins
+                </button>
+                <button type="button" className="btn ghost" onClick={resetBoard}>
+                  Try again
+                </button>
+              </div>
+            </div>
+          )}
+        </main>
+      )}
+
+      {screen === 'rewards' && (
+        <main className="panel scroll-pane">
+          <h2>Rewards</h2>
+          <p className="sub">Win boards for coins. Catch 5 sparks for a spin. Spend on hints, shields, and revives.</p>
+          <div className="wallet-grid">
+            <div><strong>{wallet.coins}</strong><span>coins</span></div>
+            <div><strong>{wallet.freeHints}</strong><span>free hints</span></div>
+            <div><strong>{wallet.shields}</strong><span>shields</span></div>
+            <div><strong>{wallet.spins}</strong><span>spins left</span></div>
+          </div>
+          <button
+            type="button"
+            className="btn primary"
+            disabled={wallet.spins <= 0}
+            onClick={openPrizeWheel}
+          >
+            {wallet.spins > 0 ? `Use a spin (${wallet.spins})` : 'Catch 5 sparks to earn a spin'}
+          </button>
+          <h3 className="ach-title">Achievements</h3>
+          <div className="ach-grid">
+            {ACHIEVEMENTS.map((a) => {
+              const unlocked = wallet.achievements.includes(a.id)
+              return (
+                <div key={a.id} className={`ach-card ${unlocked ? 'on' : ''}`}>
+                  <span className="ach-icon">{a.icon}</span>
+                  <strong>{a.title}</strong>
+                  <span>{a.blurb}</span>
+                </div>
+              )
+            })}
+          </div>
+        </main>
+      )}
+
+      {screen === 'profile' && (
+        <main className="panel profile scroll-pane">
+          <h2>Save & settings</h2>
+          {profile ? (
+            <div className="profile-card">
+              <p className="profile-name">{profile.displayName}</p>
+              <p className="profile-email">{profile.email}</p>
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={() => {
+                  signOutKeepDevice()
+                  setProfile(null)
+                  setProgress(getProgress())
+                }}
+              >
+                Sign out
+              </button>
+            </div>
+          ) : (
+            <form className="auth-form" onSubmit={handleSignIn}>
+              <label>
+                Email
+                <input type="email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} required />
+              </label>
+              <label>
+                Display name
+                <input type="text" value={nameInput} onChange={(e) => setNameInput(e.target.value)} />
+              </label>
+              <button type="submit" className="btn primary">Save with email</button>
+            </form>
+          )}
+          <section className="settings">
+            <h3>Settings</h3>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={settings.sound}
+                onChange={(e) => {
+                  const next = { ...settings, sound: e.target.checked }
+                  setSettings(next)
+                  saveSettings(next)
+                  setMuted(!next.sound)
+                }}
+              />
+              Sound effects
+            </label>
+            <label className="toggle">

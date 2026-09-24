@@ -1,0 +1,90 @@
+                <button type="button" className="btn primary" onClick={() => startPuzzle(draftPuzzle, true)}>
+                  Resume {draftPuzzle.name}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn primary"
+                  onClick={() => startPuzzle(PUZZLES.find((p) => !done.has(p.id)) ?? PUZZLES[0])}
+                >
+                  Play
+                </button>
+              )}
+              <button type="button" className="btn ghost" onClick={() => setScreen('how')}>
+                How to play
+              </button>
+            </div>
+          </section>
+          <section className="home-strip">
+            <div>
+              <strong>{progress.clears.length}</strong>
+              <span>cleared</span>
+            </div>
+            <div>
+              <strong>{wallet.coins}</strong>
+              <span>coins</span>
+            </div>
+            <div>
+              <strong>{wallet.achievements.length}</strong>
+              <span>badges</span>
+            </div>
+          </section>
+        </main>
+      )}
+
+      {screen === 'how' && (
+        <HowToPlay
+          onDone={() => setScreen('levels')}
+          onBack={() => setScreen('home')}
+        />
+      )}
+
+      {screen === 'levels' && (
+        <main className="panel levels scroll-pane">
+          <h2>Levels</h2>
+          <p className="sub">Progress + coins save on this device.</p>
+          {(['easy', 'medium', 'hard', 'expert'] as const).map((diff) => (
+            <section key={diff} className="diff-block">
+              <h3>{DIFFICULTY_LABEL[diff]}</h3>
+              <div className="level-grid">
+                {byDiff[diff].map((p) => {
+                  const rec = progress.clears.find((c) => c.puzzleId === p.id)
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className={`level-card ${rec ? 'cleared' : ''}`}
+                      onClick={() => startPuzzle(p)}
+                    >
+                      <span className="lv-name">{p.name}</span>
+                      <span className="lv-meta">
+                        {p.size}×{p.size} · {THEMES[themeForPuzzle(p.id, p.difficulty)].label}
+                        {rec ? ` · ${rec.bestScore} pts` : ''}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
+          ))}
+        </main>
+      )}
+
+      {screen === 'play' && puzzle && (
+        <main className={`play play-fixed ${THEMES[puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)].className}`}>
+          <ThemeBackdrop themeId={puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)} />
+          <div className="play-hud">
+            <button type="button" className="hud-back" onClick={() => setScreen('levels')} aria-label="Back">
+              ←
+            </button>
+            <div className="hud-title">
+              <strong>{puzzle.name}</strong>
+              <span>
+                {DIFFICULTY_LABEL[puzzle.difficulty]} · {THEMES[puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)].label}
+              </span>
+            </div>
+            <div className="hud-stats">
+              <span className="lives" aria-label={`${lives} lives`}>
+                {Array.from({ length: MAX_LIVES }, (_, i) => (
+                  <i
+                    key={i}

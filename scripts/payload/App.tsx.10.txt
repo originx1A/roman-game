@@ -1,0 +1,53 @@
+                  {p.name} ({DIFFICULTY_LABEL[p.difficulty]})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Friend email (optional)
+            <input type="email" value={challengeEmail} onChange={(e) => setChallengeEmail(e.target.value)} />
+          </label>
+          <label>
+            Message
+            <input type="text" value={challengeMsg} onChange={(e) => setChallengeMsg(e.target.value)} maxLength={120} />
+          </label>
+          <button type="button" className="btn primary" onClick={handleCreateChallenge}>
+            Make challenge link
+          </button>
+          {shareLink && (
+            <div className="share-box">
+              <code>{shareLink}</code>
+              <ShareBar url={shareLink} text={challengeMsg} onCopied={() => showToast('Copied')} />
+            </div>
+          )}
+        </main>
+      )}
+
+      <PrizeWheel
+        open={showWheel}
+        spinsLeft={wallet.spins}
+        onConsumeSpin={consumeSpin}
+        onDone={handlePrize}
+        onClose={() => setShowWheel(false)}
+      />
+
+      <footer className={`foot ${screen === 'play' ? 'foot-hidden' : ''}`}>
+        <span>Made for Roman</span>
+        <button
+          type="button"
+          className="mute"
+          onClick={() => {
+            const next = { ...settings, sound: !settings.sound }
+            setSettings(next)
+            saveSettings(next)
+            setMuted(!next.sound)
+          }}
+        >
+          {settings.sound ? 'Sound on' : 'Sound off'}
+        </button>
+      </footer>
+      {/* Keep clear of Netlify “Powered by” badge */}
+      <div className="netlify-safe" aria-hidden />
+    </div>
+  )
+}
