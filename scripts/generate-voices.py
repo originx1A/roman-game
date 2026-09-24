@@ -15,7 +15,7 @@ except ImportError:
 OUT = pathlib.Path(__file__).resolve().parents[1] / "public" / "voices"
 OUT.mkdir(parents=True, exist_ok=True)
 
-ROMAN_VOICE = "en-US-BrianNeural"
+ROMAN_VOICE = "en-US-GuyNeural"  # deeper / punchier than Brian
 COACH_VOICE = "en-US-JennyNeural"
 GIGGLE_VOICE = "en-US-JennyNeural"
 
@@ -60,6 +60,30 @@ ROMAN_LINES = {
     "roman_sleeping": "Roman says: did you fall asleep mid-tap?",
     "roman_practice": "Roman says: practice more — then challenge me.",
     "roman_myboard": "Roman says: nice try. Still my board though.",
+    "roman_sandwich": "Roman says: did anyone see where I left my sandwich?",
+    "roman_itchy": "Roman says: my butt is itchy. Anyway — you won!",
+    "roman_plotwin": "Roman says: plot twist — you actually did it!",
+    "roman_okayfine": "Roman says: okay fine. That one was pretty good.",
+    "roman_cocky": "Roman says: don't get cocky. I'm still watching.",
+    "roman_sock": "Roman says: who took my other sock?",
+    "roman_taco": "Roman says: cool cool. Now where are the tacos?",
+    "roman_juice": "Roman says: victory! Also — juice box, please.",
+    "roman_dino": "Roman says: I was thinking about dinosaurs the whole time.",
+    "roman_nugget": "Roman says: this win smells like chicken nuggets.",
+    "roman_shoe": "Roman says: hang on — I lost a shoe under the couch.",
+    "roman_potato": "Roman says: potato. That's the whole comment.",
+    "roman_sneeze": "Roman says: achoo! You still won though.",
+    "roman_fridge": "Roman says: I was talking to the fridge. It gets me.",
+    "roman_nap": "Roman says: nap time. You earned it. I earned it more.",
+    "roman_spaghetti": "Roman says: there's spaghetti on the ceiling. Not sorry.",
+    "roman_raccoon": "Roman says: a raccoon stole my strategy. Still won vibes.",
+    "roman_shrug": "Roman says: shrug. Magic. Next board.",
+    "roman_dance": "Roman says: I'm doing a tiny victory dance with my eyebrows.",
+    "roman_forgot": "Roman says: wait — what were we talking about?",
+    "roman_toes": "Roman says: my toes are freezing. Celebrate harder.",
+    "roman_eyeballs": "Roman says: I beat that with my eyeballs closed. Mostly.",
+    "roman_victoryburp": "Roman says: quiet victory burp. Excuse Roman.",
+    "roman_highfiveself": "Roman says: high five to myself. You can watch.",
 }
 
 # Uplifting coach — plain phrases only (slightly brighter rate/pitch)
@@ -109,14 +133,26 @@ async def save(voice: str, text: str, path: pathlib.Path, rate: str = "+0%", pit
 
 
 async def main() -> None:
-    for name, text in ROMAN_LINES.items():
-        await save(ROMAN_VOICE, text, OUT / f"{name}.mp3", rate="+4%", pitch="+0Hz")
+    only = set(sys.argv[1:])  # optional: python generate-voices.py roman_sock roman_taco …
+    roman_items = [(n, t) for n, t in ROMAN_LINES.items() if not only or n in only or n.replace("roman_", "") in only]
+    coach_items = [(n, t) for n, t in COACH_LINES.items() if not only or n in only]
+    giggle_items = [(n, t) for n, t in GIGGLE_LINES.items() if not only or n in only]
+    # If filtering to roman_* ids, skip coach/giggle unless explicitly named
+    if only and all(x.startswith("roman_") or x in ROMAN_LINES for x in only):
+        coach_items = []
+        giggle_items = []
+        if not roman_items:
+            roman_items = [(n, t) for n, t in ROMAN_LINES.items() if n in only]
 
-    for name, text in COACH_LINES.items():
+    for name, text in roman_items:
+        # Rougher punchline: slower + much lower pitch (GuyNeural)
+        await save(ROMAN_VOICE, text, OUT / f"{name}.mp3", rate="-14%", pitch="-22Hz")
+
+    for name, text in coach_items:
         # Brighter, more uplifting coach — still natural human speech
         await save(COACH_VOICE, text, OUT / f"{name}.mp3", rate="+10%", pitch="+6Hz")
 
-    for name, text in GIGGLE_LINES.items():
+    for name, text in giggle_items:
         await save(GIGGLE_VOICE, text, OUT / f"{name}.mp3", rate="+18%", pitch="+22Hz")
 
     print("done")
