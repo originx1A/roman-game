@@ -62,8 +62,9 @@
           challenges. It is not uploaded by the game.
         </li>
         <li>
-          After a coin purchase in the app, the transaction id is saved on this device so the same
-          purchase is not counted twice.
+          After a coin purchase, an id for that purchase is saved on this device so the same purchase
+          is not counted twice. In the apps that id comes from the store. On the website it is the
+          checkout id.
         </li>
       </ul>
       <p>Deleting the app, or clearing the site data, deletes this save. There is no cloud backup.</p>
@@ -85,8 +86,15 @@
 
       <h2>Coin purchases</h2>
       <p>
-        Buying coins is available in the iPhone and Android apps, not on the website. Apple (App Store)
-        or Google (Google Play) charges you and handles the payment. The app uses the
+        On the website, coin packs can be bought with a card. Stripe hosts the payment page and
+        processes the card payment. The game does not see or store your card number. After you pay,
+        the site asks Stripe whether that payment succeeded, then adds the coins to the save on this
+        device. The checkout id is stored so the same payment is not counted twice: once on the
+        site’s server, and once in this browser.
+      </p>
+      <p>
+        In the iPhone and Android apps, buying coins uses Apple (App Store) or Google (Google Play),
+        not the website checkout. The app uses the
         <code>capacitor-plugin-cdv-purchase</code> plugin to talk to StoreKit on iPhone and Google Play
         Billing on Android.
       </p>

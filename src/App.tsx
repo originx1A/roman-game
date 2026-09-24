@@ -95,6 +95,7 @@ import {
   warmVoices,
 } from './game/sound'
 import { COIN_PACKS, purchaseCoinPack, restorePurchases, isStoreBuild, subscribeStore, type CoinPackId } from './game/iap'
+import { loadWebPacks, type WebPackOffer } from './game/webPacks'
 import './App.css'
 
 function formatMs(ms: number) {
@@ -151,6 +152,8 @@ export default function App() {
   const [, setChallenges] = useState(() => loadChallenges())
   const [emailInput, setEmailInput] = useState('')
   const [storePrices, setStorePrices] = useState<Record<string, string>>({})
+  const [webPacks, setWebPacks] = useState<WebPackOffer[] | null>(null)
+  const [webShop, setWebShop] = useState<'loading' | 'ready' | 'unavailable'>('loading')
   const [nameInput, setNameInput] = useState('Roman')
   const [challengeEmail, setChallengeEmail] = useState('')
   const [challengeMsg, setChallengeMsg] = useState('Can you beat Roman on this board?')
@@ -177,6 +180,76 @@ export default function App() {
     setMuted(!settings.sound)
     setVoiceEnabled(settings.voice)
   }, [settings.sound, settings.voice])
+
+  useEffect(() => {
+    if (isStoreBuild()) return
+    let cancelled = false
+    void loadWebPacks()
+      .then((packs) => {
+        if (cancelled) return
+        if (!packs) {
+          setWebShop('unavailable')
+          setWebPacks(null)
+          return
+        }
+        setWebPacks(packs)
+        setWebShop('ready')
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setWebShop('unavailable')
+          setWebPacks(null)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isStoreBuild()) return
+    const params = new URLSearchParams(window.location.search)
+    const checkout = params.get('checkout')
+    const sessionId = params.get('session_id')
+    const clean = () => {
+      const next = window.location.pathname + window.location.hash
+      window.history.replaceState(null, '', next)
+    }
+    if (checkout === 'cancel') {
+      showToast('Purchase cancelled. No coins were added.')
+      clean()
+      return
+    }
+    if (checkout !== 'success' || !sessionId) return
+    let cancelled = false
+    void import('./game/webCheckout').then(async (mod) => {
+      if (cancelled) return
+      if (mod.wasCheckoutRedeemed(sessionId)) {
+        showToast('Those coins are already in your wallet.')
+        clean()
+        return
+      }
+      const result = await mod.confirmWebCheckout(sessionId)
+      if (cancelled) return
+      clean()
+      if (!result.ok) {
+        showToast(result.reason)
+        return
+      }
+      mod.rememberCheckoutRedeemed(sessionId)
+      if (result.alreadyRedeemed || result.coins <= 0) {
+        showToast('Those coins are already in your wallet.')
+        return
+      }
+      const current = loadWallet()
+      persistWallet({ ...current, coins: current.coins + result.coins })
+      sfxCoin()
+      showToast(`+${result.coins} coins · ${result.label}`)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (!isStoreBuild()) return
@@ -791,6 +864,12 @@ export default function App() {
 
   async function onBuyCoins(packId: CoinPackId) {
     unlockAudio()
+    if (!isStoreBuild()) {
+      const { startWebCheckout } = await import('./game/webCheckout')
+      const started = await startWebCheckout(packId)
+      if (!started.ok) showToast(started.reason)
+      return
+    }
     const result = await purchaseCoinPack(packId)
     if (!result.ok) {
       showToast(result.reason)
@@ -869,6 +948,8 @@ export default function App() {
           setScreen('levels')
         }}
         onBuyCoins={onBuyCoins}
+        webPacks={webPacks}
+        purchasesUnavailable={webShop === 'unavailable'}
       />
 
       {screen === 'home' && (
@@ -1161,17 +1242,39 @@ export default function App() {
           <p className="sub shop-note">
             {isStoreBuild()
               ? 'Prices come from the App Store / Google Play. Coins spend on hints, rescues, revives, and badge ranks.'
-              : 'Top-ups unlock in the App Store / Google Play app. On web, win boards for free coins.'}
+              : webShop === 'unavailable'
+                ? 'Purchases are unavailable right now. You can still win coins by playing.'
+                : webShop === 'ready'
+                  ? 'Prices are in US dollars. Coins are added in this browser after you pay. You can still win coins by playing.'
+                  : 'Loading the coin shop.'}
           </p>
           <div className="coin-shop">
-            {COIN_PACKS.map((pack) => (
-              <CoinPackCard
-                key={pack.id}
-                pack={pack}
-                onBuy={onBuyCoins}
-                priceText={storePrices[pack.productId]}
-              />
-            ))}
+            {isStoreBuild()
+              ? COIN_PACKS.map((pack) => (
+                  <CoinPackCard
+                    key={pack.id}
+                    pack={pack}
+                    onBuy={onBuyCoins}
+                    priceText={storePrices[pack.productId]}
+                  />
+                ))
+              : webShop === 'ready' && webPacks
+                ? webPacks.map((pack) => (
+                    <CoinPackCard
+                      key={pack.id}
+                      webBuy
+                      pack={{
+                        id: pack.id,
+                        productId: pack.productId,
+                        label: pack.label,
+                        coins: pack.coins,
+                        priceHint: pack.priceLabel,
+                      }}
+                      priceText={pack.priceLabel}
+                      onBuy={onBuyCoins}
+                    />
+                  ))
+                : null}
           </div>
           {isStoreBuild() && (
             <>

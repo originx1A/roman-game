@@ -2,6 +2,23 @@
   command = "npm run build"
   publish = "dist"
 
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[dev]
+  command = "npm run dev -- --host 127.0.0.1 --port 5173"
+  targetPort = 5173
+  port = 8888
+  autoLaunch = false
+
+# Payment API before the single-page fallback. Static hosts ignore this file.
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
