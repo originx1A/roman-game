@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-const fs = require('fs')
-const https = require('https')
+import fs from 'fs'
+import https from 'https'
 
 const token = process.env.GH_TOKEN
 const branch = process.env.BRANCH

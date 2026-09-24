@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-const fs = require('fs')
-const path = require('path')
-const crypto = require('crypto')
+import fs from 'fs'
+import path from 'path'
+import crypto from 'crypto'
 function assemble(prefix, outPath) {
   const dir = path.dirname(prefix)
   const base = path.basename(prefix)
@@ -18,6 +18,7 @@ function assemble(prefix, outPath) {
       process.exit(1)
     }
   }
+  fs.mkdirSync(path.dirname(outPath), { recursive: true })
   fs.writeFileSync(outPath, text)
   console.log('wrote', outPath, text.length, 'from', parts.length, 'parts')
 }
