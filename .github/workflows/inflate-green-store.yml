@@ -1,0 +1,42 @@
+name: Inflate green store-layer sources
+on:
+  push:
+    paths:
+      - 'scripts/payload/**'
+      - 'scripts/inflate-green-store.mjs'
+      - '.github/workflows/inflate-green-store.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  inflate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - name: Inflate green sources
+        run: node scripts/inflate-green-store.mjs
+      - name: Remove broken AppWired shim artifacts if present
+        run: |
+          rm -f src/AppWired.tsx src/.restore-probe.txt
+          rm -rf src/appwired-parts
+      - name: Verify build
+        run: npm ci && npm run build
+      - name: Commit restored sources
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A src/App.tsx src/App.css src/game/comments.ts src/game/sound.ts
+          git add -u src/AppWired.tsx src/.restore-probe.txt src/appwired-parts 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "$(cat <<'MSG'
+          fix: restore full App.tsx and green store-layer build
+
+          Remove broken AppWired re-export probe. Align exports so npm run build exits 0.
+          MSG
+          )"
+          git push
