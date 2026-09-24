@@ -1,10 +1,15 @@
-import type { ThemeId } from './themes'
-
-export type { ThemeId }
-
 export type CellState = 'empty' | 'mark' | 'stone'
 
 export type Difficulty = 'easy' | 'medium' | 'hard' | 'expert'
+
+export type ThemeId =
+  | 'classic'
+  | 'cosmic'
+  | 'ruins'
+  | 'neon'
+  | 'ocean'
+  | 'ember'
+  | 'crystal'
 
 export interface Puzzle {
   id: string
@@ -42,14 +47,36 @@ export interface Challenge {
   createdAt: string
   /** Optional target email for invite */
   toEmail?: string
+  /** Challenger's time in ms (shown to the friend) */
+  scoreMs?: number
+  /** Challenger's score points */
+  scorePts?: number
+  /** Sum of badge ranks */
+  badgePower?: number
+  /** Coin bonus % from badges */
+  bonusPct?: number
+  /** Board display name (e.g. Dawn) */
+  puzzleName?: string
+  /** Difficulty label (e.g. Easy) */
+  difficulty?: string
 }
 
-export interface Draft {
+/** Head-to-head result packed in a #duel= link so both can see scores */
+export interface DuelResult {
+  code: string
   puzzleId: string
-  cells: CellState[]
-  elapsedMs: number
-  hintsUsed: number
-  startedAt: string
+  puzzleName?: string
+  difficulty?: string
+  aName: string
+  aMs: number
+  aPts: number
+  aPower?: number
+  aBonus?: number
+  bName: string
+  bMs: number
+  bPts: number
+  bPower?: number
+  bBonus?: number
 }
 
 export type Screen =
@@ -60,6 +87,7 @@ export type Screen =
   | 'challenge'
   | 'how'
   | 'rewards'
+  | 'duel'
 
 export const DIFFICULTY_LABEL: Record<Difficulty, string> = {
   easy: 'Easy',
