@@ -17,9 +17,7 @@ jobs:
           ref: ${{ github.ref_name }}
       - name: Inflate green App.tsx
         run: node scripts/inflate-green-store.mjs
-      - name: Verify build
-        run: npm ci && npm run build
-      - name: Commit restored App.tsx
+      - name: Commit restored App.tsx (before build)
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -27,7 +25,9 @@ jobs:
           git add -u src/AppWired.tsx src/appwired-parts scripts/assemble-appwired.cjs 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "No changes to commit"
-            exit 0
+          else
+            git commit -m "fix: restore full App.tsx (remove AppWired probe)"
+            git push
           fi
-          git commit -m "fix: restore full App.tsx (remove AppWired probe)"
-          git push
+      - name: Verify build
+        run: npm ci && npm run build
