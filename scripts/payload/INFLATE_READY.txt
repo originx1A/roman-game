@@ -1,1 +1,1 @@
-inflate-ready-pchunks-v1
+inflate-ready-binary-gz-v1

@@ -91,11 +91,11 @@ function assemble(prefix, outPath) {
     return
   }
 
-  // 2. Single-file base64 gzip — only if length is plausible AND gunzip works
+  // 2. Single-file base64 gzip — prefer complete file (len>=12000) AND gunzip works
   const single = path.join(dir, base + '.gz.b64')
   if (fs.existsSync(single)) {
     const b64 = fs.readFileSync(single, 'utf8').replace(/\s+/g, '')
-    if (b64.length >= 16) {
+    if (b64.length >= 12000) {
       try {
         const buf = zlib.gunzipSync(Buffer.from(b64, 'base64'))
         checkSha(buf, base, dir)
