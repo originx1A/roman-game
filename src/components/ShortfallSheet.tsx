@@ -21,7 +21,7 @@ export interface ShortfallSheetProps {
   onPlay: () => void
   /** Native only — buy the cheapest pack that covers the gap */
   onBuyPack?: (pack: CoinPack) => void
-  /** Web / legacy — open the coin shop screen */
+  /** @deprecated Prefer onBuyPack; kept for older App.tsx call sites */
   onShop?: () => void
 }
 
@@ -87,7 +87,7 @@ export function ShortfallSheet({
             </button>
           ) : onShop ? (
             <button type="button" className="btn ghost" onClick={onShop}>
-              Open shop
+              Shop
             </button>
           ) : null}
           <button type="button" className="btn shortfall-dismiss" onClick={onClose}>
