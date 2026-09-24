@@ -35,20 +35,22 @@ interface Props {
   themeId?: ThemeId
 }
 
-function Buddy({
+export function Buddy({
   angry,
   win,
   giggle,
   themeId,
+  className = '',
 }: {
   angry?: boolean
   win?: boolean
   giggle?: boolean
   themeId: ThemeId
+  className?: string
 }) {
   return (
     <span
-      className={`buddy buddy-${themeId} ${angry ? 'angry' : ''} ${win ? 'win' : ''} ${giggle ? 'giggle' : ''}`}
+      className={`buddy buddy-${themeId} ${angry ? 'angry' : ''} ${win ? 'win' : ''} ${giggle ? 'giggle' : ''} ${className}`.trim()}
       aria-hidden
     >
       <span className="buddy-body">
@@ -75,7 +77,7 @@ function Buddy({
   )
 }
 
-function MarkX() {
+export function MarkX() {
   return (
     <span className="mark-x" aria-hidden>
       <svg viewBox="0 0 24 24" width="100%" height="100%">

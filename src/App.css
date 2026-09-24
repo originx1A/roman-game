@@ -2041,6 +2041,298 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
 
 .how-rules { margin-top: 0.25rem; }
 
+/* How-to-play mini board. Same footprint every step so the stage does not jump. */
+.how-demo {
+  position: relative;
+  width: min(100%, 260px);
+  aspect-ratio: 1;
+  margin: 0 auto;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 0.45rem;
+  border-radius: 16px;
+  background: rgba(4, 10, 28, 0.72);
+  border: 2px solid rgba(255, 209, 102, 0.22);
+  box-shadow: var(--shadow);
+}
+
+.how-demo-hearts {
+  position: absolute;
+  z-index: 6;
+  top: 0.15rem;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 0.45rem;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.how-demo[data-demo='hearts'] .how-demo-hearts {
+  visibility: visible;
+}
+
+.how-demo-hearts .heart {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.how-demo-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(5, 1fr);
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.how-demo-grid .cell {
+  aspect-ratio: auto;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.how-demo[data-demo='region'] .cell.demo-region .cell-fill {
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 209, 102, 0.95),
+    0 0 10px rgba(255, 209, 102, 0.35);
+  filter: brightness(1.08);
+}
+
+.how-demo[data-demo='lines'] .cell.demo-row .cell-fill,
+.how-demo[data-demo='lines'] .cell.demo-col .cell-fill {
+  box-shadow: inset 0 0 0 2px rgba(255, 209, 102, 0.85);
+  filter: brightness(1.12);
+}
+
+.how-demo[data-demo='touch'] .cell.demo-near::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: 3px;
+  background: rgba(210, 32, 32, 0.58);
+  pointer-events: none;
+}
+
+.how-demo[data-demo='hearts'] .cell.demo-wrong .cell-fill {
+  box-shadow: inset 0 0 0 2px rgba(255, 90, 90, 0.85);
+  filter: saturate(0.7) brightness(0.92);
+}
+
+.how-demo[data-demo='hearts'] .cell.demo-hint {
+  outline: 2px solid var(--sun);
+  outline-offset: -2px;
+  z-index: 2;
+  box-shadow: 0 0 14px rgba(255, 209, 102, 0.7);
+}
+
+.how-demo-finger {
+  position: absolute;
+  z-index: 7;
+  left: 50%;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 5px rgba(255, 209, 102, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.how-demo-critter {
+  position: absolute;
+  z-index: 7;
+  left: 50%;
+  top: 50%;
+  width: 34px;
+  height: 34px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  filter: drop-shadow(0 0 8px rgba(255, 209, 102, 0.7));
+}
+
+.how-demo-tap {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 248, 230, 0.9);
+  box-shadow: 0 0 12px rgba(255, 209, 102, 0.8);
+}
+
+.how-demo.is-animated[data-demo='region'] .cell.demo-region .cell-fill {
+  animation: howRegionOn 0.55s ease forwards;
+}
+
+.how-demo.is-animated[data-demo='region'] .buddy.demo-in {
+  animation: howPop 0.4s ease 0.6s both;
+}
+
+.how-demo.is-animated[data-demo='lines'] .cell.demo-row .cell-fill,
+.how-demo.is-animated[data-demo='lines'] .cell.demo-col .cell-fill {
+  animation: howRegionOn 0.35s ease var(--at, 0s) both;
+}
+
+.how-demo.is-animated[data-demo='lines'] .buddy.demo-in {
+  animation: howPop 0.35s ease 0.75s both;
+}
+
+.how-demo.is-animated[data-demo='lines'] .buddy.demo-in-late {
+  animation: howPop 0.35s ease 2.05s both;
+}
+
+.how-demo.is-animated[data-demo='touch'] .buddy.demo-in {
+  animation: howPop 0.35s ease 0.15s both;
+}
+
+.how-demo.is-animated[data-demo='touch'] .cell.demo-near::after {
+  animation: howFade 0.3s ease 0.85s both;
+}
+
+.how-demo.is-animated[data-demo='touch'] .mark-x {
+  animation: howPop 0.3s ease 1.05s both;
+}
+
+.how-demo.is-animated[data-demo='swipe'] .how-demo-finger {
+  animation: howFinger 2.6s ease forwards;
+}
+
+.how-demo.is-animated[data-demo='swipe'] .demo-swipe-mark .mark-x {
+  animation: howPop 0.28s ease var(--at, 0.3s) both;
+}
+
+.how-demo[data-demo='swipe'] .cell.demo-swap .mark-x {
+  opacity: 0;
+}
+
+.how-demo.is-animated[data-demo='swipe'] .cell.demo-swap .mark-x {
+  animation: howMarkSwap 2.6s ease forwards;
+}
+
+.how-demo.is-animated[data-demo='hearts'] .cell.demo-wrong .cell-fill {
+  animation: howWrong 0.3s ease var(--at, 0.4s) both;
+}
+
+.how-demo.is-animated[data-demo='swipe'] .buddy.demo-in {
+  animation: howPop 0.35s ease 1.6s both;
+}
+
+.how-demo.is-animated[data-demo='hearts'] .cell.demo-wrong {
+  animation: howShake 0.4s ease var(--at, 0.4s) both;
+}
+
+.how-demo.is-animated[data-demo='hearts'] .heart {
+  animation: howHeart 0.45s ease var(--at, 0.4s) both;
+}
+
+.how-demo.is-animated[data-demo='hearts'] .cell.demo-hint {
+  animation: howHint 0.4s ease 2.15s both;
+}
+
+.how-demo.is-animated[data-demo='critter'] .how-demo-critter {
+  animation: howCritter 2.8s ease forwards;
+}
+
+.how-demo.is-animated[data-demo='critter'] .how-demo-tap {
+  animation: howFade 0.35s ease 2.15s both;
+}
+
+@keyframes howRegionOn {
+  from { box-shadow: inset 0 0 0 0 transparent; filter: none; }
+  to {
+    box-shadow: inset 0 0 0 2px rgba(255, 209, 102, 0.9);
+    filter: brightness(1.12);
+  }
+}
+
+@keyframes howPop {
+  from { opacity: 0; transform: scale(0.35); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes howFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes howShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-3px); }
+  55% { transform: translateX(3px); }
+  80% { transform: translateX(-2px); }
+}
+
+@keyframes howHeart {
+  from {
+    background: #ff6b6b;
+    box-shadow: 0 0 8px rgba(255, 107, 107, 0.55);
+    transform: none;
+    opacity: 1;
+  }
+  to {
+    background: rgba(255, 255, 255, 0.25);
+    box-shadow: none;
+    transform: translateY(9px) scale(0.3);
+    opacity: 0.15;
+  }
+}
+
+@keyframes howHint {
+  from { outline-color: transparent; box-shadow: none; }
+  to {
+    outline-color: var(--sun);
+    box-shadow: 0 0 14px rgba(255, 209, 102, 0.7);
+  }
+}
+
+@keyframes howMarkSwap {
+  0%, 28% { opacity: 0; transform: scale(0.4); }
+  40%, 58% { opacity: 1; transform: none; }
+  72%, 100% { opacity: 0; transform: scale(0.5); }
+}
+
+@keyframes howWrong {
+  from { box-shadow: none; filter: none; }
+  to {
+    box-shadow: inset 0 0 0 2px rgba(255, 90, 90, 0.85);
+    filter: saturate(0.7) brightness(0.92);
+  }
+}
+
+@keyframes howFinger {
+  0% { left: 10%; top: 50%; opacity: 0; transform: translate(-50%, -50%) scale(1); }
+  8% { left: 10%; opacity: 1; }
+  24% { left: 30%; opacity: 1; }
+  44% { left: 70%; opacity: 1; }
+  60% { left: 50%; opacity: 1; transform: translate(-50%, -50%) scale(0.78); }
+  78%, 100% { left: 50%; opacity: 0; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes howCritter {
+  0% { left: 10%; top: 14%; transform: translate(-50%, -50%) rotate(-10deg); }
+  25% { left: 78%; top: 28%; transform: translate(-50%, -50%) rotate(12deg); }
+  48% { left: 22%; top: 62%; transform: translate(-50%, -50%) rotate(-8deg); }
+  70% { left: 84%; top: 78%; transform: translate(-50%, -50%) rotate(10deg); }
+  86% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1.15) rotate(0deg); }
+  100% { left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .how-demo,
+  .how-demo * {
+    animation: none !important;
+  }
+}
+
 @keyframes miniPop {
   from { transform: scale(0.4); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
