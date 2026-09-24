@@ -1,1 +1,1 @@
-inflate-ready
+inflate-ready-binary-gz-v1
