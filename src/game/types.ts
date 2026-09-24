@@ -51,18 +51,32 @@ export interface Challenge {
   scoreMs?: number
   /** Challenger's score points */
   scorePts?: number
+  /** Sum of badge ranks */
+  badgePower?: number
+  /** Coin bonus % from badges */
+  bonusPct?: number
+  /** Board display name (e.g. Dawn) */
+  puzzleName?: string
+  /** Difficulty label (e.g. Easy) */
+  difficulty?: string
 }
 
 /** Head-to-head result packed in a #duel= link so both can see scores */
 export interface DuelResult {
   code: string
   puzzleId: string
+  puzzleName?: string
+  difficulty?: string
   aName: string
   aMs: number
   aPts: number
+  aPower?: number
+  aBonus?: number
   bName: string
   bMs: number
   bPts: number
+  bPower?: number
+  bBonus?: number
 }
 
 export type Screen =
