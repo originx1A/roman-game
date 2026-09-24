@@ -1,0 +1,10 @@
+#!/usr/bin/env node
+const fs = require('fs')
+const path = require('path')
+const root = path.join(__dirname, '..')
+const partsDir = path.join(root, 'src', 'appwired-parts')
+const out = path.join(root, 'src', 'AppWired.tsx')
+const parts = [0, 1, 2, 3].map((i) => fs.readFileSync(path.join(partsDir, `p${i}.txt`), 'utf8'))
+const body = parts.join('')
+fs.writeFileSync(out, body)
+console.log('assembled AppWired.tsx', body.length, 'chars')
