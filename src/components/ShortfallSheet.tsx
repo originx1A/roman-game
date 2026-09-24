@@ -1,6 +1,7 @@
 import { useEffect, useId } from 'react'
 import { createPortal } from 'react-dom'
 import { cheapestPackForGap, isStoreBuild, packValueBlurb, type CoinPack } from '../game/iap'
+import { cheapestWebPack, type WebPackOffer } from '../game/webPacks'
 
 export type ShortfallAction = 'hint' | 'rescue' | 'revive' | 'upgrade'
 
@@ -19,8 +20,12 @@ export interface ShortfallSheetProps {
   detail?: string
   onClose: () => void
   onPlay: () => void
-  /** Native only — buy the cheapest pack that covers the gap */
+  /** Buy the cheapest pack that covers the gap. Native uses store packs. Web uses webPacks. */
   onBuyPack?: (pack: CoinPack) => void
+  /** Website catalog from the server. Omitted in the native app. */
+  webPacks?: WebPackOffer[] | null
+  /** Website shop could not reach the payment functions. */
+  purchasesUnavailable?: boolean
 }
 
 export function ShortfallSheet({
@@ -32,11 +37,14 @@ export function ShortfallSheet({
   onClose,
   onPlay,
   onBuyPack,
+  webPacks,
+  purchasesUnavailable = false,
 }: ShortfallSheetProps) {
   const titleId = useId()
   const short = Math.max(0, need - have)
   const store = isStoreBuild()
   const pack = cheapestPackForGap(short || need)
+  const webOffer = !store && webPacks && webPacks.length > 0 ? cheapestWebPack(webPacks, short || need) : null
   const actionLabel =
     action === 'upgrade' && detail ? `Upgrade (${detail})` : ACTION_NAME[action]
 
@@ -69,11 +77,9 @@ export function ShortfallSheet({
         </p>
         <p className="shortfall-body">{packValueBlurb(100)}</p>
         <p className="shortfall-body">Win a board for ~90–200 coins</p>
-        {!store && (
-          <p className="shortfall-body shortfall-web-note">
-            Top-ups unlock in the App Store / Google Play app.
-          </p>
-        )}
+        {!store && purchasesUnavailable ? (
+          <p className="shortfall-body shortfall-web-note">Purchases are unavailable right now.</p>
+        ) : null}
         <div className="shortfall-actions">
           <button type="button" className="btn primary" onClick={onPlay}>
             Play for coins
@@ -81,6 +87,23 @@ export function ShortfallSheet({
           {store && onBuyPack ? (
             <button type="button" className="btn ghost" onClick={() => onBuyPack(pack)}>
               Buy {pack.label} · +{pack.coins} ({pack.priceHint})
+            </button>
+          ) : null}
+          {!store && webOffer && onBuyPack ? (
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={() =>
+                onBuyPack({
+                  id: webOffer.id,
+                  productId: webOffer.productId,
+                  label: webOffer.label,
+                  coins: webOffer.coins,
+                  priceHint: webOffer.priceLabel,
+                })
+              }
+            >
+              Buy {webOffer.label} · +{webOffer.coins} ({webOffer.priceLabel})
             </button>
           ) : null}
           <button type="button" className="btn shortfall-dismiss" onClick={onClose}>

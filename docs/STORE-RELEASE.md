@@ -2,7 +2,9 @@
 
 This is the leftover work only a person can do. The app project is already in the repo. You do not need to change the puzzle, the voices, or the website.
 
-The website (https://roman-game.surge.sh) stays as it is. Coin purchases stay turned off there, with the note “Top-ups unlock in the App Store / Google Play app.”
+The website can sell the three larger coin packs by card once it is hosted on Netlify. The $0.99 pouch stays in the apps only. The iPhone and Android apps still use App Store / Google Play only and do not offer the website checkout.
+
+Share links still use `PUBLIC_GAME_URL` in `src/game/publicUrl.ts` (`https://roman-game.surge.sh`). Change that one line to the Netlify address after the site is live, so a shared link opens the site that can take payment.
 
 ## The name and the placeholder id
 

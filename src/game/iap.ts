@@ -1,6 +1,7 @@
 /**
  * In-app purchases for App Store / Google Play.
- * Web: packs are display-only (App only). Native: purchaseCoinPack → store billing.
+ * Website checkout lives in webCheckout.ts and is not used here.
+ * Native: purchaseCoinPack → store billing.
  */
 
 import { HINT_COST, REVIVE_COST } from './rewards'
@@ -94,7 +95,7 @@ export async function purchaseCoinPack(packId: CoinPackId): Promise<PurchaseResu
   if (!isNativeApp()) {
     return {
       ok: false,
-      reason: 'Top-ups unlock in the App Store / Google Play app.',
+      reason: 'Purchases are unavailable right now.',
     }
   }
 
