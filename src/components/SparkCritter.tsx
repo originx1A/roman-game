@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { sfxCoin } from '../game/sound'
+import { sfxSpark } from '../game/sound'
 
 export const CRITTER_STASH_GOAL = 5
 
@@ -61,7 +61,8 @@ export function SparkCritter({ active, onCatch }: Props) {
     }
 
     const schedule = () => {
-      const delay = 8000 + Math.random() * 14000
+      // Rare visitor — ~45–90s between appearances
+      const delay = 45000 + Math.random() * 45000
       spawnTimer.current = window.setTimeout(() => {
         if (cancelled) return
         startRun()
@@ -105,11 +106,12 @@ export function SparkCritter({ active, onCatch }: Props) {
     }
 
     hide()
+    // First appearance delayed so it doesn't spam early game (~35–70s)
     spawnTimer.current = window.setTimeout(() => {
       if (cancelled) return
       startRun()
       schedule()
-    }, 3500 + Math.random() * 4500)
+    }, 35000 + Math.random() * 35000)
 
     return () => {
       cancelled = true
@@ -127,7 +129,7 @@ export function SparkCritter({ active, onCatch }: Props) {
     el.style.opacity = '0'
     el.style.pointerEvents = 'none'
     cancelAnimationFrame(rafRef.current)
-    sfxCoin()
+    sfxSpark()
     // Small random perk only — parent handles 5-catch bonus / spin credit
     const roll = Math.random()
     if (roll < 0.35) onCatch({ type: 'heart' })
