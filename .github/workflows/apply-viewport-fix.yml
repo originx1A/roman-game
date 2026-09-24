@@ -1,0 +1,49 @@
+name: Apply viewport fix sources
+on:
+  push:
+    branches: [cursor/fix-mobile-board-viewport-33f1]
+    paths:
+      - patches/viewport-App.tsx.patch
+      - patches/viewport-App.css.patch
+      - scripts/apply-viewport-fix.py
+      - .github/workflows/apply-viewport-fix.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: apply-viewport-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: cursor/fix-mobile-board-viewport-33f1
+          fetch-depth: 0
+      - name: Apply patches onto base App sources
+        run: python3 scripts/apply-viewport-fix.py
+      - name: Remove temporary viewport upload artifacts
+        run: |
+          rm -f src/App.tsx.gz.b64 src/_push_test.txt src/_size_probe.txt
+          rm -rf src/_viewport_parts
+          rm -f scripts/assemble-viewport-fix.py
+          rm -f .github/workflows/assemble-viewport-fix.yml
+          rm -f patches/viewport-App.tsx.patch patches/viewport-App.css.patch
+          rm -f scripts/apply-viewport-fix.py
+          rm -f .github/workflows/apply-viewport-fix.yml
+      - name: Commit restored sources
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "Fix board clipped off phone screen on new game
+
+Size the play shell/board from visualViewport height (--app-height)
+instead of unstable 100dvh, reset scroll when starting a puzzle, and
+keep the board capped to the visible phone screen."
+          git push origin HEAD:cursor/fix-mobile-board-viewport-33f1
