@@ -1,4 +1,5 @@
 import type { Challenge, DuelResult } from './types'
+import { publicLinkWithHash } from './publicUrl'
 
 function alphabetCode(len = 6): string {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -93,10 +94,7 @@ export function encodeChallengeLink(c: Challenge): string {
     ...(c.puzzleName ? { pn: c.puzzleName } : {}),
     ...(c.difficulty ? { d: c.difficulty } : {}),
   })
-  const url = new URL(window.location.href)
-  url.search = ''
-  url.hash = `challenge=${payload}`
-  return url.toString()
+  return publicLinkWithHash(`challenge=${payload}`)
 }
 
 export function parseChallengeFromHash(hash: string): Omit<Challenge, 'createdAt'> | null {
@@ -168,10 +166,7 @@ export function encodeDuelLink(d: DuelResult): string {
     ...(d.bPower != null ? { bw: d.bPower } : {}),
     ...(d.bBonus != null ? { bb: d.bBonus } : {}),
   })
-  const url = new URL(window.location.href)
-  url.search = ''
-  url.hash = `duel=${payload}`
-  return url.toString()
+  return publicLinkWithHash(`duel=${payload}`)
 }
 
 export function parseDuelFromHash(hash: string): DuelResult | null {

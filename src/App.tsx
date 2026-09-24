@@ -36,6 +36,7 @@ import {
   parseDuelFromHash,
   rankLabel,
 } from './game/challenges'
+import { publicLinkWithHash, publicPlayUrl } from './game/publicUrl'
 import { banterFor, sparkProgressBanter, type ConflictKind as BanterConflictKind } from './game/comments'
 import type { ConflictKind as BoardConflictKind } from './game/logic'
 import { THEMES, themeForPuzzle } from './game/themes'
@@ -169,7 +170,7 @@ export default function App() {
   const byDiff = useMemo(() => puzzlesByDifficulty(), [])
   const draft = loadDraft()
   const draftPuzzle = draft ? getPuzzle(draft.puzzleId) : undefined
-  const playUrl = typeof window !== 'undefined' ? window.location.href.split('#')[0] : 'https://roman-game-pebble.netlify.app'
+  const playUrl = publicPlayUrl()
 
   useEffect(() => {
     warmVoices()
@@ -232,7 +233,7 @@ export default function App() {
     const duelParsed = parseDuelFromHash(window.location.hash)
     if (duelParsed) {
       setDuel(duelParsed)
-      setDuelLink(window.location.href.split('#')[0] + window.location.hash)
+      setDuelLink(publicLinkWithHash(window.location.hash))
       setShareText(duelShareText(duelParsed))
       setScreen('duel')
       window.history.replaceState(null, '', window.location.pathname)
