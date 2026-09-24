@@ -42,6 +42,10 @@ export interface Challenge {
   createdAt: string
   /** Optional target email for invite */
   toEmail?: string
+  /** Challenger score for score-duel compare (embedded in link) */
+  score?: number
+  /** Challenger clear time in ms for duel compare */
+  elapsedMs?: number
 }
 
 export interface Draft {

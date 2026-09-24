@@ -1,6 +1,4 @@
-/* Reconstructed from https://roman-game.surge.sh production JS (index-ChNfA4F8.js).
- * Logic matches the deployed build; formatting/names may differ from original source.
- */
+/* Share helpers — social links, native share, score duel text. */
 
 export function buildShareLinks(opts: { url: string; text: string; title: string }) {
   const url = encodeURIComponent(opts.url)
@@ -33,4 +31,30 @@ export async function copyText(text: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+export function formatShareTime(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000))
+  const m = Math.floor(total / 60)
+  const s = total % 60
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+/** Plain-language score brag for social / clipboard share. */
+export function scoreShareText(opts: {
+  score: number
+  elapsedMs: number
+  boardName: string
+}): string {
+  return `I scored ${opts.score} pts on ${opts.boardName} (${formatShareTime(opts.elapsedMs)}) in Roman's Game — can you beat me?`
+}
+
+/** Challenge / duel invite copy when a score is attached. */
+export function duelShareText(opts: {
+  score: number
+  elapsedMs: number
+  boardName: string
+  fromName: string
+}): string {
+  return `${opts.fromName} scored ${opts.score} pts (${formatShareTime(opts.elapsedMs)}) on ${opts.boardName}. Score duel — beat them in Roman's Game!`
 }
