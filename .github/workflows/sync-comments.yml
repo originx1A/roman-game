@@ -1,0 +1,30 @@
+name: Sync comments.ts from b64
+on:
+  push:
+    branches: [cursor/ux-voice-blob-header-8810]
+    paths:
+      - 'scripts/comments.ts.b64.*'
+      - '.github/workflows/sync-comments.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: cursor/ux-voice-blob-header-8810
+      - name: Decode comments.ts
+        run: |
+          mkdir -p src/game
+          cat scripts/comments.ts.b64.0 scripts/comments.ts.b64.1 scripts/comments.ts.b64.2 | base64 -d > src/game/comments.ts
+          wc -c src/game/comments.ts
+          head -c 80 src/game/comments.ts
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/game/comments.ts
+          git diff --cached --quiet || git commit -m "Restore full comments.ts (absurd win rotation)"
+          git push
