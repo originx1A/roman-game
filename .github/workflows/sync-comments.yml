@@ -1,13 +1,15 @@
-name: Sync comments.ts from b64
+name: Sync source from Surge mirror
+
 on:
+  workflow_dispatch:
   push:
     branches: [cursor/ux-voice-blob-header-8810]
     paths:
-      - 'scripts/comments.ts.b64.*'
       - '.github/workflows/sync-comments.yml'
-  workflow_dispatch:
+
 permissions:
   contents: write
+
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -15,16 +17,26 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: cursor/ux-voice-blob-header-8810
-      - name: Decode comments.ts
+
+      - name: Fetch mirrored source from Surge
         run: |
-          mkdir -p src/game
-          cat scripts/comments.ts.b64.0 scripts/comments.ts.b64.1 scripts/comments.ts.b64.2 | base64 -d > src/game/comments.ts
-          wc -c src/game/comments.ts
-          head -c 80 src/game/comments.ts
-      - name: Commit
+          BASE=https://roman-src-sync.surge.sh
+          mkdir -p src/game src/components
+          curl -fsSL "$BASE/src/game/comments.ts" -o src/game/comments.ts
+          curl -fsSL "$BASE/src/game/sound.ts" -o src/game/sound.ts
+          curl -fsSL "$BASE/src/components/Board.tsx" -o src/components/Board.tsx
+          curl -fsSL "$BASE/src/App.tsx" -o src/App.tsx
+          wc -c src/game/comments.ts src/game/sound.ts src/components/Board.tsx src/App.tsx
+          head -c 60 src/game/comments.ts; echo
+
+      - name: Commit synced source
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/game/comments.ts
-          git diff --cached --quiet || git commit -m "Restore full comments.ts (absurd win rotation)"
+          git add src/game/comments.ts src/game/sound.ts src/components/Board.tsx src/App.tsx
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "Sync source: absurd win rotation, louder SFX, rescue button"
           git push
