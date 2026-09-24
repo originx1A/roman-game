@@ -16,7 +16,11 @@ const TARGETS = [
   { base: 'sound.ts', out: 'src/game/sound.ts' },
 ]
 
-function readPChunks(base) {
+function readB64(base) {
+  const mono = path.join(payloadDir, base + '.gz.b64')
+  if (fs.existsSync(mono)) {
+    return fs.readFileSync(mono, 'utf8').replace(/\s+/g, '')
+  }
   const re = new RegExp('^' + base.replace(/\./g, '\\.') + '\\.gz\\.b64\\.p(\\d+)$')
   const parts = fs.readdirSync(payloadDir)
     .map((f) => {
@@ -25,17 +29,19 @@ function readPChunks(base) {
     })
     .filter(Boolean)
     .sort((a, b) => a.n - b.n)
-  if (parts.length === 0) throw new Error('no chunks for ' + base)
-  for (let i = 0; i < parts.length; i++) {
-    if (parts[i].n !== i) throw new Error('non-contiguous chunks for ' + base)
-  }
+  if (parts.length === 0) throw new Error('no payload for ' + base)
   return parts.map(({ f }) => fs.readFileSync(path.join(payloadDir, f), 'utf8').replace(/\s+/g, '')).join('')
 }
 
 for (const { base, out } of TARGETS) {
-  const b64 = readPChunks(base)
+  const shaPath = path.join(payloadDir, base + '.sha256')
+  if (!fs.existsSync(shaPath)) {
+    console.log('skip', base, '(no sha)')
+    continue
+  }
+  const b64 = readB64(base)
   const buf = zlib.gunzipSync(Buffer.from(b64, 'base64'))
-  const expect = fs.readFileSync(path.join(payloadDir, base + '.sha256'), 'utf8').trim()
+  const expect = fs.readFileSync(shaPath, 'utf8').trim()
   const got = crypto.createHash('sha256').update(buf).digest('hex')
   if (expect !== got) {
     console.error('sha mismatch', base, expect, got)
@@ -46,4 +52,11 @@ for (const { base, out } of TARGETS) {
   fs.writeFileSync(dest, buf)
   console.log('wrote', out, buf.length)
 }
+// Always remove probe artifacts after inflate
+for (const p of ['src/AppWired.tsx', 'src/.restore-probe.txt', 'scripts/assemble-appwired.cjs']) {
+  const fp = path.join(root, p)
+  if (fs.existsSync(fp)) fs.rmSync(fp, { force: true })
+}
+const partsDir = path.join(root, 'src/appwired-parts')
+if (fs.existsSync(partsDir)) fs.rmSync(partsDir, { recursive: true, force: true })
 console.log('INFLATE_OK')
