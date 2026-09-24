@@ -1,0 +1,92 @@
+    let w: Wallet = { ...current, critterStash: have }
+    w = unlockIf(w, 'critter')
+    if (reward.type === 'coins') w.coins += reward.amount
+    else if (reward.type === 'hint') w.freeHints += 1
+    else if (reward.type === 'heart') setLives((n) => Math.min(MAX_LIVES, n + 1))
+    persistWallet(w)
+
+    const line = sparkProgressBanter(have, CRITTER_STASH_GOAL)
+    if (line.text) showToast(line.text)
+    if (line.speak && line.clip) playBanterClip(line.clip, line.voiceMood, line.text)
+  }
+
+  function handleCreateChallenge() {
+    const target = puzzle ?? PUZZLES[0]
+    const c = createChallenge({
+      puzzleId: target.id,
+      fromEmail: profile?.email || 'guest@device.local',
+      fromName: profile?.displayName || 'Roman',
+      message: challengeMsg,
+      toEmail: challengeEmail || undefined,
+    })
+    addChallenge(c)
+    setChallenges(loadChallenges())
+    const link = encodeChallengeLink(c)
+    setShareLink(link)
+    void navigator.clipboard?.writeText(link)
+    showToast('Challenge link ready — share below')
+  }
+
+  const done = new Set(progress.clears.map((c) => c.puzzleId))
+
+  const hideChrome = screen === 'play' || screen === 'how'
+
+  return (
+    <div
+      className={`shell fixed-shell ${screen === 'play' ? 'shell-play' : ''} ${hideChrome ? 'shell-immersive' : ''} shell-${screen}`}
+      ref={shellRef}
+      onPointerDown={unlockAudio}
+    >
+      <div className="atmosphere" aria-hidden />
+      {!hideChrome && (
+        <header className="topbar topbar-slim">
+          <button
+            type="button"
+            className="brand"
+            onClick={() => {
+              setScreen('home')
+              sfxWhoosh()
+            }}
+          >
+            <span className="brand-mark" />
+            <span className="brand-name">Roman</span>
+          </button>
+          <nav className="nav">
+            <button type="button" className={screen === 'levels' ? 'on' : ''} onClick={() => setScreen('levels')}>
+              Play
+            </button>
+            <button type="button" className={screen === 'rewards' ? 'on' : ''} onClick={() => setScreen('rewards')}>
+              Rewards
+            </button>
+            <button type="button" className={screen === 'challenge' ? 'on' : ''} onClick={() => setScreen('challenge')}>
+              Share
+            </button>
+            <button type="button" className={screen === 'profile' ? 'on' : ''} onClick={() => setScreen('profile')}>
+              {profile ? profile.displayName.split(' ')[0] : 'Save'}
+            </button>
+          </nav>
+          <div className="hud-pills">
+            <div className="score-pill coin" title="Coins">
+              {wallet.coins}
+              <span>¢</span>
+            </div>
+          </div>
+        </header>
+      )}
+
+      {toast && <div className="toast">{toast}</div>}
+
+      {screen === 'home' && (
+        <main className="home scroll-pane">
+          <section className="hero">
+            <p className="dedication">
+              <span className="dedication-star" aria-hidden />
+              Made for Roman
+            </p>
+            <p className="eyebrow">Buddy logic boards</p>
+            <h1 className="logo-hero">Roman</h1>
+            <p className="lede">
+              Drop animated buddies — one per row, column, and region. They hate cuddling (even corners).
+            </p>
+            <div className="cta-row">
+              {draftPuzzle ? (
