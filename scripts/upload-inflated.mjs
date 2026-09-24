@@ -10,6 +10,12 @@ if (!token || !branch || !repo) {
   process.exit(1)
 }
 
+const MSG = `Fix board clipped off phone screen on new game
+
+Size the play shell/board from visualViewport height (--app-height)
+instead of unstable 100dvh, reset scroll when starting a puzzle, and
+keep the board capped to the visible phone screen.`
+
 function req(method, path, body) {
   return new Promise((resolve, reject) => {
     const data = body ? JSON.stringify(body) : null
@@ -58,6 +64,6 @@ async function put(path, message) {
 }
 
 ;(async () => {
-  await put('src/App.tsx', 'Add App.tsx with WinScreen integration')
-  await put('src/App.css', 'Add App.css with win celebration styles')
+  await put('src/App.tsx', MSG)
+  await put('src/App.css', MSG)
 })()
