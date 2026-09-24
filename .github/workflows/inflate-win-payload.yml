@@ -4,7 +4,7 @@ on:
     paths:
       - 'scripts/payload/**'
       - 'scripts/inflate-win-payload.mjs'
-      - 'scripts/upload-inflated.mjs'
+      - 'scripts/pack-win-payload.mjs'
       - '.github/workflows/inflate-win-payload.yml'
   workflow_dispatch:
 jobs:
@@ -18,9 +18,14 @@ jobs:
           ref: ${{ github.ref_name }}
       - name: Inflate payloads
         run: node scripts/inflate-win-payload.mjs
-      - name: Upload via Contents API
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH: ${{ github.ref_name }}
-          REPO: ${{ github.repository }}
-        run: node scripts/upload-inflated.mjs
+      - name: Commit restored App sources
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/App.tsx src/App.css
+          if git diff --cached --quiet; then
+            echo "sources already up to date"
+          else
+            git commit -m "Inflate App.tsx/App.css from clean gzip payloads"
+            git push origin HEAD:${{ github.ref_name }}
+          fi
