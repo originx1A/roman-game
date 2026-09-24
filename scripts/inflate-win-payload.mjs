@@ -1,17 +1,25 @@
 #!/usr/bin/env node
 const fs = require('fs')
-const zlib = require('zlib')
 const path = require('path')
-function inflate(prefix, outPath) {
+const crypto = require('crypto')
+function assemble(prefix, outPath) {
   const dir = path.dirname(prefix)
   const base = path.basename(prefix)
   const parts = fs.readdirSync(dir)
-    .filter((f) => f.startsWith(base + '.'))
-    .sort((a, b) => Number(a.split('.').pop()) - Number(b.split('.').pop()))
-  const b64 = parts.map((f) => fs.readFileSync(path.join(dir, f), 'utf8').trim()).join('')
-  const buf = zlib.gunzipSync(Buffer.from(b64, 'base64'))
-  fs.writeFileSync(outPath, buf)
-  console.log('wrote', outPath, buf.length)
+    .filter((f) => f.startsWith(base + '.') && f.endsWith('.txt'))
+    .sort((a, b) => Number(a.split('.').slice(-2, -1)[0]) - Number(b.split('.').slice(-2, -1)[0]))
+  const text = parts.map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('')
+  const shaFile = path.join(dir, base + '.sha256')
+  if (fs.existsSync(shaFile)) {
+    const expect = fs.readFileSync(shaFile, 'utf8').trim()
+    const got = crypto.createHash('sha256').update(text).digest('hex')
+    if (expect !== got) {
+      console.error('sha256 mismatch', base, expect, got)
+      process.exit(1)
+    }
+  }
+  fs.writeFileSync(outPath, text)
+  console.log('wrote', outPath, text.length, 'from', parts.length, 'parts')
 }
-inflate('scripts/payload/App.tsx.gz.b64', 'src/App.tsx')
-inflate('scripts/payload/App.css.gz.b64', 'src/App.css')
+assemble('scripts/payload/App.tsx', 'src/App.tsx')
+assemble('scripts/payload/App.css', 'src/App.css')
