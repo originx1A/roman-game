@@ -1,1 +1,1 @@
-PLACEHOLDER_TSX
+@/tmp/rgame/src/App.tsx
