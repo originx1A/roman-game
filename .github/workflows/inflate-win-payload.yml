@@ -1,27 +1,10 @@
-# Inflates App.tsx / App.css from scripts/payload single-file gz.b64
 name: Inflate win payloads
 on:
-  push:
-    paths:
-      - 'scripts/payload/**'
-      - 'scripts/inflate-win-payload.mjs'
-      - 'scripts/upload-inflated.mjs'
-      - '.github/workflows/inflate-win-payload.yml'
+  # Manual only — push triggers were spamming failure emails
   workflow_dispatch:
 jobs:
   inflate:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref_name }}
-      - name: Inflate payloads
-        run: node scripts/inflate-win-payload.mjs
-      - name: Commit inflated sources via Contents API
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH: ${{ github.ref_name }}
-          REPO: ${{ github.repository }}
-        run: node scripts/upload-inflated.mjs
+      - name: Disabled
+        run: echo "Auto inflate disabled. Sources live in src/. No-op."
