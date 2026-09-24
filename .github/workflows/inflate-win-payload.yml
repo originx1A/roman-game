@@ -1,3 +1,4 @@
+# Inflates App.tsx / App.css from scripts/payload single-file gz.b64
 name: Inflate win payloads
 on:
   push:
