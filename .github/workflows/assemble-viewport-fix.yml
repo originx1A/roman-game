@@ -1,0 +1,35 @@
+name: Assemble viewport fix sources
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "src/_viewport_parts/**"
+      - "scripts/assemble-viewport-fix.py"
+      - ".github/workflows/assemble-viewport-fix.yml"
+permissions:
+  contents: write
+concurrency:
+  group: assemble-viewport-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble App.tsx and App.css
+        run: python3 scripts/assemble-viewport-fix.py
+      - name: Commit assembled sources
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/App.tsx src/App.css
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "Fix board clipped off phone screen on new game
+
+Size the play shell/board from visualViewport height (--app-height)
+instead of unstable 100dvh, reset scroll when starting a puzzle, and
+keep the board capped to the visible phone screen."
+          git push
