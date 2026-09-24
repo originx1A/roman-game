@@ -99,6 +99,43 @@ const FALLBACK_TEXT: Partial<Record<VoiceLineId, string>> = {
   roman_eyeballs: 'Roman says: I beat that with my eyeballs closed. Mostly.',
   roman_victoryburp: 'Roman says: quiet victory burp. Excuse Roman.',
   roman_highfiveself: 'Roman says: high five… to myself. You can watch.',
+  roman_broccoli: 'Roman says: broccoli power. You cleared that board!',
+  roman_pickle: 'Roman says: pickle me proud. That was crisp!',
+  roman_banana: 'Roman says: banana split victory. You did it!',
+  roman_cheese: 'Roman says: extra cheese on that win. Delicious!',
+  roman_pants: 'Roman says: I put on my fancy pants for this win!',
+  roman_booger: 'Roman says: booger face, champion heart!',
+  roman_lizard: 'Roman says: a tiny lizard just clapped for you!',
+  roman_ghost: 'Roman says: boo! Just kidding. You won!',
+  roman_unicorn: 'Roman says: unicorn sparkles. That move was magic!',
+  roman_worm: 'Roman says: even the worm is doing a happy wiggle!',
+  roman_trumpet: 'Roman says: toot toot! Victory trumpet!',
+  roman_bubblegum: 'Roman says: bubblegum pop. Sticky sweet win!',
+  roman_helicopter: 'Roman says: helicopter hair. We are taking off!',
+  roman_underpants: 'Roman says: superhero underpants. Cape not included!',
+  roman_moonwalk: 'Roman says: moonwalk across the board. Smooth!',
+  roman_idle_hello: 'Roman says: hello? The board is getting lonely.',
+  roman_idle_century: 'Roman says: any century now.',
+  roman_idle_sandwich: 'Roman says: I could eat a sandwich while I wait.',
+  roman_idle_blink: 'Roman says: blink twice if you are still there.',
+  roman_idle_loading: 'Roman says: still loading your next move.',
+  roman_idle_admire: 'Roman says: I am admiring this empty square.',
+  roman_idle_sphinx: 'Roman says: the sphinx is less patient than me.',
+  roman_idle_snore: 'Roman says: zzz. Wake me when you tap.',
+  roman_wrong_bold: 'Roman says: bold move. Wrong square.',
+  roman_wrong_complaint: 'Roman says: I filed a tiny complaint about that tap.',
+  roman_wrong_oof: 'Roman says: oof. That one bounced off.',
+  roman_wrong_politely: 'Roman says: politely, that spot is a no.',
+  roman_wrong_grandma: 'Roman says: even my grandma would skip that square.',
+  roman_wrong_wifi: 'Roman says: that move has no signal.',
+  roman_wrong_drama: 'Roman says: the drama. The miss. The heart.',
+  roman_wrong_trophy: 'Roman says: no trophy for that square.',
+  cosmic: 'Cosmic void. Starlit mystery.',
+  ruins: 'Ancient ruins. Forgotten stone.',
+  neon: 'Neon night. Electric streets.',
+  ocean: 'Ocean deep. Abyss glow.',
+  ember: 'Ember peak. Molten heat.',
+  crystal: 'Crystal cave. Prism hush.',
   spark_unlocked: 'Sparkle mode unlocked!',
   spark_1: 'One sparkle so far. Four more for the bonus!',
   spark_2: 'Two sparkles. Three more for the bonus!',
@@ -108,6 +145,10 @@ const FALLBACK_TEXT: Partial<Record<VoiceLineId, string>> = {
   spark_have_2: "You've got two sparkles toward the bonus.",
   spark_have_3: "You've got three sparkles toward the bonus.",
   spark_have_4: "You've got four sparkles. So close!",
+}
+
+export function voiceLineText(id: string): string | undefined {
+  return FALLBACK_TEXT[id as VoiceLineId]
 }
 
 /** Role priority — higher wins / can interrupt lower; same or lower is skipped while busy */
@@ -470,6 +511,42 @@ export interface PlayVoiceOpts {
   forceRole?: VoiceRole
   /** Fallback spoken text if mp3 fails */
   text?: string
+  /** Same-pool clips to try when this file is missing or not audio. */
+  alts?: readonly string[]
+}
+
+const clipUrlCache = new Map<string, string | null>()
+
+function isMp3Bytes(bytes: Uint8Array): boolean {
+  if (bytes.length < 64) return false
+  const head = new TextDecoder('latin1').decode(bytes.subarray(0, 48)).trimStart().toLowerCase()
+  if (head.startsWith('<') || head.includes('<!doctype') || head.includes('<html')) return false
+  if (bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) return true
+  return bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0
+}
+
+/** Fetch the clip and reject the SPA html fallback (200 text/html). */
+async function clipObjectUrl(id: string): Promise<string | null> {
+  if (clipUrlCache.has(id)) return clipUrlCache.get(id) ?? null
+  try {
+    const res = await fetch(voiceHref(id))
+    if (!res.ok) {
+      clipUrlCache.set(id, null)
+      return null
+    }
+    const buf = await res.arrayBuffer()
+    const bytes = new Uint8Array(buf)
+    const type = (res.headers.get('content-type') || '').toLowerCase()
+    if (type.includes('text/html') || !isMp3Bytes(bytes)) {
+      clipUrlCache.set(id, null)
+      return null
+    }
+    const url = URL.createObjectURL(new Blob([buf], { type: 'audio/mpeg' }))
+    clipUrlCache.set(id, url)
+    return url
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -510,55 +587,94 @@ export function playVoice(id: string, fallbackText?: string, opts: PlayVoiceOpts
     return
   }
 
-  try {
-    const audio = new Audio(voiceHref(id))
-    audio.preload = 'auto'
-  // Roman: slower + slightly quieter = rougher punchline delivery
-  const playRate =
-    role === 'roman'
-      ? Math.min(0.94, Math.max(0.82, rate * 0.88))
-      : Math.min(1.2, Math.max(0.85, rate))
-  audio.playbackRate = playRate
-  audio.volume = role === 'roman' ? Math.min(1, volume * 1.05) : volume
-    activeVoice = audio
-    voicePool.set(id, audio)
+  const alts = (opts.alts ?? []).filter((alt) => alt && alt !== id).slice(0, 4)
+  void playClipQueue([id, ...alts], gen, role, text, rate, volume)
+}
 
-    const finish = () => {
-      if (gen !== voiceGeneration) return
-      if (activeVoice === audio) {
-        activeVoice = null
-        activeRole = null
-        voiceBusyUntil = performance.now()
+function releaseVoice(gen: number) {
+  if (gen !== voiceGeneration) return
+  activeVoice = null
+  activeRole = null
+  voiceBusyUntil = performance.now()
+}
+
+async function playClipQueue(
+  queue: string[],
+  gen: number,
+  role: VoiceRole,
+  text: string | undefined,
+  rate: number,
+  volume: number,
+) {
+  for (const clipId of queue) {
+    if (gen !== voiceGeneration) return
+    const url = await clipObjectUrl(clipId)
+    if (!url) continue
+    const audio = new Audio(url)
+    audio.preload = 'auto'
+    const playRate =
+      role === 'roman'
+        ? Math.min(0.94, Math.max(0.82, rate * 0.88))
+        : Math.min(1.2, Math.max(0.85, rate))
+    audio.playbackRate = playRate
+    audio.volume = role === 'roman' ? Math.min(1, volume * 1.05) : volume
+    activeVoice = audio
+    voicePool.set(clipId, audio)
+
+    const started = await new Promise<boolean>((resolve) => {
+      let settled = false
+      const finish = (ok: boolean) => {
+        if (settled) return
+        settled = true
+        resolve(ok)
       }
-    }
-    audio.onended = finish
-    const onFail = () => {
-      if (gen !== voiceGeneration) return
-      if (text) {
-        speakSynth(text, {
-          role,
-          pitch: role === 'buddy' ? 1.4 : role === 'roman' ? 1.0 : 1.08,
-          rate,
-        })
-      } else if (role === 'buddy') {
-        synthGiggle()
-        finish()
-      } else {
-        finish()
+      audio.onerror = () => finish(false)
+      void audio.play().then(() => {
+        if (settled) return
+        if (audio.error || audio.duration === 0) finish(false)
+        else finish(true)
+      }).catch(() => finish(false))
+    })
+
+    if (gen !== voiceGeneration) return
+    if (started) {
+      audio.onended = () => {
+        if (gen !== voiceGeneration) return
+        if (activeVoice === audio) releaseVoice(gen)
       }
+      return
     }
-    audio.onerror = onFail
-    void audio.play().catch(onFail)
-  } catch {
-    if (text) {
-      speakSynth(text, { role, pitch: role === 'roman' ? 1.0 : 1.08, rate })
+    audio.onended = null
+    audio.onerror = null
+    try {
+      audio.pause()
+    } catch {
+      /* ignore */
     }
+    if (activeVoice === audio) activeVoice = null
   }
+
+  if (gen !== voiceGeneration) return
+  if (text) {
+    speakSynth(text, {
+      role,
+      pitch: role === 'buddy' ? 1.4 : role === 'roman' ? 1.0 : 1.08,
+      rate,
+    })
+    return
+  }
+  if (role === 'buddy') synthGiggle()
+  releaseVoice(gen)
 }
 
 /** Coach / Roman line with emotional tone — never overlaps */
-export function playBanterClip(id: string, mood: VoiceMood, text?: string) {
-  playVoice(id, text, { mood })
+export function playBanterClip(
+  id: string,
+  mood: VoiceMood,
+  text?: string,
+  alts?: readonly string[],
+) {
+  playVoice(id, text, { mood, alts })
 }
 
 export function warmVoices() {

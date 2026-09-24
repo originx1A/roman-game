@@ -15,7 +15,7 @@ except ImportError:
 OUT = pathlib.Path(__file__).resolve().parents[1] / "public" / "voices"
 OUT.mkdir(parents=True, exist_ok=True)
 
-ROMAN_VOICE = "en-US-GuyNeural"  # deeper / punchier than Brian
+ROMAN_VOICE = "en-US-BrianNeural"
 COACH_VOICE = "en-US-JennyNeural"
 GIGGLE_VOICE = "en-US-JennyNeural"
 
@@ -84,6 +84,37 @@ ROMAN_LINES = {
     "roman_eyeballs": "Roman says: I beat that with my eyeballs closed. Mostly.",
     "roman_victoryburp": "Roman says: quiet victory burp. Excuse Roman.",
     "roman_highfiveself": "Roman says: high five to myself. You can watch.",
+    "roman_broccoli": "Roman says: broccoli power. You cleared that board!",
+    "roman_pickle": "Roman says: pickle me proud. That was crisp!",
+    "roman_banana": "Roman says: banana split victory. You did it!",
+    "roman_cheese": "Roman says: extra cheese on that win. Delicious!",
+    "roman_pants": "Roman says: I put on my fancy pants for this win!",
+    "roman_booger": "Roman says: booger face, champion heart!",
+    "roman_lizard": "Roman says: a tiny lizard just clapped for you!",
+    "roman_ghost": "Roman says: boo! Just kidding. You won!",
+    "roman_unicorn": "Roman says: unicorn sparkles. That move was magic!",
+    "roman_worm": "Roman says: even the worm is doing a happy wiggle!",
+    "roman_trumpet": "Roman says: toot toot! Victory trumpet!",
+    "roman_bubblegum": "Roman says: bubblegum pop. Sticky sweet win!",
+    "roman_helicopter": "Roman says: helicopter hair. We are taking off!",
+    "roman_underpants": "Roman says: superhero underpants. Cape not included!",
+    "roman_moonwalk": "Roman says: moonwalk across the board. Smooth!",
+    "roman_idle_hello": "Roman says: hello? The board is getting lonely.",
+    "roman_idle_century": "Roman says: any century now.",
+    "roman_idle_sandwich": "Roman says: I could eat a sandwich while I wait.",
+    "roman_idle_blink": "Roman says: blink twice if you are still there.",
+    "roman_idle_loading": "Roman says: still loading your next move.",
+    "roman_idle_admire": "Roman says: I am admiring this empty square.",
+    "roman_idle_sphinx": "Roman says: the sphinx is less patient than me.",
+    "roman_idle_snore": "Roman says: zzz. Wake me when you tap.",
+    "roman_wrong_bold": "Roman says: bold move. Wrong square.",
+    "roman_wrong_complaint": "Roman says: I filed a tiny complaint about that tap.",
+    "roman_wrong_oof": "Roman says: oof. That one bounced off.",
+    "roman_wrong_politely": "Roman says: politely, that spot is a no.",
+    "roman_wrong_grandma": "Roman says: even my grandma would skip that square.",
+    "roman_wrong_wifi": "Roman says: that move has no signal.",
+    "roman_wrong_drama": "Roman says: the drama. The miss. The heart.",
+    "roman_wrong_trophy": "Roman says: no trophy for that square.",
 }
 
 # Uplifting coach — plain phrases only (slightly brighter rate/pitch)
@@ -104,6 +135,12 @@ COACH_LINES = {
     "nope": "Nope. Try another spot.",
     "out_of_hearts": "Out of hearts. Rematch?",
     "tough_board": "Tough board. Try again.",
+    "cosmic": "Cosmic void. Starlit mystery.",
+    "ruins": "Ancient ruins. Forgotten stone.",
+    "neon": "Neon night. Electric streets.",
+    "ocean": "Ocean deep. Abyss glow.",
+    "ember": "Ember peak. Molten heat.",
+    "crystal": "Crystal cave. Prism hush.",
     # Spark progress (female coach)
     "spark_1": "One sparkle so far. Four more for the bonus!",
     "spark_2": "Two sparkles. Three more for the bonus!",
@@ -145,8 +182,8 @@ async def main() -> None:
             roman_items = [(n, t) for n, t in ROMAN_LINES.items() if n in only]
 
     for name, text in roman_items:
-        # Rougher punchline: slower + much lower pitch (GuyNeural)
-        await save(ROMAN_VOICE, text, OUT / f"{name}.mp3", rate="-14%", pitch="-22Hz")
+        # Same Brian voice as the clips already in public/voices.
+        await save(ROMAN_VOICE, text, OUT / f"{name}.mp3", rate="-8%", pitch="-6Hz")
 
     for name, text in coach_items:
         # Brighter, more uplifting coach — still natural human speech

@@ -375,7 +375,7 @@ export default function App() {
     if (line.text) showToast(line.text)
     // place-good: Board already plays buddy giggle — don't speak here
     if (line.giggle || !line.speak || !line.clip) return line
-    playBanterClip(line.clip, line.voiceMood, line.text)
+    playBanterClip(line.clip, line.voiceMood, line.text, line.alts)
     return line
   }
 
@@ -778,7 +778,7 @@ export default function App() {
 
     const line = sparkProgressBanter(have, CRITTER_STASH_GOAL)
     if (line.text) showToast(line.text)
-    if (line.speak && line.clip) playBanterClip(line.clip, line.voiceMood, line.text)
+    if (line.speak && line.clip) playBanterClip(line.clip, line.voiceMood, line.text, line.alts)
   }
 
   function handleCreateChallenge() {
