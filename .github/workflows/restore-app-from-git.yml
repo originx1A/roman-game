@@ -1,0 +1,43 @@
+name: Restore App.tsx from known-good commit
+on:
+  push:
+    paths:
+      - '.github/workflows/restore-app-from-git.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - name: Restore App.tsx from 6d2d76b
+        run: |
+          git checkout 6d2d76b0e5e2e22a42a72875966ee324b97430d8 -- src/App.tsx
+          rm -f src/AppWired.tsx src/.restore-probe.txt scripts/assemble-appwired.cjs
+          rm -rf src/appwired-parts
+          # Keep package.json build clean
+          node -e "const fs=require('fs'); const p='package.json'; const j=JSON.parse(fs.readFileSync(p,'utf8')); if (String(j.scripts?.build||'').includes('assemble-appwired')) { j.scripts.build='tsc -b && vite build'; fs.writeFileSync(p, JSON.stringify(j,null,2)+'\n'); }"
+      - name: Verify build
+        run: npm ci && npm run build
+      - name: Commit restored App.tsx
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A src/App.tsx package.json
+          git add -u src/AppWired.tsx src/.restore-probe.txt src/appwired-parts scripts/assemble-appwired.cjs 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "$(cat <<'MSG'
+          fix: restore full App.tsx and align exports for green build
+
+          Remove broken AppWired re-export probe. Keep store-layer HUD costs,
+          ShortfallSheet, and Rewards shop web/native split.
+          MSG
+          )"
+          git push
