@@ -4,7 +4,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 python3 - <<'PY'
-import gzip, base64, re, pathlib, hashlib
+import gzip, base64, re, pathlib
 
 # 1) Inflate App.tsx from existing single-file gzip payload
 p = pathlib.Path('scripts/payload/App.tsx.gz.b64')
@@ -13,10 +13,24 @@ data = gzip.decompress(base64.b64decode(b64))
 pathlib.Path('src/App.tsx').write_bytes(data)
 print('inflated App.tsx', len(data))
 
-# 2) Decode patch files from base64 siblings if present
 patch_dir = pathlib.Path('scripts/patches')
+
+# 2a) Join split b64 parts: name.patch.b64.p0, .p1, ... -> name.patch.b64
+from collections import defaultdict
+parts = defaultdict(list)
+for f in patch_dir.iterdir():
+    m = re.match(r'^(.+\.patch\.b64)\.p(\d+)$', f.name)
+    if m:
+        parts[m.group(1)].append((int(m.group(2)), f))
+for out_name, items in parts.items():
+    items.sort()
+    joined = ''.join(re.sub(r'\s+', '', p.read_text()) for _, p in items)
+    (patch_dir / out_name).write_text(joined)
+    print('joined', out_name, len(joined), 'from', len(items), 'parts')
+
+# 2b) Decode *.patch.b64 -> *.patch
 for b64path in sorted(patch_dir.glob('*.patch.b64')):
-    out = pathlib.Path(str(b64path)[:-4])  # remove .b64
+    out = pathlib.Path(str(b64path)[:-4])
     raw = base64.b64decode(re.sub(r'\s+', '', b64path.read_text()))
     out.write_bytes(raw)
     print('decoded', out.name, len(raw))
