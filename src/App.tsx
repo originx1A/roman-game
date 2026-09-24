@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Board } from './components/Board'
 import { HowToPlay } from './components/HowToPlay'
 import { PrizeWheel } from './components/PrizeWheel'
+import { ResultOverlay } from './components/ResultOverlay'
+import { ShortfallSheet, type ShortfallAction } from './components/ShortfallSheet'
 import { ShareBar } from './components/ShareBar'
 import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './components/SparkCritter'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
-import { WinScreen } from './components/WinScreen'
 import {
   applyHint,
   clearBuddy,
@@ -15,26 +16,44 @@ import {
   isSolved,
   scoreRun,
 } from './game/logic'
-import { PUZZLES, getPuzzle, puzzlesByDifficulty } from './game/puzzles'
-import type { CellState, Challenge, Draft, Profile, Puzzle, Screen } from './game/types'
+import { PUZZLES, getPuzzle, puzzlesByDifficulty, createFreshPuzzle, nextRandomPuzzle } from './game/puzzles'
+import type { CellState, Challenge, DuelResult, Profile, Puzzle, Screen } from './game/types'
 import { DIFFICULTY_LABEL } from './game/types'
 import {
+  boardLabel,
+  challengeShareText,
   createChallenge,
+  createDuelResult,
+  duelShareText,
+  duelWinner,
   encodeChallengeLink,
+  encodeDuelLink,
+  formatShareTime,
   parseChallengeFromHash,
+  parseDuelFromHash,
+  rankLabel,
 } from './game/challenges'
 import { banterFor, sparkProgressBanter, type ConflictKind as BanterConflictKind } from './game/comments'
 import type { ConflictKind as BoardConflictKind } from './game/logic'
 import { THEMES, themeForPuzzle } from './game/themes'
 import {
   ACHIEVEMENTS,
+  BADGES,
   HINT_COST,
   MAX_LIVES,
   RESCUE_COST,
   REVIVE_COST,
   applyPrize,
+  badgeRank,
+  badgeTitleForShare,
   evaluateAchievements,
+  formatBonusPercent,
+  grantWinCoins,
+  totalBadgePower,
+  totalCoinBonusPercent,
+  tryUpgradeBadge,
   unlockIf,
+  upgradeBadgeCost,
   type Prize,
   type Wallet,
 } from './game/rewards'
@@ -71,6 +90,7 @@ import {
   unlockAudio,
   warmVoices,
 } from './game/sound'
+import { COIN_PACKS, purchaseCoinPack, isStoreBuild, packValueBlurb, type CoinPackId } from './game/iap'
 import './App.css'
 
 function formatMs(ms: number) {
@@ -117,10 +137,12 @@ export default function App() {
   const [, setHintText] = useState('')
   const [celebrate, setCelebrate] = useState(false)
   const [defeated, setDefeated] = useState(false)
+  const [winLine, setWinLine] = useState('')
+  const [loseLine, setLoseLine] = useState('')
   const [lives, setLives] = useState(MAX_LIVES)
   const [lastScore, setLastScore] = useState<number | null>(null)
-  const [winSaying, setWinSaying] = useState('')
   const [toast, setToast] = useState('')
+  const [shortfall, setShortfall] = useState<null | { action: ShortfallAction; need: number; detail?: string }>(null)
   const [incoming, setIncoming] = useState<Challenge | null>(null)
   const [, setChallenges] = useState(() => loadChallenges())
   const [emailInput, setEmailInput] = useState('')
@@ -128,14 +150,20 @@ export default function App() {
   const [challengeEmail, setChallengeEmail] = useState('')
   const [challengeMsg, setChallengeMsg] = useState('Can you beat Roman on this board?')
   const [shareLink, setShareLink] = useState('')
+  const [shareText, setShareText] = useState('')
   const [showWheel, setShowWheel] = useState(false)
   const [awaitingComeback, setAwaitingComeback] = useState(false)
+  const [activeChallenge, setActiveChallenge] = useState<Challenge | null>(null)
+  const [duel, setDuel] = useState<DuelResult | null>(null)
+  const [duelLink, setDuelLink] = useState('')
   const shellRef = useRef<HTMLDivElement>(null)
   const tickRef = useRef<number | null>(null)
+  const idleRef = useRef<number | null>(null)
+  const lastActionRef = useRef(Date.now())
   const recordedRef = useRef(false)
 
   const byDiff = useMemo(() => puzzlesByDifficulty(), [])
-  const draft = loadDraft<Draft>()
+  const draft = loadDraft()
   const draftPuzzle = draft ? getPuzzle(draft.puzzleId) : undefined
   const playUrl = typeof window !== 'undefined' ? window.location.href.split('#')[0] : 'https://roman-game-pebble.netlify.app'
 
@@ -185,10 +213,20 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    const duelParsed = parseDuelFromHash(window.location.hash)
+    if (duelParsed) {
+      setDuel(duelParsed)
+      setDuelLink(window.location.href.split('#')[0] + window.location.hash)
+      setShareText(duelShareText(duelParsed))
+      setScreen('duel')
+      window.history.replaceState(null, '', window.location.pathname)
+      return
+    }
     const parsed = parseChallengeFromHash(window.location.hash)
     if (parsed) {
       const full: Challenge = { ...parsed, createdAt: new Date().toISOString() }
       setIncoming(full)
+      setActiveChallenge(full)
       addChallenge(full)
       setChallenges(loadChallenges())
       setScreen('challenge')
@@ -207,6 +245,31 @@ export default function App() {
     }
   }, [running])
 
+  // Roman idle roast — no clues, just roasting long pauses
+  useEffect(() => {
+    if (!running || celebrate || defeated) {
+      if (idleRef.current) window.clearInterval(idleRef.current)
+      idleRef.current = null
+      return
+    }
+    lastActionRef.current = Date.now()
+    idleRef.current = window.setInterval(() => {
+      const quietMs = Date.now() - lastActionRef.current
+      // After ~16s of no taps, ~55% chance Roman pokes fun (no hints)
+      if (quietMs < 16000) return
+      if (Math.random() > 0.55) {
+        lastActionRef.current = Date.now() - 8000
+        return
+      }
+      lastActionRef.current = Date.now()
+      pushBanter('idle')
+    }, 7000)
+    return () => {
+      if (idleRef.current) window.clearInterval(idleRef.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [running, celebrate, defeated])
+
   function showToast(msg: string) {
     setToast(msg)
     window.setTimeout(() => setToast(''), 2400)
@@ -216,15 +279,18 @@ export default function App() {
   function pushBanter(
     event: Parameters<typeof banterFor>[0],
     conflict?: BanterConflictKind,
-    opts?: { skipToast?: boolean },
-  ): ReturnType<typeof banterFor> {
+  ) {
     const line = banterFor(event, conflict)
     if (line.silent && !line.giggle) return line
-    if (line.text && !opts?.skipToast) showToast(line.text)
+    if (line.text) showToast(line.text)
     // place-good: Board already plays buddy giggle — don't speak here
     if (line.giggle || !line.speak || !line.clip) return line
     playBanterClip(line.clip, line.voiceMood, line.text)
     return line
+  }
+
+  function bumpAction() {
+    lastActionRef.current = Date.now()
   }
 
   function persistWallet(next: Wallet) {
@@ -240,9 +306,10 @@ export default function App() {
     recordedRef.current = false
     setCelebrate(false)
     setDefeated(false)
+    setWinLine('')
+    setLoseLine('')
     setShowWheel(false)
     setLastScore(null)
-    setWinSaying('')
     setHintIndex(null)
     setHintText('')
     setFuture([])
@@ -250,7 +317,7 @@ export default function App() {
     // Quiet start — no theme blob/voice; board stays fully visible
 
     if (resume) {
-      const d = loadDraft<Draft>()
+      const d = loadDraft()
       if (d && d.puzzleId === p.id) {
         setCells(d.cells as CellState[])
         setElapsedMs(d.elapsedMs)
@@ -287,6 +354,7 @@ export default function App() {
       conflictKind?: BoardConflictKind | null
     },
   ) {
+    bumpAction()
     setHistory((h) => [...h, cells])
     setFuture([])
     setCells(next)
@@ -316,7 +384,8 @@ export default function App() {
         setRunning(false)
         saveDraft(null)
         sfxLose()
-        pushBanter('lose')
+        const lose = pushBanter('lose')
+        setLoseLine(lose.text || 'Out of hearts')
         setAwaitingComeback(true)
       }
     } else if (meta.kind === 'stone') {
@@ -340,8 +409,8 @@ export default function App() {
       setRunning(false)
       setCelebrate(true)
       sfxWin()
-      const winLine = pushBanter('win', undefined, { skipToast: true })
-      setWinSaying(winLine?.text || 'Roman says: Veni, vidi, vici!')
+      const win = pushBanter('win')
+      setWinLine(win.text || 'Roman says: nice clear!')
       const perfect = hintsUsed === 0
       const score = scoreRun({
         size: puzzle.size,
@@ -360,9 +429,41 @@ export default function App() {
       setProfile(loadProfile())
       saveDraft(null)
 
+      // If this clear answers a scored challenge, build a head-to-head duel link
+      if (
+        activeChallenge &&
+        activeChallenge.puzzleId === puzzle.id &&
+        activeChallenge.scoreMs != null &&
+        activeChallenge.scorePts != null
+      ) {
+        const myName = profile?.displayName || 'You'
+        const result = createDuelResult({
+          code: activeChallenge.code,
+          puzzleId: puzzle.id,
+          puzzleName: puzzle.name,
+          difficulty: DIFFICULTY_LABEL[puzzle.difficulty],
+          aName: activeChallenge.fromName,
+          aMs: activeChallenge.scoreMs,
+          aPts: activeChallenge.scorePts,
+          aPower: activeChallenge.badgePower,
+          aBonus: activeChallenge.bonusPct,
+          bName: myName,
+          bMs: elapsedMs,
+          bPts: score,
+          bPower: totalBadgePower(wallet),
+          bBonus: totalCoinBonusPercent(wallet),
+        })
+        const link = encodeDuelLink(result)
+        setDuel(result)
+        setDuelLink(link)
+        setShareLink(link)
+        setShareText(duelShareText(result))
+      }
+
+      const baseCoins = Math.max(20, Math.floor(score / 8))
+      const paid = grantWinCoins(wallet, baseCoins)
       let w: Wallet = {
-        ...wallet,
-        coins: wallet.coins + Math.max(20, Math.floor(score / 8)),
+        ...paid.wallet,
         totalWins: wallet.totalWins + 1,
         perfectWins: wallet.perfectWins + (perfect ? 1 : 0),
       }
@@ -377,13 +478,19 @@ export default function App() {
       })
       w = evaled.wallet
       persistWallet(w)
+      if (paid.bonusPct > 0) {
+        window.setTimeout(() => {
+          showToast(`+${paid.gained} coins (+${formatBonusPercent(paid.bonusPct)} badge bonus)`)
+        }, 900)
+      }
       if (evaled.newly.length) {
-        // Let the win Roman punchline finish before achievement voice/toast
-        const achievementName = evaled.newly[0]
+        // Let the win Roman punchline finish before badge unlock voice/toast
+        const badgeId = evaled.newly[0]
+        const badge = BADGES.find((b) => b.id === badgeId)
         window.setTimeout(() => {
           sfxAchievement()
           pushBanter('achievement')
-          showToast(`Achievement: ${achievementName}`)
+          showToast(`Badge unlocked: ${badge?.title ?? badgeId} · Rank 1`)
         }, 3400)
       }
       if (shellRef.current) burstConfetti(shellRef.current)
@@ -410,6 +517,7 @@ export default function App() {
 
   function onHint() {
     if (!puzzle || celebrate || defeated) return
+    bumpAction()
     const hint = findHint(puzzle, cells)
     if (!hint) {
       showToast('No hint available')
@@ -422,7 +530,7 @@ export default function App() {
       w = { ...w, coins: w.coins - HINT_COST }
       showToast(`−${HINT_COST} coins`)
     } else {
-      showToast(`Need ${HINT_COST} coins or a free hint`)
+      setShortfall({ action: 'hint', need: HINT_COST })
       return
     }
     persistWallet(w)
@@ -441,13 +549,14 @@ export default function App() {
   /** Rare rescue: clear a buddy that does not belong (wrong spot / conflict) */
   function onRescue() {
     if (!puzzle || celebrate || defeated) return
+    bumpAction()
     const hit = findMisplacedBuddy(puzzle, cells)
     if (!hit) {
       showToast('No rescue needed — buddies look fine')
       return
     }
     if (wallet.coins < RESCUE_COST) {
-      showToast(`Need ${RESCUE_COST} coins for a rescue`)
+      setShortfall({ action: 'rescue', need: RESCUE_COST })
       return
     }
     persistWallet({ ...wallet, coins: wallet.coins - RESCUE_COST })
@@ -474,6 +583,8 @@ export default function App() {
     setHintsUsed(0)
     setCelebrate(false)
     setDefeated(false)
+    setWinLine('')
+    setLoseLine('')
     setShowWheel(false)
     setLastScore(null)
     recordedRef.current = false
@@ -482,11 +593,12 @@ export default function App() {
     setHintIndex(null)
     setHintText('')
     showToast('Fresh board')
+    bumpAction()
   }
 
   function revive() {
     if (wallet.coins < REVIVE_COST) {
-      showToast(`Need ${REVIVE_COST} coins to revive`)
+      setShortfall({ action: 'revive', need: REVIVE_COST })
       return
     }
     const w = { ...wallet, coins: wallet.coins - REVIVE_COST }
@@ -581,19 +693,95 @@ export default function App() {
 
   function handleCreateChallenge() {
     const target = puzzle ?? PUZZLES[0]
+    const clear = getProgress().clears.find((c) => c.puzzleId === target.id)
     const c = createChallenge({
       puzzleId: target.id,
+      puzzleName: target.name,
+      difficulty: DIFFICULTY_LABEL[target.difficulty],
       fromEmail: profile?.email || 'guest@device.local',
       fromName: profile?.displayName || 'Roman',
       message: challengeMsg,
       toEmail: challengeEmail || undefined,
+      scoreMs: clear?.bestMs,
+      scorePts: clear?.bestScore,
+      badgePower: totalBadgePower(wallet),
+      bonusPct: totalCoinBonusPercent(wallet),
     })
     addChallenge(c)
     setChallenges(loadChallenges())
     const link = encodeChallengeLink(c)
     setShareLink(link)
+    setShareText(challengeShareText(c))
     void navigator.clipboard?.writeText(link)
-    showToast('Challenge link ready — share below')
+    showToast(
+      clear
+        ? `Challenge ready · ${target.name} · ${formatShareTime(clear.bestMs)} · ${badgeTitleForShare(wallet)}`
+        : 'Challenge link ready — share below',
+    )
+  }
+
+  /** Share this win as a scored challenge so a friend can beat your time */
+  function shareWinAsChallenge() {
+    if (!puzzle || lastScore == null) return
+    const c = createChallenge({
+      puzzleId: puzzle.id,
+      puzzleName: puzzle.name,
+      difficulty: DIFFICULTY_LABEL[puzzle.difficulty],
+      fromEmail: profile?.email || 'guest@device.local',
+      fromName: profile?.displayName || 'Roman',
+      scoreMs: elapsedMs,
+      scorePts: lastScore,
+      badgePower: totalBadgePower(wallet),
+      bonusPct: totalCoinBonusPercent(wallet),
+    })
+    addChallenge(c)
+    setChallenges(loadChallenges())
+    const link = encodeChallengeLink(c)
+    setShareLink(link)
+    setShareText(challengeShareText(c))
+    setIncoming(null)
+    setActiveChallenge(null)
+    setScreen('challenge')
+    void navigator.clipboard?.writeText(link)
+    showToast(`Shared ${puzzle.name} · ${formatShareTime(elapsedMs)} · ${badgeTitleForShare(wallet)}`)
+  }
+
+  function openDuelShare() {
+    if (!duel || !duelLink) return
+    setShareLink(duelLink)
+    setShareText(duelShareText(duel))
+    setScreen('duel')
+  }
+
+  function onUpgradeBadge(badgeId: string) {
+    const result = tryUpgradeBadge(wallet, badgeId)
+    if (!result.ok) {
+      const reason = result.reason || ''
+      if (reason.startsWith('Need') || (result.cost > 0 && wallet.coins < result.cost)) {
+        const def = BADGES.find((b) => b.id === badgeId)
+        setShortfall({ action: 'upgrade', need: result.cost, detail: def?.title })
+        return
+      }
+      showToast(reason || 'Cannot upgrade')
+      return
+    }
+    persistWallet(result.wallet)
+    sfxCoin()
+    const rank = badgeRank(result.wallet, badgeId)
+    const def = BADGES.find((b) => b.id === badgeId)
+    showToast(`${def?.title ?? badgeId} → Rank ${rank} · +${formatBonusPercent(totalCoinBonusPercent(result.wallet))} coins`)
+  }
+
+  async function onBuyCoins(packId: CoinPackId) {
+    unlockAudio()
+    const result = await purchaseCoinPack(packId)
+    if (!result.ok) {
+      showToast(result.reason)
+      return
+    }
+    persistWallet({ ...wallet, coins: wallet.coins + result.coins })
+    sfxCoin()
+    showToast(`+${result.coins} coins · ${result.pack.label}`)
   }
 
   const done = new Set(progress.clears.map((c) => c.puzzleId))
@@ -645,14 +833,27 @@ export default function App() {
 
       {toast && <div className="toast">{toast}</div>}
 
+      <ShortfallSheet
+        open={!!shortfall}
+        action={shortfall?.action ?? 'hint'}
+        need={shortfall?.need ?? 0}
+        have={wallet.coins}
+        detail={shortfall?.detail}
+        onClose={() => setShortfall(null)}
+        onPlay={() => {
+          setShortfall(null)
+          setScreen('levels')
+        }}
+        onShop={() => {
+          setShortfall(null)
+          setScreen('rewards')
+        }}
+      />
+
       {screen === 'home' && (
         <main className="home scroll-pane">
           <section className="hero">
-            <p className="dedication">
-              <span className="dedication-star" aria-hidden />
-              Made for Roman
-            </p>
-            <p className="eyebrow">Buddy logic boards</p>
+            <p className="eyebrow">Logic puzzle</p>
             <h1 className="logo-hero">Roman</h1>
             <p className="lede">
               Drop animated buddies — one per row, column, and region. They hate cuddling (even corners).
@@ -666,7 +867,10 @@ export default function App() {
                 <button
                   type="button"
                   className="btn primary"
-                  onClick={() => startPuzzle(PUZZLES.find((p) => !done.has(p.id)) ?? PUZZLES[0])}
+                  onClick={() => {
+                    const uncleared = PUZZLES.find((p) => !done.has(p.id))
+                    startPuzzle(uncleared ?? createFreshPuzzle('easy'))
+                  }}
                 >
                   Play
                 </button>
@@ -676,7 +880,7 @@ export default function App() {
               </button>
             </div>
           </section>
-          <section className="home-strip">
+          <section className="stat-strip home-strip">
             <div>
               <strong>{progress.clears.length}</strong>
               <span>cleared</span>
@@ -686,8 +890,12 @@ export default function App() {
               <span>coins</span>
             </div>
             <div>
-              <strong>{wallet.achievements.length}</strong>
-              <span>badges</span>
+              <strong>{totalBadgePower(wallet)}</strong>
+              <span>badge power</span>
+            </div>
+            <div>
+              <strong>+{formatBonusPercent(totalCoinBonusPercent(wallet))}</strong>
+              <span>win coins</span>
             </div>
           </section>
         </main>
@@ -703,10 +911,32 @@ export default function App() {
       {screen === 'levels' && (
         <main className="panel levels scroll-pane">
           <h2>Levels</h2>
-          <p className="sub">Progress + coins save on this device.</p>
+          <p className="sub">Classic boards stay here. Tap Random for a brand-new layout every time.</p>
           {(['easy', 'medium', 'hard', 'expert'] as const).map((diff) => (
             <section key={diff} className="diff-block">
-              <h3>{DIFFICULTY_LABEL[diff]}</h3>
+              <div className="diff-head">
+                <h3>
+                  {DIFFICULTY_LABEL[diff]}
+                  <span className="diff-size">
+                    {' '}
+                    · {diff === 'easy' ? '5×5' : diff === 'medium' ? '6×6' : diff === 'hard' ? '7×7' : '8×8'}
+                  </span>
+                </h3>
+                <button
+                  type="button"
+                  className="btn ghost random-btn"
+                  onClick={() => {
+                    showToast('Shuffling a fresh board…')
+                    // Defer so toast paints before heavy generate on expert
+                    window.setTimeout(() => {
+                      const p = createFreshPuzzle(diff)
+                      startPuzzle(p)
+                    }, 30)
+                  }}
+                >
+                  Random
+                </button>
+              </div>
               <div className="level-grid">
                 {byDiff[diff].map((p) => {
                   const rec = progress.clears.find((c) => c.puzzleId === p.id)
@@ -720,7 +950,7 @@ export default function App() {
                       <span className="lv-name">{p.name}</span>
                       <span className="lv-meta">
                         {p.size}×{p.size} · {THEMES[themeForPuzzle(p.id, p.difficulty)].label}
-                        {rec ? ` · ${rec.bestScore} pts` : ''}
+                        {rec ? ` · best ${formatMs(rec.bestMs)}` : ''}
                       </span>
                     </button>
                   )
@@ -759,6 +989,11 @@ export default function App() {
               <span className="hud-stash" title="Catch 5 sparks across games for a prize">
                 ✨{(wallet.critterStash ?? 0)}/{CRITTER_STASH_GOAL}
               </span>
+              {activeChallenge?.scoreMs != null && activeChallenge.scorePts != null ? (
+                <span className="hud-rival" title={`${activeChallenge.fromName}'s score to beat`}>
+                  ⚔ {activeChallenge.fromName} {formatShareTime(activeChallenge.scoreMs)}
+                </span>
+              ) : null}
             </div>
           </div>
 
@@ -784,7 +1019,10 @@ export default function App() {
               Redo
             </button>
             <button type="button" className="btn tool" onClick={onHint} disabled={celebrate || defeated}>
-              Hint{wallet.freeHints > 0 ? ` (${wallet.freeHints})` : ''}
+              <span className="tool-label">Hint</span>
+              <span className="tool-cost">
+                {wallet.freeHints > 0 ? `${wallet.freeHints} free` : `${HINT_COST}¢`}
+              </span>
             </button>
             <button
               type="button"
@@ -793,7 +1031,8 @@ export default function App() {
               disabled={celebrate || defeated}
               title={`Clear a misplaced buddy · ${RESCUE_COST} coins`}
             >
-              Rescue
+              <span className="tool-label">Rescue</span>
+              <span className="tool-cost">{RESCUE_COST}¢</span>
             </button>
             <button type="button" className="btn tool" onClick={resetBoard}>
               Reset
@@ -807,42 +1046,69 @@ export default function App() {
           />
 
           {celebrate && !showWheel && (
-            <WinScreen
-              puzzleName={puzzle.name}
-              difficultyLabel={DIFFICULTY_LABEL[puzzle.difficulty]}
-              themeLabel={THEMES[puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)].label}
-              timeLabel={formatMs(elapsedMs)}
-              score={lastScore ?? 0}
-              hintsUsed={hintsUsed}
-              livesLeft={lives}
-              maxLives={MAX_LIVES}
-              sparkCount={wallet.critterStash ?? 0}
-              romanSaying={winSaying || 'Roman says: Veni, vidi, vici!'}
-              spins={wallet.spins}
-              perfect={hintsUsed === 0}
-              onNext={() => {
-                const idx = PUZZLES.findIndex((p) => p.id === puzzle.id)
-                startPuzzle(PUZZLES[idx + 1] ?? PUZZLES[0])
+            <ResultOverlay
+              kind="win"
+              title={formatMs(elapsedMs)}
+              subtitle={lastScore != null ? `${lastScore} pts` : undefined}
+              romanLine={winLine}
+              primaryLabel={
+                duel && activeChallenge?.puzzleId === puzzle.id
+                  ? 'See both scores'
+                  : wallet.spins > 0
+                    ? `Spin (${wallet.spins})`
+                    : 'Next board'
+              }
+              onPrimary={() => {
+                if (duel && activeChallenge?.puzzleId === puzzle.id) {
+                  openDuelShare()
+                  return
+                }
+                if (wallet.spins > 0) openPrizeWheel()
+                else startPuzzle(nextRandomPuzzle(puzzle))
               }}
-              onReplay={resetBoard}
-              onLevels={() => setScreen('levels')}
-              onHome={() => setScreen('home')}
-              onSpin={wallet.spins > 0 ? openPrizeWheel : undefined}
+              secondaryLabel={
+                duel && activeChallenge?.puzzleId === puzzle.id
+                  ? wallet.spins > 0
+                    ? `Spin (${wallet.spins})`
+                    : 'Next board'
+                  : wallet.spins > 0
+                    ? 'Next board'
+                    : 'Home'
+              }
+              onSecondary={() => {
+                if (duel && activeChallenge?.puzzleId === puzzle.id) {
+                  if (wallet.spins > 0) openPrizeWheel()
+                  else startPuzzle(nextRandomPuzzle(puzzle))
+                  return
+                }
+                if (wallet.spins > 0) startPuzzle(nextRandomPuzzle(puzzle))
+                else setScreen('home')
+              }}
+              extra={
+                <>
+                  <button type="button" className="btn ghost result-btn" onClick={shareWinAsChallenge}>
+                    Share score &amp; challenge
+                  </button>
+                  {duel && activeChallenge?.puzzleId === puzzle.id ? (
+                    <button type="button" className="btn ghost result-btn" onClick={openDuelShare}>
+                      Share head-to-head
+                    </button>
+                  ) : null}
+                </>
+              }
             />
           )}
 
           {defeated && (
-            <div className="lose-banner lose-fx">
-              <p>Out of hearts</p>
-              <div className="cta-row">
-                <button type="button" className="btn primary" onClick={revive}>
-                  Revive · {REVIVE_COST} coins
-                </button>
-                <button type="button" className="btn ghost" onClick={resetBoard}>
-                  Try again
-                </button>
-              </div>
-            </div>
+            <ResultOverlay
+              kind="lose"
+              title="Rematch?"
+              romanLine={loseLine}
+              primaryLabel={`Revive · ${REVIVE_COST} coins`}
+              onPrimary={revive}
+              secondaryLabel="Try again"
+              onSecondary={resetBoard}
+            />
           )}
         </main>
       )}
@@ -850,12 +1116,16 @@ export default function App() {
       {screen === 'rewards' && (
         <main className="panel scroll-pane">
           <h2>Rewards</h2>
-          <p className="sub">Win boards for coins. Catch 5 sparks for a spin. Spend on hints, shields, and revives.</p>
-          <div className="wallet-grid">
+          <p className="sub">
+            Unlock badges by playing, then spend coins to rank them up forever — each rank boosts coins on every win.
+          </p>
+          <div className="stat-strip wallet-strip">
             <div><strong>{wallet.coins}</strong><span>coins</span></div>
             <div><strong>{wallet.freeHints}</strong><span>free hints</span></div>
             <div><strong>{wallet.shields}</strong><span>shields</span></div>
-            <div><strong>{wallet.spins}</strong><span>spins left</span></div>
+            <div><strong>{wallet.spins}</strong><span>spins</span></div>
+            <div><strong>{totalBadgePower(wallet)}</strong><span>power</span></div>
+            <div><strong>+{formatBonusPercent(totalCoinBonusPercent(wallet))}</strong><span>win bonus</span></div>
           </div>
           <button
             type="button"
@@ -865,15 +1135,79 @@ export default function App() {
           >
             {wallet.spins > 0 ? `Use a spin (${wallet.spins})` : 'Catch 5 sparks to earn a spin'}
           </button>
-          <h3 className="ach-title">Achievements</h3>
-          <div className="ach-grid">
-            {ACHIEVEMENTS.map((a) => {
-              const unlocked = wallet.achievements.includes(a.id)
+
+          <h3 className="ach-title">Coin shop</h3>
+          <p className="sub shop-note">
+            {isStoreBuild()
+              ? 'Prices come from the App Store / Google Play. Coins spend on hints, rescues, revives, and badge ranks.'
+              : 'Win boards for free coins on web. App packs unlock real-money tops-ups — same coin wallet either way.'}
+          </p>
+          <div className="coin-shop">
+            {COIN_PACKS.map((pack) => {
+              const store = isStoreBuild()
               return (
-                <div key={a.id} className={`ach-card ${unlocked ? 'on' : ''}`}>
+                <article key={pack.id} className={`product-card ${store ? '' : 'product-card-web'}`}>
+                  <div className="product-card-top">
+                    <strong className="product-name">{pack.label}</strong>
+                    {!store && <span className="product-badge">App only</span>}
+                  </div>
+                  <p className="product-coins">+{pack.coins} coins</p>
+                  <p className="product-value">{packValueBlurb(pack.coins)}</p>
+                  <div className="product-card-foot">
+                    <span className="product-price">{pack.priceHint}</span>
+                    {store ? (
+                      <button
+                        type="button"
+                        className="btn primary product-buy"
+                        onClick={() => void onBuyCoins(pack.id)}
+                      >
+                        Buy
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn ghost product-buy"
+                        onClick={() => {
+                          setScreen('levels')
+                          showToast('Play a board to earn free coins')
+                        }}
+                      >
+                        Earn free
+                      </button>
+                    )}
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+
+          <h3 className="ach-title">Badges · rank up</h3>
+          <div className="ach-grid badge-grid">
+            {ACHIEVEMENTS.map((a) => {
+              const rank = badgeRank(wallet, a.id)
+              const unlocked = rank >= 1
+              const cost = unlocked ? upgradeBadgeCost(a.id, rank, totalBadgePower(wallet)) : 0
+              return (
+                <div key={a.id} className={`product-card badge-card ${unlocked ? 'on' : 'is-locked'}`}>
                   <span className="ach-icon">{a.icon}</span>
                   <strong>{a.title}</strong>
-                  <span>{a.blurb}</span>
+                  <span className="badge-rank">{unlocked ? `Rank ${rank}` : 'Locked'}</span>
+                  <span className="product-value">
+                    {unlocked
+                      ? `+${formatBonusPercent(rank * a.bonusPerRank)} coins · next +${a.bonusPerRank}%`
+                      : a.blurb}
+                  </span>
+                  {unlocked ? (
+                    <button
+                      type="button"
+                      className="btn ghost badge-upgrade"
+                      onClick={() => onUpgradeBadge(a.id)}
+                    >
+                      Upgrade · {cost}¢
+                    </button>
+                  ) : (
+                    <span className="badge-locked-hint">Earn by playing</span>
+                  )}
                 </div>
               )
             })}
@@ -997,26 +1331,50 @@ export default function App() {
 
       {screen === 'challenge' && (
         <main className="panel challenge scroll-pane">
-          <h2>Share & challenge</h2>
-          <p className="sub">SMS, WhatsApp, socials, email, or copy link — not just email.</p>
+          <h2>Share &amp; challenge</h2>
+          <p className="sub">
+            Share your best time. Friends open the link, play the same board, then send a head-to-head score back.
+          </p>
           <ShareBar
             url={shareLink || playUrl}
-            text={challengeMsg}
+            text={shareText || challengeMsg}
             onCopied={() => showToast('Copied')}
           />
           {incoming && (
             <div className="incoming">
-              <p><strong>{incoming.fromName}</strong> challenged you</p>
+              <p>
+                <strong>{incoming.fromName}</strong> challenged you
+              </p>
+              <p className="incoming-board">{boardLabel(incoming)}</p>
               <p>{incoming.message}</p>
+              {incoming.scoreMs != null && incoming.scorePts != null ? (
+                <p className="incoming-score">
+                  Their score: <strong>{formatShareTime(incoming.scoreMs)}</strong> ·{' '}
+                  <strong>{incoming.scorePts} pts</strong>
+                  {incoming.badgePower != null ? (
+                    <>
+                      <br />
+                      <span className="incoming-rank">{rankLabel(incoming.badgePower, incoming.bonusPct)}</span>
+                    </>
+                  ) : null}
+                </p>
+              ) : incoming.badgePower != null ? (
+                <p className="incoming-score">
+                  <span className="incoming-rank">{rankLabel(incoming.badgePower, incoming.bonusPct)}</span>
+                </p>
+              ) : null}
               <button
                 type="button"
                 className="btn primary"
                 onClick={() => {
                   const p = getPuzzle(incoming.puzzleId)
-                  if (p) startPuzzle(p)
+                  if (p) {
+                    setActiveChallenge(incoming)
+                    startPuzzle(p)
+                  }
                 }}
               >
-                Accept
+                Accept — beat their score
               </button>
             </div>
           )}
@@ -1045,14 +1403,72 @@ export default function App() {
             <input type="text" value={challengeMsg} onChange={(e) => setChallengeMsg(e.target.value)} maxLength={120} />
           </label>
           <button type="button" className="btn primary" onClick={handleCreateChallenge}>
-            Make challenge link
+            Make score challenge link
           </button>
           {shareLink && (
             <div className="share-box">
               <code>{shareLink}</code>
-              <ShareBar url={shareLink} text={challengeMsg} onCopied={() => showToast('Copied')} />
+              <ShareBar url={shareLink} text={shareText || challengeMsg} onCopied={() => showToast('Copied')} />
             </div>
           )}
+        </main>
+      )}
+
+      {screen === 'duel' && duel && (
+        <main className="panel challenge scroll-pane">
+          <h2>Head-to-head</h2>
+          <p className="sub">
+            {boardLabel(duel)} — both scores on the same board. Share so your friend sees the matchup too.
+          </p>
+          <p className="duel-board-tag">{boardLabel(duel)}</p>
+          <div className="duel-card">
+            <div className={`duel-row ${duelWinner(duel) === 'a' ? 'winner' : ''}`}>
+              <span className="duel-name">{duel.aName}</span>
+              <span className="duel-stats">
+                {formatShareTime(duel.aMs)} · {duel.aPts} pts
+                {duel.aPower != null ? ` · P${duel.aPower}` : ''}
+              </span>
+            </div>
+            {duel.aPower != null ? (
+              <p className="duel-rank-line">{rankLabel(duel.aPower, duel.aBonus)}</p>
+            ) : null}
+            <p className="duel-vs">vs</p>
+            <div className={`duel-row ${duelWinner(duel) === 'b' ? 'winner' : ''}`}>
+              <span className="duel-name">{duel.bName}</span>
+              <span className="duel-stats">
+                {formatShareTime(duel.bMs)} · {duel.bPts} pts
+                {duel.bPower != null ? ` · P${duel.bPower}` : ''}
+              </span>
+            </div>
+            {duel.bPower != null ? (
+              <p className="duel-rank-line">{rankLabel(duel.bPower, duel.bBonus)}</p>
+            ) : null}
+            <p className="duel-verdict">
+              {duelWinner(duel) === 'tie'
+                ? 'It’s a tie!'
+                : `${duelWinner(duel) === 'a' ? duel.aName : duel.bName} wins!`}
+            </p>
+          </div>
+          <ShareBar
+            url={duelLink || shareLink || playUrl}
+            text={shareText || duelShareText(duel)}
+            onCopied={() => showToast('Copied')}
+          />
+          <div className="cta-row" style={{ marginTop: '1rem' }}>
+            <button
+              type="button"
+              className="btn primary"
+              onClick={() => {
+                const p = getPuzzle(duel.puzzleId)
+                if (p) startPuzzle(p)
+              }}
+            >
+              Play this board
+            </button>
+            <button type="button" className="btn ghost" onClick={() => setScreen('home')}>
+              Home
+            </button>
+          </div>
         </main>
       )}
 
@@ -1065,7 +1481,7 @@ export default function App() {
       />
 
       <footer className={`foot ${screen === 'play' ? 'foot-hidden' : ''}`}>
-        <span>Made for Roman</span>
+        <span>Roman's Game</span>
         <button
           type="button"
           className="mute"
