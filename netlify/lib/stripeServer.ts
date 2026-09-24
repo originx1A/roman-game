@@ -1,6 +1,7 @@
 import Stripe from 'stripe'
 
-const KEY_RE = /^(sk|rk)_(test|live)_/
+/** Secret keys (sk_), restricted keys (rk_), and sandbox restricted keys (rkcs_). */
+const KEY_RE = /^(sk|rk|rkcs)_(test|live)_/
 
 export function readStripeKey(): string | null {
   const key = process.env.STRIPE_SECRET_KEY?.trim()
