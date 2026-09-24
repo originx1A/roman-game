@@ -2,8 +2,8 @@ name: Inflate green store-layer sources
 on:
   push:
     paths:
-      - 'scripts/patches/**'
-      - 'scripts/apply-green-patches.sh'
+      - 'scripts/payload/**'
+      - 'scripts/inflate-green-store.mjs'
       - '.github/workflows/inflate-green-store.yml'
   workflow_dispatch:
 permissions:
@@ -15,26 +15,19 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.ref_name }}
-      - name: Apply green patches
-        run: bash scripts/apply-green-patches.sh
+      - name: Inflate green App.tsx
+        run: node scripts/inflate-green-store.mjs
       - name: Verify build
         run: npm ci && npm run build
-      - name: Commit restored sources
+      - name: Commit restored App.tsx
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          rm -f src/AppWired.tsx src/.restore-probe.txt
-          rm -rf src/appwired-parts
-          git add -A src/App.tsx src/App.css src/game/comments.ts src/game/sound.ts
-          git add -u src/AppWired.tsx src/.restore-probe.txt src/appwired-parts 2>/dev/null || true
+          git add -A src/App.tsx package.json
+          git add -u src/AppWired.tsx src/appwired-parts scripts/assemble-appwired.cjs 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "No changes to commit"
             exit 0
           fi
-          git commit -m "$(cat <<'MSG'
-          fix: restore full App.tsx and green store-layer build
-
-          Remove broken AppWired re-export probe. Align exports so npm run build exits 0.
-          MSG
-          )"
+          git commit -m "fix: restore full App.tsx (remove AppWired probe)"
           git push
