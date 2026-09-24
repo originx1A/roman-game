@@ -58,6 +58,6 @@ async function put(path, message) {
 }
 
 ;(async () => {
-  await put('src/App.tsx', 'Add App.tsx with WinScreen integration')
-  await put('src/App.css', 'Add App.css with win celebration styles')
+  await put('src/App.tsx', 'Product shop cards, HUD costs, ShortfallSheet polish')
+  await put('src/App.css', 'Product shop cards CSS, HUD costs polish')
 })()
