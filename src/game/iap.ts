@@ -1,107 +1,66 @@
 /**
- * In-app purchases for App Store / Google Play.
- * Web: packs are display-only (App only). Native: purchaseCoinPack → store billing.
+ * In-app purchases for App Store / Google Play builds.
+ * Web builds keep the shop UI but do not charge; coins still unlock via play.
  */
 
-import { HINT_COST, REVIVE_COST } from './rewards'
+export type CoinPackId = 'coins_100' | 'coins_550' | 'coins_1200'
 
-export type CoinPackId = 'coins_100' | 'coins_500' | 'coins_1200' | 'coins_3000'
-
-export interface CoinPack {
+export type CoinPack = {
   id: CoinPackId
-  productId: string
   label: string
   coins: number
-  /** Display hint only — real price comes from the store */
+  /** Store product id — wire to RevenueCat / StoreKit / Play Billing */
+  productId: string
+  /** Display-only hint; real price comes from the store */
   priceHint: string
 }
 
 export const COIN_PACKS: CoinPack[] = [
-  {
-    id: 'coins_100',
-    productId: 'roman.coins.100',
-    label: 'Coin Pouch',
-    coins: 100,
-    priceHint: '≈ $0.99',
-  },
-  {
-    id: 'coins_500',
-    productId: 'roman.coins.500',
-    label: 'Coin Bag',
-    coins: 500,
-    priceHint: '≈ $4.99',
-  },
-  {
-    id: 'coins_1200',
-    productId: 'roman.coins.1200',
-    label: 'Coin Chest',
-    coins: 1200,
-    priceHint: '≈ $9.99',
-  },
-  {
-    id: 'coins_3000',
-    productId: 'roman.coins.3000',
-    label: 'Coin Vault',
-    coins: 3000,
-    priceHint: '≈ $19.99',
-  },
+  { id: 'coins_100', label: 'Starter', coins: 100, productId: 'roman_coins_100', priceHint: 'Store price' },
+  { id: 'coins_550', label: 'Popular', coins: 550, productId: 'roman_coins_550', priceHint: 'Best value' },
+  { id: 'coins_1200', label: 'Vault', coins: 1200, productId: 'roman_coins_1200', priceHint: 'Biggest stack' },
 ]
 
-export type PurchaseResult =
-  | { ok: true; pack: CoinPack; coins: number }
-  | { ok: false; reason: string }
-
-/** Player-facing value math — e.g. "100 coins ≈ 6 hints or 3 revives" */
-export function packValueBlurb(coins: number): string {
-  const hints = Math.max(1, Math.floor(coins / HINT_COST))
-  const revives = Math.max(1, Math.floor(coins / REVIVE_COST))
-  return `${coins} coins ≈ ${hints} hints or ${revives} revives`
+export function packValueBlurb(pack: CoinPack): string {
+  if (pack.id === 'coins_550') return 'Best value · most players pick this'
+  if (pack.id === 'coins_1200') return 'Biggest stack · fewer store trips'
+  return 'Quick top-up for a hint or two'
 }
 
-/** Cheapest pack that covers a coin shortfall (native shortfall CTA). */
-export function cheapestPackForGap(gap: number): CoinPack {
-  const sorted = [...COIN_PACKS].sort((a, b) => a.coins - b.coins)
-  return sorted.find((p) => p.coins >= gap) ?? sorted[sorted.length - 1]!
-}
-
-function isNativeApp(): boolean {
+/** True when the binary is a store build (Capacitor / native shell). */
+export function isStoreBuild(): boolean {
   try {
-    return !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor
-      ?.isNativePlatform?.()
+    const w = window as Window & { Capacitor?: { isNativePlatform?: () => boolean } }
+    return !!w.Capacitor?.isNativePlatform?.()
   } catch {
     return false
   }
 }
 
-export function isStoreBuild(): boolean {
-  return isNativeApp()
-}
+export type PurchaseResult =
+  | { ok: true; coins: number; pack: CoinPack }
+  | { ok: false; reason: string }
 
+/**
+ * Purchase a coin pack.
+ * Native: replace the body with StoreKit 2 / Play Billing / RevenueCat.
+ * Web: returns a clear message — no fake coins from a pretend checkout.
+ */
 export async function purchaseCoinPack(packId: CoinPackId): Promise<PurchaseResult> {
   const pack = COIN_PACKS.find((p) => p.id === packId)
   if (!pack) return { ok: false, reason: 'Unknown pack' }
 
-  if (!isNativeApp()) {
+  if (!isStoreBuild()) {
     return {
       ok: false,
-      reason: 'Top-ups unlock in the App Store / Google Play app.',
+      reason: 'Coin packs unlock in the App Store / Google Play app. On web, win boards for free coins.',
     }
   }
 
-  try {
-    const bridge = (window as unknown as { RomanIAP?: { purchase: (id: string) => Promise<boolean> } })
-      .RomanIAP
-    if (bridge?.purchase) {
-      const paid = await bridge.purchase(pack.productId)
-      if (!paid) return { ok: false, reason: 'Purchase cancelled' }
-      return { ok: true, pack, coins: pack.coins }
-    }
-  } catch {
-    /* fall through */
-  }
-
+  // Native stub — integrate billing SDK here.
+  // Example: await Purchases.purchaseProduct(pack.productId)
   return {
     ok: false,
-    reason: 'Store billing not connected yet. Finish App Store / Play Console IAP setup.',
+    reason: `Store billing not wired yet for ${pack.productId}. Connect RevenueCat / StoreKit to enable.`,
   }
 }
