@@ -11,7 +11,8 @@ Made for Roman.
 - 20 handcrafted boards (5×5 → 8×8)
 - Device save for scores and in-progress boards
 - Email identity for named scores and invites
-- Challenge links + optional mailto invites
+- Challenge links + score duels (compare pts/time in the link) + optional mailto invites
+- Share score from the victory screen
 - Undo / redo / hints with explanations
 - Web Audio sound effects + win confetti
 - Export / import save JSON
@@ -66,10 +67,13 @@ There is no cloud server in this build — scores and challenges are local + sha
 
 ## Challenge flow
 
-1. Open **Challenge**
-2. Pick a board, optional friend email + message
-3. **Create invite link** (copied to clipboard)
-4. Friend opens the link → Accept → plays that board
+1. Open **Share** (or win a board and tap **Score duel**)
+2. Pick a board, optional friend email + message — or duel from the victory screen with your score attached
+3. **Make challenge link** / **Score duel** (copied or shared)
+4. Friend opens the link → sees your score to beat → Accept → plays that board
+5. When they clear it, the victory screen compares scores head-to-head (no server — score rides in the link)
+
+**Share score** on the victory popup posts your pts + time (social / native share / clipboard). **Score duel** embeds score + time in the challenge hash so friends can compare.
 
 ## Scripts
 

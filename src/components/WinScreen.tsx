@@ -12,6 +12,15 @@ const LATIN_SAYINGS = [
   { latin: 'Aut viam inveniam aut faciam.', gloss: "I'll find a way — or make one." },
 ] as const
 
+export type DuelCompare = {
+  opponentName: string
+  opponentScore: number
+  opponentTimeLabel?: string
+  yourScore: number
+  yourTimeLabel: string
+  outcome: 'win' | 'lose' | 'tie'
+}
+
 export type WinScreenProps = {
   puzzleName: string
   difficultyLabel: string
@@ -25,11 +34,14 @@ export type WinScreenProps = {
   romanSaying: string
   spins: number
   perfect: boolean
+  duel?: DuelCompare | null
   onNext: () => void
   onReplay: () => void
   onLevels: () => void
   onHome: () => void
   onSpin?: () => void
+  onShareScore?: () => void
+  onScoreDuel?: () => void
 }
 
 export function WinScreen({
@@ -45,11 +57,14 @@ export function WinScreen({
   romanSaying,
   spins,
   perfect,
+  duel,
   onNext,
   onReplay,
   onLevels,
   onHome,
   onSpin,
+  onShareScore,
+  onScoreDuel,
 }: WinScreenProps) {
   const [entered, setEntered] = useState(false)
   const latin = useMemo(
@@ -62,6 +77,15 @@ export function WinScreen({
     return () => window.cancelAnimationFrame(id)
   }, [])
 
+  const duelHeadline =
+    duel?.outcome === 'win'
+      ? `You beat ${duel.opponentName}!`
+      : duel?.outcome === 'lose'
+        ? `${duel.opponentName} still leads`
+        : duel
+          ? `Tie with ${duel.opponentName}`
+          : null
+
   return (
     <div className={`win-screen ${entered ? 'in' : ''}`} role="dialog" aria-label="Board cleared">
       <div className="win-screen-burst" aria-hidden="true" />
@@ -72,7 +96,9 @@ export function WinScreen({
       </div>
 
       <div className="win-screen-card">
-        <p className="win-screen-kicker">{difficultyLabel} · {themeLabel}</p>
+        <p className="win-screen-kicker">
+          {difficultyLabel} · {themeLabel}
+        </p>
         <h2 className="win-screen-title">Victory!</h2>
         <p className="win-screen-board">{puzzleName}</p>
 
@@ -84,6 +110,27 @@ export function WinScreen({
         <p className="win-roman-says">{romanSaying}</p>
 
         {perfect ? <p className="win-perfect">Perfect clear — no hints</p> : null}
+
+        {duel && duelHeadline ? (
+          <div className={`win-duel win-duel-${duel.outcome}`} aria-label="Score duel result">
+            <p className="win-duel-headline">{duelHeadline}</p>
+            <div className="win-duel-row">
+              <div>
+                <span className="win-duel-label">You</span>
+                <strong>
+                  {duel.yourScore} pts · {duel.yourTimeLabel}
+                </strong>
+              </div>
+              <div>
+                <span className="win-duel-label">{duel.opponentName}</span>
+                <strong>
+                  {duel.opponentScore} pts
+                  {duel.opponentTimeLabel ? ` · ${duel.opponentTimeLabel}` : ''}
+                </strong>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <div className="win-stats" aria-label="Run stats">
           <div className="win-stat">
@@ -121,6 +168,20 @@ export function WinScreen({
               Spin prize ({spins})
             </button>
           ) : null}
+          {(onShareScore || onScoreDuel) && (
+            <div className="win-share-row">
+              {onShareScore ? (
+                <button type="button" className="btn ghost win-cta" onClick={onShareScore}>
+                  Share score
+                </button>
+              ) : null}
+              {onScoreDuel ? (
+                <button type="button" className="btn ghost win-cta" onClick={onScoreDuel}>
+                  Score duel
+                </button>
+              ) : null}
+            </div>
+          )}
           <button type="button" className="btn ghost win-cta" onClick={onReplay}>
             Replay
           </button>
