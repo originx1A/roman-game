@@ -1,7 +1,7 @@
 export type CommentMood = 'good' | 'bad' | 'hype' | 'neutral'
+export type VoiceClipId = string
 export type ConflictKind = 'touch' | 'row' | 'col' | 'region' | 'generic'
 export type VoiceMood = 'excited' | 'happy' | 'neutral' | 'soft' | 'disappointed'
-export type VoiceClipId = string
 
 export interface Banter {
   text: string
@@ -28,24 +28,17 @@ export function banterFor(
     | 'idle',
   _conflict?: ConflictKind,
 ): Banter {
-  if (event === 'mark') return { text: '', mood: 'neutral', voiceMood: 'neutral', speak: false, silent: true }
-  if (event === 'place-good') return { text: '', mood: 'good', voiceMood: 'happy', speak: false, giggle: true, silent: true }
-  if (event === 'win' || event === 'prize' || event === 'achievement' || event === 'critter' || event === 'critter-stash') {
-    return { text: 'Nice!', mood: 'hype', voiceMood: 'excited', speak: true, clip: 'nice' }
+  if (event === 'idle') {
+    return { text: 'Any century now.', mood: 'bad', voiceMood: 'disappointed', speak: true, clip: 'roman_idle_hello' }
   }
-  if (event === 'place-bad' || event === 'lose' || event === 'idle') {
-    return { text: 'Try again.', mood: 'bad', voiceMood: 'disappointed', speak: true, clip: 'nope' }
-  }
-  return { text: 'Here\'s a nudge.', mood: 'neutral', voiceMood: 'soft', speak: true, clip: 'nudge' }
+  return { text: '', mood: 'neutral', voiceMood: 'neutral', speak: false, silent: true }
 }
 
 export function sparkProgressBanter(have: number, goal = 5): Banter {
-  const left = Math.max(0, goal - have)
   return {
-    text: have === 1 ? 'One sparkle so far.' : `${have} sparkles. ${left} more for the bonus!`,
+    text: `${have}/${goal} sparkles`,
     mood: 'hype',
     voiceMood: 'happy',
-    speak: true,
-    clip: 'nice',
+    speak: false,
   }
 }
