@@ -1,0 +1,79 @@
+  const [hintIndex, setHintIndex] = useState<number | null>(null)
+  const [giggleIndex, setGiggleIndex] = useState<number | null>(null)
+  const [heartPop, setHeartPop] = useState<number | null>(null)
+  const [, setHintText] = useState('')
+  const [celebrate, setCelebrate] = useState(false)
+  const [defeated, setDefeated] = useState(false)
+  const [lives, setLives] = useState(MAX_LIVES)
+  const [lastScore, setLastScore] = useState<number | null>(null)
+  const [winSaying, setWinSaying] = useState('')
+  const [toast, setToast] = useState('')
+  const [incoming, setIncoming] = useState<Challenge | null>(null)
+  const [, setChallenges] = useState(() => loadChallenges())
+  const [emailInput, setEmailInput] = useState('')
+  const [nameInput, setNameInput] = useState('Roman')
+  const [challengeEmail, setChallengeEmail] = useState('')
+  const [challengeMsg, setChallengeMsg] = useState('Can you beat Roman on this board?')
+  const [shareLink, setShareLink] = useState('')
+  const [showWheel, setShowWheel] = useState(false)
+  const [awaitingComeback, setAwaitingComeback] = useState(false)
+  const shellRef = useRef<HTMLDivElement>(null)
+  const tickRef = useRef<number | null>(null)
+  const recordedRef = useRef(false)
+
+  const byDiff = useMemo(() => puzzlesByDifficulty(), [])
+  const draft = loadDraft<Draft>()
+  const draftPuzzle = draft ? getPuzzle(draft.puzzleId) : undefined
+  const playUrl = typeof window !== 'undefined' ? window.location.href.split('#')[0] : 'https://roman-game-pebble.netlify.app'
+
+  useEffect(() => {
+    warmVoices()
+    setMuted(!settings.sound)
+    setVoiceEnabled(settings.voice)
+  }, [settings.sound, settings.voice])
+
+  useEffect(() => {
+    document.documentElement.dataset.motion = settings.reduceMotion ? 'reduce' : 'ok'
+  }, [settings.reduceMotion])
+
+  useEffect(() => {
+    // Only strip Netlify badge chrome on Netlify hosts (not needed on GitHub Pages)
+    const host = typeof window !== 'undefined' ? window.location.hostname : ''
+    if (!host.includes('netlify')) return
+    const kill = () => {
+      document.querySelectorAll('a, iframe, div, span, button').forEach((el) => {
+        const node = el as HTMLElement
+        const href = (node.getAttribute('href') || '').toLowerCase()
+        const text = (node.textContent || '').toLowerCase()
+        const id = (node.id || '').toLowerCase()
+        const cls = (node.className || '').toString().toLowerCase()
+        const hit =
+          href.includes('netlify') ||
+          id.includes('netlify') ||
+          cls.includes('netlify') ||
+          (text.includes('powered by netlify') && text.length < 40)
+        if (!hit) return
+        // Don't hide our own UI roots
+        if (node.closest('#root')) return
+        node.style.setProperty('display', 'none', 'important')
+        node.style.setProperty('visibility', 'hidden', 'important')
+        node.style.setProperty('pointer-events', 'none', 'important')
+        node.setAttribute('aria-hidden', 'true')
+      })
+    }
+    kill()
+    const obs = new MutationObserver(kill)
+    obs.observe(document.documentElement, { childList: true, subtree: true })
+    const t = window.setInterval(kill, 800)
+    return () => {
+      obs.disconnect()
+      window.clearInterval(t)
+    }
+  }, [])
+
+  useEffect(() => {
+    const parsed = parseChallengeFromHash(window.location.hash)
+    if (parsed) {
+      const full: Challenge = { ...parsed, createdAt: new Date().toISOString() }
+      setIncoming(full)
+      addChallenge(full)
