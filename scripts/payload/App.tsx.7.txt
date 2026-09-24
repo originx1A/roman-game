@@ -1,0 +1,87 @@
+                    className={['heart', i < lives ? 'on' : '', heartPop === i ? 'pop' : '']
+                      .filter(Boolean)
+                      .join(' ')}
+                  />
+                ))}
+              </span>
+              <span className="hud-time">{formatMs(elapsedMs)}</span>
+              <span className="hud-stash" title="Catch 5 sparks across games for a prize">
+                ✨{(wallet.critterStash ?? 0)}/{CRITTER_STASH_GOAL}
+              </span>
+            </div>
+          </div>
+
+          <div className="board-stage">
+            <Board
+              puzzle={puzzle}
+              cells={cells}
+              onChange={onBoardChange}
+              hintIndex={hintIndex}
+              giggleIndex={giggleIndex}
+              celebrate={celebrate}
+              defeated={defeated}
+              disabled={celebrate || defeated}
+              themeId={puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)}
+            />
+          </div>
+
+          <div className="toolbar play-toolbar">
+            <button type="button" className="btn tool" onClick={undo} disabled={!history.length || celebrate || defeated}>
+              Undo
+            </button>
+            <button type="button" className="btn tool" onClick={redo} disabled={!future.length || celebrate || defeated}>
+              Redo
+            </button>
+            <button type="button" className="btn tool" onClick={onHint} disabled={celebrate || defeated}>
+              Hint{wallet.freeHints > 0 ? ` (${wallet.freeHints})` : ''}
+            </button>
+            <button
+              type="button"
+              className="btn tool"
+              onClick={onRescue}
+              disabled={celebrate || defeated}
+              title={`Clear a misplaced buddy · ${RESCUE_COST} coins`}
+            >
+              Rescue
+            </button>
+            <button type="button" className="btn tool" onClick={resetBoard}>
+              Reset
+            </button>
+          </div>
+
+          <SparkCritter
+            active={!celebrate && !defeated && !showWheel}
+            stashCount={wallet.critterStash ?? 0}
+            onCatch={handleCritterCatch}
+          />
+
+          {celebrate && !showWheel && (
+            <WinScreen
+              puzzleName={puzzle.name}
+              difficultyLabel={DIFFICULTY_LABEL[puzzle.difficulty]}
+              themeLabel={THEMES[puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)].label}
+              timeLabel={formatMs(elapsedMs)}
+              score={lastScore ?? 0}
+              hintsUsed={hintsUsed}
+              livesLeft={lives}
+              maxLives={MAX_LIVES}
+              sparkCount={wallet.critterStash ?? 0}
+              romanSaying={winSaying || 'Roman says: Veni, vidi, vici!'}
+              spins={wallet.spins}
+              perfect={hintsUsed === 0}
+              onNext={() => {
+                const idx = PUZZLES.findIndex((p) => p.id === puzzle.id)
+                startPuzzle(PUZZLES[idx + 1] ?? PUZZLES[0])
+              }}
+              onReplay={resetBoard}
+              onLevels={() => setScreen('levels')}
+              onHome={() => setScreen('home')}
+              onSpin={wallet.spins > 0 ? openPrizeWheel : undefined}
+            />
+          )}
+
+          {defeated && (
+            <div className="lose-banner lose-fx">
+              <p>Out of hearts</p>
+              <div className="cta-row">
+                <button type="button" className="btn primary" onClick={revive}>
