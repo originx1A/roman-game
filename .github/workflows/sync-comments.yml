@@ -1,0 +1,42 @@
+name: Sync source from Surge mirror
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [cursor/ux-voice-blob-header-8810]
+    paths:
+      - '.github/workflows/sync-comments.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: cursor/ux-voice-blob-header-8810
+
+      - name: Fetch mirrored source from Surge
+        run: |
+          BASE=https://roman-src-sync.surge.sh
+          mkdir -p src/game src/components
+          curl -fsSL "$BASE/src/game/comments.ts" -o src/game/comments.ts
+          curl -fsSL "$BASE/src/game/sound.ts" -o src/game/sound.ts
+          curl -fsSL "$BASE/src/components/Board.tsx" -o src/components/Board.tsx
+          curl -fsSL "$BASE/src/App.tsx" -o src/App.tsx
+          wc -c src/game/comments.ts src/game/sound.ts src/components/Board.tsx src/App.tsx
+          head -c 60 src/game/comments.ts; echo
+
+      - name: Commit synced source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/game/comments.ts src/game/sound.ts src/components/Board.tsx src/App.tsx
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "Sync source: absurd win rotation, louder SFX, rescue button"
+          git push
