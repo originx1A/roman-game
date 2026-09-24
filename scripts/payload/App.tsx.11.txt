@@ -1,0 +1,82 @@
+iend sees the matchup too.
+          </p>
+          <p className="duel-board-tag">{boardLabel(duel)}</p>
+          <div className="duel-card">
+            <div className={`duel-row ${duelWinner(duel) === 'a' ? 'winner' : ''}`}>
+              <span className="duel-name">{duel.aName}</span>
+              <span className="duel-stats">
+                {formatShareTime(duel.aMs)} · {duel.aPts} pts
+                {duel.aPower != null ? ` · P${duel.aPower}` : ''}
+              </span>
+            </div>
+            {duel.aPower != null ? (
+              <p className="duel-rank-line">{rankLabel(duel.aPower, duel.aBonus)}</p>
+            ) : null}
+            <p className="duel-vs">vs</p>
+            <div className={`duel-row ${duelWinner(duel) === 'b' ? 'winner' : ''}`}>
+              <span className="duel-name">{duel.bName}</span>
+              <span className="duel-stats">
+                {formatShareTime(duel.bMs)} · {duel.bPts} pts
+                {duel.bPower != null ? ` · P${duel.bPower}` : ''}
+              </span>
+            </div>
+            {duel.bPower != null ? (
+              <p className="duel-rank-line">{rankLabel(duel.bPower, duel.bBonus)}</p>
+            ) : null}
+            <p className="duel-verdict">
+              {duelWinner(duel) === 'tie'
+                ? 'It’s a tie!'
+                : `${duelWinner(duel) === 'a' ? duel.aName : duel.bName} wins!`}
+            </p>
+          </div>
+          <ShareBar
+            url={duelLink || shareLink || playUrl}
+            text={shareText || duelShareText(duel)}
+            onCopied={() => showToast('Copied')}
+          />
+          <div className="cta-row" style={{ marginTop: '1rem' }}>
+            <button
+              type="button"
+              className="btn primary"
+              onClick={() => {
+                const p = getPuzzle(duel.puzzleId)
+                if (p) startPuzzle(p)
+              }}
+            >
+              Play this board
+            </button>
+            <button type="button" className="btn ghost" onClick={() => setScreen('home')}>
+              Home
+            </button>
+          </div>
+        </main>
+      )}
+
+      <PrizeWheel
+        open={showWheel}
+        spinsLeft={wallet.spins}
+        onConsumeSpin={consumeSpin}
+        onDone={handlePrize}
+        onClose={() => setShowWheel(false)}
+      />
+
+      <footer className={`foot ${screen === 'play' ? 'foot-hidden' : ''}`}>
+        <span>Roman's Game</span>
+        <button
+          type="button"
+          className="mute"
+          onClick={() => {
+            const next = { ...settings, sound: !settings.sound }
+            setSettings(next)
+            saveSettings(next)
+            setMuted(!next.sound)
+          }}
+        >
+          {settings.sound ? 'Sound on' : 'Sound off'}
+        </button>
+      </footer>
+      {/* Keep clear of Netlify “Powered by” badge */}
+      <div className="netlify-safe" aria-hidden />
+    </div>
+  )
+}
