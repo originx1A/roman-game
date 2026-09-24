@@ -7,6 +7,7 @@
   margin: 0;
 }
 :root {
+  --app-height: 100svh;
   --ink: #07122a;
   --foam: #f4fbff;
   --sky: #1a6dff;
@@ -40,7 +41,7 @@ select {
   font: inherit;
 }
 .shell {
-  min-height: 100dvh;
+  min-height: var(--app-height, 100svh);
   position: relative;
   overflow-x: hidden;
 }
@@ -961,8 +962,8 @@ html[data-motion="reduce"] :after {
 }
 .fixed-shell {
   flex-direction: column;
-  height: 100dvh;
-  max-height: 100dvh;
+  height: var(--app-height, 100svh);
+  max-height: var(--app-height, 100svh);
   display: flex;
   overflow: hidden;
 }
@@ -1038,16 +1039,21 @@ html[data-motion="reduce"] :after {
   font-size: 0.78rem;
 }
 .board-stage {
-  flex: auto;
+  flex: 1 1 auto;
   place-items: center;
+  justify-items: center;
+  align-content: center;
   width: 100%;
   min-height: 0;
+  max-height: 100%;
   display: grid;
   position: relative;
+  overflow: hidden;
 }
 .play-fixed .board {
   aspect-ratio: 1;
-  width: 100%;
+  box-sizing: border-box;
+  width: min(100%, 520px);
   max-width: 100%;
   height: auto;
   max-height: 100%;
@@ -2054,19 +2060,26 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
 }
 .board-stage {
   z-index: 2;
-  flex: auto;
+  flex: 1 1 auto;
   place-items: center;
+  justify-items: center;
+  align-content: center;
   width: 100%;
   min-height: 0;
+  max-height: 100%;
   display: grid;
   position: relative;
+  overflow: hidden;
 }
 .play-fixed .board {
   aspect-ratio: 1;
+  box-sizing: border-box;
   max-width: 100%;
   height: auto;
-  width: min(100%, 100dvh - 8.5rem, 520px) !important;
-  max-height: min(100dvh - 8.5rem, 520px) !important;
+  /* Prefer flex stage fit; cap with stable small-viewport height so mobile chrome
+     show/hide (dvh jumps) does not size the board taller than the visible phone screen. */
+  width: min(100%, 520px, calc(var(--app-height, 100svh) - 8.5rem)) !important;
+  max-height: min(100%, calc(var(--app-height, 100svh) - 8.5rem), 520px) !important;
 }
 .play-toolbar {
   z-index: 2;

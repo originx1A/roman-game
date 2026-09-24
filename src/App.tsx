@@ -98,6 +98,26 @@ function burstConfetti(root: HTMLElement) {
   window.setTimeout(() => layer.remove(), 1800)
 }
 
+
+/** Keep layout height matched to the *visible* mobile viewport.
+ *  dvh jumps when the browser chrome shows/hides; that can size the board
+ *  taller than the phone screen until a refresh. Prefer visualViewport. */
+function syncAppHeight() {
+  if (typeof window === 'undefined') return
+  const vv = window.visualViewport
+  const h = Math.round(vv?.height ?? window.innerHeight)
+  if (h > 0) {
+    document.documentElement.style.setProperty('--app-height', `${h}px`)
+  }
+}
+
+function resetPlayViewport() {
+  syncAppHeight()
+  window.scrollTo(0, 0)
+  document.documentElement.scrollTop = 0
+  document.body.scrollTop = 0
+}
+
 export default function App() {
   const [screen, setScreen] = useState<Screen>('home')
   const [profile, setProfile] = useState<Profile | null>(() => loadProfile())
@@ -138,6 +158,19 @@ export default function App() {
   const draft = loadDraft<Draft>()
   const draftPuzzle = draft ? getPuzzle(draft.puzzleId) : undefined
   const playUrl = typeof window !== 'undefined' ? window.location.href.split('#')[0] : 'https://roman-game-pebble.netlify.app'
+
+  useEffect(() => {
+    syncAppHeight()
+    const onResize = () => syncAppHeight()
+    window.addEventListener('resize', onResize)
+    window.visualViewport?.addEventListener('resize', onResize)
+    window.visualViewport?.addEventListener('scroll', onResize)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      window.visualViewport?.removeEventListener('resize', onResize)
+      window.visualViewport?.removeEventListener('scroll', onResize)
+    }
+  }, [])
 
   useEffect(() => {
     warmVoices()
@@ -235,6 +268,7 @@ export default function App() {
   function startPuzzle(p: Puzzle, resume = false) {
     unlockAudio()
     sfxWhoosh()
+    resetPlayViewport()
     const themeId = p.theme ?? themeForPuzzle(p.id, p.difficulty)
     setPuzzle({ ...p, theme: themeId })
     recordedRef.current = false
@@ -258,6 +292,10 @@ export default function App() {
         setHistory([])
         setRunning(true)
         setScreen('play')
+        requestAnimationFrame(() => {
+          resetPlayViewport()
+          shellRef.current?.scrollTo?.(0, 0)
+        })
         return
       }
     }
@@ -269,6 +307,10 @@ export default function App() {
     setHintsUsed(0)
     setRunning(true)
     setScreen('play')
+    requestAnimationFrame(() => {
+      resetPlayViewport()
+      shellRef.current?.scrollTo?.(0, 0)
+    })
     saveDraft({
       puzzleId: p.id,
       cells: board,
