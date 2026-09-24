@@ -21,6 +21,8 @@ export interface ShortfallSheetProps {
   onPlay: () => void
   /** Native only — buy the cheapest pack that covers the gap */
   onBuyPack?: (pack: CoinPack) => void
+  /** Web / legacy — open the coin shop screen */
+  onShop?: () => void
 }
 
 export function ShortfallSheet({
@@ -32,6 +34,7 @@ export function ShortfallSheet({
   onClose,
   onPlay,
   onBuyPack,
+  onShop,
 }: ShortfallSheetProps) {
   const titleId = useId()
   const short = Math.max(0, need - have)
@@ -81,6 +84,10 @@ export function ShortfallSheet({
           {store && onBuyPack ? (
             <button type="button" className="btn ghost" onClick={() => onBuyPack(pack)}>
               Buy {pack.label} · +{pack.coins} ({pack.priceHint})
+            </button>
+          ) : onShop ? (
+            <button type="button" className="btn ghost" onClick={onShop}>
+              Open shop
             </button>
           ) : null}
           <button type="button" className="btn shortfall-dismiss" onClick={onClose}>
