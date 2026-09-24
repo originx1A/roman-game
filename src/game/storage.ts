@@ -1,8 +1,5 @@
-/* Reconstructed from https://roman-game.surge.sh production JS (index-ChNfA4F8.js).
- * Logic matches the deployed build; formatting/names may differ from original source.
- */
-
 import type { Challenge, ClearRecord, Profile } from './types'
+import { DEFAULT_WALLET, type Wallet } from './rewards'
 
 const KEYS = {
   profile: 'roman.profile.v1',
@@ -11,6 +8,7 @@ const KEYS = {
   challenges: 'roman.challenges.v1',
   boardDraft: 'roman.draft.v1',
   wallet: 'roman.wallet.v1',
+  generated: 'roman.generated.v1',
 } as const
 
 export interface Settings {
@@ -19,36 +17,26 @@ export interface Settings {
   reduceMotion: boolean
 }
 
-export interface Wallet {
-  coins: number
-  freeHints: number
-  shields: number
-  spins: number
-  achievements: string[]
-  totalWins: number
-  perfectWins: number
-  totalMistakes: number
-  critterStash: number
+export interface ProgressBlob {
+  clears: ClearRecord[]
+  totalScore: number
 }
 
-const DEFAULT_SETTINGS: Settings = { sound: true, voice: true, reduceMotion: false }
-
-export const DEFAULT_WALLET: Wallet = {
-  coins: 50,
-  freeHints: 2,
-  shields: 0,
-  spins: 0,
-  achievements: [],
-  totalWins: 0,
-  perfectWins: 0,
-  totalMistakes: 0,
-  critterStash: 0,
+export interface BoardDraft {
+  puzzleId: string
+  cells: string[]
+  elapsedMs: number
+  hintsUsed: number
+  startedAt: string
 }
+
+const defaultSettings: Settings = { sound: true, voice: true, reduceMotion: false }
 
 function read<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key)
-    return raw ? (JSON.parse(raw) as T) : fallback
+    if (!raw) return fallback
+    return JSON.parse(raw) as T
   } catch {
     return fallback
   }
@@ -59,7 +47,7 @@ function write(key: string, value: unknown) {
 }
 
 export function loadSettings(): Settings {
-  return { ...DEFAULT_SETTINGS, ...read<Partial<Settings>>(KEYS.settings, {}) }
+  return { ...defaultSettings, ...read(KEYS.settings, {}) }
 }
 
 export function saveSettings(s: Settings) {
@@ -67,102 +55,125 @@ export function saveSettings(s: Settings) {
 }
 
 export function loadWallet(): Wallet {
-  const w = read<Partial<Wallet>>(KEYS.wallet, {})
-  return {
+  const raw = read<Partial<Wallet>>(KEYS.wallet, {})
+  const merged = {
     ...DEFAULT_WALLET,
-    ...w,
-    achievements: w.achievements ?? DEFAULT_WALLET.achievements,
-    critterStash: w.critterStash ?? 0,
+    ...raw,
+    achievements: raw.achievements ?? DEFAULT_WALLET.achievements,
+    badgeRanks: raw.badgeRanks ?? {},
+    critterStash: raw.critterStash ?? 0,
   }
+  // Lazy import-safe normalize: unlock ranks for legacy achievement lists
+  const ranks: Record<string, number> = { ...merged.badgeRanks }
+  for (const id of merged.achievements) {
+    if ((ranks[id] ?? 0) < 1) ranks[id] = 1
+  }
+  return { ...merged, badgeRanks: ranks }
 }
 
-export function saveWallet(w: Wallet) {
-  write(KEYS.wallet, w)
+export function saveWallet(wallet: Wallet) {
+  write(KEYS.wallet, wallet)
 }
 
 export function loadProfile(): Profile | null {
   return read<Profile | null>(KEYS.profile, null)
 }
 
-function saveProfile(p: Profile) {
-  write(KEYS.profile, p)
+export function saveProfile(profile: Profile) {
+  write(KEYS.profile, profile)
 }
 
-function clearProfile() {
+export function clearProfile() {
   localStorage.removeItem(KEYS.profile)
 }
 
-function loadGuest(): { clears: ClearRecord[]; totalScore: number } {
+export function loadGuestProgress(): ProgressBlob {
   return read(KEYS.guestProgress, { clears: [], totalScore: 0 })
 }
 
-function saveGuest(g: { clears: ClearRecord[]; totalScore: number }) {
-  write(KEYS.guestProgress, g)
+export function saveGuestProgress(p: ProgressBlob) {
+  write(KEYS.guestProgress, p)
 }
 
-export function getProgress(): { clears: ClearRecord[]; totalScore: number } {
-  const p = loadProfile()
-  return p ? { clears: p.clears, totalScore: p.totalScore } : loadGuest()
+/** Active score source: signed-in profile or guest device save */
+export function getProgress(): ProgressBlob {
+  const profile = loadProfile()
+  if (profile) {
+    return { clears: profile.clears, totalScore: profile.totalScore }
+  }
+  return loadGuestProgress()
 }
 
-export function recordClear(e: {
+export function recordClear(input: {
   puzzleId: string
   elapsedMs: number
   score: number
   hintsUsed: number
-}): { clears: ClearRecord[]; totalScore: number } {
+}): ProgressBlob {
   const profile = loadProfile()
   const base = profile
     ? { clears: [...profile.clears], totalScore: profile.totalScore }
-    : loadGuest()
-  const existing = base.clears.find((c) => c.puzzleId === e.puzzleId)
+    : loadGuestProgress()
+
+  const existing = base.clears.find((c) => c.puzzleId === input.puzzleId)
   let clears: ClearRecord[]
   if (!existing) {
     clears = [
       ...base.clears,
       {
-        puzzleId: e.puzzleId,
-        bestMs: e.elapsedMs,
-        bestScore: e.score,
+        puzzleId: input.puzzleId,
+        bestMs: input.elapsedMs,
+        bestScore: input.score,
         clears: 1,
-        hintsOnBest: e.hintsUsed,
+        hintsOnBest: input.hintsUsed,
         clearedAt: new Date().toISOString(),
       },
     ]
   } else {
-    const better = e.score > existing.bestScore
+    const better = input.score > existing.bestScore
     clears = base.clears.map((c) =>
-      c.puzzleId === e.puzzleId
-        ? {
+      c.puzzleId !== input.puzzleId
+        ? c
+        : {
             ...c,
             clears: c.clears + 1,
-            bestScore: better ? e.score : c.bestScore,
-            bestMs: better ? e.elapsedMs : c.bestMs,
-            hintsOnBest: better ? e.hintsUsed : c.hintsOnBest,
+            bestScore: better ? input.score : c.bestScore,
+            bestMs: better ? input.elapsedMs : c.bestMs,
+            hintsOnBest: better ? input.hintsUsed : c.hintsOnBest,
             clearedAt: better ? new Date().toISOString() : c.clearedAt,
-          }
-        : c,
+          },
     )
   }
+
   const totalScore = clears.reduce((sum, c) => sum + c.bestScore, 0)
-  const out = { clears, totalScore }
-  if (profile) saveProfile({ ...profile, clears, totalScore })
-  else saveGuest(out)
-  return out
+  const next = { clears, totalScore }
+
+  if (profile) {
+    saveProfile({ ...profile, clears, totalScore })
+  } else {
+    saveGuestProgress(next)
+  }
+  return next
 }
 
 export function signInWithEmail(email: string, displayName?: string): Profile {
-  const n = email.trim().toLowerCase()
-  const guest = loadGuest()
+  const normalized = email.trim().toLowerCase()
+  const guest = loadGuestProgress()
   const existing = loadProfile()
-  if (existing && existing.email === n) return existing
+
+  // Same email → keep; new email merges guest clears if profile empty
+  if (existing && existing.email === normalized) {
+    return existing
+  }
+
+  const name =
+    displayName?.trim() ||
+    normalized.split('@')[0].replace(/[._]/g, ' ') ||
+    'Player'
+
   const profile: Profile = {
-    email: n,
-    displayName: (
-      displayName?.trim() ||
-      n.split('@')[0].replace(/[._]/g, ' ') ||
-      'Player'
-    ).replace(/\b\w/g, (ch) => ch.toUpperCase()),
+    email: normalized,
+    displayName: name.replace(/\b\w/g, (c) => c.toUpperCase()),
     createdAt: new Date().toISOString(),
     totalScore: guest.totalScore,
     clears: guest.clears,
@@ -172,32 +183,34 @@ export function signInWithEmail(email: string, displayName?: string): Profile {
 }
 
 export function signOutKeepDevice() {
-  const p = loadProfile()
-  if (p) saveGuest({ clears: p.clears, totalScore: p.totalScore })
+  const profile = loadProfile()
+  if (profile) {
+    saveGuestProgress({ clears: profile.clears, totalScore: profile.totalScore })
+  }
   clearProfile()
 }
 
 export function loadChallenges(): Challenge[] {
-  return read<Challenge[]>(KEYS.challenges, [])
+  return read(KEYS.challenges, [])
 }
 
-function saveChallenges(list: Challenge[]) {
+export function saveChallenges(list: Challenge[]) {
   write(KEYS.challenges, list)
 }
 
 export function addChallenge(c: Challenge) {
-  const next = loadChallenges().filter((x) => x.code !== c.code)
-  next.unshift(c)
-  saveChallenges(next.slice(0, 40))
+  const list = loadChallenges().filter((x) => x.code !== c.code)
+  list.unshift(c)
+  saveChallenges(list.slice(0, 40))
 }
 
-export function saveDraft(draft: unknown | null) {
-  if (draft) write(KEYS.boardDraft, draft)
-  else localStorage.removeItem(KEYS.boardDraft)
+export function saveDraft(draft: BoardDraft | null) {
+  if (!draft) localStorage.removeItem(KEYS.boardDraft)
+  else write(KEYS.boardDraft, draft)
 }
 
-export function loadDraft<T = unknown>(): T | null {
-  return read<T | null>(KEYS.boardDraft, null)
+export function loadDraft(): BoardDraft | null {
+  return read(KEYS.boardDraft, null)
 }
 
 export function exportSaveJson(): string {
@@ -206,7 +219,7 @@ export function exportSaveJson(): string {
       version: 1,
       exportedAt: new Date().toISOString(),
       profile: loadProfile(),
-      guest: loadGuest(),
+      guest: loadGuestProgress(),
       settings: loadSettings(),
       challenges: loadChallenges(),
       wallet: loadWallet(),
@@ -220,7 +233,7 @@ export function importSaveJson(raw: string): boolean {
   try {
     const data = JSON.parse(raw)
     if (data.profile) saveProfile(data.profile)
-    if (data.guest) saveGuest(data.guest)
+    if (data.guest) saveGuestProgress(data.guest)
     if (data.settings) saveSettings(data.settings)
     if (data.challenges) saveChallenges(data.challenges)
     if (data.wallet) saveWallet({ ...DEFAULT_WALLET, ...data.wallet })
@@ -228,4 +241,25 @@ export function importSaveJson(raw: string): boolean {
   } catch {
     return false
   }
+}
+
+/** Runtime-generated boards (endless random) — keep a rolling cache */
+const GENERATED_MAX = 40
+
+export function loadGeneratedPuzzles(): Record<string, import('./types').Puzzle> {
+  return read<Record<string, import('./types').Puzzle>>(KEYS.generated, {})
+}
+
+export function rememberGeneratedPuzzle(puzzle: import('./types').Puzzle) {
+  const all = loadGeneratedPuzzles()
+  all[puzzle.id] = puzzle
+  const ids = Object.keys(all)
+  if (ids.length > GENERATED_MAX) {
+    for (const id of ids.slice(0, ids.length - GENERATED_MAX)) delete all[id]
+  }
+  write(KEYS.generated, all)
+}
+
+export function getGeneratedPuzzle(id: string): import('./types').Puzzle | undefined {
+  return loadGeneratedPuzzles()[id]
 }

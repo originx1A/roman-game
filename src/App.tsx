@@ -3,7 +3,10 @@ import { Board } from './components/Board'
 import { HowToPlay } from './components/HowToPlay'
 import { PrizeWheel } from './components/PrizeWheel'
 import { ResultOverlay } from './components/ResultOverlay'
-import { ShortfallSheet, type ShortfallAction } from './components/ShortfallSheet'
+import { type ShortfallAction } from './components/ShortfallSheet'
+import { ShortfallSheetHost } from './components/ShortfallSheetHost'
+import { CoinPackCard } from './components/CoinPackCard'
+import './styles/store-layer.css'
 import { ShareBar } from './components/ShareBar'
 import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './components/SparkCritter'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
@@ -90,7 +93,7 @@ import {
   unlockAudio,
   warmVoices,
 } from './game/sound'
-import { COIN_PACKS, purchaseCoinPack, isStoreBuild, packValueBlurb, type CoinPackId } from './game/iap'
+import { COIN_PACKS, purchaseCoinPack, isStoreBuild, type CoinPackId } from './game/iap'
 import './App.css'
 
 function formatMs(ms: number) {
@@ -833,7 +836,7 @@ export default function App() {
 
       {toast && <div className="toast">{toast}</div>}
 
-      <ShortfallSheet
+      <ShortfallSheetHost
         open={!!shortfall}
         action={shortfall?.action ?? 'hint'}
         need={shortfall?.need ?? 0}
@@ -844,10 +847,7 @@ export default function App() {
           setShortfall(null)
           setScreen('levels')
         }}
-        onShop={() => {
-          setShortfall(null)
-          setScreen('rewards')
-        }}
+        onBuyCoins={onBuyCoins}
       />
 
       {screen === 'home' && (
@@ -1021,7 +1021,7 @@ export default function App() {
             <button type="button" className="btn tool" onClick={onHint} disabled={celebrate || defeated}>
               <span className="tool-label">Hint</span>
               <span className="tool-cost">
-                {wallet.freeHints > 0 ? `${wallet.freeHints} free` : `${HINT_COST}¢`}
+                {wallet.freeHints > 0 ? `${wallet.freeHints} free` : String(HINT_COST)}
               </span>
             </button>
             <button
@@ -1032,7 +1032,7 @@ export default function App() {
               title={`Clear a misplaced buddy · ${RESCUE_COST} coins`}
             >
               <span className="tool-label">Rescue</span>
-              <span className="tool-cost">{RESCUE_COST}¢</span>
+              <span className="tool-cost">{RESCUE_COST}</span>
             </button>
             <button type="button" className="btn tool" onClick={resetBoard}>
               Reset
@@ -1104,7 +1104,7 @@ export default function App() {
               kind="lose"
               title="Rematch?"
               romanLine={loseLine}
-              primaryLabel={`Revive · ${REVIVE_COST} coins`}
+              primaryLabel={`Revive · ${REVIVE_COST}`}
               onPrimary={revive}
               secondaryLabel="Try again"
               onSecondary={resetBoard}
@@ -1140,45 +1140,12 @@ export default function App() {
           <p className="sub shop-note">
             {isStoreBuild()
               ? 'Prices come from the App Store / Google Play. Coins spend on hints, rescues, revives, and badge ranks.'
-              : 'Win boards for free coins on web. App packs unlock real-money tops-ups — same coin wallet either way.'}
+              : 'Top-ups unlock in the App Store / Google Play app. On web, win boards for free coins.'}
           </p>
           <div className="coin-shop">
-            {COIN_PACKS.map((pack) => {
-              const store = isStoreBuild()
-              return (
-                <article key={pack.id} className={`product-card ${store ? '' : 'product-card-web'}`}>
-                  <div className="product-card-top">
-                    <strong className="product-name">{pack.label}</strong>
-                    {!store && <span className="product-badge">App only</span>}
-                  </div>
-                  <p className="product-coins">+{pack.coins} coins</p>
-                  <p className="product-value">{packValueBlurb(pack.coins)}</p>
-                  <div className="product-card-foot">
-                    <span className="product-price">{pack.priceHint}</span>
-                    {store ? (
-                      <button
-                        type="button"
-                        className="btn primary product-buy"
-                        onClick={() => void onBuyCoins(pack.id)}
-                      >
-                        Buy
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="btn ghost product-buy"
-                        onClick={() => {
-                          setScreen('levels')
-                          showToast('Play a board to earn free coins')
-                        }}
-                      >
-                        Earn free
-                      </button>
-                    )}
-                  </div>
-                </article>
-              )
-            })}
+            {COIN_PACKS.map((pack) => (
+              <CoinPackCard key={pack.id} pack={pack} onBuy={onBuyCoins} />
+            ))}
           </div>
 
           <h3 className="ach-title">Badges · rank up</h3>

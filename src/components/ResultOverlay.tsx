@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
 interface Props {
@@ -10,6 +10,8 @@ interface Props {
   onPrimary: () => void
   secondaryLabel?: string
   onSecondary?: () => void
+  /** Extra actions under the main buttons (share / challenge) */
+  extra?: ReactNode
 }
 
 /** Full-screen centered result card — portaled to body so play overflow can't clip it */
@@ -22,6 +24,7 @@ export function ResultOverlay({
   onPrimary,
   secondaryLabel,
   onSecondary,
+  extra,
 }: Props) {
   useEffect(() => {
     const prev = document.body.style.overflow
@@ -56,6 +59,7 @@ export function ResultOverlay({
               {secondaryLabel}
             </button>
           ) : null}
+          {extra}
         </div>
       </div>
     </div>

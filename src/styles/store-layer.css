@@ -1,0 +1,13 @@
+/* Store-layer polish */
+.product-app-only {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.55;
+  color: rgba(244, 251, 255, 0.85);
+}
+.shortfall-web-note {
+  color: rgba(255, 209, 102, 0.92);
+  font-size: 0.85rem;
+}

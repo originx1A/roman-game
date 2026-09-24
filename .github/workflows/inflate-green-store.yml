@@ -1,0 +1,33 @@
+name: Inflate green store-layer sources
+on:
+  push:
+    paths:
+      - 'scripts/payload/**'
+      - 'scripts/inflate-green-store.mjs'
+      - '.github/workflows/inflate-green-store.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  inflate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - name: Inflate green App.tsx
+        run: node scripts/inflate-green-store.mjs
+      - name: Commit restored App.tsx (before build)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A src/App.tsx package.json
+          git add -u src/AppWired.tsx src/appwired-parts scripts/assemble-appwired.cjs 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "fix: restore full App.tsx (remove AppWired probe)"
+            git push
+          fi
+      - name: Verify build
+        run: npm ci && npm run build
