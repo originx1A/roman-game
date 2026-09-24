@@ -1,0 +1,30 @@
+--- a/src/App.css
++++ b/src/App.css
+@@ -1638,6 +1638,15 @@
+   border-radius: 10px;
+ }
+ 
++.product-app-only {
++  font-size: 0.72rem;
++  font-weight: 800;
++  letter-spacing: 0.04em;
++  text-transform: uppercase;
++  opacity: 0.55;
++  color: rgba(244, 251, 255, 0.85);
++}
++
+ .coin-pack {
+   display: none;
+ }
+@@ -2858,6 +2867,11 @@
+   color: rgba(244, 251, 255, 0.68);
+ }
+ 
++.shortfall-web-note {
++  color: rgba(255, 209, 102, 0.92);
++  font-size: 0.85rem;
++}
++
+ .shortfall-actions {
+   display: grid;
+   gap: 0.55rem;
