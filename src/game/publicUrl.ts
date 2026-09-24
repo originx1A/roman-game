@@ -1,7 +1,7 @@
 /** Public site for every share, challenge, and duel link.
  *  Change this if the site moves (a custom domain or a store link).
  */
-export const PUBLIC_GAME_URL = 'https://roman-game.surge.sh'
+export const PUBLIC_GAME_URL = 'https://romans-game.netlify.app'
 
 /** Site root with no hash, used when sharing the game itself. */
 export function publicPlayUrl(): string {

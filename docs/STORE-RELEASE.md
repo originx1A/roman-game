@@ -4,7 +4,7 @@ This is the leftover work only a person can do. The app project is already in th
 
 The website can sell the three larger coin packs by card once it is hosted on Netlify. The $0.99 pouch stays in the apps only. The iPhone and Android apps still use App Store / Google Play only and do not offer the website checkout.
 
-Share links still use `PUBLIC_GAME_URL` in `src/game/publicUrl.ts` (`https://roman-game.surge.sh`). Change that one line to the Netlify address after the site is live, so a shared link opens the site that can take payment.
+Share links use `PUBLIC_GAME_URL` in `src/game/publicUrl.ts` (`https://romans-game.netlify.app`), so a shared link opens the site that can take payment.
 
 ## The name and the placeholder id
 
