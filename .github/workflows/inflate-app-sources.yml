@@ -1,0 +1,25 @@
+name: Inflate App sources
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/payload/**'
+      - 'scripts/inflate-win-payload.mjs'
+jobs:
+  inflate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node scripts/inflate-win-payload.mjs
+      - name: Commit restored App sources
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/App.tsx src/App.css
+          git diff --cached --quiet || git commit -m "Inflate product-shop App.tsx/App.css from payload"
+          git push
