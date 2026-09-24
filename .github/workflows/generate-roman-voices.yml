@@ -1,0 +1,57 @@
+name: Generate Roman voice MP3s
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [cursor/roman-funny-voices-68c1]
+    paths:
+      - '.github/workflows/generate-roman-voices.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: cursor/roman-funny-voices-68c1
+
+      - name: Install espeak-ng and ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y espeak-ng ffmpeg
+
+      - name: Generate funny Roman voice MP3s
+        run: |
+          mkdir -p public/voices
+          gen() {
+            local file="$1"
+            local text="$2"
+            espeak-ng -v en-us -s 155 -p 55 -w /tmp/r.wav "$text"
+            ffmpeg -y -i /tmp/r.wav -codec:a libmp3lame -qscale:a 4 "public/voices/${file}.mp3"
+          }
+          gen roman_boss "Roman says: I am the puzzle boss."
+          gen roman_brain "Roman's brain: big. Your move: bigger."
+          gen roman_oops "Roman face palms. That was spicy."
+          gen roman_win "Roman wins! Confetti in my hair!"
+          gen roman_close "Personal space! Even buddies need it."
+          gen roman_hint "Roman whispers: try over there."
+          ls -la public/voices/roman_boss.mp3 public/voices/roman_brain.mp3 \
+            public/voices/roman_oops.mp3 public/voices/roman_win.mp3 \
+            public/voices/roman_close.mp3 public/voices/roman_hint.mp3
+
+      - name: Commit and push MP3s
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/voices/roman_boss.mp3 public/voices/roman_brain.mp3 \
+            public/voices/roman_oops.mp3 public/voices/roman_win.mp3 \
+            public/voices/roman_close.mp3 public/voices/roman_hint.mp3
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "Add funny Roman voice MP3s (espeak-ng + ffmpeg)"
+          git push
