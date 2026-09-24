@@ -1,1 +1,1 @@
-{{file:/agent/pebble/src/App.tsx}}
+/tmp/app_tsx_body.txt
