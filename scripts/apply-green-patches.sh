@@ -3,17 +3,25 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-# Restore App.tsx from existing single-file gzip payload (full app, pre-store-layer tip)
 python3 - <<'PY'
-import gzip, base64, re, pathlib
+import gzip, base64, re, pathlib, hashlib
+
+# 1) Inflate App.tsx from existing single-file gzip payload
 p = pathlib.Path('scripts/payload/App.tsx.gz.b64')
 b64 = re.sub(r'\s+', '', p.read_text())
 data = gzip.decompress(base64.b64decode(b64))
 pathlib.Path('src/App.tsx').write_bytes(data)
 print('inflated App.tsx', len(data))
+
+# 2) Decode patch files from base64 siblings if present
+patch_dir = pathlib.Path('scripts/patches')
+for b64path in sorted(patch_dir.glob('*.patch.b64')):
+    out = pathlib.Path(str(b64path)[:-4])  # remove .b64
+    raw = base64.b64decode(re.sub(r'\s+', '', b64path.read_text()))
+    out.write_bytes(raw)
+    print('decoded', out.name, len(raw))
 PY
 
-# Apply patches onto current tree files (css/comments/sound already on tip; App from inflate)
 patch -p1 < scripts/patches/green-app.patch
 patch -p1 < scripts/patches/green-appcss.patch
 patch -p1 < scripts/patches/green-comments.patch
