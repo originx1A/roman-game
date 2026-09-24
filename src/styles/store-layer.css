@@ -11,3 +11,32 @@
   color: rgba(255, 209, 102, 0.92);
   font-size: 0.85rem;
 }
+
+.foot-links {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.privacy-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.restore-note {
+  margin-top: 0.35rem;
+}
+
+/* Native shell only. Does not change the web 100dvh board sizing. */
+.shell-native .topbar {
+  padding-top: calc(0.4rem + env(safe-area-inset-top, 0px));
+}
+
+.shell-native .foot {
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+.shell-native .play-fixed {
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+}

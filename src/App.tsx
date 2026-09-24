@@ -93,7 +93,7 @@ import {
   unlockAudio,
   warmVoices,
 } from './game/sound'
-import { COIN_PACKS, purchaseCoinPack, isStoreBuild, type CoinPackId } from './game/iap'
+import { COIN_PACKS, purchaseCoinPack, restorePurchases, isStoreBuild, subscribeStore, type CoinPackId } from './game/iap'
 import './App.css'
 
 function formatMs(ms: number) {
@@ -149,6 +149,7 @@ export default function App() {
   const [incoming, setIncoming] = useState<Challenge | null>(null)
   const [, setChallenges] = useState(() => loadChallenges())
   const [emailInput, setEmailInput] = useState('')
+  const [storePrices, setStorePrices] = useState<Record<string, string>>({})
   const [nameInput, setNameInput] = useState('Roman')
   const [challengeEmail, setChallengeEmail] = useState('')
   const [challengeMsg, setChallengeMsg] = useState('Can you beat Roman on this board?')
@@ -175,6 +176,18 @@ export default function App() {
     setMuted(!settings.sound)
     setVoiceEnabled(settings.voice)
   }, [settings.sound, settings.voice])
+
+  useEffect(() => {
+    if (!isStoreBuild()) return
+    return subscribeStore((notice) => {
+      if (notice.type === 'prices') setStorePrices(notice.prices)
+      if (notice.type === 'granted') {
+        setWallet(loadWallet())
+        sfxCoin()
+        showToast(`+${notice.coins} coins · ${notice.label}`)
+      }
+    })
+  }, [])
 
   useEffect(() => {
     document.documentElement.dataset.motion = settings.reduceMotion ? 'reduce' : 'ok'
@@ -782,9 +795,16 @@ export default function App() {
       showToast(result.reason)
       return
     }
-    persistWallet({ ...wallet, coins: wallet.coins + result.coins })
+    if (result.credited) setWallet(loadWallet())
+    else persistWallet({ ...wallet, coins: wallet.coins + result.coins })
     sfxCoin()
     showToast(`+${result.coins} coins · ${result.pack.label}`)
+  }
+
+  async function onRestorePurchases() {
+    const result = await restorePurchases()
+    if (result.ok) setWallet(loadWallet())
+    showToast(result.message)
   }
 
   const done = new Set(progress.clears.map((c) => c.puzzleId))
@@ -793,7 +813,7 @@ export default function App() {
 
   return (
     <div
-      className={`shell fixed-shell ${screen === 'play' ? 'shell-play' : ''} ${hideChrome ? 'shell-immersive' : ''} shell-${screen}`}
+      className={`shell fixed-shell ${isStoreBuild() ? 'shell-native' : ''} ${screen === 'play' ? 'shell-play' : ''} ${hideChrome ? 'shell-immersive' : ''} shell-${screen}`}
       ref={shellRef}
       onPointerDown={unlockAudio}
     >
@@ -1144,9 +1164,25 @@ export default function App() {
           </p>
           <div className="coin-shop">
             {COIN_PACKS.map((pack) => (
-              <CoinPackCard key={pack.id} pack={pack} onBuy={onBuyCoins} />
+              <CoinPackCard
+                key={pack.id}
+                pack={pack}
+                onBuy={onBuyCoins}
+                priceText={storePrices[pack.productId]}
+              />
             ))}
           </div>
+          {isStoreBuild() && (
+            <>
+              <button type="button" className="btn ghost" onClick={() => void onRestorePurchases()}>
+                Restore unfinished purchases
+              </button>
+              <p className="sub restore-note">
+                Coin packs are consumable. A finished purchase is not restored. This only adds a payment
+                that was charged but not yet turned into coins.
+              </p>
+            </>
+          )}
 
           <h3 className="ach-title">Badges · rank up</h3>
           <div className="ach-grid badge-grid">
@@ -1449,18 +1485,23 @@ export default function App() {
 
       <footer className={`foot ${screen === 'play' ? 'foot-hidden' : ''}`}>
         <span>Roman's Game</span>
-        <button
-          type="button"
-          className="mute"
-          onClick={() => {
-            const next = { ...settings, sound: !settings.sound }
-            setSettings(next)
-            saveSettings(next)
-            setMuted(!next.sound)
-          }}
-        >
-          {settings.sound ? 'Sound on' : 'Sound off'}
-        </button>
+        <span className="foot-links">
+          <a className="privacy-link" href="./privacy.html">
+            Privacy
+          </a>
+          <button
+            type="button"
+            className="mute"
+            onClick={() => {
+              const next = { ...settings, sound: !settings.sound }
+              setSettings(next)
+              saveSettings(next)
+              setMuted(!next.sound)
+            }}
+          >
+            {settings.sound ? 'Sound on' : 'Sound off'}
+          </button>
+        </span>
       </footer>
       {/* Keep clear of Netlify “Powered by” badge */}
       <div className="netlify-safe" aria-hidden />

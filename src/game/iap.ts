@@ -48,8 +48,18 @@ export const COIN_PACKS: CoinPack[] = [
 ]
 
 export type PurchaseResult =
-  | { ok: true; pack: CoinPack; coins: number }
+  | { ok: true; pack: CoinPack; coins: number; /** Coins were already saved on device */ credited?: boolean }
   | { ok: false; reason: string }
+
+type RomanIapBridge = {
+  purchase: (productId: string) => Promise<boolean | PurchaseResult>
+  restore?: () => Promise<{ ok: boolean; message: string }>
+}
+
+/** Events from the native store: a finished purchase, or localized prices. */
+export type StoreNotice =
+  | { type: 'granted'; coins: number; label: string }
+  | { type: 'prices'; prices: Record<string, string> }
 
 /** Player-facing value math — e.g. "100 coins ≈ 6 hints or 3 revives" */
 export function packValueBlurb(coins: number): string {
@@ -89,19 +99,51 @@ export async function purchaseCoinPack(packId: CoinPackId): Promise<PurchaseResu
   }
 
   try {
-    const bridge = (window as unknown as { RomanIAP?: { purchase: (id: string) => Promise<boolean> } })
-      .RomanIAP
+    const { ensureStore } = await import('./iap-native')
+    await ensureStore()
+    const bridge = (window as unknown as { RomanIAP?: RomanIapBridge }).RomanIAP
     if (bridge?.purchase) {
       const paid = await bridge.purchase(pack.productId)
-      if (!paid) return { ok: false, reason: 'Purchase cancelled' }
-      return { ok: true, pack, coins: pack.coins }
+      if (typeof paid === 'boolean') {
+        if (!paid) return { ok: false, reason: 'Purchase cancelled' }
+        return { ok: true, pack, coins: pack.coins, credited: false }
+      }
+      return paid
     }
   } catch {
-    /* fall through */
+    return { ok: false, reason: "Purchase didn't go through. No coins were added." }
   }
 
   return {
     ok: false,
     reason: 'Store billing not connected yet. Finish App Store / Play Console IAP setup.',
+  }
+}
+
+/** Replay an unfinished store payment. Consumable packs that already finished are not returned. */
+export async function restorePurchases(): Promise<{ ok: boolean; message: string }> {
+  if (!isNativeApp()) {
+    return { ok: false, message: 'Restore is available in the App Store / Google Play app.' }
+  }
+  try {
+    const { restoreNative } = await import('./iap-native')
+    return await restoreNative()
+  } catch {
+    return { ok: false, message: "Couldn't reach the store. Nothing was changed." }
+  }
+}
+
+export function subscribeStore(listener: (notice: StoreNotice) => void): () => void {
+  if (!isNativeApp()) return () => {}
+  let stop = () => {}
+  let cancelled = false
+  void import('./iap-native').then((mod) => {
+    if (cancelled) return
+    stop = mod.subscribeIap(listener)
+    void mod.ensureStore()
+  })
+  return () => {
+    cancelled = true
+    stop()
   }
 }
