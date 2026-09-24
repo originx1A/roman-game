@@ -2154,8 +2154,8 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
   z-index: 7;
   left: 50%;
   top: 50%;
-  width: 34px;
-  height: 34px;
+  width: 46px;
+  height: 46px;
   transform: translate(-50%, -50%);
   pointer-events: none;
   filter: drop-shadow(0 0 8px rgba(255, 209, 102, 0.7));
@@ -2163,10 +2163,10 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
 
 .how-demo-tap {
   position: absolute;
-  inset: -8px;
+  inset: -10px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 248, 230, 0.9);
-  box-shadow: 0 0 12px rgba(255, 209, 102, 0.8);
+  border: 3px solid #fff8e6;
+  box-shadow: 0 0 0 4px rgba(255, 209, 102, 0.45), 0 0 16px rgba(255, 209, 102, 0.9);
 }
 
 .how-demo.is-animated[data-demo='region'] .cell.demo-region .cell-fill {
@@ -2272,17 +2272,22 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
 }
 
 @keyframes howHeart {
-  from {
+  0% {
     background: #ff6b6b;
     box-shadow: 0 0 8px rgba(255, 107, 107, 0.55);
     transform: none;
     opacity: 1;
   }
-  to {
-    background: rgba(255, 255, 255, 0.25);
+  40% {
+    background: #ff6b6b;
+    transform: translateY(7px) scale(1.25);
+    opacity: 1;
+  }
+  100% {
+    background: rgba(255, 255, 255, 0.28);
     box-shadow: none;
-    transform: translateY(9px) scale(0.3);
-    opacity: 0.15;
+    transform: none;
+    opacity: 1;
   }
 }
 
