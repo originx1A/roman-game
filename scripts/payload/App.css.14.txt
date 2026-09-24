@@ -1,0 +1,17 @@
+.win-screen-secondary .btn {
+  flex: 1;
+  justify-content: center;
+}
+
+@media (max-width: 380px) {
+  .win-screen-card {
+    padding: 1.1rem 0.95rem 1rem;
+  }
+  .win-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .win-stats .win-stat:nth-child(4),
+  .win-stats .win-stat:nth-child(5) {
+    grid-column: auto;
+  }
+}
