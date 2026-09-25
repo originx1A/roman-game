@@ -1,7 +1,5 @@
-/** Reconstructed from roman-game.surge.sh production JS.
- * Demo mini-board animations are simplified vs original HowDemo component.
- */
 import { useEffect, useState } from 'react'
+import { HowDemo } from './HowDemo'
 
 const STEPS = [
   { title: 'One per region', blurb: 'Each colored area gets exactly one buddy.', demo: 'region' },
@@ -33,7 +31,7 @@ export function HowToPlay({ onDone, onBack }: { onDone: () => void; onBack?: () 
       </div>
       <p className="sub how-sub">Watch the demo, then jump in.</p>
       <div className="how-stage" data-demo={current.demo}>
-        <div className="mini-board" aria-hidden />
+        <HowDemo key={current.demo} demo={current.demo} />
         <div className="how-caption">
           <p className="how-step-label">
             {step + 1} / {STEPS.length}

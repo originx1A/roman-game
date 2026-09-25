@@ -8,7 +8,6 @@
     "build": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/check-voices.ts && tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "generate:puzzles": "node scripts/generate-puzzles.mjs",
     "generate:icons": "node scripts/generate-app-icon.mjs",
     "cap:sync": "npm run build && cap sync"
   },

@@ -30,6 +30,8 @@ export type WinScreenProps = {
   onLevels: () => void
   onHome: () => void
   onSpin?: () => void
+  onShare?: () => void
+  onDuel?: () => void
 }
 
 export function WinScreen({
@@ -50,6 +52,8 @@ export function WinScreen({
   onLevels,
   onHome,
   onSpin,
+  onShare,
+  onDuel,
 }: WinScreenProps) {
   const [entered, setEntered] = useState(false)
   const latin = useMemo(
@@ -116,6 +120,16 @@ export function WinScreen({
           <button type="button" className="btn primary win-cta" onClick={onNext}>
             Next board
           </button>
+          {onShare ? (
+            <button type="button" className="btn ghost win-cta" onClick={onShare}>
+              Share
+            </button>
+          ) : null}
+          {onDuel ? (
+            <button type="button" className="btn ghost win-cta" onClick={onDuel}>
+              Head-to-head
+            </button>
+          ) : null}
           {spins > 0 && onSpin ? (
             <button type="button" className="btn ghost win-cta win-spin" onClick={onSpin}>
               Spin prize ({spins})

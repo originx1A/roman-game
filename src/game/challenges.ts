@@ -1,5 +1,88 @@
-import type { Challenge, DuelResult } from './types'
+import type { Challenge, Difficulty, DuelResult, Puzzle } from './types'
 import { publicLinkWithHash } from './publicUrl'
+import { PUZZLES } from './puzzles'
+import { rememberGeneratedPuzzle } from './storage'
+
+const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard', 'expert']
+
+function isCatalogId(id: string): boolean {
+  return PUZZLES.some((p) => p.id === id)
+}
+
+/** Real sender address only — never the device placeholder. */
+function linkEmail(email: string | undefined): string | undefined {
+  const e = email?.trim()
+  if (!e || e.endsWith('@device.local')) return undefined
+  return e
+}
+
+/** Compact size/regions/solution blob so a friend can load a non-catalog board. */
+export function packBoardLayout(p: Puzzle): string {
+  const cells = p.size * p.size
+  const bytes = new Uint8Array(3 + cells + p.solution.length)
+  bytes[0] = p.size & 255
+  bytes[1] = Math.max(0, DIFFICULTIES.indexOf(p.difficulty))
+  bytes[2] = p.solution.length & 255
+  for (let i = 0; i < cells; i++) bytes[3 + i] = (p.regions[i] ?? 0) & 255
+  for (let i = 0; i < p.solution.length; i++) bytes[3 + cells + i] = p.solution[i] & 255
+  let bin = ''
+  for (const b of bytes) bin += String.fromCharCode(b)
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+export function registerSharedBoard(
+  id: string,
+  name: string | undefined,
+  packed: string,
+): Puzzle | null {
+  try {
+    const b64 = packed.replace(/-/g, '+').replace(/_/g, '/')
+    const pad = b64 + '==='.slice((b64.length + 3) % 4)
+    const bin = atob(pad)
+    if (bin.length < 4) return null
+    const size = bin.charCodeAt(0)
+    if (size < 4 || size > 12) return null
+    const difficulty = DIFFICULTIES[bin.charCodeAt(1)] ?? 'easy'
+    const solLen = bin.charCodeAt(2)
+    const cells = size * size
+    if (solLen < 1 || bin.length !== 3 + cells + solLen) return null
+    const regions: number[] = []
+    for (let i = 0; i < cells; i++) regions.push(bin.charCodeAt(3 + i))
+    const solution: number[] = []
+    const seen = new Set<number>()
+    for (let i = 0; i < solLen; i++) {
+      const s = bin.charCodeAt(3 + cells + i)
+      if (s >= cells || seen.has(s)) return null
+      seen.add(s)
+      solution.push(s)
+    }
+    const puzzle: Puzzle = {
+      id,
+      name: name?.trim() || 'Shared board',
+      size,
+      regions,
+      solution,
+      difficulty,
+    }
+    rememberGeneratedPuzzle(puzzle)
+    return puzzle
+  } catch {
+    return null
+  }
+}
+
+function layoutField(board: Puzzle | null | undefined, puzzleId: string): string | undefined {
+  if (!board || board.id !== puzzleId || isCatalogId(puzzleId)) return undefined
+  if (board.size < 4 || board.regions.length !== board.size * board.size || board.solution.length < 1) {
+    return undefined
+  }
+  return packBoardLayout(board)
+}
+
+function attachSharedLayout(puzzleId: string, name: unknown, packed: unknown) {
+  if (typeof packed !== 'string' || isCatalogId(puzzleId)) return
+  registerSharedBoard(puzzleId, typeof name === 'string' ? name : undefined, packed)
+}
 
 function alphabetCode(len = 6): string {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -80,12 +163,14 @@ export function formatShareTime(ms: number): string {
   return `${m}:${rem.toString().padStart(2, '0')}`
 }
 
-export function encodeChallengeLink(c: Challenge): string {
+export function encodeChallengeLink(c: Challenge, board?: Puzzle | null): string {
+  const email = linkEmail(c.fromEmail)
+  const layout = layoutField(board, c.puzzleId)
   const payload = toB64Url({
     c: c.code,
     p: c.puzzleId,
     f: c.fromName,
-    e: c.fromEmail,
+    ...(email ? { e: email } : {}),
     m: c.message,
     ...(c.scoreMs != null ? { t: c.scoreMs } : {}),
     ...(c.scorePts != null ? { s: c.scorePts } : {}),
@@ -93,6 +178,7 @@ export function encodeChallengeLink(c: Challenge): string {
     ...(c.bonusPct != null ? { bb: c.bonusPct } : {}),
     ...(c.puzzleName ? { pn: c.puzzleName } : {}),
     ...(c.difficulty ? { d: c.difficulty } : {}),
+    ...(layout ? { b: layout } : {}),
   })
   return publicLinkWithHash(`challenge=${payload}`)
 }
@@ -103,6 +189,7 @@ export function parseChallengeFromHash(hash: string): Omit<Challenge, 'createdAt
   try {
     const data = fromB64Url(m[1]) as Record<string, unknown>
     if (!data.p || !data.c) return null
+    attachSharedLayout(String(data.p), data.pn, data.b)
     return {
       code: String(data.c),
       puzzleId: String(data.p),
@@ -149,7 +236,8 @@ export function createDuelResult(input: {
   return { ...input }
 }
 
-export function encodeDuelLink(d: DuelResult): string {
+export function encodeDuelLink(d: DuelResult, board?: Puzzle | null): string {
+  const layout = layoutField(board, d.puzzleId)
   const payload = toB64Url({
     c: d.code,
     p: d.puzzleId,
@@ -165,6 +253,7 @@ export function encodeDuelLink(d: DuelResult): string {
     ...(d.aBonus != null ? { ab: d.aBonus } : {}),
     ...(d.bPower != null ? { bw: d.bPower } : {}),
     ...(d.bBonus != null ? { bb: d.bBonus } : {}),
+    ...(layout ? { b: layout } : {}),
   })
   return publicLinkWithHash(`duel=${payload}`)
 }
@@ -175,6 +264,7 @@ export function parseDuelFromHash(hash: string): DuelResult | null {
   try {
     const data = fromB64Url(m[1]) as Record<string, unknown>
     if (!data.p || typeof data.am !== 'number' || typeof data.bm !== 'number') return null
+    attachSharedLayout(String(data.p), data.pn, data.b)
     return {
       code: String(data.c || 'DUEL'),
       puzzleId: String(data.p),
