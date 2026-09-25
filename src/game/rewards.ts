@@ -43,6 +43,8 @@ export interface Wallet {
   totalMistakes: number
   /** Spark critters caught toward stash bonus */
   critterStash: number
+  /** Full-hearts prize. Hearts exist only during a run, so this waits for the next one. */
+  heartRefillPending?: boolean
 }
 
 export const DEFAULT_WALLET: Wallet = {
@@ -109,7 +111,7 @@ export function applyPrize(wallet: Wallet, prize: Prize): Wallet {
       next.freeHints += 2
       break
     case 'heart_refill':
-      next.coins += 10
+      next.heartRefillPending = true
       break
     case 'shield':
       next.shields += 1

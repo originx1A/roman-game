@@ -1,5 +1,6 @@
 /** Reconstructed from roman-game.surge.sh production JS. */
 import { useEffect, useRef, useState } from 'react'
+import { sfxPrize, sfxSpin } from '../game/sound'
 
 export type PrizeId =
   | 'coins_25'
@@ -76,6 +77,7 @@ export function PrizeWheel({
     if (spinning || result || locked.current || finished.current || spinsLeft <= 0 || !onConsumeSpin()) return
     locked.current = true
     setSpinning(true)
+    sfxSpin()
     const prize = pickPrize()
     const idx = Math.max(0, PRIZES.findIndex((p) => p.id === prize.id))
     const steps = 6 * PRIZES.length + idx
@@ -92,6 +94,7 @@ export function PrizeWheel({
       else {
         setResult(prize)
         setSpinning(false)
+        sfxPrize()
         if (!finished.current) {
           finished.current = true
           onDone(prize)

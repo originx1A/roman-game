@@ -6,11 +6,14 @@ export function ShareBar({
   title = "Roman's Game",
   text = "Come play Roman's logic board with me!",
   onCopied,
+  emailHref,
 }: {
   url: string
   title?: string
   text?: string
   onCopied?: () => void
+  /** When set, the Email chip uses this mailto (recipient included) instead of a blank one. */
+  emailHref?: string
 }) {
   const links = buildShareLinks({ url, title, text })
   return (
@@ -39,7 +42,7 @@ export function ShareBar({
       <a className="share-chip" href={links.telegram} target="_blank" rel="noreferrer">
         Telegram
       </a>
-      <a className="share-chip" href={links.mailto}>
+      <a className="share-chip" href={emailHref || links.mailto}>
         Email
       </a>
       <button

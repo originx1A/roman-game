@@ -3,6 +3,7 @@ import { Board } from './components/Board'
 import { HowToPlay } from './components/HowToPlay'
 import { PrizeWheel } from './components/PrizeWheel'
 import { ResultOverlay } from './components/ResultOverlay'
+import { WinScreen } from './components/WinScreen'
 import { type ShortfallAction } from './components/ShortfallSheet'
 import { ShortfallSheetHost } from './components/ShortfallSheetHost'
 import { CoinPackCard } from './components/CoinPackCard'
@@ -32,6 +33,7 @@ import {
   encodeChallengeLink,
   encodeDuelLink,
   formatShareTime,
+  mailtoChallenge,
   parseChallengeFromHash,
   parseDuelFromHash,
   rankLabel,
@@ -98,6 +100,34 @@ import { COIN_PACKS, purchaseCoinPack, restorePurchases, isStoreBuild, subscribe
 import { loadWebPacks, type WebPackOffer } from './game/webPacks'
 import './App.css'
 
+function syncAppHeight() {
+  if (typeof window === 'undefined') return
+  const vv = window.visualViewport
+  const h = Math.round(vv?.height ?? window.innerHeight)
+  if (h > 0) document.documentElement.style.setProperty('--app-height', `${h}px`)
+}
+
+function resetPlayViewport() {
+  syncAppHeight()
+  window.scrollTo(0, 0)
+  document.documentElement.scrollTop = 0
+  document.body.scrollTop = 0
+}
+
+function freshBadgeIds(before: Wallet, after: Wallet): string[] {
+  return BADGES.filter(
+    (b) => (before.badgeRanks?.[b.id] ?? 0) < 1 && (after.badgeRanks?.[b.id] ?? 0) >= 1,
+  ).map((b) => b.id)
+}
+
+function senderEmail(email: string | undefined): string {
+  const e = email?.trim() ?? ''
+  if (!e || e.endsWith('@device.local')) return ''
+  return e
+}
+
+const MISSING_BOARD = 'This board isn’t on this device. Ask your friend for a fresh link.'
+
 function formatMs(ms: number) {
   const s = Math.floor(ms / 1000)
   const m = Math.floor(s / 60)
@@ -139,7 +169,7 @@ export default function App() {
   const [hintIndex, setHintIndex] = useState<number | null>(null)
   const [giggleIndex, setGiggleIndex] = useState<number | null>(null)
   const [heartPop, setHeartPop] = useState<number | null>(null)
-  const [, setHintText] = useState('')
+  const [hintText, setHintText] = useState('')
   const [celebrate, setCelebrate] = useState(false)
   const [defeated, setDefeated] = useState(false)
   const [winLine, setWinLine] = useState('')
@@ -159,6 +189,8 @@ export default function App() {
   const [challengeMsg, setChallengeMsg] = useState('Can you beat Roman on this board?')
   const [shareLink, setShareLink] = useState('')
   const [shareText, setShareText] = useState('')
+  const [shareChallenge, setShareChallenge] = useState<Challenge | null>(null)
+  const [linkBoardError, setLinkBoardError] = useState('')
   const [showWheel, setShowWheel] = useState(false)
   const [awaitingComeback, setAwaitingComeback] = useState(false)
   const [activeChallenge, setActiveChallenge] = useState<Challenge | null>(null)
@@ -174,6 +206,19 @@ export default function App() {
   const draft = loadDraft()
   const draftPuzzle = draft ? getPuzzle(draft.puzzleId) : undefined
   const playUrl = publicPlayUrl()
+
+  useEffect(() => {
+    syncAppHeight()
+    const onResize = () => syncAppHeight()
+    window.addEventListener('resize', onResize)
+    window.visualViewport?.addEventListener('resize', onResize)
+    window.visualViewport?.addEventListener('scroll', onResize)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      window.visualViewport?.removeEventListener('resize', onResize)
+      window.visualViewport?.removeEventListener('scroll', onResize)
+    }
+  }, [])
 
   useEffect(() => {
     warmVoices()
@@ -308,6 +353,7 @@ export default function App() {
       setDuel(duelParsed)
       setDuelLink(publicLinkWithHash(window.location.hash))
       setShareText(duelShareText(duelParsed))
+      setLinkBoardError(getPuzzle(duelParsed.puzzleId) ? '' : MISSING_BOARD)
       setScreen('duel')
       window.history.replaceState(null, '', window.location.pathname)
       return
@@ -319,6 +365,7 @@ export default function App() {
       setActiveChallenge(full)
       addChallenge(full)
       setChallenges(loadChallenges())
+      setLinkBoardError(getPuzzle(parsed.puzzleId) ? '' : MISSING_BOARD)
       setScreen('challenge')
       window.history.replaceState(null, '', window.location.pathname)
     }
@@ -391,6 +438,9 @@ export default function App() {
   function startPuzzle(p: Puzzle, resume = false) {
     unlockAudio()
     sfxWhoosh()
+    resetPlayViewport()
+    const saved = loadWallet()
+    if (saved.heartRefillPending) persistWallet({ ...saved, heartRefillPending: false })
     const themeId = p.theme ?? themeForPuzzle(p.id, p.difficulty)
     setPuzzle({ ...p, theme: themeId })
     recordedRef.current = false
@@ -543,7 +593,7 @@ export default function App() {
           bPower: totalBadgePower(wallet),
           bBonus: totalCoinBonusPercent(wallet),
         })
-        const link = encodeDuelLink(result)
+        const link = encodeDuelLink(result, puzzle)
         setDuel(result)
         setDuelLink(link)
         setShareLink(link)
@@ -573,15 +623,17 @@ export default function App() {
           showToast(`+${paid.gained} coins (+${formatBonusPercent(paid.bonusPct)} badge bonus)`)
         }, 900)
       }
-      if (evaled.newly.length) {
+      const unlockedNow = freshBadgeIds(wallet, evaled.wallet)
+      if (unlockedNow.length) {
         // Let the win Roman punchline finish before badge unlock voice/toast
-        const badgeId = evaled.newly[0]
-        const badge = BADGES.find((b) => b.id === badgeId)
-        window.setTimeout(() => {
-          sfxAchievement()
-          pushBanter('achievement')
-          showToast(`Badge unlocked: ${badge?.title ?? badgeId} · Rank 1`)
-        }, 3400)
+        unlockedNow.forEach((badgeId, i) => {
+          const badge = BADGES.find((b) => b.id === badgeId)
+          window.setTimeout(() => {
+            sfxAchievement()
+            if (i === 0) pushBanter('achievement')
+            showToast(`Badge unlocked: ${badge?.title ?? badgeId}`)
+          }, 3400 + i * 2600)
+        })
       }
       if (shellRef.current) burstConfetti(shellRef.current)
     }
@@ -721,8 +773,13 @@ export default function App() {
 
   /** Apply prize only — spin already consumed when the reel started */
   function handlePrize(prize: Prize) {
-    let w = applyPrize(loadWallet(), prize)
-    if (prize.id === 'heart_refill') setLives(MAX_LIVES)
+    const before = loadWallet()
+    let w = applyPrize(before, prize)
+    const gameOpen = !!puzzle && !celebrate && !defeated && lives < MAX_LIVES
+    if (prize.id === 'heart_refill' && gameOpen) {
+      setLives(MAX_LIVES)
+      w = { ...w, heartRefillPending: false }
+    }
     const evaled = evaluateAchievements(w, {
       perfect: false,
       difficulty: puzzle?.difficulty ?? 'easy',
@@ -730,7 +787,19 @@ export default function App() {
     })
     persistWallet(evaled.wallet)
     pushBanter('prize')
-    showToast(prize.label)
+    if (prize.id === 'heart_refill') {
+      showToast(gameOpen ? 'Full hearts — refilled' : 'Full hearts — your next game starts full')
+    } else {
+      showToast(prize.label)
+    }
+    const badges = freshBadgeIds(before, evaled.wallet)
+    badges.forEach((badgeId, i) => {
+      const badge = BADGES.find((b) => b.id === badgeId)
+      window.setTimeout(() => {
+        sfxAchievement()
+        showToast(`Badge unlocked: ${badge?.title ?? badgeId}`)
+      }, 2600 + i * 2600)
+    })
   }
 
   function handleSignIn(e: FormEvent) {
@@ -763,6 +832,13 @@ export default function App() {
       w = unlockIf(w, 'stash')
       w = unlockIf(w, 'critter')
       persistWallet(w)
+      freshBadgeIds(current, w).forEach((badgeId, i) => {
+        const badge = BADGES.find((b) => b.id === badgeId)
+        window.setTimeout(() => {
+          sfxAchievement()
+          showToast(`Badge unlocked: ${badge?.title ?? badgeId}`)
+        }, 2600 + i * 2600)
+      })
       setLives(MAX_LIVES)
       pushBanter('critter-stash')
       showToast('Sparkle mode unlocked! +1 spin — open Rewards to spin')
@@ -775,6 +851,13 @@ export default function App() {
     else if (reward.type === 'hint') w.freeHints += 1
     else if (reward.type === 'heart') setLives((n) => Math.min(MAX_LIVES, n + 1))
     persistWallet(w)
+    freshBadgeIds(current, w).forEach((badgeId, i) => {
+      const badge = BADGES.find((b) => b.id === badgeId)
+      window.setTimeout(() => {
+        sfxAchievement()
+        showToast(`Badge unlocked: ${badge?.title ?? badgeId}`)
+      }, 2600 + i * 2600)
+    })
 
     const line = sparkProgressBanter(have, CRITTER_STASH_GOAL)
     if (line.text) showToast(line.text)
@@ -788,7 +871,7 @@ export default function App() {
       puzzleId: target.id,
       puzzleName: target.name,
       difficulty: DIFFICULTY_LABEL[target.difficulty],
-      fromEmail: profile?.email || 'guest@device.local',
+      fromEmail: senderEmail(profile?.email),
       fromName: profile?.displayName || 'Roman',
       message: challengeMsg,
       toEmail: challengeEmail || undefined,
@@ -799,7 +882,8 @@ export default function App() {
     })
     addChallenge(c)
     setChallenges(loadChallenges())
-    const link = encodeChallengeLink(c)
+    setShareChallenge(c)
+    const link = encodeChallengeLink(c, target)
     setShareLink(link)
     setShareText(challengeShareText(c))
     void navigator.clipboard?.writeText(link)
@@ -817,7 +901,7 @@ export default function App() {
       puzzleId: puzzle.id,
       puzzleName: puzzle.name,
       difficulty: DIFFICULTY_LABEL[puzzle.difficulty],
-      fromEmail: profile?.email || 'guest@device.local',
+      fromEmail: senderEmail(profile?.email),
       fromName: profile?.displayName || 'Roman',
       scoreMs: elapsedMs,
       scorePts: lastScore,
@@ -826,7 +910,8 @@ export default function App() {
     })
     addChallenge(c)
     setChallenges(loadChallenges())
-    const link = encodeChallengeLink(c)
+    setShareChallenge(c)
+    const link = encodeChallengeLink(c, puzzle)
     setShareLink(link)
     setShareText(challengeShareText(c))
     setIncoming(null)
@@ -885,6 +970,27 @@ export default function App() {
     const result = await restorePurchases()
     if (result.ok) setWallet(loadWallet())
     showToast(result.message)
+  }
+
+  function challengeMailHref(url: string): string | undefined {
+    const to = challengeEmail.trim()
+    if (!shareChallenge && !to) return undefined
+    const board = puzzle ?? PUZZLES[0]
+    const base =
+      shareChallenge ??
+      createChallenge({
+        puzzleId: board.id,
+        puzzleName: board.name,
+        difficulty: DIFFICULTY_LABEL[board.difficulty],
+        fromEmail: senderEmail(profile?.email),
+        fromName: profile?.displayName || 'Roman',
+        message: challengeMsg,
+        toEmail: to || undefined,
+      })
+    return mailtoChallenge(
+      { ...base, toEmail: to || base.toEmail, message: challengeMsg || base.message },
+      url,
+    )
   }
 
   const done = new Set(progress.clears.map((c) => c.puzzleId))
@@ -1113,6 +1219,8 @@ export default function App() {
             />
           </div>
 
+          {hintText ? <p className="hint-line">{hintText}</p> : null}
+
           <div className="toolbar play-toolbar">
             <button type="button" className="btn tool" onClick={undo} disabled={!history.length || celebrate || defeated}>
               Undo
@@ -1148,56 +1256,26 @@ export default function App() {
           />
 
           {celebrate && !showWheel && (
-            <ResultOverlay
-              kind="win"
-              title={formatMs(elapsedMs)}
-              subtitle={lastScore != null ? `${lastScore} pts` : undefined}
-              romanLine={winLine}
-              primaryLabel={
-                duel && activeChallenge?.puzzleId === puzzle.id
-                  ? 'See both scores'
-                  : wallet.spins > 0
-                    ? `Spin (${wallet.spins})`
-                    : 'Next board'
-              }
-              onPrimary={() => {
-                if (duel && activeChallenge?.puzzleId === puzzle.id) {
-                  openDuelShare()
-                  return
-                }
-                if (wallet.spins > 0) openPrizeWheel()
-                else startPuzzle(nextRandomPuzzle(puzzle))
-              }}
-              secondaryLabel={
-                duel && activeChallenge?.puzzleId === puzzle.id
-                  ? wallet.spins > 0
-                    ? `Spin (${wallet.spins})`
-                    : 'Next board'
-                  : wallet.spins > 0
-                    ? 'Next board'
-                    : 'Home'
-              }
-              onSecondary={() => {
-                if (duel && activeChallenge?.puzzleId === puzzle.id) {
-                  if (wallet.spins > 0) openPrizeWheel()
-                  else startPuzzle(nextRandomPuzzle(puzzle))
-                  return
-                }
-                if (wallet.spins > 0) startPuzzle(nextRandomPuzzle(puzzle))
-                else setScreen('home')
-              }}
-              extra={
-                <>
-                  <button type="button" className="btn ghost result-btn" onClick={shareWinAsChallenge}>
-                    Share score &amp; challenge
-                  </button>
-                  {duel && activeChallenge?.puzzleId === puzzle.id ? (
-                    <button type="button" className="btn ghost result-btn" onClick={openDuelShare}>
-                      Share head-to-head
-                    </button>
-                  ) : null}
-                </>
-              }
+            <WinScreen
+              puzzleName={puzzle.name}
+              difficultyLabel={DIFFICULTY_LABEL[puzzle.difficulty]}
+              themeLabel={THEMES[puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)].label}
+              timeLabel={formatMs(elapsedMs)}
+              score={lastScore ?? 0}
+              hintsUsed={hintsUsed}
+              livesLeft={lives}
+              maxLives={MAX_LIVES}
+              sparkCount={wallet.critterStash ?? 0}
+              romanSaying={winLine || 'Roman says: Veni, vidi, vici!'}
+              spins={wallet.spins}
+              perfect={hintsUsed === 0}
+              onNext={() => startPuzzle(nextRandomPuzzle(puzzle))}
+              onReplay={resetBoard}
+              onLevels={() => setScreen('levels')}
+              onHome={() => setScreen('home')}
+              onSpin={wallet.spins > 0 ? openPrizeWheel : undefined}
+              onShare={shareWinAsChallenge}
+              onDuel={duel && activeChallenge?.puzzleId === puzzle.id ? openDuelShare : undefined}
             />
           )}
 
@@ -1445,6 +1523,7 @@ export default function App() {
           <ShareBar
             url={shareLink || playUrl}
             text={shareText || challengeMsg}
+            emailHref={challengeMailHref(shareLink || playUrl)}
             onCopied={() => showToast('Copied')}
           />
           {incoming && (
@@ -1475,14 +1554,19 @@ export default function App() {
                 className="btn primary"
                 onClick={() => {
                   const p = getPuzzle(incoming.puzzleId)
-                  if (p) {
-                    setActiveChallenge(incoming)
-                    startPuzzle(p)
+                  if (!p) {
+                    setLinkBoardError(MISSING_BOARD)
+                    showToast(MISSING_BOARD)
+                    return
                   }
+                  setLinkBoardError('')
+                  setActiveChallenge(incoming)
+                  startPuzzle(p)
                 }}
               >
                 Accept — beat their score
               </button>
+              {linkBoardError ? <p className="link-board-error">{linkBoardError}</p> : null}
             </div>
           )}
           <label>
@@ -1515,7 +1599,12 @@ export default function App() {
           {shareLink && (
             <div className="share-box">
               <code>{shareLink}</code>
-              <ShareBar url={shareLink} text={shareText || challengeMsg} onCopied={() => showToast('Copied')} />
+              <ShareBar
+                url={shareLink}
+                text={shareText || challengeMsg}
+                emailHref={challengeMailHref(shareLink)}
+                onCopied={() => showToast('Copied')}
+              />
             </div>
           )}
         </main>
@@ -1567,11 +1656,18 @@ export default function App() {
               className="btn primary"
               onClick={() => {
                 const p = getPuzzle(duel.puzzleId)
-                if (p) startPuzzle(p)
+                if (!p) {
+                  setLinkBoardError(MISSING_BOARD)
+                  showToast(MISSING_BOARD)
+                  return
+                }
+                setLinkBoardError('')
+                startPuzzle(p)
               }}
             >
               Play this board
             </button>
+            {linkBoardError ? <p className="link-board-error">{linkBoardError}</p> : null}
             <button type="button" className="btn ghost" onClick={() => setScreen('home')}>
               Home
             </button>
