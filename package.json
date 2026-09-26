@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/check-voices.ts && tsc -b && vite build",
     "lint": "oxlint",
-    "test": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test scripts/undo-history.test.ts",
+    "test": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test scripts/*.test.ts",
     "preview": "vite preview",
     "generate:icons": "node scripts/generate-app-icon.mjs",
     "cap:sync": "npm run build && cap sync"
