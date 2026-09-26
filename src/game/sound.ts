@@ -1,22 +1,32 @@
-/** SFX + non-overlapping voice (coach / Roman / buddy giggle) */
+/**
+ * SFX + one shared voice channel (Roman + coach).
+ * Every voice line goes through a single HTMLAudioElement, so two lines can never sound at once.
+ * Roman is always the deeper Brian clips; the old-timer heckler is William (+rasp); the coach is Jenny. No speech-synthesis fallback:
+ * if a clip can't play, the line stays silent.
+ */
 
 import {
+  WARM_COACH_CLIPS,
+  isPlayableVoiceClip,
   moodPlayback,
   roleForClip,
   type VoiceLineId,
   type VoiceMood,
-  type VoiceRole,
 } from './voiceLines'
 
 let ctx: AudioContext | null = null
 let muted = false
 let voiceEnabled = true
 
-const voicePool = new Map<string, HTMLAudioElement>()
-let activeVoice: HTMLAudioElement | null = null
-let activeRole: VoiceRole | null = null
-let voiceBusyUntil = 0
+/** The one and only voice player. Reused for every line (and unlocked on the first tap for iOS). */
+let voiceEl: HTMLAudioElement | null = null
+/** Line currently requested/playing on the channel (null = channel free) */
+let currentLine: { priority: number; gen: number } | null = null
 let voiceGeneration = 0
+let voiceSafetyTimer: number | null = null
+let voiceUnlocked = false
+/** One waiting line (e.g. a badge right after a win) that plays when the channel frees up */
+let waitingLine: { id: string; opts: PlayVoiceOpts; until: number } | null = null
 
 const FALLBACK_TEXT: Partial<Record<VoiceLineId, string>> = {
   nice: 'Nice.',
@@ -130,6 +140,66 @@ const FALLBACK_TEXT: Partial<Record<VoiceLineId, string>> = {
   roman_wrong_wifi: 'Roman says: that move has no signal.',
   roman_wrong_drama: 'Roman says: the drama. The miss. The heart.',
   roman_wrong_trophy: 'Roman says: no trophy for that square.',
+  roman_lose_nap: 'Roman says: out of hearts. Even legends need a nap.',
+  roman_lose_fought: 'Roman says: that board fought back. Rematch?',
+  roman_lose_snacks: 'Roman says: hearts empty, snack bowl full. Try again!',
+  roman_lose_round: 'Roman says: the board wins this round. Not the war.',
+  roman_hint_psst: 'Roman says: psst. Look over there.',
+  roman_hint_secret: "Roman says: I didn't tell you this, but try that square.",
+  roman_hint_clue: 'Roman says: tiny clue. Big brain.',
+  roman_badge_shiny: 'Roman says: new badge! So shiny!',
+  roman_badge_fridge: 'Roman says: badge unlocked. Put it on the fridge!',
+  roman_badge_wear: 'Roman says: ooh, a badge. Can I wear it?',
+  roman_badge_impressed: 'Roman says: badge get! Roman is impressed.',
+  roman_spin_spoken: 'Roman says: the wheel has spoken!',
+  roman_spin_ooh: 'Roman says: ooh! What did you get?',
+  roman_spin_lucky: 'Roman says: lucky spin! Roman approves.',
+  roman_stash_party: 'Roman says: five sparks! Sparkle party!',
+  roman_stash_jazz: 'Roman says: critter stash! Roman is doing jazz hands.',
+  old_wrong_stick: 'Old-timer: Back in my day we solved these with a stick. And we were faster.',
+  old_wrong_pigeon: "Old-timer: Even a pigeon would've skipped that square. A pigeon!",
+  old_wrong_love: 'Old-timer: Nope. And I say that with all the love I have left.',
+  old_wrong_choice: "Old-timer: That's a choice. Not a good one, but a choice.",
+  old_wrong_money: 'Old-timer: You tapped that like it owed you money.',
+  old_wrong_tea: "Old-timer: Wrong. I'd explain why, but my tea's getting cold.",
+  old_wrong_chaos: 'Old-timer: Oh sure, put it there. Why not. Chaos is free.',
+  old_wrong_knees: "Old-timer: My knees make better decisions than that. And they're sixty years old.",
+  old_wrong_personal: 'Old-timer: Did the board do something to you? That felt personal.',
+  old_wrong_close: 'Old-timer: Close. Well, no. Not close at all, actually.',
+  old_wrong_again: 'Old-timer: Ha! Classic. Do it again, I missed it.',
+  old_wrong_refund: 'Old-timer: That buddy wants a refund.',
+  old_wrong_nickel: "Old-timer: In my day a wrong move cost you a nickel. You'd be broke by now.",
+  old_wrong_teacher: 'Old-timer: Somewhere, a puzzle teacher just felt a chill.',
+  old_wrong_loudly: "Old-timer: I'm not saying it's wrong. The board is saying it's wrong. Loudly.",
+  old_idle_twenty: "Old-timer: Take your time. I've got maybe twenty years left.",
+  old_idle_crossword: "Old-timer: I started a crossword while I wait. It's going better.",
+  old_idle_kettle: 'Old-timer: Should I put the kettle on? Feels like a two-kettle puzzle.',
+  old_idle_nap: "Old-timer: Wake me up when you've got a move. I'll be snoozing.",
+  old_idle_glacier: "Old-timer: I've seen glaciers with more hustle.",
+  old_idle_younger: "Old-timer: Any day now. I'm not getting any younger.",
+  old_idle_gossip: 'Old-timer: Still thinking? The squares are starting to gossip.',
+  old_hint_stare: 'Old-timer: A hint? In my day we just stared at it until it gave up.',
+  old_hint_tell: "Old-timer: Go on, take the hint. I won't tell anyone. I'll tell everyone.",
+  old_hint_wheels: 'Old-timer: Ah, the training wheels. Classic.',
+  old_hint_push: 'Old-timer: A hint, huh. Fine. Every legend needs a little push.',
+  old_hint_smart: 'Old-timer: Asking for help already? Smart. Sad, but smart.',
+  old_undo_hokey: "Old-timer: Undo, redo, undo. You're doing the hokey pokey.",
+  old_undo_dizzy: "Old-timer: Make up your mind! The board's getting dizzy.",
+  old_undo_rocking: 'Old-timer: Back and forth, back and forth. Are you solving, or rocking in a chair?',
+  old_undo_vacation: "Old-timer: That undo button's gonna need a vacation.",
+  old_lose_tape: "Old-timer: Out of hearts. I'd lend you one, but mine runs on duct tape.",
+  old_lose_goldfish: 'Old-timer: Game over. Even my goldfish saw that coming.',
+  old_lose_sideways: 'Old-timer: Well, that went sideways. Dust yourself off, kiddo.',
+  old_lose_popcorn: "Old-timer: And that's the ballgame. Rematch? I'll get my popcorn.",
+  old_win_eventually: "Old-timer: You won. Eventually. I'll allow it.",
+  old_win_ugly: "Old-timer: A win's a win. Even an ugly one.",
+  old_win_paint: 'Old-timer: That was like watching paint dry. But with a happy ending.',
+  old_win_yesterday: 'Old-timer: Done already? Oh wait, you started yesterday. Nice.',
+  old_win_gaveup: 'Old-timer: Well, look at that. The board gave up before you did.',
+  old_rescue_modern: 'Old-timer: Buying your way out of trouble? Very modern.',
+  old_rescue_refund: 'Old-timer: Rescue, huh. Nothing says confidence like a refund.',
+  old_rescue_coins: 'Old-timer: Coins well spent. That buddy was a disaster.',
+  old_rescue_cat: 'Old-timer: Rescued! Like a cat from a tree. A very confused cat.',
   cosmic: 'Cosmic void. Starlit mystery.',
   ruins: 'Ancient ruins. Forgotten stone.',
   neon: 'Neon night. Electric streets.',
@@ -149,13 +219,6 @@ const FALLBACK_TEXT: Partial<Record<VoiceLineId, string>> = {
 
 export function voiceLineText(id: string): string | undefined {
   return FALLBACK_TEXT[id as VoiceLineId]
-}
-
-/** Role priority — higher wins / can interrupt lower; same or lower is skipped while busy */
-const ROLE_PRIORITY: Record<VoiceRole, number> = {
-  coach: 3,
-  roman: 2,
-  buddy: 1,
 }
 
 function ac(): AudioContext {
@@ -179,91 +242,53 @@ function voiceHref(id: string): string {
   return `${base.endsWith('/') ? base : `${base}/`}voices/${id}.mp3`
 }
 
+/** 50 ms of silence (valid MP3) used to unlock the voice element on the first tap */
+const SILENT_MP3 =
+  'data:audio/mpeg;base64,SUQzBAAAAAAAIlRTU0UAAAAOAAADTGF2ZjYxLjcuMTAzAAAAAAAAAAAAAAD/84TAAAAAAAAAAAAASW5mbwAAAA8AAAAFAAACoABtbW1tbW1tbW1tbW1tbW1tbW1tkpKSkpKSkpKSkpKSkpKSkpKSkpK2tra2tra2tra2tra2tra2tra2ttvb29vb29vb29vb29vb29vb29vb//////////////////////////8AAAAATGF2YzYxLjE5AAAAAAAAAAAAAAAAJARQAAAAAAAAAqC9P8vrAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/80TEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy7/80TEUwAAA0gAAAAAMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy7/80TEpgAAA0gAAAAAMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/80TErAAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/80TErAAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU='
+
+function voicePlayer(): HTMLAudioElement | null {
+  if (typeof Audio === 'undefined') return null
+  if (!voiceEl) {
+    voiceEl = new Audio()
+    voiceEl.preload = 'auto'
+  }
+  return voiceEl
+}
+
+function clearVoiceSafety() {
+  if (voiceSafetyTimer != null) {
+    window.clearTimeout(voiceSafetyTimer)
+    voiceSafetyTimer = null
+  }
+}
+
+/** Free the channel if `gen` is still the current line, then start a waiting line if any */
+function releaseVoice(gen: number) {
+  if (gen !== voiceGeneration) return
+  clearVoiceSafety()
+  currentLine = null
+  const next = waitingLine
+  waitingLine = null
+  if (next && performance.now() <= next.until) {
+    // Small gap so two voices don't run into each other
+    window.setTimeout(() => {
+      if (!currentLine) playVoice(next.id, { ...next.opts, waitMs: 0 })
+    }, 250)
+  }
+}
+
+/** Stop whatever is on the voice channel right now */
 function stopVoice() {
   voiceGeneration += 1
-  if (activeVoice) {
-    try {
-      activeVoice.onended = null
-      activeVoice.onerror = null
-      activeVoice.pause()
-      activeVoice.currentTime = 0
-    } catch {
-      /* ignore */
-    }
-    activeVoice = null
-  }
-  activeRole = null
-  if (typeof speechSynthesis !== 'undefined') {
-    try {
-      speechSynthesis.cancel()
-    } catch {
-      /* ignore */
-    }
-  }
-}
-
-function pickFemaleVoice(): SpeechSynthesisVoice | null {
-  if (typeof speechSynthesis === 'undefined') return null
-  const voices = speechSynthesis.getVoices()
-  if (!voices.length) return null
-  return (
-    voices.find((v) => /Samantha|Karen|Moira|Victoria|Jenny|Zira|Google US English/i.test(v.name)) ||
-    voices.find((v) => /female|woman/i.test(`${v.name} ${v.voiceURI}`)) ||
-    voices.find((v) => v.lang.startsWith('en')) ||
-    null
-  )
-}
-
-function pickRomanVoice(): SpeechSynthesisVoice | null {
-  if (typeof speechSynthesis === 'undefined') return null
-  const voices = speechSynthesis.getVoices()
-  if (!voices.length) return null
-  return (
-    voices.find((v) => /Brian|Aaron|Fred|Daniel|Alex|Tom|David|Male/i.test(v.name)) ||
-    voices.find((v) => v.lang.startsWith('en') && /male/i.test(`${v.name} ${v.voiceURI}`)) ||
-    null
-  )
-}
-
-function looksLikeCodeOrMarkup(text: string): boolean {
-  const t = text.trim()
-  if (!t) return true
-  if (t.length > 180) return true
-  if (/<speak|<\/|xmlns|mstts|express-as|function\s*\(|=>\s*\{|const\s+\w+\s*=/i.test(t)) return true
-  if (/[{};]|<\/?[a-z]/i.test(t)) return true
-  return false
-}
-
-function speakSynth(
-  text: string,
-  opts: { pitch?: number; rate?: number; role?: VoiceRole } = {},
-) {
-  if (muted || !voiceEnabled || !text) return
-  // Never read SSML, XML, or source code aloud
-  if (looksLikeCodeOrMarkup(text)) return
-  if (typeof speechSynthesis === 'undefined' || typeof SpeechSynthesisUtterance === 'undefined') {
-    return
-  }
+  clearVoiceSafety()
+  currentLine = null
+  const el = voiceEl
+  if (!el) return
+  el.onended = null
+  el.onerror = null
+  el.onpause = null
   try {
-    speechSynthesis.cancel()
-    const u = new SpeechSynthesisUtterance(text)
-    const role = opts.role ?? 'coach'
-    const voice =
-      role === 'roman' ? pickRomanVoice() || pickFemaleVoice() :
-      role === 'buddy' ? pickFemaleVoice() :
-      pickFemaleVoice()
-    if (voice) u.voice = voice
-    u.pitch = opts.pitch ?? (role === 'roman' ? 0.72 : role === 'buddy' ? 1.4 : 1.08)
-    u.rate = opts.rate ?? (role === 'roman' ? 0.9 : 1.02)
-    u.volume = 0.9
-    const gen = voiceGeneration
-    u.onend = () => {
-      if (gen === voiceGeneration) {
-        activeRole = null
-        voiceBusyUntil = performance.now()
-      }
-    }
-    speechSynthesis.speak(u)
+    el.pause()
   } catch {
     /* ignore */
   }
@@ -271,15 +296,19 @@ function speakSynth(
 
 export function setMuted(m: boolean) {
   muted = m
-  if (m) stopVoice()
+  if (m) {
+    waitingLine = null
+    stopVoice()
+  }
 }
 
 export function setVoiceEnabled(on: boolean) {
   voiceEnabled = on
-  if (!on) stopVoice()
+  if (!on) {
+    waitingLine = null
+    stopVoice()
+  }
 }
-
-let audioUnlocked = false
 
 export function unlockAudio() {
   ensureAudio()
@@ -296,23 +325,25 @@ export function unlockAudio() {
   } catch {
     /* ignore */
   }
-  if (audioUnlocked || typeof Audio === 'undefined') return
-  audioUnlocked = true
+  // iOS only lets an audio element play without a tap once it has played inside one:
+  // prime the shared voice element with a silent clip on the first tap.
+  if (voiceUnlocked || currentLine) return
+  const el = voicePlayer()
+  if (!el) return
+  voiceUnlocked = true
   try {
-    const silent = new Audio(
-      'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAABhgC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAYYoRwmHAAAAAAD/+1DEAAAGAAAF4AAAAAgAAAAATEFN//uQxAAAAAAAAAAAAAAAAAAAAAAADwAAABpAAAACAAADSAAAAETEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQ==',
-    )
-    silent.volume = 0.01
-    void silent
+    el.src = SILENT_MP3
+    el.volume = 0.01
+    void el
       .play()
       .then(() => {
-        silent.pause()
+        if (el.src === SILENT_MP3) el.pause()
       })
       .catch(() => {
-        audioUnlocked = false
+        voiceUnlocked = false
       })
   } catch {
-    audioUnlocked = false
+    voiceUnlocked = false
   }
 }
 
@@ -411,24 +442,12 @@ function synthGiggle() {
 }
 
 /**
- * Buddy kid-giggle voice. Skipped entirely if coach/roman is speaking.
- * Never starts coach/roman — giggles yield to spoken lines.
+ * Buddy giggle: synth peeps only. The recorded giggles are a female voice, and the only
+ * voice in the game is the deeper Roman, so they are not played.
  */
 export function sfxGiggle() {
   markSfx(SFX_IDS.giggle)
-  if (muted || !voiceEnabled) {
-    synthGiggle()
-    return
-  }
-  const now = performance.now()
-  if (now < voiceBusyUntil && activeRole && activeRole !== 'buddy') {
-    // Soft peeps only under spoken voice — no second voice layer
-    synthGiggle()
-    return
-  }
-  const clips = ['buddy_giggle_1', 'buddy_giggle_2', 'buddy_giggle_3'] as const
-  const id = clips[Math.floor(Math.random() * clips.length)]
-  playVoice(id, undefined, { mood: 'happy', forceRole: 'buddy' })
+  synthGiggle()
 }
 
 export function sfxHeartLose() {
@@ -508,14 +527,16 @@ export function sfxAchievement() {
 
 export interface PlayVoiceOpts {
   mood?: VoiceMood
-  forceRole?: VoiceRole
-  /** Fallback spoken text if mp3 fails */
-  text?: string
+  /** Channel priority. A new line interrupts only a lower-priority one; otherwise it is skipped. */
+  priority?: number
+  /** Instead of being skipped while an equal/higher line plays, wait up to this long for the channel. */
+  waitMs?: number
   /** Same-pool clips to try when this file is missing or not audio. */
   alts?: readonly string[]
 }
 
 const clipUrlCache = new Map<string, string | null>()
+const clipLoads = new Map<string, Promise<string | null>>()
 
 function isMp3Bytes(bytes: Uint8Array): boolean {
   if (bytes.length < 64) return false
@@ -526,178 +547,132 @@ function isMp3Bytes(bytes: Uint8Array): boolean {
 }
 
 /** Fetch the clip and reject the SPA html fallback (200 text/html). */
-async function clipObjectUrl(id: string): Promise<string | null> {
-  if (clipUrlCache.has(id)) return clipUrlCache.get(id) ?? null
-  try {
-    const res = await fetch(voiceHref(id))
-    if (!res.ok) {
-      clipUrlCache.set(id, null)
+function clipObjectUrl(id: string): Promise<string | null> {
+  if (clipUrlCache.has(id)) return Promise.resolve(clipUrlCache.get(id) ?? null)
+  const pending = clipLoads.get(id)
+  if (pending) return pending
+  const load = (async () => {
+    try {
+      const res = await fetch(voiceHref(id))
+      if (!res.ok) {
+        clipUrlCache.set(id, null)
+        return null
+      }
+      const buf = await res.arrayBuffer()
+      const bytes = new Uint8Array(buf)
+      const type = (res.headers.get('content-type') || '').toLowerCase()
+      if (type.includes('text/html') || !isMp3Bytes(bytes)) {
+        clipUrlCache.set(id, null)
+        return null
+      }
+      const url = URL.createObjectURL(new Blob([buf], { type: 'audio/mpeg' }))
+      clipUrlCache.set(id, url)
+      return url
+    } catch {
       return null
+    } finally {
+      clipLoads.delete(id)
     }
-    const buf = await res.arrayBuffer()
-    const bytes = new Uint8Array(buf)
-    const type = (res.headers.get('content-type') || '').toLowerCase()
-    if (type.includes('text/html') || !isMp3Bytes(bytes)) {
-      clipUrlCache.set(id, null)
-      return null
-    }
-    const url = URL.createObjectURL(new Blob([buf], { type: 'audio/mpeg' }))
-    clipUrlCache.set(id, url)
-    return url
-  } catch {
-    return null
-  }
+  })()
+  clipLoads.set(id, load)
+  return load
 }
 
 /**
- * Play one voice clip. Enforces single-speaker lock so lines never overlap.
- * Higher-priority roles can interrupt lower ones; otherwise the request is dropped.
+ * Play one voice line on the shared channel.
+ * - Only catalog clips play (Roman = Brian, coach = Jenny); anything else is ignored (silent).
+ * - While a line is loading or playing, a new line interrupts it only if its priority is higher;
+ *   equal/lower priority is skipped (or waits, with waitMs), so lines never stack or overlap.
  */
-export function playVoice(id: string, fallbackText?: string, opts: PlayVoiceOpts = {}) {
+export function playVoice(id: string, opts: PlayVoiceOpts = {}) {
   if (muted || !voiceEnabled || !id) return
-  const role = opts.forceRole ?? roleForClip(id)
-  const now = performance.now()
-  const busy = now < voiceBusyUntil && activeRole != null
-  if (busy) {
-    const incoming = ROLE_PRIORITY[role]
-    const current = ROLE_PRIORITY[activeRole!]
-    if (incoming <= current) return
+  const queue = [id, ...(opts.alts ?? [])].filter((clip, i, all) => isPlayableVoiceClip(clip) && all.indexOf(clip) === i).slice(0, 5)
+  if (!queue.length) return
+  const priority = opts.priority ?? 1
+  if (currentLine && priority <= currentLine.priority) {
+    if (opts.waitMs && (!waitingLine || priority >= (waitingLine.opts.priority ?? 1))) {
+      waitingLine = { id, opts, until: performance.now() + opts.waitMs }
+    }
+    return
   }
+  if (waitingLine && priority >= (waitingLine.opts.priority ?? 1)) waitingLine = null
+  const el = voicePlayer()
+  if (!el) return
 
   stopVoice()
   const gen = voiceGeneration
-  activeRole = role
-  const mood = opts.mood ?? (role === 'roman' ? 'excited' : role === 'buddy' ? 'happy' : 'neutral')
-  const { rate, volume } = moodPlayback(mood)
-  // Buddy giggles are short
-  const holdMs = role === 'buddy' ? 900 : role === 'roman' ? 2800 : 2400
-  voiceBusyUntil = now + holdMs
-
-  const text =
-    opts.text ??
-    fallbackText ??
-    (FALLBACK_TEXT[id as VoiceLineId] as string | undefined)
-
-  if (typeof Audio === 'undefined') {
-    speakSynth(text ?? '', {
-      role,
-      pitch: role === 'buddy' ? 1.4 : role === 'roman' ? 1.0 : mood === 'excited' ? 1.1 : mood === 'disappointed' ? 0.95 : 1.05,
-      rate,
-    })
-    return
-  }
-
-  const alts = (opts.alts ?? []).filter((alt) => alt && alt !== id).slice(0, 4)
-  void playClipQueue([id, ...alts], gen, role, text, rate, volume)
+  currentLine = { priority, gen }
+  // Safety net: never hold the channel forever if the browser drops an 'ended' event
+  voiceSafetyTimer = window.setTimeout(() => releaseVoice(gen), 12000)
+  const { rate, volume } = moodPlayback(opts.mood ?? (roleForClip(id) === 'roman' ? 'excited' : 'neutral'))
+  void playClipQueue(el, queue, gen, rate, volume)
 }
 
-function releaseVoice(gen: number) {
-  if (gen !== voiceGeneration) return
-  activeVoice = null
-  activeRole = null
-  voiceBusyUntil = performance.now()
-}
-
-async function playClipQueue(
-  queue: string[],
-  gen: number,
-  role: VoiceRole,
-  text: string | undefined,
-  rate: number,
-  volume: number,
-) {
+async function playClipQueue(el: HTMLAudioElement, queue: string[], gen: number, rate: number, volume: number) {
   for (const clipId of queue) {
     if (gen !== voiceGeneration) return
     const url = await clipObjectUrl(clipId)
-    if (!url) continue
-    const audio = new Audio(url)
-    audio.preload = 'auto'
-    const playRate =
-      role === 'roman'
-        ? Math.min(0.94, Math.max(0.82, rate * 0.88))
-        : Math.min(1.2, Math.max(0.85, rate))
-    audio.playbackRate = playRate
-    audio.volume = role === 'roman' ? Math.min(1, volume * 1.05) : volume
-    activeVoice = audio
-    voicePool.set(clipId, audio)
-
-    const started = await new Promise<boolean>((resolve) => {
-      let settled = false
-      const finish = (ok: boolean) => {
-        if (settled) return
-        settled = true
-        resolve(ok)
-      }
-      audio.onerror = () => finish(false)
-      void audio.play().then(() => {
-        if (settled) return
-        if (audio.error || audio.duration === 0) finish(false)
-        else finish(true)
-      }).catch(() => finish(false))
-    })
-
     if (gen !== voiceGeneration) return
-    if (started) {
-      audio.onended = () => {
-        if (gen !== voiceGeneration) return
-        if (activeVoice === audio) releaseVoice(gen)
+    if (!url) continue
+    el.onended = null
+    el.onerror = null
+    el.onpause = null
+    el.src = url
+    const role = roleForClip(clipId)
+    if (role === 'roman') {
+      el.playbackRate = Math.min(0.94, Math.max(0.82, rate * 0.88))
+      el.volume = Math.min(1, volume * 1.05)
+    } else if (role === 'oldtimer') {
+      // Old-timer's slow, rough delivery is baked into the clip — play it as recorded
+      el.playbackRate = 1
+      el.volume = Math.min(1, volume * 1.05)
+    } else {
+      el.playbackRate = Math.min(1.2, Math.max(0.85, rate))
+      el.volume = volume
+    }
+    let ok = false
+    try {
+      await el.play()
+      ok = !el.error
+    } catch {
+      ok = false
+    }
+    if (gen !== voiceGeneration) return
+    if (ok) {
+      const done = () => releaseVoice(gen)
+      el.onended = done
+      el.onerror = done
+      // Paused by the OS/browser (call, tab hidden…) — free the channel
+      el.onpause = () => {
+        if (gen === voiceGeneration && el.paused) done()
       }
+      if (el.ended) done()
       return
     }
-    audio.onended = null
-    audio.onerror = null
-    try {
-      audio.pause()
-    } catch {
-      /* ignore */
-    }
-    if (activeVoice === audio) activeVoice = null
   }
-
-  if (gen !== voiceGeneration) return
-  if (text) {
-    speakSynth(text, {
-      role,
-      pitch: role === 'buddy' ? 1.4 : role === 'roman' ? 1.0 : 1.08,
-      rate,
-    })
-    return
-  }
-  if (role === 'buddy') synthGiggle()
+  // No playable clip: stay silent (no speech-synthesis fallback)
   releaseVoice(gen)
 }
 
-/** Coach / Roman line with emotional tone — never overlaps */
+/** Roman or coach line with emotional tone — one at a time on the shared channel */
 export function playBanterClip(
   id: string,
   mood: VoiceMood,
-  text?: string,
   alts?: readonly string[],
+  priority?: number,
+  waitMs?: number,
 ) {
-  playVoice(id, text, { mood, alts })
+  playVoice(id, { mood, alts, priority, waitMs })
 }
 
+/** Prefetch the short coach clips in the background (Roman lines load on demand) */
 export function warmVoices() {
-  if (typeof Audio === 'undefined') return
-  const ids = [
-    'nice',
-    'cleared',
-    'out_of_hearts',
-    'too_close',
-    'roman_awesome',
-    'roman_win',
-    'roman_clutch',
-    'roman_bonk',
-    'buddy_giggle_1',
-  ]
-  for (const id of ids) {
-    if (voicePool.has(id)) continue
-    try {
-      const audio = new Audio(voiceHref(id))
-      audio.preload = 'auto'
-      voicePool.set(id, audio)
-    } catch {
-      /* ignore */
-    }
+  if (typeof Audio === 'undefined' || typeof fetch === 'undefined') return
+  const ids: string[] = [...WARM_COACH_CLIPS]
+  const next = () => {
+    const id = ids.shift()
+    if (!id) return
+    void clipObjectUrl(id).finally(() => window.setTimeout(next, 120))
   }
+  window.setTimeout(next, 1500)
 }

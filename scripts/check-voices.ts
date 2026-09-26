@@ -42,6 +42,20 @@ const pools: Record<string, string[]> = {
   cheers: quoted(block(commentSrc, 'export const ROMAN_CHEER_CLIPS = [', '] as const')),
   wrong: quoted(block(commentSrc, 'export const ROMAN_WRONG_CLIPS = [', '] as const')),
   idle: quoted(block(commentSrc, 'export const ROMAN_IDLE_CLIPS = [', '] as const')),
+  lose: quoted(block(commentSrc, 'export const ROMAN_LOSE_CLIPS = [', '] as const')),
+  hint: quoted(block(commentSrc, 'export const ROMAN_HINT_CLIPS = [', '] as const')),
+  badge: quoted(block(commentSrc, 'export const ROMAN_BADGE_CLIPS = [', '] as const')),
+  prize: quoted(block(commentSrc, 'export const ROMAN_PRIZE_CLIPS = [', '] as const')),
+  stash: quoted(block(commentSrc, 'export const ROMAN_STASH_CLIPS = [', '] as const')),
+}
+const oldPools: Record<string, string[]> = {
+  oldWrong: quoted(block(commentSrc, 'export const OLDTIMER_WRONG_CLIPS = [', '] as const')),
+  oldIdle: quoted(block(commentSrc, 'export const OLDTIMER_IDLE_CLIPS = [', '] as const')),
+  oldHint: quoted(block(commentSrc, 'export const OLDTIMER_HINT_CLIPS = [', '] as const')),
+  oldUndo: quoted(block(commentSrc, 'export const OLDTIMER_UNDO_CLIPS = [', '] as const')),
+  oldLose: quoted(block(commentSrc, 'export const OLDTIMER_LOSE_CLIPS = [', '] as const')),
+  oldWin: quoted(block(commentSrc, 'export const OLDTIMER_WIN_CLIPS = [', '] as const')),
+  oldRescue: quoted(block(commentSrc, 'export const OLDTIMER_RESCUE_CLIPS = [', '] as const')),
 }
 
 if (voiceIds.length < 100) throw new Error(`expected the voice catalog, found ${voiceIds.length}`)
@@ -56,12 +70,44 @@ if (missing.length) {
 }
 
 const known = new Set(voiceIds)
-for (const [name, ids] of Object.entries(pools)) {
+for (const [name, ids] of Object.entries({ ...pools, ...oldPools })) {
   if (ids.length < 3) throw new Error(`${name} pool has only ${ids.length} clips`)
   for (const id of ids) {
     if (!known.has(id)) throw new Error(`${name} pool uses unknown clip ${id}`)
     if (!fallbackIds.has(id)) throw new Error(`${name} pool clip ${id} has no fallback text`)
   }
+}
+
+// Roman must only ever be the deeper Brian voice: every roman_* clip is recorded in the manifest
+// (written by scripts/generate-voices.py) as en-US-BrianNeural with the Roman settings.
+const manifest: Record<string, { voice: string; rate: string; pitch: string; post?: string }> = JSON.parse(
+  fs.readFileSync(path.join(root, 'scripts/voice-manifest.json'), 'utf8'),
+)
+const notBrian: string[] = []
+const notOld: string[] = []
+for (const id of voiceIds) {
+  const entry = manifest[id]
+  if (!entry) throw new Error(`voice clip ${id} is missing from scripts/voice-manifest.json`)
+  if (id.startsWith('roman_') && (entry.voice !== 'en-US-BrianNeural' || entry.rate !== '-8%' || entry.pitch !== '-6Hz')) {
+    notBrian.push(`${id} (${entry.voice} ${entry.rate} ${entry.pitch})`)
+  }
+  // Old-timer heckler: William, slower + lower, with the rasp post-process
+  if (
+    id.startsWith('old_') &&
+    (entry.voice !== 'en-AU-WilliamMultilingualNeural' || entry.rate !== '-20%' || entry.pitch !== '-16Hz' || entry.post !== 'rasp-v1')
+  ) {
+    notOld.push(`${id} (${entry.voice} ${entry.rate} ${entry.pitch} ${entry.post ?? 'no post'})`)
+  }
+}
+if (notBrian.length) throw new Error(`Roman clips not in the deeper Brian voice: ${notBrian.join(', ')}`)
+if (notOld.length) throw new Error(`Old-timer clips not in the old-timer voice: ${notOld.join(', ')}`)
+for (const [name, ids] of Object.entries(oldPools)) {
+  const stray = ids.filter((id) => !id.startsWith('old_'))
+  if (stray.length) throw new Error(`${name} old-timer pool has other clips: ${stray.join(' ')}`)
+}
+for (const [name, ids] of Object.entries(pools)) {
+  const stray = ids.filter((id) => !id.startsWith('roman_'))
+  if (stray.length) throw new Error(`${name} Roman pool has non-Roman clips: ${stray.join(' ')}`)
 }
 
 function assertBag(label: string, items: string[]) {
@@ -79,10 +125,11 @@ function assertBag(label: string, items: string[]) {
   }
 }
 
-assertBag('cheers', pools.cheers)
-assertBag('wrong', pools.wrong)
-assertBag('idle', pools.idle)
+for (const [name, ids] of Object.entries({ ...pools, ...oldPools })) assertBag(name, ids)
 
 console.log(
-  `voices ok: ${voiceIds.length} clips, cheers ${pools.cheers.length}, wrong ${pools.wrong.length}, idle ${pools.idle.length}`,
+  `voices ok: ${voiceIds.length} clips (Roman all Brian, old-timer all William+rasp), ` +
+    Object.entries({ ...pools, ...oldPools })
+      .map(([name, ids]) => `${name} ${ids.length}`)
+      .join(', '),
 )

@@ -120,6 +120,67 @@ export const VOICE_LINES = {
   roman_wrong_wifi: '/voices/roman_wrong_wifi.mp3',
   roman_wrong_drama: '/voices/roman_wrong_drama.mp3',
   roman_wrong_trophy: '/voices/roman_wrong_trophy.mp3',
+  roman_lose_nap: '/voices/roman_lose_nap.mp3',
+  roman_lose_fought: '/voices/roman_lose_fought.mp3',
+  roman_lose_snacks: '/voices/roman_lose_snacks.mp3',
+  roman_lose_round: '/voices/roman_lose_round.mp3',
+  roman_hint_psst: '/voices/roman_hint_psst.mp3',
+  roman_hint_secret: '/voices/roman_hint_secret.mp3',
+  roman_hint_clue: '/voices/roman_hint_clue.mp3',
+  roman_badge_shiny: '/voices/roman_badge_shiny.mp3',
+  roman_badge_fridge: '/voices/roman_badge_fridge.mp3',
+  roman_badge_wear: '/voices/roman_badge_wear.mp3',
+  roman_badge_impressed: '/voices/roman_badge_impressed.mp3',
+  roman_spin_spoken: '/voices/roman_spin_spoken.mp3',
+  roman_spin_ooh: '/voices/roman_spin_ooh.mp3',
+  roman_spin_lucky: '/voices/roman_spin_lucky.mp3',
+  roman_stash_party: '/voices/roman_stash_party.mp3',
+  roman_stash_jazz: '/voices/roman_stash_jazz.mp3',
+  // Old-timer heckler (en-AU-WilliamMultilingualNeural + rasp)
+  old_wrong_stick: '/voices/old_wrong_stick.mp3',
+  old_wrong_pigeon: '/voices/old_wrong_pigeon.mp3',
+  old_wrong_love: '/voices/old_wrong_love.mp3',
+  old_wrong_choice: '/voices/old_wrong_choice.mp3',
+  old_wrong_money: '/voices/old_wrong_money.mp3',
+  old_wrong_tea: '/voices/old_wrong_tea.mp3',
+  old_wrong_chaos: '/voices/old_wrong_chaos.mp3',
+  old_wrong_knees: '/voices/old_wrong_knees.mp3',
+  old_wrong_personal: '/voices/old_wrong_personal.mp3',
+  old_wrong_close: '/voices/old_wrong_close.mp3',
+  old_wrong_again: '/voices/old_wrong_again.mp3',
+  old_wrong_refund: '/voices/old_wrong_refund.mp3',
+  old_wrong_nickel: '/voices/old_wrong_nickel.mp3',
+  old_wrong_teacher: '/voices/old_wrong_teacher.mp3',
+  old_wrong_loudly: '/voices/old_wrong_loudly.mp3',
+  old_idle_twenty: '/voices/old_idle_twenty.mp3',
+  old_idle_crossword: '/voices/old_idle_crossword.mp3',
+  old_idle_kettle: '/voices/old_idle_kettle.mp3',
+  old_idle_nap: '/voices/old_idle_nap.mp3',
+  old_idle_glacier: '/voices/old_idle_glacier.mp3',
+  old_idle_younger: '/voices/old_idle_younger.mp3',
+  old_idle_gossip: '/voices/old_idle_gossip.mp3',
+  old_hint_stare: '/voices/old_hint_stare.mp3',
+  old_hint_tell: '/voices/old_hint_tell.mp3',
+  old_hint_wheels: '/voices/old_hint_wheels.mp3',
+  old_hint_push: '/voices/old_hint_push.mp3',
+  old_hint_smart: '/voices/old_hint_smart.mp3',
+  old_undo_hokey: '/voices/old_undo_hokey.mp3',
+  old_undo_dizzy: '/voices/old_undo_dizzy.mp3',
+  old_undo_rocking: '/voices/old_undo_rocking.mp3',
+  old_undo_vacation: '/voices/old_undo_vacation.mp3',
+  old_lose_tape: '/voices/old_lose_tape.mp3',
+  old_lose_goldfish: '/voices/old_lose_goldfish.mp3',
+  old_lose_sideways: '/voices/old_lose_sideways.mp3',
+  old_lose_popcorn: '/voices/old_lose_popcorn.mp3',
+  old_win_eventually: '/voices/old_win_eventually.mp3',
+  old_win_ugly: '/voices/old_win_ugly.mp3',
+  old_win_paint: '/voices/old_win_paint.mp3',
+  old_win_yesterday: '/voices/old_win_yesterday.mp3',
+  old_win_gaveup: '/voices/old_win_gaveup.mp3',
+  old_rescue_modern: '/voices/old_rescue_modern.mp3',
+  old_rescue_refund: '/voices/old_rescue_refund.mp3',
+  old_rescue_coins: '/voices/old_rescue_coins.mp3',
+  old_rescue_cat: '/voices/old_rescue_cat.mp3',
   spark_unlocked: '/voices/spark_unlocked.mp3',
   spark_1: '/voices/spark_1.mp3',
   spark_2: '/voices/spark_2.mp3',
@@ -137,12 +198,38 @@ export const VOICE_LINES = {
 
 export type VoiceLineId = keyof typeof VOICE_LINES
 
+/**
+ * Clips the voice channel may play: every catalog clip except the buddy giggles (those are a
+ * synth sound effect now). All roman_* clips are the deeper Roman voice (en-US-BrianNeural,
+ * rate -8%, pitch -6Hz); old_* clips are the old-timer heckler (en-AU-WilliamMultilingualNeural,
+ * rate -20%, pitch -16Hz, rasp); coach lines are en-US-JennyNeural — see scripts/voice-manifest.json.
+ */
+export function isPlayableVoiceClip(id: string): boolean {
+  return Object.prototype.hasOwnProperty.call(VOICE_LINES, id) && !id.startsWith('buddy_')
+}
+
+/** Coach clips worth prefetching (short, used for hints, badges, prizes and spark progress) */
+export const WARM_COACH_CLIPS = [
+  'nudge',
+  'new_badge',
+  'prize_time',
+  'out_of_hearts',
+  'tough_board',
+  'spark_unlocked',
+  'spark_1',
+  'spark_2',
+  'spark_3',
+  'spark_4',
+  'nice',
+] as const
+
 export type VoiceMood = 'excited' | 'happy' | 'neutral' | 'soft' | 'disappointed'
 
-export type VoiceRole = 'coach' | 'roman' | 'buddy'
+export type VoiceRole = 'coach' | 'roman' | 'oldtimer' | 'buddy'
 
 export function roleForClip(id: string): VoiceRole {
   if (id.startsWith('roman_')) return 'roman'
+  if (id.startsWith('old_')) return 'oldtimer'
   if (id.startsWith('buddy_')) return 'buddy'
   return 'coach'
 }

@@ -11,6 +11,7 @@ import './styles/store-layer.css'
 import { ShareBar } from './components/ShareBar'
 import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './components/SparkCritter'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
+import { createHistory, pushMove, redoMove, undoMove } from './game/history'
 import {
   applyHint,
   clearBuddy,
@@ -47,6 +48,8 @@ import {
   BADGES,
   HINT_COST,
   MAX_LIVES,
+  MAX_BONUS_HEARTS,
+  HEART_PRIZE_FALLBACK_COINS,
   RESCUE_COST,
   REVIVE_COST,
   applyPrize,
@@ -175,6 +178,8 @@ export default function App() {
   const [winLine, setWinLine] = useState('')
   const [loseLine, setLoseLine] = useState('')
   const [lives, setLives] = useState(MAX_LIVES)
+  /** Hearts this board started with: 3, or 4 when a saved bonus heart was used */
+  const [runMaxLives, setRunMaxLives] = useState(MAX_LIVES)
   const [lastScore, setLastScore] = useState<number | null>(null)
   const [toast, setToast] = useState('')
   const [shortfall, setShortfall] = useState<null | { action: ShortfallAction; need: number; detail?: string }>(null)
@@ -199,8 +204,11 @@ export default function App() {
   const shellRef = useRef<HTMLDivElement>(null)
   const tickRef = useRef<number | null>(null)
   const idleRef = useRef<number | null>(null)
+  const undoTimesRef = useRef<number[]>([])
   const lastActionRef = useRef(Date.now())
   const recordedRef = useRef(false)
+  /** Latest board plus undo/redo stacks. Updated on every move, not on the next render. */
+  const historyRef = useRef(createHistory([] as CellState[]))
 
   const byDiff = useMemo(() => puzzlesByDifficulty(), [])
   const draft = loadDraft()
@@ -422,7 +430,7 @@ export default function App() {
     if (line.text) showToast(line.text)
     // place-good: Board already plays buddy giggle — don't speak here
     if (line.giggle || !line.speak || !line.clip) return line
-    playBanterClip(line.clip, line.voiceMood, line.text, line.alts)
+    playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
     return line
   }
 
@@ -435,12 +443,33 @@ export default function App() {
     saveWallet(next)
   }
 
+  function commitHistory(nextHist: ReturnType<typeof createHistory>) {
+    historyRef.current = nextHist
+    setHistory(nextHist.past)
+    setFuture(nextHist.future)
+    setCells(nextHist.present)
+  }
+
+  function adoptBoard(board: CellState[]) {
+    commitHistory(createHistory(board))
+  }
+
   function startPuzzle(p: Puzzle, resume = false) {
     unlockAudio()
     sfxWhoosh()
     resetPlayViewport()
     const saved = loadWallet()
-    if (saved.heartRefillPending) persistWallet({ ...saved, heartRefillPending: false })
+    let startLives = MAX_LIVES
+    if ((saved.bonusHearts ?? 0) > 0) {
+      const left = saved.bonusHearts - 1
+      persistWallet({ ...saved, bonusHearts: left })
+      startLives = MAX_LIVES + 1
+      showToast(
+        left > 0
+          ? `Bonus heart used — this board starts with ${startLives} hearts (${left} saved)`
+          : `Bonus heart used — this board starts with ${startLives} hearts`,
+      )
+    }
     const themeId = p.theme ?? themeForPuzzle(p.id, p.difficulty)
     setPuzzle({ ...p, theme: themeId })
     recordedRef.current = false
@@ -452,17 +481,16 @@ export default function App() {
     setLastScore(null)
     setHintIndex(null)
     setHintText('')
-    setFuture([])
-    setLives(MAX_LIVES)
+    setRunMaxLives(startLives)
+    setLives(startLives)
     // Quiet start — no theme blob/voice; board stays fully visible
 
     if (resume) {
       const d = loadDraft()
       if (d && d.puzzleId === p.id) {
-        setCells(d.cells as CellState[])
+        adoptBoard(d.cells as CellState[])
         setElapsedMs(d.elapsedMs)
         setHintsUsed(d.hintsUsed)
-        setHistory([])
         setRunning(true)
         setScreen('play')
         return
@@ -470,8 +498,7 @@ export default function App() {
     }
 
     const board = emptyBoard(p.size)
-    setCells(board)
-    setHistory([])
+    adoptBoard(board)
     setElapsedMs(0)
     setHintsUsed(0)
     setRunning(true)
@@ -495,17 +522,20 @@ export default function App() {
     },
   ) {
     bumpAction()
-    setHistory((h) => [...h, cells])
-    setFuture([])
-    setCells(next)
+    // `cells` is stale until React re-renders. A swipe can place several X marks
+    // in that window; record each one against the board we actually had.
+    const hist = pushMove(historyRef.current, next)
+    if (hist === historyRef.current) return
+    commitHistory(hist)
 
     if (meta.kind === 'mark') {
       // X marks: Board already played sfxMark — never banter/voice
     } else if (meta.kind === 'stone' && meta.conflict) {
       const kind: BanterConflictKind = meta.conflictKind ?? 'generic'
-      pushBanter('place-bad', kind)
       let nextLives = lives
       let w = { ...wallet, totalMistakes: wallet.totalMistakes + 1 }
+      // One line per move: the losing move gets the lose line only, not a wrong-move line too
+      if (w.shields > 0 || lives > 1) pushBanter('place-bad', kind)
       if (w.shields > 0) {
         w = { ...w, shields: w.shields - 1 }
         showToast('Shield blocked a mistake!')
@@ -551,6 +581,11 @@ export default function App() {
       sfxWin()
       const win = pushBanter('win')
       setWinLine(win.text || 'Roman says: nice clear!')
+      // Slow or sloppy clear (lost a heart, 2+ hints, or over 3 minutes): the old-timer may chime in
+      // with a backhanded compliment once Roman's cheer is done (never on top of it)
+      if (lives < runMaxLives || hintsUsed >= 2 || elapsedMs > 180000) {
+        window.setTimeout(() => pushBanter('win-heckle'), 2600)
+      }
       const perfect = hintsUsed === 0
       const score = scoreRun({
         size: puzzle.size,
@@ -639,28 +674,37 @@ export default function App() {
     }
   }
 
+  /** Undo/redo spam (4 within 5s) gives the old-timer an opening */
+  function noteUndoRedo() {
+    const now = Date.now()
+    const recent = [...undoTimesRef.current.filter((t) => now - t < 5000), now]
+    if (recent.length >= 4) {
+      undoTimesRef.current = []
+      pushBanter('undo-spam')
+    } else {
+      undoTimesRef.current = recent
+    }
+  }
+
   function undo() {
-    if (!history.length || celebrate || defeated) return
+    if (historyRef.current.past.length === 0 || celebrate || defeated) return
+    noteUndoRedo()
     sfxUndo()
-    const prev = history[history.length - 1]
-    setFuture((f) => [cells, ...f])
-    setHistory((h) => h.slice(0, -1))
-    setCells(prev)
+    commitHistory(undoMove(historyRef.current))
   }
 
   function redo() {
-    if (!future.length || celebrate || defeated) return
+    if (historyRef.current.future.length === 0 || celebrate || defeated) return
+    noteUndoRedo()
     sfxUndo()
-    const [next, ...rest] = future
-    setHistory((h) => [...h, cells])
-    setFuture(rest)
-    setCells(next)
+    commitHistory(redoMove(historyRef.current))
   }
 
   function onHint() {
     if (!puzzle || celebrate || defeated) return
     bumpAction()
-    const hint = findHint(puzzle, cells)
+    const board = historyRef.current.present
+    const hint = findHint(puzzle, board)
     if (!hint) {
       showToast('No hint available')
       return
@@ -681,7 +725,7 @@ export default function App() {
     setHintIndex(hint.index)
     setHintText(hint.explanation)
     setHintsUsed((n) => n + 1)
-    onBoardChange(applyHint(cells, hint), {
+    onBoardChange(applyHint(board, hint), {
       kind: hint.kind === 'stone' ? 'stone' : 'mark',
       conflict: false,
       index: hint.index,
@@ -692,7 +736,8 @@ export default function App() {
   function onRescue() {
     if (!puzzle || celebrate || defeated) return
     bumpAction()
-    const hit = findMisplacedBuddy(puzzle, cells)
+    const board = historyRef.current.present
+    const hit = findMisplacedBuddy(puzzle, board)
     if (!hit) {
       showToast('No rescue needed — buddies look fine')
       return
@@ -703,11 +748,11 @@ export default function App() {
     }
     persistWallet({ ...wallet, coins: wallet.coins - RESCUE_COST })
     sfxHint()
-    pushBanter('hint')
+    pushBanter('rescue')
     setHintIndex(hit.index)
     setHintText(hit.explanation)
     showToast(hit.explanation)
-    onBoardChange(clearBuddy(cells, hit.index), {
+    onBoardChange(clearBuddy(board, hit.index), {
       kind: 'empty',
       conflict: false,
       index: hit.index,
@@ -717,10 +762,7 @@ export default function App() {
   function resetBoard() {
     if (!puzzle) return
     sfxWhoosh()
-    const board = emptyBoard(puzzle.size)
-    setCells(board)
-    setHistory([])
-    setFuture([])
+    adoptBoard(emptyBoard(puzzle.size))
     setElapsedMs(0)
     setHintsUsed(0)
     setCelebrate(false)
@@ -731,7 +773,7 @@ export default function App() {
     setLastScore(null)
     recordedRef.current = false
     setRunning(true)
-    setLives(MAX_LIVES)
+    setLives(runMaxLives)
     setHintIndex(null)
     setHintText('')
     showToast('Fresh board')
@@ -746,7 +788,7 @@ export default function App() {
     const w = { ...wallet, coins: wallet.coins - REVIVE_COST }
     persistWallet(w)
     sfxCoin()
-    setLives(MAX_LIVES)
+    setLives(runMaxLives)
     setDefeated(false)
     setRunning(true)
     showToast('Revived!')
@@ -775,10 +817,11 @@ export default function App() {
   function handlePrize(prize: Prize) {
     const before = loadWallet()
     let w = applyPrize(before, prize)
-    const gameOpen = !!puzzle && !celebrate && !defeated && lives < MAX_LIVES
+    const gameOpen = screen === 'play' && !!puzzle && !celebrate && !defeated && lives < runMaxLives
     if (prize.id === 'heart_refill' && gameOpen) {
-      setLives(MAX_LIVES)
-      w = { ...w, heartRefillPending: false }
+      // Refill the board in progress now instead of banking a bonus heart
+      setLives(runMaxLives)
+      w = { ...w, bonusHearts: before.bonusHearts ?? 0, coins: before.coins }
     }
     const evaled = evaluateAchievements(w, {
       perfect: false,
@@ -788,7 +831,15 @@ export default function App() {
     persistWallet(evaled.wallet)
     pushBanter('prize')
     if (prize.id === 'heart_refill') {
-      showToast(gameOpen ? 'Full hearts — refilled' : 'Full hearts — your next game starts full')
+      const saved = evaled.wallet.bonusHearts ?? 0
+      if (gameOpen) showToast('Full hearts — hearts refilled!')
+      else if (saved > (before.bonusHearts ?? 0))
+        showToast(
+          saved > 1
+            ? `Bonus heart saved (${saved}) — your next board starts with ${MAX_LIVES + 1} hearts`
+            : `Bonus heart saved — your next board starts with ${MAX_LIVES + 1} hearts`,
+        )
+      else showToast(`+${HEART_PRIZE_FALLBACK_COINS} coins — you already have ${MAX_BONUS_HEARTS} bonus hearts saved`)
     } else {
       showToast(prize.label)
     }
@@ -839,7 +890,7 @@ export default function App() {
           showToast(`Badge unlocked: ${badge?.title ?? badgeId}`)
         }, 2600 + i * 2600)
       })
-      setLives(MAX_LIVES)
+      setLives(runMaxLives)
       pushBanter('critter-stash')
       showToast('Sparkle mode unlocked! +1 spin — open Rewards to spin')
       return
@@ -849,7 +900,7 @@ export default function App() {
     w = unlockIf(w, 'critter')
     if (reward.type === 'coins') w.coins += reward.amount
     else if (reward.type === 'hint') w.freeHints += 1
-    else if (reward.type === 'heart') setLives((n) => Math.min(MAX_LIVES, n + 1))
+    else if (reward.type === 'heart') setLives((n) => Math.min(runMaxLives, n + 1))
     persistWallet(w)
     freshBadgeIds(current, w).forEach((badgeId, i) => {
       const badge = BADGES.find((b) => b.id === badgeId)
@@ -861,7 +912,7 @@ export default function App() {
 
     const line = sparkProgressBanter(have, CRITTER_STASH_GOAL)
     if (line.text) showToast(line.text)
-    if (line.speak && line.clip) playBanterClip(line.clip, line.voiceMood, line.text, line.alts)
+    if (line.speak && line.clip) playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
   }
 
   function handleCreateChallenge() {
@@ -999,7 +1050,7 @@ export default function App() {
 
   return (
     <div
-      className={`shell fixed-shell ${isStoreBuild() ? 'shell-native' : ''} ${screen === 'play' ? 'shell-play' : ''} ${hideChrome ? 'shell-immersive' : ''} shell-${screen}`}
+      className={`shell fixed-shell ${isStoreBuild() ? 'shell-native' : ''} ${screen === 'play' ? 'shell-play' : ''} ${screen === 'play' && celebrate && !showWheel ? 'shell-celebrate' : ''} ${hideChrome ? 'shell-immersive' : ''} shell-${screen}`}
       ref={shellRef}
       onPointerDown={unlockAudio}
     >
@@ -1184,10 +1235,10 @@ export default function App() {
             </div>
             <div className="hud-stats">
               <span className="lives" aria-label={`${lives} lives`}>
-                {Array.from({ length: MAX_LIVES }, (_, i) => (
+                {Array.from({ length: runMaxLives }, (_, i) => (
                   <i
                     key={i}
-                    className={['heart', i < lives ? 'on' : '', heartPop === i ? 'pop' : '']
+                    className={['heart', i < lives ? 'on' : '', i >= MAX_LIVES ? 'bonus' : '', heartPop === i ? 'pop' : '']
                       .filter(Boolean)
                       .join(' ')}
                   />
@@ -1264,7 +1315,7 @@ export default function App() {
               score={lastScore ?? 0}
               hintsUsed={hintsUsed}
               livesLeft={lives}
-              maxLives={MAX_LIVES}
+              maxLives={runMaxLives}
               sparkCount={wallet.critterStash ?? 0}
               romanSaying={winLine || 'Roman says: Veni, vidi, vici!'}
               spins={wallet.spins}
@@ -1304,6 +1355,7 @@ export default function App() {
             <div><strong>{wallet.freeHints}</strong><span>free hints</span></div>
             <div><strong>{wallet.shields}</strong><span>shields</span></div>
             <div><strong>{wallet.spins}</strong><span>spins</span></div>
+            <div><strong>{wallet.bonusHearts ?? 0}</strong><span>bonus hearts</span></div>
             <div><strong>{totalBadgePower(wallet)}</strong><span>power</span></div>
             <div><strong>+{formatBonusPercent(totalCoinBonusPercent(wallet))}</strong><span>win bonus</span></div>
           </div>

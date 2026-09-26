@@ -1,0 +1,1245 @@
+{
+  "board_complete": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Board complete. Nice work!",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "buddy_giggle_1": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+18%",
+    "pitch": "+22Hz",
+    "text": "hee hee hee!",
+    "source": "commit 6c62fd58"
+  },
+  "buddy_giggle_2": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+18%",
+    "pitch": "+22Hz",
+    "text": "ha ha! hee!",
+    "source": "commit 6c62fd58"
+  },
+  "buddy_giggle_3": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+18%",
+    "pitch": "+22Hz",
+    "text": "tee hee!",
+    "source": "commit 6c62fd58"
+  },
+  "clean": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Clean!",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "cleared": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "You cleared it!",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "cosmic": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Cosmic void. Starlit mystery.",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "crystal": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Crystal cave. Prism hush.",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "ember": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Ember peak. Molten heat.",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "good_call": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Good call!",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "neon": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Neon night. Electric streets.",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "new_badge": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "New badge unlocked!",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "nice": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Nice!",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "nope": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Nope. Try another spot.",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "nudge": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Here's a nudge!",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "ocean": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Ocean deep. Abyss glow.",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "old_hint_push": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "A hint, huh. Fine. Every legend needs a little push."
+  },
+  "old_hint_smart": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Asking for help already? Smart. Sad, but smart."
+  },
+  "old_hint_stare": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "A hint? In my day we just stared at it until it gave up."
+  },
+  "old_hint_tell": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Go on, take the hint. I won't tell anyone. I'll tell everyone."
+  },
+  "old_hint_wheels": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Ah, the training wheels. Classic."
+  },
+  "old_idle_crossword": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "I started a crossword while I wait. It's going better."
+  },
+  "old_idle_glacier": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "I've seen glaciers with more hustle."
+  },
+  "old_idle_gossip": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Still thinking? The squares are starting to gossip."
+  },
+  "old_idle_kettle": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Should I put the kettle on? Feels like a two-kettle puzzle."
+  },
+  "old_idle_nap": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Wake me up when you've got a move. I'll be snoozing."
+  },
+  "old_idle_twenty": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Take your time. I've got maybe twenty years left."
+  },
+  "old_idle_younger": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Any day now. I'm not getting any younger."
+  },
+  "old_lose_goldfish": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Game over. Even my goldfish saw that coming."
+  },
+  "old_lose_popcorn": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "And that's the ballgame. Rematch? I'll get my popcorn."
+  },
+  "old_lose_sideways": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Well, that went sideways. Dust yourself off, kiddo."
+  },
+  "old_lose_tape": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Out of hearts. I'd lend you one, but mine runs on duct tape."
+  },
+  "old_rescue_cat": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Rescued! Like a cat from a tree. A very confused cat."
+  },
+  "old_rescue_coins": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Coins well spent. That buddy was a disaster."
+  },
+  "old_rescue_modern": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Buying your way out of trouble? Very modern."
+  },
+  "old_rescue_refund": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Rescue, huh. Nothing says confidence like a refund."
+  },
+  "old_undo_dizzy": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Make up your mind! The board's getting dizzy."
+  },
+  "old_undo_hokey": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Undo, redo, undo. You're doing the hokey pokey."
+  },
+  "old_undo_rocking": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Back and forth, back and forth. Are you solving, or rocking in a chair?"
+  },
+  "old_undo_vacation": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "That undo button's gonna need a vacation."
+  },
+  "old_win_eventually": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "You won. Eventually. I'll allow it."
+  },
+  "old_win_gaveup": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Well, look at that. The board gave up before you did."
+  },
+  "old_win_paint": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "That was like watching paint dry. But with a happy ending."
+  },
+  "old_win_ugly": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "A win's a win. Even an ugly one."
+  },
+  "old_win_yesterday": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Done already? Oh wait, you started yesterday. Nice."
+  },
+  "old_wrong_again": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Ha! Classic. Do it again, I missed it."
+  },
+  "old_wrong_chaos": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Oh sure, put it there. Why not. Chaos is free."
+  },
+  "old_wrong_choice": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "That's a choice. Not a good one, but a choice."
+  },
+  "old_wrong_close": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Close. Well, no. Not close at all, actually."
+  },
+  "old_wrong_knees": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "My knees make better decisions than that. And they're sixty years old."
+  },
+  "old_wrong_loudly": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "I'm not saying it's wrong. The board is saying it's wrong. Loudly."
+  },
+  "old_wrong_love": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Nope. And I say that with all the love I have left."
+  },
+  "old_wrong_money": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "You tapped that like it owed you money."
+  },
+  "old_wrong_nickel": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "In my day a wrong move cost you a nickel. You'd be broke by now."
+  },
+  "old_wrong_personal": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Did the board do something to you? That felt personal."
+  },
+  "old_wrong_pigeon": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Even a pigeon would've skipped that square. A pigeon!"
+  },
+  "old_wrong_refund": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "That buddy wants a refund."
+  },
+  "old_wrong_stick": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Back in my day we solved these with a stick. And we were faster."
+  },
+  "old_wrong_tea": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Wrong. I'd explain why, but my tea's getting cold."
+  },
+  "old_wrong_teacher": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Somewhere, a puzzle teacher just felt a chill."
+  },
+  "out_of_hearts": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Out of hearts. Rematch?",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "prize_time": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Prize time!",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "region_full": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "That region already has one.",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "roman_almost": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: so close\u2026 and yet so Roman."
+  },
+  "roman_awesome": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: you are awesome!"
+  },
+  "roman_badge_fridge": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: badge unlocked. Put it on the fridge!"
+  },
+  "roman_badge_impressed": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: badge get! Roman is impressed."
+  },
+  "roman_badge_shiny": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: new badge! So shiny!"
+  },
+  "roman_badge_wear": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: ooh, a badge. Can I wear it?"
+  },
+  "roman_banana": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: banana split victory. You did it!",
+    "source": "commit 0960e489"
+  },
+  "roman_bonk": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: bonk. Try a different square."
+  },
+  "roman_booger": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: booger face, champion heart!",
+    "source": "commit 0960e489"
+  },
+  "roman_boss": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: I am the puzzle boss."
+  },
+  "roman_brain": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman's brain: big. Your move: bigger."
+  },
+  "roman_brainfart": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: tiny brain fart. You're fine."
+  },
+  "roman_broccoli": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: broccoli power. You cleared that board!",
+    "source": "commit 0960e489"
+  },
+  "roman_bubblegum": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: bubblegum pop. Sticky sweet win!",
+    "source": "commit 0960e489"
+  },
+  "roman_cantwin": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: well, you can't win them all."
+  },
+  "roman_cheer": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: yes! Keep that energy!"
+  },
+  "roman_cheese": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: extra cheese on that win. Delicious!",
+    "source": "commit 0960e489"
+  },
+  "roman_close": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Personal space! Even buddies need it."
+  },
+  "roman_clutch": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: clutch! That was clean!"
+  },
+  "roman_cocky": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: don't get cocky. I'm still watching."
+  },
+  "roman_colorblind": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: are you color blind? That color's taken!"
+  },
+  "roman_coltaken": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: that column's booked!"
+  },
+  "roman_cook": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: you cooked that board!"
+  },
+  "roman_critter": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: you caught the spark critter!"
+  },
+  "roman_cuddle": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: no cuddling \u2014 even corners count!"
+  },
+  "roman_dance": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: I'm doing a tiny victory dance with my eyebrows."
+  },
+  "roman_dino": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: I was thinking about dinosaurs the whole time."
+  },
+  "roman_eyeballs": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: I beat that with my eyeballs closed. Mostly."
+  },
+  "roman_forgot": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: wait \u2014 what were we talking about?"
+  },
+  "roman_fridge": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: I was talking to the fridge. It gets me."
+  },
+  "roman_ghost": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: boo! Just kidding. You won!",
+    "source": "commit 0960e489"
+  },
+  "roman_hearts": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: hearts down, spirit up. Rematch!"
+  },
+  "roman_helicopter": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: helicopter hair. We are taking off!",
+    "source": "commit 0960e489"
+  },
+  "roman_highfive": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: high five, puzzle champ!"
+  },
+  "roman_highfiveself": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: high five to myself. You can watch."
+  },
+  "roman_highhopes": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: I had high hopes for you. Bummer."
+  },
+  "roman_hint": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman whispers: try over there."
+  },
+  "roman_hint_clue": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: tiny clue. Big brain."
+  },
+  "roman_hint_psst": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: psst. Look over there."
+  },
+  "roman_hint_secret": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: I didn't tell you this, but try that square."
+  },
+  "roman_idle_admire": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: I am admiring this empty square.",
+    "source": "commit 0960e489"
+  },
+  "roman_idle_blink": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: blink twice if you are still there.",
+    "source": "commit 0960e489"
+  },
+  "roman_idle_century": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: any century now.",
+    "source": "commit 0960e489"
+  },
+  "roman_idle_hello": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: hello? The board is getting lonely.",
+    "source": "commit 0960e489"
+  },
+  "roman_idle_loading": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: still loading your next move.",
+    "source": "commit 0960e489"
+  },
+  "roman_idle_sandwich": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: I could eat a sandwich while I wait.",
+    "source": "commit 0960e489"
+  },
+  "roman_idle_snore": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: zzz. Wake me when you tap.",
+    "source": "commit 0960e489"
+  },
+  "roman_idle_sphinx": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: the sphinx is less patient than me.",
+    "source": "commit 0960e489"
+  },
+  "roman_itchy": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: my butt is itchy. Anyway \u2014 you won!"
+  },
+  "roman_juice": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: victory! Also \u2014 juice box, please."
+  },
+  "roman_legend": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: absolute legend!"
+  },
+  "roman_lizard": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: a tiny lizard just clapped for you!",
+    "source": "commit 0960e489"
+  },
+  "roman_lose_fought": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: that board fought back. Rematch?"
+  },
+  "roman_lose_nap": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: out of hearts. Even legends need a nap."
+  },
+  "roman_lose_round": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: the board wins this round. Not the war."
+  },
+  "roman_lose_snacks": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: hearts empty, snack bowl full. Try again!"
+  },
+  "roman_moonwalk": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: moonwalk across the board. Smooth!",
+    "source": "commit 0960e489"
+  },
+  "roman_myboard": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: nice try. Still my board though."
+  },
+  "roman_nap": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: nap time. You earned it. I earned it more."
+  },
+  "roman_nope": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: nope-a-dope. Not that one."
+  },
+  "roman_nudge": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: trust the empty square."
+  },
+  "roman_nugget": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: this win smells like chicken nuggets."
+  },
+  "roman_okayfine": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: okay fine. That one was pretty good."
+  },
+  "roman_oops": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Whoops! That was a spicy miss."
+  },
+  "roman_pants": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: I put on my fancy pants for this win!",
+    "source": "commit 0960e489"
+  },
+  "roman_pickle": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: pickle me proud. That was crisp!",
+    "source": "commit 0960e489"
+  },
+  "roman_plotwin": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: plot twist \u2014 you actually did it!"
+  },
+  "roman_potato": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: potato. That's the whole comment."
+  },
+  "roman_practice": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: practice more \u2014 then challenge me."
+  },
+  "roman_prize": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: prize time, baby!"
+  },
+  "roman_proud": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: I'm proud of that move!"
+  },
+  "roman_raccoon": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: a raccoon stole my strategy. Still won vibes."
+  },
+  "roman_retry": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: plot twist \u2014 try again!"
+  },
+  "roman_rowmate": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: that row already has a roommate!"
+  },
+  "roman_samecolor": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: same color club is full!"
+  },
+  "roman_sandwich": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: did anyone see where I left my sandwich?"
+  },
+  "roman_shoe": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: hang on \u2014 I lost a shoe under the couch."
+  },
+  "roman_shrug": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: shrug. Magic. Next board."
+  },
+  "roman_silly": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: silly goose move. Shake it off!"
+  },
+  "roman_skillissue": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: skill issue. Shake it off!"
+  },
+  "roman_sleeping": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: did you fall asleep mid-tap?"
+  },
+  "roman_smooth": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: smooth operator!"
+  },
+  "roman_sneeze": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: achoo! You still won though."
+  },
+  "roman_sock": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: who took my other sock?"
+  },
+  "roman_spaghetti": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: there's spaghetti on the ceiling. Not sorry."
+  },
+  "roman_sparkle": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: sparkle mode unlocked!"
+  },
+  "roman_spin_lucky": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: lucky spin! Roman approves."
+  },
+  "roman_spin_ooh": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: ooh! What did you get?"
+  },
+  "roman_spin_spoken": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: the wheel has spoken!"
+  },
+  "roman_stash": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: critter stash complete! Big bonus!"
+  },
+  "roman_stash_jazz": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: critter stash! Roman is doing jazz hands."
+  },
+  "roman_stash_party": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: five sparks! Sparkle party!"
+  },
+  "roman_stillbetter": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: you did great \u2014 but I'm still better."
+  },
+  "roman_taco": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: cool cool. Now where are the tacos?"
+  },
+  "roman_toes": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: my toes are freezing. Celebrate harder."
+  },
+  "roman_trumpet": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: toot toot! Victory trumpet!",
+    "source": "commit 0960e489"
+  },
+  "roman_trying": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: are you even trying?"
+  },
+  "roman_underpants": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: superhero underpants. Cape not included!",
+    "source": "commit 0960e489"
+  },
+  "roman_unicorn": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: unicorn sparkles. That move was magic!",
+    "source": "commit 0960e489"
+  },
+  "roman_victoryburp": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: quiet victory burp. Excuse Roman."
+  },
+  "roman_warmup": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: that was your warm-up, right?"
+  },
+  "roman_win": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman wins! Confetti in my hair!"
+  },
+  "roman_worm": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: even the worm is doing a happy wiggle!",
+    "source": "commit 0960e489"
+  },
+  "roman_wrong_bold": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: bold move. Wrong square.",
+    "source": "commit 0960e489"
+  },
+  "roman_wrong_complaint": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: I filed a tiny complaint about that tap.",
+    "source": "commit 0960e489"
+  },
+  "roman_wrong_drama": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: the drama. The miss. The heart.",
+    "source": "commit 0960e489"
+  },
+  "roman_wrong_grandma": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: even my grandma would skip that square.",
+    "source": "commit 0960e489"
+  },
+  "roman_wrong_oof": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: oof. That one bounced off.",
+    "source": "commit 0960e489"
+  },
+  "roman_wrong_politely": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: politely, that spot is a no.",
+    "source": "commit 0960e489"
+  },
+  "roman_wrong_trophy": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: no trophy for that square.",
+    "source": "commit 0960e489"
+  },
+  "roman_wrong_wifi": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: that move has no signal.",
+    "source": "commit 0960e489"
+  },
+  "row_taken": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "That row is already taken.",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "ruins": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Ancient ruins. Forgotten stone.",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "solid": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Solid!",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "spark_1": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "One sparkle so far. Four more for the bonus!",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "spark_2": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Two sparkles. Three more for the bonus!",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "spark_3": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Three sparkles. Two more for the bonus!",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "spark_4": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Four sparkles. Just one more for the bonus!",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "spark_have_1": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "You've got one sparkle toward the bonus.",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "spark_have_2": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "You've got two sparkles toward the bonus.",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "spark_have_3": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "You've got three sparkles toward the bonus.",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "spark_have_4": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "You've got four sparkles. So close!",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "spark_unlocked": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Sparkle mode unlocked!",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "that_works": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "That works!",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "too_close": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Too close. Buddies need space.",
+    "source": "commit 6c62fd58 / 0960e489"
+  },
+  "tough_board": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Tough board. Try again.",
+    "source": "commit 6c62fd58 / 0960e489"
+  }
+}

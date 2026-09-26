@@ -11,7 +11,8 @@
     <meta name="description" content="A 50¢ Sudoku where the buddies refuse to touch — even diagonally. They hate cuddling (even corners)." />
     <link rel="canonical" href="https://romans-game.netlify.app/" />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://romans-game.netlify.app/" />
+    <!-- Keep in sync with SHARE_LINK_QUERY in src/game/publicUrl.ts. Facebook scrapes og:url, so this must be the cache-busted share URL. -->
+    <meta property="og:url" content="https://romans-game.netlify.app/?s=2" />
     <meta property="og:title" content="Roman's Game" />
     <meta property="og:description" content="A 50¢ Sudoku where the buddies refuse to touch — even diagonally. They hate cuddling (even corners)." />
     <meta property="og:image" content="https://romans-game.netlify.app/og-image.png" />
