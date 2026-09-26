@@ -221,7 +221,11 @@ export function voiceLineText(id: string): string | undefined {
   return FALLBACK_TEXT[id as VoiceLineId]
 }
 
-function ac(): AudioContext {
+/** Set while baking an effect into a WAV. Live playback does not use the audio context. */
+let renderCtx: BaseAudioContext | null = null
+
+function ac(): BaseAudioContext {
+  if (renderCtx) return renderCtx
   if (!ctx) ctx = new AudioContext()
   if (ctx.state === 'suspended') void ctx.resume()
   return ctx
@@ -229,9 +233,10 @@ function ac(): AudioContext {
 
 /** Resume audio graph before every beep — mobile browsers mute until gesture + resume */
 function ensureAudio() {
+  if (renderCtx) return
   try {
     const c = ac()
-    if (c.state === 'suspended') void c.resume()
+    if (c instanceof AudioContext && c.state === 'suspended') void c.resume()
   } catch {
     /* ignore */
   }
@@ -299,6 +304,13 @@ export function setMuted(m: boolean) {
   if (m) {
     waitingLine = null
     stopVoice()
+    for (const el of sfxPool) {
+      try {
+        el.pause()
+      } catch {
+        /* ignore */
+      }
+    }
   }
 }
 
@@ -314,17 +326,24 @@ export function unlockAudio() {
   ensureAudio()
   try {
     const c = ac()
-    if (c.state === 'suspended') void c.resume()
-    const osc = c.createOscillator()
-    const g = c.createGain()
-    g.gain.value = 0.00001
-    osc.connect(g)
-    g.connect(c.destination)
-    osc.start()
-    osc.stop(c.currentTime + 0.01)
+    if (c instanceof AudioContext) {
+      if (c.state === 'suspended') void c.resume()
+      const osc = c.createOscillator()
+      const g = c.createGain()
+      g.gain.value = 0.00001
+      osc.connect(g)
+      g.connect(c.destination)
+      osc.start()
+      osc.stop(c.currentTime + 0.01)
+    }
   } catch {
     /* ignore */
   }
+  // Effects use their own <audio> elements (see primeSfx). Unlock them in this
+  // same gesture so a later effect can play on iPhone, including with the
+  // silent switch on. They are not the voice element, so they can overlap it.
+  unlockSfxElements()
+  void primeSfx()
   // iOS only lets an audio element play without a tap once it has played inside one:
   // prime the shared voice element with a silent clip on the first tap.
   if (voiceUnlocked || currentLine) return
@@ -348,7 +367,7 @@ export function unlockAudio() {
 }
 
 function noiseBurst(duration: number, gain = 0.08, when = 0) {
-  if (muted) return
+  if (muted && !renderCtx) return
   ensureAudio()
   const c = ac()
   const t0 = c.currentTime + when
@@ -381,7 +400,7 @@ function tone(
   when = 0,
   slideTo?: number,
 ) {
-  if (muted) return
+  if (muted && !renderCtx) return
   ensureAudio()
   const c = ac()
   const t0 = c.currentTime + when
@@ -401,22 +420,238 @@ function tone(
   osc.stop(t0 + duration + 0.03)
 }
 
-export function sfxTap() {
-  tone(720, 0.05, 'triangle', 0.09)
-  noiseBurst(0.035, 0.04)
+/**
+ * Effects are baked to WAV and played on <audio> elements, same as the voice
+ * clips. iPhone's silent switch mutes Web Audio (AudioContext) and leaves
+ * <audio> alone, which is why voices were audible and taps/wins/spins were not.
+ * The voice channel stays one element; effects use a separate pool so they
+ * can play at the same time as a voice.
+ */
+const SFX_POOL_SIZE = 6
+const sfxPool: HTMLAudioElement[] = []
+let sfxPoolCursor = 0
+const sfxUrls = new Map<string, string>()
+const sfxRecipes = new Map<string, { dur: number; build: () => void }>()
+let sfxReady: Promise<void> | null = null
+
+function ensureSfxPool(): HTMLAudioElement[] {
+  if (sfxPool.length || typeof Audio === 'undefined') return sfxPool
+  for (let i = 0; i < SFX_POOL_SIZE; i++) {
+    const el = new Audio()
+    el.preload = 'auto'
+    sfxPool.push(el)
+  }
+  return sfxPool
 }
 
-export function sfxMark() {
-  // Crisp “X” scratch — two crossing ticks
+function unlockSfxElements() {
+  for (const el of ensureSfxPool()) {
+    if (el.dataset.unlocked === '1') continue
+    el.dataset.unlocked = '1'
+    if (!el.paused && el.src && !el.src.startsWith('data:')) continue
+    el.volume = 0.001
+    el.src = SILENT_MP3
+    void el
+      .play()
+      .then(() => {
+        if (el.src === SILENT_MP3 || el.src.startsWith('data:audio/mpeg')) {
+          el.pause()
+          el.volume = 1
+        }
+      })
+      .catch(() => {
+        el.dataset.unlocked = ''
+      })
+  }
+}
+
+function wavUrl(buffer: AudioBuffer): string {
+  const samples = buffer.getChannelData(0)
+  const n = samples.length
+  const ab = new ArrayBuffer(44 + n * 2)
+  const view = new DataView(ab)
+  const write = (offset: number, text: string) => {
+    for (let i = 0; i < text.length; i++) view.setUint8(offset + i, text.charCodeAt(i))
+  }
+  write(0, 'RIFF')
+  view.setUint32(4, 36 + n * 2, true)
+  write(8, 'WAVE')
+  write(12, 'fmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, 1, true)
+  view.setUint32(24, buffer.sampleRate, true)
+  view.setUint32(28, buffer.sampleRate * 2, true)
+  view.setUint16(32, 2, true)
+  view.setUint16(34, 16, true)
+  write(36, 'data')
+  view.setUint32(40, n * 2, true)
+  let offset = 44
+  for (let i = 0; i < n; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]))
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true)
+    offset += 2
+  }
+  return URL.createObjectURL(new Blob([ab], { type: 'audio/wav' }))
+}
+
+function defineSfx(name: string, dur: number, build: () => void) {
+  sfxRecipes.set(name, { dur, build })
+}
+
+/** Bake every effect once. Safe to call more than once. */
+export function primeSfx(): Promise<void> {
+  if (!sfxReady) sfxReady = renderSfxClips()
+  return sfxReady
+}
+
+async function renderSfxClips() {
+  if (typeof OfflineAudioContext === 'undefined') return
+  for (const [name, recipe] of sfxRecipes) {
+    const rate = 44100
+    const offline = new OfflineAudioContext(1, Math.max(1, Math.ceil(rate * recipe.dur)), rate)
+    renderCtx = offline
+    try {
+      recipe.build()
+    } finally {
+      renderCtx = null
+    }
+    const rendered = await offline.startRendering()
+    sfxUrls.set(name, wavUrl(rendered))
+  }
+}
+
+function playUrl(url: string) {
+  const els = ensureSfxPool()
+  if (!els.length) return
+  const free = els.find((el) => el.paused)
+  const el = free ?? els[sfxPoolCursor++ % els.length]
+  el.muted = false
+  el.volume = 1
+  if (el.src !== url) el.src = url
+  try {
+    el.currentTime = 0
+  } catch {
+    /* metadata not in yet; play() still starts at 0 */
+  }
+  void el.play().catch(() => {
+    /* autoplay can reject before the first gesture unlocks the element */
+  })
+}
+
+function playSfx(name: string) {
+  if (muted) return
+  const url = sfxUrls.get(name)
+  if (url) {
+    playUrl(url)
+    return
+  }
+  void primeSfx()
+  sfxRecipes.get(name)?.build()
+}
+
+defineSfx('tap', 0.12, () => {
+  tone(720, 0.05, 'triangle', 0.09)
+  noiseBurst(0.035, 0.04)
+})
+
+defineSfx('mark', 0.16, () => {
   tone(380, 0.07, 'square', 0.1, 0, 220)
   tone(520, 0.06, 'square', 0.08, 0.04, 300)
   noiseBurst(0.06, 0.055, 0.01)
-}
+})
 
-export function sfxPlace() {
+defineSfx('place', 0.22, () => {
   tone(260, 0.1, 'sine', 0.11)
   tone(520, 0.14, 'triangle', 0.09, 0.03)
   tone(1040, 0.09, 'sine', 0.05, 0.07)
+})
+
+defineSfx('giggle', 0.36, () => {
+  const peeps = [1100, 1320, 1480, 1240, 1600, 1400]
+  peeps.forEach((f, i) => {
+    tone(f, 0.05, i % 2 ? 'triangle' : 'sine', 0.055, i * 0.04)
+  })
+  ;[0.04, 0.12, 0.2].forEach((when, i) => noiseBurst(0.04, 0.015 + i * 0.004, when))
+})
+
+defineSfx('heart', 0.28, () => {
+  tone(420, 0.12, 'sine', 0.1, 0, 280)
+  tone(320, 0.16, 'triangle', 0.08, 0.06, 180)
+  noiseBurst(0.12, 0.045, 0.04)
+})
+
+defineSfx('error', 0.28, () => {
+  tone(180, 0.14, 'sawtooth', 0.09, 0, 90)
+  tone(140, 0.18, 'square', 0.07, 0.05, 70)
+  noiseBurst(0.14, 0.06, 0.02)
+})
+
+defineSfx('hint', 0.36, () => {
+  tone(523, 0.12, 'sine', 0.1)
+  tone(659, 0.14, 'sine', 0.09, 0.07)
+  tone(784, 0.16, 'triangle', 0.07, 0.14)
+})
+
+defineSfx('undo', 0.14, () => {
+  tone(360, 0.09, 'triangle', 0.08, 0, 280)
+})
+
+defineSfx('win', 0.8, () => {
+  ;[523, 659, 784, 988, 1175].forEach((f, i) => tone(f, 0.3, i % 2 ? 'triangle' : 'sine', 0.1, i * 0.09))
+  noiseBurst(0.22, 0.05, 0.35)
+})
+
+defineSfx('lose', 0.7, () => {
+  tone(320, 0.22, 'triangle', 0.1, 0, 160)
+  tone(240, 0.28, 'sine', 0.08, 0.12, 110)
+  tone(160, 0.38, 'sawtooth', 0.055, 0.22, 80)
+})
+
+defineSfx('whoosh', 0.28, () => {
+  noiseBurst(0.2, 0.07)
+  tone(480, 0.14, 'sine', 0.05, 0.02, 220)
+})
+
+defineSfx('coin', 0.24, () => {
+  tone(988, 0.09, 'square', 0.08)
+  tone(1319, 0.14, 'sine', 0.1, 0.05)
+})
+
+defineSfx('spark', 0.5, () => {
+  ;[880, 1175, 1480, 1760, 2093].forEach((f, i) =>
+    tone(f, 0.11, i % 2 ? 'triangle' : 'sine', 0.1 - i * 0.01, i * 0.045),
+  )
+  noiseBurst(0.12, 0.05, 0.02)
+  tone(2349, 0.18, 'sine', 0.07, 0.22)
+})
+
+defineSfx('spin', 0.95, () => {
+  for (let i = 0; i < 12; i++) tone(320 + i * 40, 0.06, 'triangle', 0.055, i * 0.07)
+})
+
+defineSfx('prize', 0.55, () => {
+  ;[784, 988, 1175, 1568].forEach((f, i) => tone(f, 0.22, 'sine', 0.1, i * 0.08))
+})
+
+defineSfx('achievement', 0.42, () => {
+  tone(660, 0.12, 'sine', 0.1)
+  tone(880, 0.14, 'triangle', 0.09, 0.08)
+  tone(1320, 0.2, 'sine', 0.08, 0.16)
+})
+
+void primeSfx()
+
+export function sfxTap() {
+  playSfx('tap')
+}
+
+export function sfxMark() {
+  playSfx('mark')
+}
+
+export function sfxPlace() {
+  playSfx('place')
 }
 
 export const SFX_IDS = {
@@ -432,29 +667,18 @@ function markSfx(id: string) {
   }
 }
 
-/** Synth backup giggle if mp3 missing */
-function synthGiggle() {
-  const peeps = [1100, 1320, 1480, 1240, 1600, 1400]
-  peeps.forEach((f, i) => {
-    tone(f, 0.05, i % 2 ? 'triangle' : 'sine', 0.055, i * 0.04)
-  })
-  ;[0.04, 0.12, 0.2].forEach((when, i) => noiseBurst(0.04, 0.015 + i * 0.004, when))
-}
-
 /**
  * Buddy giggle: synth peeps only. The recorded giggles are a female voice, and the only
  * voice in the game is the deeper Roman, so they are not played.
  */
 export function sfxGiggle() {
   markSfx(SFX_IDS.giggle)
-  synthGiggle()
+  playSfx('giggle')
 }
 
 export function sfxHeartLose() {
   markSfx(SFX_IDS.heartLose)
-  tone(420, 0.12, 'sine', 0.1, 0, 280)
-  tone(320, 0.16, 'triangle', 0.08, 0.06, 180)
-  noiseBurst(0.12, 0.045, 0.04)
+  playSfx('heart')
 }
 
 export function sfxStone() {
@@ -462,67 +686,48 @@ export function sfxStone() {
 }
 
 export function sfxError() {
-  tone(180, 0.14, 'sawtooth', 0.09, 0, 90)
-  tone(140, 0.18, 'square', 0.07, 0.05, 70)
-  noiseBurst(0.14, 0.06, 0.02)
+  playSfx('error')
 }
 
 export function sfxHint() {
-  tone(523, 0.12, 'sine', 0.1)
-  tone(659, 0.14, 'sine', 0.09, 0.07)
-  tone(784, 0.16, 'triangle', 0.07, 0.14)
+  playSfx('hint')
 }
 
 export function sfxUndo() {
-  tone(360, 0.09, 'triangle', 0.08, 0, 280)
+  playSfx('undo')
 }
 
 export function sfxWin() {
-  ;[523, 659, 784, 988, 1175].forEach((f, i) =>
-    tone(f, 0.3, i % 2 ? 'triangle' : 'sine', 0.1, i * 0.09),
-  )
-  noiseBurst(0.22, 0.05, 0.35)
+  playSfx('win')
 }
 
 export function sfxLose() {
-  tone(320, 0.22, 'triangle', 0.1, 0, 160)
-  tone(240, 0.28, 'sine', 0.08, 0.12, 110)
-  tone(160, 0.38, 'sawtooth', 0.055, 0.22, 80)
+  playSfx('lose')
 }
 
 export function sfxWhoosh() {
-  noiseBurst(0.2, 0.07)
-  tone(480, 0.14, 'sine', 0.05, 0.02, 220)
+  playSfx('whoosh')
 }
 
 export function sfxCoin() {
-  tone(988, 0.09, 'square', 0.08)
-  tone(1319, 0.14, 'sine', 0.1, 0.05)
+  playSfx('coin')
 }
 
 /** Spark critter catch — bright sparkle cascade (distinct from coin) */
 export function sfxSpark() {
-  ;[880, 1175, 1480, 1760, 2093].forEach((f, i) =>
-    tone(f, 0.11, i % 2 ? 'triangle' : 'sine', 0.1 - i * 0.01, i * 0.045),
-  )
-  noiseBurst(0.12, 0.05, 0.02)
-  tone(2349, 0.18, 'sine', 0.07, 0.22)
+  playSfx('spark')
 }
 
 export function sfxSpin() {
-  for (let i = 0; i < 12; i++) {
-    tone(320 + i * 40, 0.06, 'triangle', 0.055, i * 0.07)
-  }
+  playSfx('spin')
 }
 
 export function sfxPrize() {
-  ;[784, 988, 1175, 1568].forEach((f, i) => tone(f, 0.22, 'sine', 0.1, i * 0.08))
+  playSfx('prize')
 }
 
 export function sfxAchievement() {
-  tone(660, 0.12, 'sine', 0.1)
-  tone(880, 0.14, 'triangle', 0.09, 0.08)
-  tone(1320, 0.2, 'sine', 0.08, 0.16)
+  playSfx('achievement')
 }
 
 export interface PlayVoiceOpts {
