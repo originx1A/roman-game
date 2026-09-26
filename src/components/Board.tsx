@@ -122,6 +122,24 @@ export function Board({
     cellsRef.current = cells
   }, [cells])
 
+  // A finger-swipe is a touch scroll unless the board cancels it. Chrome and
+  // iOS then swallow the next click, so the Undo button's first tap after
+  // painting X's does nothing. touch-action: none is not enough; the listener
+  // has to be non-passive to call preventDefault.
+  useEffect(() => {
+    const board = boardRef.current
+    if (!board) return
+    const cancelTouch = (e: TouchEvent) => {
+      e.preventDefault()
+    }
+    board.addEventListener('touchstart', cancelTouch, { passive: false })
+    board.addEventListener('touchmove', cancelTouch, { passive: false })
+    return () => {
+      board.removeEventListener('touchstart', cancelTouch)
+      board.removeEventListener('touchmove', cancelTouch)
+    }
+  }, [])
+
   const applyAt = useCallback(
     (i: number, mode: 'cycle' | 'mark') => {
       if (disabled || solved || defeated) return

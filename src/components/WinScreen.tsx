@@ -1,16 +1,5 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { CRITTER_STASH_GOAL } from './SparkCritter'
-
-const LATIN_SAYINGS = [
-  { latin: 'Veni, vidi, vici.', gloss: 'I came, I saw, I conquered.' },
-  { latin: 'Alea iacta est.', gloss: 'The die is cast.' },
-  { latin: 'Audentes fortuna iuvat.', gloss: 'Fortune favors the bold.' },
-  { latin: 'Per aspera ad astra.', gloss: 'Through hardship to the stars.' },
-  { latin: 'Carpe diem.', gloss: 'Seize the day.' },
-  { latin: 'Fortes fortuna adiuvat.', gloss: 'Fortune helps the brave.' },
-  { latin: 'Ad astra.', gloss: 'To the stars.' },
-  { latin: 'Aut viam inveniam aut faciam.', gloss: "I'll find a way — or make one." },
-] as const
 
 export type WinScreenProps = {
   puzzleName: string
@@ -56,10 +45,6 @@ export function WinScreen({
   onDuel,
 }: WinScreenProps) {
   const [entered, setEntered] = useState(false)
-  const latin = useMemo(
-    () => LATIN_SAYINGS[Math.floor(Math.random() * LATIN_SAYINGS.length)],
-    [],
-  )
 
   useEffect(() => {
     const id = window.requestAnimationFrame(() => setEntered(true))
@@ -79,11 +64,6 @@ export function WinScreen({
         <p className="win-screen-kicker">{difficultyLabel} · {themeLabel}</p>
         <h2 className="win-screen-title">Victory!</h2>
         <p className="win-screen-board">{puzzleName}</p>
-
-        <blockquote className="win-latin">
-          <p className="win-latin-line">{latin.latin}</p>
-          <cite className="win-latin-gloss">{latin.gloss}</cite>
-        </blockquote>
 
         <p className="win-roman-says">{romanSaying}</p>
 

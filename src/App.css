@@ -890,7 +890,8 @@ html[data-motion='reduce'] .cell.pressed .cell-fill {
   border-radius: 12px;
   border: 1px solid rgba(255, 209, 102, 0.35);
   z-index: 80;
-  animation: rise 0.25s ease both;
+  /* own keyframes so the centering translateX(-50%) isn't wiped by rise's transform: none */
+  animation: toastRise 0.25s ease both;
   font-weight: 800;
   font-size: 0.82rem;
   max-width: min(88vw, 320px);
@@ -940,6 +941,11 @@ html[data-motion='reduce'] .cell.pressed .cell-fill {
 @keyframes rise {
   from { opacity: 0; transform: translateY(14px); }
   to { opacity: 1; transform: none; }
+}
+
+@keyframes toastRise {
+  from { opacity: 0; transform: translateX(-50%) translateY(14px); }
+  to { opacity: 1; transform: translateX(-50%); }
 }
 
 @keyframes boardIn {
@@ -1318,6 +1324,12 @@ body > div > a[href*="netlify"] {
 .heart.on {
   background: #ff6b6b;
   box-shadow: 0 0 8px rgba(255, 107, 107, 0.55);
+}
+
+/* 4th heart from a saved bonus heart (Full hearts prize) */
+.heart.bonus.on {
+  background: #ffd166;
+  box-shadow: 0 0 8px rgba(255, 209, 102, 0.6);
 }
 
 .heart.pop {
@@ -3392,28 +3404,6 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
   font-size: 1.05rem;
   color: var(--foam);
 }
-.win-latin {
-  margin: 0 0 0.75rem;
-  padding: 0.7rem 0.85rem;
-  border-radius: 16px;
-  background: #ffffff0f;
-  border: 1px solid #ffd16633;
-}
-.win-latin-line {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: clamp(1.05rem, 4.2vw, 1.35rem);
-  color: var(--mint);
-  line-height: 1.2;
-}
-.win-latin-gloss {
-  display: block;
-  margin-top: 0.35rem;
-  font-style: normal;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: #f4fbff99;
-}
 .win-roman-says {
   margin: 0 0 0.85rem;
   padding: 0.65rem 0.75rem;
@@ -3496,3 +3486,16 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
 
 
 
+
+/* Toast placement: never over the play HUD (timer / hearts) or Victory buttons.
+   Default stays at the top (menus). On the play screen it drops just below the HUD row;
+   while the Victory screen is up it goes back to the very top, above the card. */
+.shell-play .toast {
+  top: calc(max(0.5rem, env(safe-area-inset-top, 0px)) + 3.1rem);
+}
+.shell-play.shell-celebrate .toast {
+  top: max(0.4rem, env(safe-area-inset-top, 0px));
+}
+.shell-celebrate .win-screen-card {
+  margin-top: 2.6rem;
+}

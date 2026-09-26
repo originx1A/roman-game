@@ -62,6 +62,9 @@ export function loadWallet(): Wallet {
     achievements: raw.achievements ?? DEFAULT_WALLET.achievements,
     badgeRanks: raw.badgeRanks ?? {},
     critterStash: raw.critterStash ?? 0,
+    // Older builds saved the Full hearts prize as a flag that never paid out; honor it once.
+    bonusHearts: (raw.bonusHearts ?? 0) + (raw.heartRefillPending ? 1 : 0),
+    heartRefillPending: undefined,
   }
   // Lazy import-safe normalize: unlock ranks for legacy achievement lists
   const ranks: Record<string, number> = { ...merged.badgeRanks }

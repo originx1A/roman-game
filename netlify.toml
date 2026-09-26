@@ -16,6 +16,8 @@
   status = 200
   force = true
 
+# 200 rewrite, not a 3xx. Share links are /?s=2 and /?s=2#challenge=… (hash stays in the browser).
+# A redirect back to the bare root would send crawlers to the URL X already cached with no card.
 [[redirects]]
   from = "/*"
   to = "/index.html"
