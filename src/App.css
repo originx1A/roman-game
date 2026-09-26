@@ -3499,3 +3499,62 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
 .shell-celebrate .win-screen-card {
   margin-top: 2.6rem;
 }
+
+/* ——— Phone Undo hardening (build 9.26-c) ——— */
+/* The toolbar sits above the spark critter (z 25) and anything else on the play layer,
+   so a moving sprite can never take an Undo/Redo tap. Modal overlays (win, lose, wheel,
+   shortfall) stay above it on purpose; Undo is disabled while they are up. */
+.play-toolbar {
+  position: relative;
+  z-index: 30 !important;
+}
+.play-toolbar .btn,
+.tap-button {
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.play-toolbar .btn * {
+  pointer-events: none;
+}
+.toast,
+.confetti-layer,
+.hint-line,
+.build-tag {
+  pointer-events: none;
+}
+
+.build-tag {
+  margin: 0.2rem 0 0;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgba(244, 251, 255, 0.5);
+  text-align: center;
+  flex-shrink: 0;
+  line-height: 1.2;
+}
+.build-tag-foot {
+  display: inline;
+  margin-left: 0.4rem;
+  font-size: 0.7rem;
+}
+
+/* Board must fit the stage on every phone. WebKit sized the stage's implicit grid track
+   from the board's 520px cap (the % width resolved against that track), drawing a 520px
+   board in a 371px stage on iPhone 13. Pin the track to the stage and cap by viewport too. */
+.board-stage {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+.play-fixed .board {
+  width: min(100%, 520px, calc(100vw - 1.25rem), calc(var(--app-height, 100svh) - 9.5rem)) !important;
+  max-width: min(100%, calc(100vw - 1.25rem)) !important;
+  max-height: min(100%, calc(var(--app-height, 100svh) - 9.5rem), 520px) !important;
+  justify-self: center;
+  align-self: center;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+}

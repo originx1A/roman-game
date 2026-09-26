@@ -258,7 +258,12 @@ export function voiceLineText(id: string): string | undefined {
 }
 
 function ac(): AudioContext {
-  if (!ctx) ctx = new AudioContext()
+  if (!ctx) {
+    // Older iOS Safari only has the prefixed constructor.
+    const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (!Ctor) throw new Error('Web Audio unavailable')
+    ctx = new Ctor()
+  }
   if (ctx.state === 'suspended') void ctx.resume()
   return ctx
 }
@@ -406,6 +411,15 @@ export function unlockAudio() {
 
 function noiseBurst(duration: number, gain = 0.08, when = 0) {
   if (muted) return
+  // A sound effect must never throw into a game action (Undo commits after its beep).
+  try {
+    noiseBurstUnsafe(duration, gain, when)
+  } catch {
+    /* ignore */
+  }
+}
+
+function noiseBurstUnsafe(duration: number, gain: number, when: number) {
   ensureAudio()
   const c = ac()
   const t0 = c.currentTime + when
@@ -439,6 +453,21 @@ function tone(
   slideTo?: number,
 ) {
   if (muted) return
+  try {
+    toneUnsafe(freq, duration, type, gain, when, slideTo)
+  } catch {
+    /* ignore */
+  }
+}
+
+function toneUnsafe(
+  freq: number,
+  duration: number,
+  type: OscillatorType,
+  gain: number,
+  when: number,
+  slideTo?: number,
+) {
   ensureAudio()
   const c = ac()
   const t0 = c.currentTime + when

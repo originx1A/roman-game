@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -19,7 +20,7 @@ import {
   type ConflictKind,
 } from '../game/logic'
 import { sfxError, sfxGiggle, sfxMark, sfxPlace, sfxTap, unlockAudio } from '../game/sound'
-import { hasLeftTap, type GestureStart } from '../game/gesture'
+import { LONG_PRESS_MS, hasLeftTap, type GestureStart } from '../game/gesture'
 
 interface Props {
   puzzle: Puzzle
@@ -34,6 +35,13 @@ interface Props {
   celebrate?: boolean
   defeated?: boolean
   themeId?: ThemeId
+  /**
+   * The board App actually holds right now (its history's present). Every change is built on
+   * this, never on a copy that may be a render behind, so an undone X can't come back.
+   */
+  getCells?: () => CellState[]
+  /** Bumped by App on Undo, Redo, Reset and new boards: drops any half-finished gesture. */
+  version?: number
 }
 
 export function Buddy({
@@ -104,6 +112,8 @@ export function Board({
   celebrate,
   defeated,
   themeId = 'classic',
+  getCells,
+  version = 0,
 }: Props) {
   const size = puzzle.size
   const conflicts = useMemo(() => findConflicts(puzzle, cells), [puzzle, cells])
@@ -117,12 +127,23 @@ export function Board({
   const paintedRef = useRef<Set<number>>(new Set())
   const movedRef = useRef(false)
   const startRef = useRef<GestureStart>({ x: 0, y: 0, index: null })
+  const longPressTimer = useRef<number | null>(null)
+  const longPressedRef = useRef(false)
+  const activePointerRef = useRef<number | null>(null)
   const boardRef = useRef<HTMLDivElement>(null)
   const [pressed, setPressed] = useState<number | null>(null)
 
-  useEffect(() => {
+  // Layout effect, not a passive one: the ref must match the screen before the next tap is handled.
+  useLayoutEffect(() => {
     cellsRef.current = cells
   }, [cells])
+
+  /** The latest board: App's history when available, else the last one we rendered or changed. */
+  function currentCells(): CellState[] {
+    const live = getCells?.()
+    if (live && live.length === cells.length) cellsRef.current = live
+    return cellsRef.current
+  }
 
   // A finger-swipe is a touch scroll unless the board cancels it. Chrome and
   // iOS then swallow the next click, so the Undo button's first tap after
@@ -142,12 +163,24 @@ export function Board({
     }
   }, [])
 
+  function cancelLongPress() {
+    if (longPressTimer.current != null) {
+      window.clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+  }
+
+  useEffect(() => cancelLongPress, [])
+
   const applyAt = useCallback(
-    (i: number, mode: 'cycle' | 'mark') => {
+    (i: number, mode: 'cycle' | 'mark' | 'clear') => {
       if (disabled || solved || defeated) return
-      const current = cellsRef.current
+      const current = currentCells()
       let nextState: CellState
-      if (mode === 'mark') {
+      if (mode === 'clear') {
+        if (current[i] === 'empty') return
+        nextState = 'empty'
+      } else if (mode === 'mark') {
         if (current[i] !== 'empty') return
         nextState = 'mark'
       } else {
@@ -175,7 +208,8 @@ export function Board({
       const conflictKind = conflict ? conflictKindAt(puzzle, next, i) : null
       onChange(next, { kind: nextState, conflict, index: i, conflictKind })
     },
-    [disabled, solved, defeated, puzzle, onChange],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [disabled, solved, defeated, puzzle, onChange, getCells],
   )
 
   function indexFromPoint(clientX: number, clientY: number): number | null {
@@ -187,60 +221,152 @@ export function Board({
     return Number.isFinite(idx) ? idx : null
   }
 
+  function releaseCapture(pointerId: number | null) {
+    const board = boardRef.current
+    if (!board || pointerId == null) return
+    try {
+      if (board.hasPointerCapture(pointerId)) board.releasePointerCapture(pointerId)
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /**
+   * End the current board gesture. `asTap` lets a finger that never moved off its cell
+   * cycle it; anything cancelled or rescued by a safety net just stops painting.
+   */
+  function finishGesture(asTap: boolean) {
+    if (!paintingRef.current) return
+    paintingRef.current = false
+    const pointerId = activePointerRef.current
+    activePointerRef.current = null
+    cancelLongPress()
+    setPressed(null)
+    releaseCapture(pointerId)
+    // The hold already cleared the cell; lifting the finger must not cycle it again.
+    if (longPressedRef.current) return
+    // Tap (no drag): a tap on an empty cell already left an X on pointerdown (swipe-friendly);
+    // a tap on an X or buddy cycles it.
+    if (!asTap || movedRef.current) return
+    const i = startRef.current.index
+    if (i == null) return
+    if (paintedRef.current.has(i)) return
+    applyAt(i, 'cycle')
+  }
+
+  // Undo/Redo/Reset/new board: forget any half-done gesture so nothing lands on the new board.
+  useLayoutEffect(() => {
+    if (!paintingRef.current) return
+    paintingRef.current = false
+    cancelLongPress()
+    releaseCapture(activePointerRef.current)
+    activePointerRef.current = null
+    setPressed(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [version])
+
+  // Safety nets at the document level. If iOS never delivers the board's pointerup (or delivers
+  // it somewhere else), painting must not stay on with the board holding pointer capture, where
+  // it could swallow or retarget the next tap (Undo included).
+  const finishRef = useRef(finishGesture)
+  finishRef.current = finishGesture
+  useEffect(() => {
+    let touchTimer: number | null = null
+    const board = () => boardRef.current
+    const outsideBoard = (t: EventTarget | null) => !(t instanceof Node && board()?.contains(t))
+    const onDocPointerDown = (e: PointerEvent) => {
+      // A new touch that starts off the board ends any stuck board gesture first.
+      if (paintingRef.current && outsideBoard(e.target)) finishRef.current(false)
+    }
+    const onDocPointerEnd = (e: PointerEvent) => {
+      if (!paintingRef.current) return
+      if (e.type === 'pointercancel') {
+        finishRef.current(false)
+        return
+      }
+      // Our pointer lifted but the board didn't get it: finish it as the board would have.
+      finishRef.current(e.pointerId === activePointerRef.current)
+    }
+    const onDocTouchEnd = (e: TouchEvent) => {
+      if (e.touches && e.touches.length > 0) return
+      if (touchTimer != null) window.clearTimeout(touchTimer)
+      const cancelled = e.type === 'touchcancel'
+      // Give the board's own pointerup a moment to arrive first; then close whatever is left.
+      touchTimer = window.setTimeout(() => {
+        touchTimer = null
+        if (paintingRef.current) finishRef.current(!cancelled)
+      }, 120)
+    }
+    document.addEventListener('pointerdown', onDocPointerDown, true)
+    document.addEventListener('pointerup', onDocPointerEnd)
+    document.addEventListener('pointercancel', onDocPointerEnd)
+    document.addEventListener('touchend', onDocTouchEnd)
+    document.addEventListener('touchcancel', onDocTouchEnd)
+    return () => {
+      if (touchTimer != null) window.clearTimeout(touchTimer)
+      document.removeEventListener('pointerdown', onDocPointerDown, true)
+      document.removeEventListener('pointerup', onDocPointerEnd)
+      document.removeEventListener('pointercancel', onDocPointerEnd)
+      document.removeEventListener('touchend', onDocTouchEnd)
+      document.removeEventListener('touchcancel', onDocTouchEnd)
+    }
+  }, [])
+
   function onPointerDown(e: ReactPointerEvent) {
     if (disabled || solved || defeated) return
     if (e.button !== 0 && e.pointerType === 'mouse') return
+    // Any gesture still open here was lost (or is a second finger): close it, never as a tap.
+    if (paintingRef.current) finishGesture(false)
     unlockAudio()
     paintingRef.current = true
+    activePointerRef.current = e.pointerId
     movedRef.current = false
     paintedRef.current = new Set()
-    boardRef.current?.setPointerCapture(e.pointerId)
+    try {
+      boardRef.current?.setPointerCapture(e.pointerId)
+    } catch {
+      /* not a live pointer; painting still works from elementFromPoint */
+    }
     const i = indexFromPoint(e.clientX, e.clientY)
     startRef.current = { x: e.clientX, y: e.clientY, index: i }
+    longPressedRef.current = false
+    cancelLongPress()
     if (i != null) setPressed(i)
-    if (i != null && cellsRef.current[i] === 'empty') {
+    const board = currentCells()
+    if (i != null && board[i] === 'empty') {
       paintedRef.current.add(i)
       applyAt(i, 'mark')
+    } else if (i != null) {
+      // Hold an X or buddy to clear it straight back to empty (one undo step).
+      // A tap still cycles it; a swipe off the cell cancels the hold.
+      longPressTimer.current = window.setTimeout(() => {
+        longPressTimer.current = null
+        if (!paintingRef.current || movedRef.current) return
+        if (currentCells()[i] === 'empty') return
+        longPressedRef.current = true
+        setPressed(null)
+        applyAt(i, 'clear')
+      }, LONG_PRESS_MS)
     }
   }
 
   function onPointerMove(e: ReactPointerEvent) {
-    if (!paintingRef.current) return
+    if (!paintingRef.current || e.pointerId !== activePointerRef.current) return
     const i = indexFromPoint(e.clientX, e.clientY)
     // Finger wobble inside the tapped cell is still a tap (phones send pointermove for it).
     if (!movedRef.current && !hasLeftTap(startRef.current, e.clientX, e.clientY, i)) return
     movedRef.current = true
+    cancelLongPress()
     if (i != null) setPressed(i)
     if (i == null || paintedRef.current.has(i)) return
-    if (cellsRef.current[i] !== 'empty') return
+    if (currentCells()[i] !== 'empty') return
     paintedRef.current.add(i)
     applyAt(i, 'mark')
   }
 
-  function onPointerUp(e: ReactPointerEvent, cancelled = false) {
-    if (!paintingRef.current) return
-    paintingRef.current = false
-    setPressed(null)
-    try {
-      boardRef.current?.releasePointerCapture(e.pointerId)
-    } catch {
-      /* ignore */
-    }
-    // Tap (no drag): cycle the cell if we only painted one empty→mark already,
-    // user may want buddy — if they tapped a marked/buddy cell, cycle it.
-    // A cancelled touch (the system took the gesture) is not a tap.
-    if (!movedRef.current && !cancelled) {
-      const i = startRef.current.index
-      if (i == null) return
-      // If we auto-marked empty on down, advance empty→mark→stone with a second cycle
-      if (paintedRef.current.has(i) && cellsRef.current[i] === 'mark') {
-        // single tap on empty: leave as mark (swipe-friendly). Double-tap or tap again for buddy.
-        return
-      }
-      if (!paintedRef.current.has(i)) {
-        applyAt(i, 'cycle')
-      }
-    }
+  function onPointerUp(e: ReactPointerEvent) {
+    if (e.pointerId !== activePointerRef.current) return
+    finishGesture(true)
   }
 
   return (
@@ -253,10 +379,16 @@ export function Board({
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onPointerCancel={(e) => {
-        setPressed(null)
-        onPointerUp(e, true)
+      onPointerCancel={() => finishGesture(false)}
+      onLostPointerCapture={(e) => {
+        // Only the board's own capture ending counts (a cell's implicit capture moving to the
+        // board bubbles up here too). Runs after pointerup normally, when painting is already off.
+        if (e.target !== e.currentTarget || e.pointerId !== activePointerRef.current) return
+        window.setTimeout(() => {
+          if (paintingRef.current && activePointerRef.current === e.pointerId) finishGesture(false)
+        }, 0)
       }}
+      onContextMenu={(e) => e.preventDefault()}
     >
       {cells.map((state, i) => {
         const style = colorByRegion.get(puzzle.regions[i]) ?? {

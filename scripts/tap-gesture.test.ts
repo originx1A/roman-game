@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { TAP_SLOP_PX, hasLeftTap } from '../src/game/gesture.ts'
+import { LONG_PRESS_MS, TAP_SLOP_PX, hasLeftTap } from '../src/game/gesture.ts'
 
 const start = { x: 100, y: 100, index: 7 }
 
@@ -20,4 +20,8 @@ test('over a gap between cells, only a real drift counts as a swipe', () => {
 
 test('a touch that started on a gap becomes a swipe when it reaches a cell', () => {
   assert.equal(hasLeftTap({ x: 0, y: 0, index: null }, 1, 1, 3), true)
+})
+
+test('long-press to clear waits about half a second', () => {
+  assert.ok(LONG_PRESS_MS >= 400 && LONG_PRESS_MS <= 500)
 })

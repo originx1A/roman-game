@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Board } from './components/Board'
 import { HowToPlay } from './components/HowToPlay'
 import { PrizeWheel } from './components/PrizeWheel'
@@ -11,6 +11,8 @@ import './styles/store-layer.css'
 import { ShareBar } from './components/ShareBar'
 import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './components/SparkCritter'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
+import { TapButton } from './components/TapButton'
+import { BUILD_TAG } from './buildTag'
 import { createHistory, pushMove, redoMove, restoreHistory, stepsToSave, undoMove } from './game/history'
 import {
   applyHint,
@@ -211,6 +213,8 @@ export default function App() {
   const recordedRef = useRef(false)
   /** Latest board plus undo/redo stacks. Updated on every move, not on the next render. */
   const historyRef = useRef(createHistory([] as CellState[]))
+  /** Bumped whenever the board is replaced rather than drawn on (Undo, Redo, Reset, new or resumed board). */
+  const [boardVersion, setBoardVersion] = useState(0)
 
   const byDiff = useMemo(() => puzzlesByDifficulty(), [])
   const draft = loadDraft()
@@ -485,8 +489,17 @@ export default function App() {
   }
 
   function adoptBoard(board: CellState[]) {
-    commitHistory(createHistory(board))
+    replaceBoard(createHistory(board))
   }
+
+  /** Commit a board that replaces the one on screen, and tell Board to drop any open gesture. */
+  function replaceBoard(nextHist: ReturnType<typeof createHistory>) {
+    commitHistory(nextHist)
+    setBoardVersion((v) => v + 1)
+  }
+
+  /** Board builds every move on this, so it can never work from a board Undo already replaced. */
+  const getLiveCells = useCallback(() => historyRef.current.present, [])
 
   /** Save the board with its undo/redo steps, so Resume shows what is on screen now. */
   function saveBoardDraft(hist: ReturnType<typeof createHistory>, extra?: { elapsedMs: number; hintsUsed: number }) {
@@ -537,7 +550,7 @@ export default function App() {
       if (d && d.puzzleId === p.id) {
         // Bring the undo/redo steps back too. Phones reload a tab left in the background,
         // and Resume used to start with an empty history (Undo greyed out).
-        commitHistory(restoreHistory(d.cells as CellState[], d.past, d.future))
+        replaceBoard(restoreHistory(d.cells as CellState[], d.past, d.future))
         setElapsedMs(d.elapsedMs)
         setHintsUsed(d.hintsUsed)
         setRunning(true)
@@ -729,21 +742,29 @@ export default function App() {
 
   function undo() {
     if (historyRef.current.past.length === 0 || celebrate || defeated) return
-    noteUndoRedo()
-    sfxUndo()
+    // Board first: a sound or voice hiccup must never cost the undo itself.
     const hist = undoMove(historyRef.current)
-    commitHistory(hist)
+    replaceBoard(hist)
     // Without this the saved board kept the undone X's: Resume (or iOS reloading the tab) put them back.
     saveBoardDraft(hist)
+    afterUndoRedo()
+  }
+
+  function afterUndoRedo() {
+    try {
+      sfxUndo()
+      noteUndoRedo()
+    } catch {
+      /* sound only */
+    }
   }
 
   function redo() {
     if (historyRef.current.future.length === 0 || celebrate || defeated) return
-    noteUndoRedo()
-    sfxUndo()
     const hist = redoMove(historyRef.current)
-    commitHistory(hist)
+    replaceBoard(hist)
     saveBoardDraft(hist)
+    afterUndoRedo()
   }
 
   function onHint() {
@@ -809,7 +830,7 @@ export default function App() {
     if (!puzzle) return
     sfxWhoosh()
     const fresh = createHistory(emptyBoard(puzzle.size))
-    commitHistory(fresh)
+    replaceBoard(fresh)
     saveBoardDraft(fresh, { elapsedMs: 0, hintsUsed: 0 })
     setElapsedMs(0)
     setHintsUsed(0)
@@ -1309,6 +1330,8 @@ export default function App() {
               puzzle={puzzle}
               cells={cells}
               onChange={onBoardChange}
+              getCells={getLiveCells}
+              version={boardVersion}
               hintIndex={hintIndex}
               giggleIndex={giggleIndex}
               celebrate={celebrate}
@@ -1321,12 +1344,12 @@ export default function App() {
           {hintText ? <p className="hint-line">{hintText}</p> : null}
 
           <div className="toolbar play-toolbar">
-            <button type="button" className="btn tool" onClick={undo} disabled={!history.length || celebrate || defeated}>
+            <TapButton className="btn tool" onTap={undo} disabled={!history.length || celebrate || defeated}>
               Undo
-            </button>
-            <button type="button" className="btn tool" onClick={redo} disabled={!future.length || celebrate || defeated}>
+            </TapButton>
+            <TapButton className="btn tool" onTap={redo} disabled={!future.length || celebrate || defeated}>
               Redo
-            </button>
+            </TapButton>
             <button type="button" className="btn tool" onClick={onHint} disabled={celebrate || defeated}>
               <span className="tool-label">Hint</span>
               <span className="tool-cost">
@@ -1347,6 +1370,7 @@ export default function App() {
               Reset
             </button>
           </div>
+          <p className="build-tag" data-build={BUILD_TAG}>{BUILD_TAG}</p>
 
           <SparkCritter
             active={!celebrate && !defeated && !showWheel}
@@ -1784,7 +1808,9 @@ export default function App() {
       />
 
       <footer className={`foot ${screen === 'play' ? 'foot-hidden' : ''}`}>
-        <span>Roman's Game</span>
+        <span>
+          Roman's Game <span className="build-tag build-tag-foot">{BUILD_TAG}</span>
+        </span>
         <span className="foot-links">
           <a className="privacy-link" href="./privacy.html">
             Privacy

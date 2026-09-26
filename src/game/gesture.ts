@@ -1,6 +1,9 @@
 /** How far a finger may wander in the board's gaps and still count as a tap. */
 export const TAP_SLOP_PX = 10
 
+/** Holding a finger on an X or buddy this long clears it to empty. */
+export const LONG_PRESS_MS = 450
+
 export interface GestureStart {
   x: number
   y: number
