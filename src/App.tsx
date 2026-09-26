@@ -11,6 +11,7 @@ import './styles/store-layer.css'
 import { ShareBar } from './components/ShareBar'
 import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './components/SparkCritter'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
+import { createHistory, pushMove, redoMove, undoMove } from './game/history'
 import {
   applyHint,
   clearBuddy,
@@ -206,6 +207,8 @@ export default function App() {
   const undoTimesRef = useRef<number[]>([])
   const lastActionRef = useRef(Date.now())
   const recordedRef = useRef(false)
+  /** Latest board plus undo/redo stacks. Updated on every move, not on the next render. */
+  const historyRef = useRef(createHistory([] as CellState[]))
 
   const byDiff = useMemo(() => puzzlesByDifficulty(), [])
   const draft = loadDraft()
@@ -440,6 +443,17 @@ export default function App() {
     saveWallet(next)
   }
 
+  function commitHistory(nextHist: ReturnType<typeof createHistory>) {
+    historyRef.current = nextHist
+    setHistory(nextHist.past)
+    setFuture(nextHist.future)
+    setCells(nextHist.present)
+  }
+
+  function adoptBoard(board: CellState[]) {
+    commitHistory(createHistory(board))
+  }
+
   function startPuzzle(p: Puzzle, resume = false) {
     unlockAudio()
     sfxWhoosh()
@@ -467,7 +481,6 @@ export default function App() {
     setLastScore(null)
     setHintIndex(null)
     setHintText('')
-    setFuture([])
     setRunMaxLives(startLives)
     setLives(startLives)
     // Quiet start — no theme blob/voice; board stays fully visible
@@ -475,10 +488,9 @@ export default function App() {
     if (resume) {
       const d = loadDraft()
       if (d && d.puzzleId === p.id) {
-        setCells(d.cells as CellState[])
+        adoptBoard(d.cells as CellState[])
         setElapsedMs(d.elapsedMs)
         setHintsUsed(d.hintsUsed)
-        setHistory([])
         setRunning(true)
         setScreen('play')
         return
@@ -486,8 +498,7 @@ export default function App() {
     }
 
     const board = emptyBoard(p.size)
-    setCells(board)
-    setHistory([])
+    adoptBoard(board)
     setElapsedMs(0)
     setHintsUsed(0)
     setRunning(true)
@@ -511,9 +522,11 @@ export default function App() {
     },
   ) {
     bumpAction()
-    setHistory((h) => [...h, cells])
-    setFuture([])
-    setCells(next)
+    // `cells` is stale until React re-renders. A swipe can place several X marks
+    // in that window; record each one against the board we actually had.
+    const hist = pushMove(historyRef.current, next)
+    if (hist === historyRef.current) return
+    commitHistory(hist)
 
     if (meta.kind === 'mark') {
       // X marks: Board already played sfxMark — never banter/voice
@@ -674,29 +687,24 @@ export default function App() {
   }
 
   function undo() {
-    if (!history.length || celebrate || defeated) return
+    if (historyRef.current.past.length === 0 || celebrate || defeated) return
     noteUndoRedo()
     sfxUndo()
-    const prev = history[history.length - 1]
-    setFuture((f) => [cells, ...f])
-    setHistory((h) => h.slice(0, -1))
-    setCells(prev)
+    commitHistory(undoMove(historyRef.current))
   }
 
   function redo() {
-    if (!future.length || celebrate || defeated) return
+    if (historyRef.current.future.length === 0 || celebrate || defeated) return
     noteUndoRedo()
     sfxUndo()
-    const [next, ...rest] = future
-    setHistory((h) => [...h, cells])
-    setFuture(rest)
-    setCells(next)
+    commitHistory(redoMove(historyRef.current))
   }
 
   function onHint() {
     if (!puzzle || celebrate || defeated) return
     bumpAction()
-    const hint = findHint(puzzle, cells)
+    const board = historyRef.current.present
+    const hint = findHint(puzzle, board)
     if (!hint) {
       showToast('No hint available')
       return
@@ -717,7 +725,7 @@ export default function App() {
     setHintIndex(hint.index)
     setHintText(hint.explanation)
     setHintsUsed((n) => n + 1)
-    onBoardChange(applyHint(cells, hint), {
+    onBoardChange(applyHint(board, hint), {
       kind: hint.kind === 'stone' ? 'stone' : 'mark',
       conflict: false,
       index: hint.index,
@@ -728,7 +736,8 @@ export default function App() {
   function onRescue() {
     if (!puzzle || celebrate || defeated) return
     bumpAction()
-    const hit = findMisplacedBuddy(puzzle, cells)
+    const board = historyRef.current.present
+    const hit = findMisplacedBuddy(puzzle, board)
     if (!hit) {
       showToast('No rescue needed — buddies look fine')
       return
@@ -743,7 +752,7 @@ export default function App() {
     setHintIndex(hit.index)
     setHintText(hit.explanation)
     showToast(hit.explanation)
-    onBoardChange(clearBuddy(cells, hit.index), {
+    onBoardChange(clearBuddy(board, hit.index), {
       kind: 'empty',
       conflict: false,
       index: hit.index,
@@ -753,10 +762,7 @@ export default function App() {
   function resetBoard() {
     if (!puzzle) return
     sfxWhoosh()
-    const board = emptyBoard(puzzle.size)
-    setCells(board)
-    setHistory([])
-    setFuture([])
+    adoptBoard(emptyBoard(puzzle.size))
     setElapsedMs(0)
     setHintsUsed(0)
     setCelebrate(false)
