@@ -16,7 +16,15 @@
   status = 200
   force = true
 
-# 200 rewrite, not a 3xx. Share links are /?s=2 and /?s=2#challenge=… (hash stays in the browser).
+# Short share links (/c/<id>?s=2). Rewrite to the app shell so crawlers get the og tags.
+# 200, not a 3xx, and before the /* fallback so the path is not sent somewhere else.
+# The ?s= query stays on the browser URL (card cache bust). The hash is not part of this rule.
+[[redirects]]
+  from = "/c/*"
+  to = "/index.html"
+  status = 200
+
+# 200 rewrite, not a 3xx. Share links are /?s=2 and /c/<id>?s=2 (hash stays in the browser).
 # A redirect back to the bare root would send crawlers to the URL X already cached with no card.
 [[redirects]]
   from = "/*"

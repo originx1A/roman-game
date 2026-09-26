@@ -1,6 +1,8 @@
 import type { Challenge, Difficulty, DuelResult, Puzzle } from './types'
-import { publicLinkWithHash } from './publicUrl'
+import { publicLinkWithHash, publicShortLink } from './publicUrl'
 import { PUZZLES } from './puzzles'
+import { challengeFromPayload, duelFromPayload, isShareId } from './shareRecord'
+import { mailBody } from './share'
 import { rememberGeneratedPuzzle } from './storage'
 
 const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard', 'expert']
@@ -163,10 +165,10 @@ export function formatShareTime(ms: number): string {
   return `${m}:${rem.toString().padStart(2, '0')}`
 }
 
-export function encodeChallengeLink(c: Challenge, board?: Puzzle | null): string {
+export function challengeLinkPayload(c: Challenge, board?: Puzzle | null): Record<string, string | number> {
   const email = linkEmail(c.fromEmail)
   const layout = layoutField(board, c.puzzleId)
-  const payload = toB64Url({
+  return {
     c: c.code,
     p: c.puzzleId,
     f: c.fromName,
@@ -179,33 +181,47 @@ export function encodeChallengeLink(c: Challenge, board?: Puzzle | null): string
     ...(c.puzzleName ? { pn: c.puzzleName } : {}),
     ...(c.difficulty ? { d: c.difficulty } : {}),
     ...(layout ? { b: layout } : {}),
-  })
-  return publicLinkWithHash(`challenge=${payload}`)
+  }
+}
+
+function challengeFromData(data: unknown): Omit<Challenge, 'createdAt'> | null {
+  const wire = challengeFromPayload(data)
+  if (!wire) return null
+  attachSharedLayout(wire.puzzleId, wire.puzzleName, wire.layout)
+  return {
+    code: wire.code,
+    puzzleId: wire.puzzleId,
+    fromName: wire.fromName,
+    fromEmail: wire.fromEmail,
+    message: wire.message,
+    scoreMs: wire.scoreMs,
+    scorePts: wire.scorePts,
+    badgePower: wire.badgePower,
+    bonusPct: wire.bonusPct,
+    puzzleName: wire.puzzleName,
+    difficulty: wire.difficulty,
+  }
+}
+
+export function encodeChallengeLink(c: Challenge, board?: Puzzle | null): string {
+  return publicLinkWithHash(`challenge=${toB64Url(challengeLinkPayload(c, board))}`)
 }
 
 export function parseChallengeFromHash(hash: string): Omit<Challenge, 'createdAt'> | null {
   const m = hash.match(/challenge=([A-Za-z0-9_-]+)/)
   if (!m) return null
   try {
-    const data = fromB64Url(m[1]) as Record<string, unknown>
-    if (!data.p || !data.c) return null
-    attachSharedLayout(String(data.p), data.pn, data.b)
-    return {
-      code: String(data.c),
-      puzzleId: String(data.p),
-      fromName: String(data.f || 'A friend'),
-      fromEmail: String(data.e || 'friend@roman.game'),
-      message: String(data.m || 'Can you beat Roman on this board?'),
-      scoreMs: typeof data.t === 'number' ? data.t : undefined,
-      scorePts: typeof data.s === 'number' ? data.s : undefined,
-      badgePower: typeof data.bp === 'number' ? data.bp : undefined,
-      bonusPct: typeof data.bb === 'number' ? data.bb : undefined,
-      puzzleName: typeof data.pn === 'string' ? data.pn : undefined,
-      difficulty: typeof data.d === 'string' ? data.d : undefined,
-    }
+    return challengeFromData(fromB64Url(m[1]))
   } catch {
     return null
   }
+}
+
+/** Save a short /c/<id> link. The long hash link is the fallback when the save fails. */
+export async function shareChallengeLink(c: Challenge, board?: Puzzle | null): Promise<string> {
+  const fallback = encodeChallengeLink(c, board)
+  const id = await publishShare('challenge', challengeLinkPayload(c, board))
+  return id ? publicShortLink(id) : fallback
 }
 
 export function challengeShareText(c: Challenge): string {
@@ -236,9 +252,9 @@ export function createDuelResult(input: {
   return { ...input }
 }
 
-export function encodeDuelLink(d: DuelResult, board?: Puzzle | null): string {
+export function duelLinkPayload(d: DuelResult, board?: Puzzle | null): Record<string, string | number> {
   const layout = layoutField(board, d.puzzleId)
-  const payload = toB64Url({
+  return {
     c: d.code,
     p: d.puzzleId,
     an: d.aName,
@@ -254,33 +270,82 @@ export function encodeDuelLink(d: DuelResult, board?: Puzzle | null): string {
     ...(d.bPower != null ? { bw: d.bPower } : {}),
     ...(d.bBonus != null ? { bb: d.bBonus } : {}),
     ...(layout ? { b: layout } : {}),
-  })
-  return publicLinkWithHash(`duel=${payload}`)
+  }
+}
+
+function duelFromData(data: unknown): DuelResult | null {
+  const wire = duelFromPayload(data)
+  if (!wire) return null
+  attachSharedLayout(wire.puzzleId, wire.puzzleName, wire.layout)
+  return {
+    code: wire.code,
+    puzzleId: wire.puzzleId,
+    puzzleName: wire.puzzleName,
+    difficulty: wire.difficulty,
+    aName: wire.aName,
+    aMs: wire.aMs,
+    aPts: wire.aPts,
+    aPower: wire.aPower,
+    aBonus: wire.aBonus,
+    bName: wire.bName,
+    bMs: wire.bMs,
+    bPts: wire.bPts,
+    bPower: wire.bPower,
+    bBonus: wire.bBonus,
+  }
+}
+
+export function encodeDuelLink(d: DuelResult, board?: Puzzle | null): string {
+  return publicLinkWithHash(`duel=${toB64Url(duelLinkPayload(d, board))}`)
 }
 
 export function parseDuelFromHash(hash: string): DuelResult | null {
   const m = hash.match(/duel=([A-Za-z0-9_-]+)/)
   if (!m) return null
   try {
-    const data = fromB64Url(m[1]) as Record<string, unknown>
-    if (!data.p || typeof data.am !== 'number' || typeof data.bm !== 'number') return null
-    attachSharedLayout(String(data.p), data.pn, data.b)
-    return {
-      code: String(data.c || 'DUEL'),
-      puzzleId: String(data.p),
-      puzzleName: typeof data.pn === 'string' ? data.pn : undefined,
-      difficulty: typeof data.d === 'string' ? data.d : undefined,
-      aName: String(data.an || 'Player A'),
-      aMs: Number(data.am),
-      aPts: Number(data.ap || 0),
-      aPower: typeof data.aw === 'number' ? data.aw : undefined,
-      aBonus: typeof data.ab === 'number' ? data.ab : undefined,
-      bName: String(data.bn || 'Player B'),
-      bMs: Number(data.bm),
-      bPts: Number(data.bp || 0),
-      bPower: typeof data.bw === 'number' ? data.bw : undefined,
-      bBonus: typeof data.bb === 'number' ? data.bb : undefined,
+    return duelFromData(fromB64Url(m[1]))
+  } catch {
+    return null
+  }
+}
+
+export async function shareDuelLink(d: DuelResult, board?: Puzzle | null): Promise<string> {
+  const fallback = encodeDuelLink(d, board)
+  const id = await publishShare('duel', duelLinkPayload(d, board))
+  return id ? publicShortLink(id) : fallback
+}
+
+async function publishShare(kind: 'challenge' | 'duel', payload: Record<string, string | number>): Promise<string | null> {
+  try {
+    const res = await fetch('/api/share', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind, payload }),
+      signal: AbortSignal.timeout(4000),
+    })
+    if (!res.ok) return null
+    const data = (await res.json()) as { id?: unknown }
+    return typeof data.id === 'string' && isShareId(data.id) ? data.id : null
+  } catch {
+    return null
+  }
+}
+
+export async function fetchShare(id: string): Promise<{ kind: 'challenge' | 'duel'; challenge?: Omit<Challenge, 'createdAt'>; duel?: DuelResult } | null> {
+  if (!isShareId(id)) return null
+  try {
+    const res = await fetch(`/api/share?id=${encodeURIComponent(id)}`)
+    if (!res.ok) return null
+    const data = (await res.json()) as { kind?: unknown; payload?: unknown }
+    if (data.kind === 'challenge') {
+      const challenge = challengeFromData(data.payload)
+      return challenge ? { kind: 'challenge', challenge } : null
     }
+    if (data.kind === 'duel') {
+      const duel = duelFromData(data.payload)
+      return duel ? { kind: 'duel', duel } : null
+    }
+    return null
   } catch {
     return null
   }
@@ -312,8 +377,7 @@ export function mailtoChallenge(c: Challenge, link: string): string {
         (c.badgePower != null ? ` · ${rankLabel(c.badgePower, c.bonusPct)}` : '') +
         `\n`
       : ''
-  const body = encodeURIComponent(
-    `${c.message}${scoreLine}\nBoard: ${board}\nCode: ${c.code}\n\nOpen this link to play:\n${link}\n\n— Roman's Game`,
-  )
+  const prose = `${c.message}${scoreLine}\nBoard: ${board}\nCode: ${c.code}\n\n— Roman's Game`
+  const body = encodeURIComponent(mailBody(prose, link))
   return `mailto:${to}?subject=${subject}&body=${body}`
 }

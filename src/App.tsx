@@ -31,15 +31,16 @@ import {
   createDuelResult,
   duelShareText,
   duelWinner,
-  encodeChallengeLink,
-  encodeDuelLink,
+  fetchShare,
+  shareChallengeLink,
+  shareDuelLink,
   formatShareTime,
   mailtoChallenge,
   parseChallengeFromHash,
   parseDuelFromHash,
   rankLabel,
 } from './game/challenges'
-import { publicLinkWithHash, publicPlayUrl } from './game/publicUrl'
+import { publicLinkWithHash, publicPlayUrl, publicShortLink, shareIdFromPath } from './game/publicUrl'
 import { banterFor, sparkProgressBanter, type ConflictKind as BanterConflictKind } from './game/comments'
 import type { ConflictKind as BoardConflictKind } from './game/logic'
 import { THEMES, themeForPuzzle } from './game/themes'
@@ -356,6 +357,42 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    let cancelled = false
+    const shareId = shareIdFromPath(window.location.pathname)
+    if (shareId) {
+      void (async () => {
+        const loaded = await fetchShare(shareId)
+        if (cancelled) return
+        if (!loaded) {
+          showToast('This link could not be opened')
+          return
+        }
+        if (loaded.kind === 'duel' && loaded.duel) {
+          setDuel(loaded.duel)
+          setDuelLink(publicShortLink(shareId))
+          setShareText(duelShareText(loaded.duel))
+          setLinkBoardError(getPuzzle(loaded.duel.puzzleId) ? '' : MISSING_BOARD)
+          setScreen('duel')
+        } else if (loaded.kind === 'challenge' && loaded.challenge) {
+          const full: Challenge = { ...loaded.challenge, createdAt: new Date().toISOString() }
+          setIncoming(full)
+          setActiveChallenge(full)
+          addChallenge(full)
+          setChallenges(loadChallenges())
+          setLinkBoardError(getPuzzle(full.puzzleId) ? '' : MISSING_BOARD)
+          setScreen('challenge')
+        } else {
+          showToast('This link could not be opened')
+          return
+        }
+        // Drop the id from the address bar after it is loaded. Keep ?s= and any hash.
+        window.history.replaceState(null, '', `/${window.location.search}${window.location.hash}`)
+      })()
+      return () => {
+        cancelled = true
+      }
+    }
+
     const duelParsed = parseDuelFromHash(window.location.hash)
     if (duelParsed) {
       setDuel(duelParsed)
@@ -363,7 +400,7 @@ export default function App() {
       setShareText(duelShareText(duelParsed))
       setLinkBoardError(getPuzzle(duelParsed.puzzleId) ? '' : MISSING_BOARD)
       setScreen('duel')
-      window.history.replaceState(null, '', window.location.pathname)
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
       return
     }
     const parsed = parseChallengeFromHash(window.location.hash)
@@ -375,7 +412,7 @@ export default function App() {
       setChallenges(loadChallenges())
       setLinkBoardError(getPuzzle(parsed.puzzleId) ? '' : MISSING_BOARD)
       setScreen('challenge')
-      window.history.replaceState(null, '', window.location.pathname)
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
     }
   }, [])
 
@@ -628,11 +665,12 @@ export default function App() {
           bPower: totalBadgePower(wallet),
           bBonus: totalCoinBonusPercent(wallet),
         })
-        const link = encodeDuelLink(result, puzzle)
         setDuel(result)
-        setDuelLink(link)
-        setShareLink(link)
         setShareText(duelShareText(result))
+        void shareDuelLink(result, puzzle).then((link) => {
+          setDuelLink(link)
+          setShareLink(link)
+        })
       }
 
       const baseCoins = Math.max(20, Math.floor(score / 8))
@@ -915,7 +953,7 @@ export default function App() {
     if (line.speak && line.clip) playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
   }
 
-  function handleCreateChallenge() {
+  async function handleCreateChallenge() {
     const target = puzzle ?? PUZZLES[0]
     const clear = getProgress().clears.find((c) => c.puzzleId === target.id)
     const c = createChallenge({
@@ -934,7 +972,7 @@ export default function App() {
     addChallenge(c)
     setChallenges(loadChallenges())
     setShareChallenge(c)
-    const link = encodeChallengeLink(c, target)
+    const link = await shareChallengeLink(c, target)
     setShareLink(link)
     setShareText(challengeShareText(c))
     void navigator.clipboard?.writeText(link)
@@ -946,7 +984,7 @@ export default function App() {
   }
 
   /** Share this win as a scored challenge so a friend can beat your time */
-  function shareWinAsChallenge() {
+  async function shareWinAsChallenge() {
     if (!puzzle || lastScore == null) return
     const c = createChallenge({
       puzzleId: puzzle.id,
@@ -962,7 +1000,7 @@ export default function App() {
     addChallenge(c)
     setChallenges(loadChallenges())
     setShareChallenge(c)
-    const link = encodeChallengeLink(c, puzzle)
+    const link = await shareChallengeLink(c, puzzle)
     setShareLink(link)
     setShareText(challengeShareText(c))
     setIncoming(null)

@@ -31,3 +31,15 @@ export function publicLinkWithHash(hash: string): string {
   url.hash = hash.startsWith('#') ? hash.slice(1) : hash
   return url.toString()
 }
+
+/** Short share link. The ?s= query stays so link previews still use the card image. */
+export function publicShortLink(id: string): string {
+  const url = publicUrl()
+  url.pathname = `/c/${id}`
+  return url.toString()
+}
+
+export function shareIdFromPath(pathname: string): string | null {
+  const match = pathname.match(/^\/c\/([a-z0-9]{8})\/?$/)
+  return match ? match[1] : null
+}
