@@ -43,7 +43,9 @@ export interface Wallet {
   totalMistakes: number
   /** Spark critters caught toward stash bonus */
   critterStash: number
-  /** Full-hearts prize. Hearts exist only during a run, so this waits for the next one. */
+  /** Saved bonus hearts from the Full hearts prize. Each one gives the next board a 4th heart. */
+  bonusHearts: number
+  /** @deprecated old flag from the first Full hearts fix; converted to bonusHearts on load */
   heartRefillPending?: boolean
 }
 
@@ -58,6 +60,7 @@ export const DEFAULT_WALLET: Wallet = {
   perfectWins: 0,
   totalMistakes: 0,
   critterStash: 0,
+  bonusHearts: 0,
 }
 
 export const PRIZES: Prize[] = [
@@ -111,7 +114,10 @@ export function applyPrize(wallet: Wallet, prize: Prize): Wallet {
       next.freeHints += 2
       break
     case 'heart_refill':
-      next.heartRefillPending = true
+      // Caller refills hearts on the spot when a board is in progress with hearts missing;
+      // otherwise this saved heart gives the next board an extra (4th) heart.
+      if ((next.bonusHearts ?? 0) >= MAX_BONUS_HEARTS) next.coins += HEART_PRIZE_FALLBACK_COINS
+      else next.bonusHearts = (next.bonusHearts ?? 0) + 1
       break
     case 'shield':
       next.shields += 1
@@ -263,3 +269,7 @@ export const HINT_COST = 15
 export const RESCUE_COST = 40
 export const REVIVE_COST = 30
 export const MAX_LIVES = 3
+/** Most saved bonus hearts a player can bank at once */
+export const MAX_BONUS_HEARTS = 3
+/** Full hearts pays coins instead once the bonus-heart bank is full */
+export const HEART_PRIZE_FALLBACK_COINS = 25
