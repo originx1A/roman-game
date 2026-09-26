@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
   MAX_SAVED_STEPS,
+  amendMove,
   createHistory,
   pushMove,
   redoMove,
@@ -158,4 +159,49 @@ test('saved steps are capped', () => {
   const saved = stepsToSave(history)
   assert.equal(saved.past.length, MAX_SAVED_STEPS)
   assert.deepEqual(saved.past[saved.past.length - 1], history.past[history.past.length - 1])
+})
+
+test('a whole swipe of X marks folds into one undo step', () => {
+  let history = createHistory(board('empty', 'empty', 'empty', 'stone'))
+  history = pushMove(history, board('mark', 'empty', 'empty', 'stone'))
+  history = amendMove(history, board('mark', 'mark', 'empty', 'stone'))
+  history = amendMove(history, board('mark', 'mark', 'mark', 'stone'))
+  assert.equal(history.past.length, 1)
+  history = undoMove(history)
+  assert.deepEqual(history.present, ['empty', 'empty', 'empty', 'stone'])
+  history = redoMove(history)
+  assert.deepEqual(history.present, ['mark', 'mark', 'mark', 'stone'])
+})
+
+test('a swipe-erase is one undo step and undo brings every X back', () => {
+  let history = createHistory(board('mark', 'mark', 'stone', 'mark'))
+  history = pushMove(history, board('empty', 'mark', 'stone', 'mark'))
+  history = amendMove(history, board('empty', 'empty', 'stone', 'mark'))
+  history = amendMove(history, board('empty', 'empty', 'stone', 'empty'))
+  assert.equal(history.past.length, 1)
+  history = undoMove(history)
+  assert.deepEqual(history.present, ['mark', 'mark', 'stone', 'mark'])
+})
+
+test('amending keeps earlier steps and drops redo', () => {
+  let history = createHistory(board('empty', 'empty', 'empty'))
+  history = pushMove(history, board('stone', 'empty', 'empty'))
+  history = pushMove(history, board('stone', 'mark', 'empty'))
+  history = undoMove(history)
+  history = pushMove(history, board('stone', 'empty', 'mark'))
+  history = amendMove(history, board('stone', 'mark', 'mark'))
+  assert.equal(history.future.length, 0)
+  history = undoMove(history)
+  assert.deepEqual(history.present, ['stone', 'empty', 'empty'])
+  history = undoMove(history)
+  assert.deepEqual(history.present, ['empty', 'empty', 'empty'])
+})
+
+test('a stroke that ends where it began leaves no step, and a no-op amend changes nothing', () => {
+  let history = createHistory(board('mark', 'empty'))
+  history = pushMove(history, board('empty', 'empty'))
+  history = amendMove(history, board('mark', 'empty'))
+  assert.equal(history.past.length, 0)
+  const same = amendMove(history, history.present)
+  assert.equal(same, history)
 })

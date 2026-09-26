@@ -1,3 +1,5 @@
+import type { CellState } from './types'
+
 /** How far a finger may wander in the board's gaps and still count as a tap. */
 export const TAP_SLOP_PX = 10
 
@@ -20,4 +22,19 @@ export interface GestureStart {
 export function hasLeftTap(start: GestureStart, x: number, y: number, index: number | null): boolean {
   if (index != null) return index !== start.index
   return Math.hypot(x - start.x, y - start.y) > TAP_SLOP_PX
+}
+
+
+/** What a drag does to the cells it crosses, fixed by the cell it started on (Queens-style). */
+export type SwipeMode = 'paint' | 'erase'
+
+/** A drag that starts on an X erases X's; from an empty cell (or a buddy) it paints X's. */
+export function swipeModeFor(startState: CellState | undefined): SwipeMode {
+  return startState === 'mark' ? 'erase' : 'paint'
+}
+
+/** The state a swipe leaves on a crossed cell, or null to leave it alone. Buddies never change. */
+export function swipeTarget(mode: SwipeMode, state: CellState | undefined): CellState | null {
+  if (mode === 'paint') return state === 'empty' ? 'mark' : null
+  return state === 'mark' ? 'empty' : null
 }

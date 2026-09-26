@@ -20,14 +20,21 @@ import {
   type ConflictKind,
 } from '../game/logic'
 import { sfxError, sfxGiggle, sfxMark, sfxPlace, sfxTap, unlockAudio } from '../game/sound'
-import { LONG_PRESS_MS, hasLeftTap, type GestureStart } from '../game/gesture'
+import { LONG_PRESS_MS, hasLeftTap, swipeModeFor, swipeTarget, type GestureStart, type SwipeMode } from '../game/gesture'
 
 interface Props {
   puzzle: Puzzle
   cells: CellState[]
   onChange: (
     next: CellState[],
-    meta: { kind: CellState; conflict: boolean; index: number; conflictKind?: ConflictKind | null },
+    meta: {
+      kind: CellState
+      conflict: boolean
+      index: number
+      conflictKind?: ConflictKind | null
+      /** Same number for every change made by one finger-down-to-up, so App can make it one undo step. */
+      stroke?: number
+    },
   ) => void
   hintIndex: number | null
   giggleIndex?: number | null
@@ -130,6 +137,9 @@ export function Board({
   const longPressTimer = useRef<number | null>(null)
   const longPressedRef = useRef(false)
   const activePointerRef = useRef<number | null>(null)
+  const swipeModeRef = useRef<SwipeMode>('paint')
+  const startErasedRef = useRef(false)
+  const strokeRef = useRef(0)
   const boardRef = useRef<HTMLDivElement>(null)
   const [pressed, setPressed] = useState<number | null>(null)
 
@@ -173,11 +183,15 @@ export function Board({
   useEffect(() => cancelLongPress, [])
 
   const applyAt = useCallback(
-    (i: number, mode: 'cycle' | 'mark' | 'clear') => {
+    (i: number, mode: 'cycle' | 'mark' | 'clear' | 'erase') => {
       if (disabled || solved || defeated) return
       const current = currentCells()
       let nextState: CellState
-      if (mode === 'clear') {
+      if (mode === 'erase') {
+        // Swipe-erase touches X's only; buddies and empty cells stay as they are.
+        if (current[i] !== 'mark') return
+        nextState = 'empty'
+      } else if (mode === 'clear') {
         if (current[i] === 'empty') return
         nextState = 'empty'
       } else if (mode === 'mark') {
@@ -206,7 +220,7 @@ export function Board({
 
       cellsRef.current = next
       const conflictKind = conflict ? conflictKindAt(puzzle, next, i) : null
-      onChange(next, { kind: nextState, conflict, index: i, conflictKind })
+      onChange(next, { kind: nextState, conflict, index: i, conflictKind, stroke: strokeRef.current })
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [disabled, solved, defeated, puzzle, onChange, getCells],
@@ -322,6 +336,8 @@ export function Board({
     activePointerRef.current = e.pointerId
     movedRef.current = false
     paintedRef.current = new Set()
+    startErasedRef.current = false
+    strokeRef.current += 1
     try {
       boardRef.current?.setPointerCapture(e.pointerId)
     } catch {
@@ -333,6 +349,8 @@ export function Board({
     cancelLongPress()
     if (i != null) setPressed(i)
     const board = currentCells()
+    // The start cell sets the drag: from an X it erases X's, otherwise it paints them.
+    swipeModeRef.current = swipeModeFor(i != null ? board[i] : undefined)
     if (i != null && board[i] === 'empty') {
       paintedRef.current.add(i)
       applyAt(i, 'mark')
@@ -359,9 +377,19 @@ export function Board({
     cancelLongPress()
     if (i != null) setPressed(i)
     if (i == null || paintedRef.current.has(i)) return
-    if (currentCells()[i] !== 'empty') return
+    const mode = swipeModeRef.current
+    const start = startRef.current.index
+    // Erase mode clears the start X only once the finger really reaches another cell,
+    // so a tap on an X still cycles it and holding still is the long-press clear.
+    if (mode === 'erase' && !startErasedRef.current && start != null && i !== start) {
+      startErasedRef.current = true
+      paintedRef.current.add(start)
+      applyAt(start, 'erase')
+    }
+    if (paintedRef.current.has(i)) return
+    if (swipeTarget(mode, currentCells()[i]) == null) return
     paintedRef.current.add(i)
-    applyAt(i, 'mark')
+    applyAt(i, mode === 'erase' ? 'erase' : 'mark')
   }
 
   function onPointerUp(e: ReactPointerEvent) {
@@ -375,7 +403,7 @@ export function Board({
       className={`board theme-${themeId} ${celebrate ? 'board-win' : ''} ${defeated ? 'board-lose' : ''} ${solved ? 'is-solved' : ''}`}
       style={{ '--n': size } as CSSProperties}
       role="grid"
-      aria-label={`${size} by ${size} Roman board. Swipe to mark. Tap to cycle.`}
+      aria-label={`${size} by ${size} Roman board. Swipe to mark, swipe from an X to erase. Tap to cycle.`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { LONG_PRESS_MS, TAP_SLOP_PX, hasLeftTap } from '../src/game/gesture.ts'
+import { LONG_PRESS_MS, TAP_SLOP_PX, hasLeftTap, swipeModeFor, swipeTarget } from '../src/game/gesture.ts'
 
 const start = { x: 100, y: 100, index: 7 }
 
@@ -24,4 +24,23 @@ test('a touch that started on a gap becomes a swipe when it reaches a cell', () 
 
 test('long-press to clear waits about half a second', () => {
   assert.ok(LONG_PRESS_MS >= 400 && LONG_PRESS_MS <= 500)
+})
+
+test('a drag from an X erases, from an empty cell or a buddy it paints', () => {
+  assert.equal(swipeModeFor('mark'), 'erase')
+  assert.equal(swipeModeFor('empty'), 'paint')
+  assert.equal(swipeModeFor('stone'), 'paint')
+  assert.equal(swipeModeFor(undefined), 'paint')
+})
+
+test('paint turns empty cells into X and leaves X and buddies alone', () => {
+  assert.equal(swipeTarget('paint', 'empty'), 'mark')
+  assert.equal(swipeTarget('paint', 'mark'), null)
+  assert.equal(swipeTarget('paint', 'stone'), null)
+})
+
+test('erase clears X only; buddies and empty cells are never touched', () => {
+  assert.equal(swipeTarget('erase', 'mark'), 'empty')
+  assert.equal(swipeTarget('erase', 'empty'), null)
+  assert.equal(swipeTarget('erase', 'stone'), null)
 })

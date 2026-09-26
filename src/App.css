@@ -3500,7 +3500,7 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
   margin-top: 2.6rem;
 }
 
-/* ——— Phone Undo hardening (build 9.26-c) ——— */
+/* ——— Phone Undo hardening (build 9.26-c, kept in 9.26-d) ——— */
 /* The toolbar sits above the spark critter (z 25) and anything else on the play layer,
    so a moving sprite can never take an Undo/Redo tap. Modal overlays (win, lose, wheel,
    shortfall) stay above it on purpose; Undo is disabled while they are up. */

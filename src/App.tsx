@@ -13,7 +13,7 @@ import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './componen
 import { ThemeBackdrop } from './components/ThemeBackdrop'
 import { TapButton } from './components/TapButton'
 import { BUILD_TAG } from './buildTag'
-import { createHistory, pushMove, redoMove, restoreHistory, stepsToSave, undoMove } from './game/history'
+import { amendMove, createHistory, pushMove, redoMove, restoreHistory, stepsToSave, undoMove } from './game/history'
 import {
   applyHint,
   clearBuddy,
@@ -215,6 +215,8 @@ export default function App() {
   const historyRef = useRef(createHistory([] as CellState[]))
   /** Bumped whenever the board is replaced rather than drawn on (Undo, Redo, Reset, new or resumed board). */
   const [boardVersion, setBoardVersion] = useState(0)
+  /** The history step the current board stroke recorded; later changes of that stroke amend it. */
+  const strokeStepRef = useRef<{ stroke: number; hist: ReturnType<typeof createHistory> } | null>(null)
 
   const byDiff = useMemo(() => puzzlesByDifficulty(), [])
   const draft = loadDraft()
@@ -581,14 +583,19 @@ export default function App() {
       conflict: boolean
       index: number
       conflictKind?: BoardConflictKind | null
+      stroke?: number
     },
   ) {
     bumpAction()
-    // `cells` is stale until React re-renders. A swipe can place several X marks
-    // in that window; record each one against the board we actually had.
-    const hist = pushMove(historyRef.current, next)
+    // One finger-down-to-up (a swipe that paints or erases several X's) is one undo step:
+    // the first change records a step, the rest of the same stroke fold into it.
+    const sameStroke =
+      meta.stroke != null && strokeStepRef.current != null && strokeStepRef.current.stroke === meta.stroke &&
+      strokeStepRef.current.hist === historyRef.current
+    const hist = sameStroke ? amendMove(historyRef.current, next) : pushMove(historyRef.current, next)
     if (hist === historyRef.current) return
     commitHistory(hist)
+    strokeStepRef.current = meta.stroke != null ? { stroke: meta.stroke, hist } : null
 
     if (meta.kind === 'mark') {
       // X marks: Board already played sfxMark — never banter/voice
