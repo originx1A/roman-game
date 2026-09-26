@@ -19,6 +19,7 @@ import {
   type ConflictKind,
 } from '../game/logic'
 import { sfxError, sfxGiggle, sfxMark, sfxPlace, sfxTap, unlockAudio } from '../game/sound'
+import { hasLeftTap, type GestureStart } from '../game/gesture'
 
 interface Props {
   puzzle: Puzzle
@@ -115,6 +116,7 @@ export function Board({
   const paintingRef = useRef(false)
   const paintedRef = useRef<Set<number>>(new Set())
   const movedRef = useRef(false)
+  const startRef = useRef<GestureStart>({ x: 0, y: 0, index: null })
   const boardRef = useRef<HTMLDivElement>(null)
   const [pressed, setPressed] = useState<number | null>(null)
 
@@ -194,6 +196,7 @@ export function Board({
     paintedRef.current = new Set()
     boardRef.current?.setPointerCapture(e.pointerId)
     const i = indexFromPoint(e.clientX, e.clientY)
+    startRef.current = { x: e.clientX, y: e.clientY, index: i }
     if (i != null) setPressed(i)
     if (i != null && cellsRef.current[i] === 'empty') {
       paintedRef.current.add(i)
@@ -203,8 +206,10 @@ export function Board({
 
   function onPointerMove(e: ReactPointerEvent) {
     if (!paintingRef.current) return
-    movedRef.current = true
     const i = indexFromPoint(e.clientX, e.clientY)
+    // Finger wobble inside the tapped cell is still a tap (phones send pointermove for it).
+    if (!movedRef.current && !hasLeftTap(startRef.current, e.clientX, e.clientY, i)) return
+    movedRef.current = true
     if (i != null) setPressed(i)
     if (i == null || paintedRef.current.has(i)) return
     if (cellsRef.current[i] !== 'empty') return
@@ -212,7 +217,7 @@ export function Board({
     applyAt(i, 'mark')
   }
 
-  function onPointerUp(e: ReactPointerEvent) {
+  function onPointerUp(e: ReactPointerEvent, cancelled = false) {
     if (!paintingRef.current) return
     paintingRef.current = false
     setPressed(null)
@@ -223,8 +228,9 @@ export function Board({
     }
     // Tap (no drag): cycle the cell if we only painted one empty→mark already,
     // user may want buddy — if they tapped a marked/buddy cell, cycle it.
-    if (!movedRef.current) {
-      const i = indexFromPoint(e.clientX, e.clientY)
+    // A cancelled touch (the system took the gesture) is not a tap.
+    if (!movedRef.current && !cancelled) {
+      const i = startRef.current.index
       if (i == null) return
       // If we auto-marked empty on down, advance empty→mark→stone with a second cycle
       if (paintedRef.current.has(i) && cellsRef.current[i] === 'mark') {
@@ -249,7 +255,7 @@ export function Board({
       onPointerUp={onPointerUp}
       onPointerCancel={(e) => {
         setPressed(null)
-        onPointerUp(e)
+        onPointerUp(e, true)
       }}
     >
       {cells.map((state, i) => {

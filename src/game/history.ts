@@ -56,3 +56,49 @@ export function redoMove(history: MoveHistory): MoveHistory {
     future: history.future.slice(1),
   }
 }
+
+/** Saved undo steps per side. A long game stays well under the localStorage limit. */
+export const MAX_SAVED_STEPS = 200
+
+const CELL_STATES: ReadonlySet<string> = new Set(['empty', 'mark', 'stone'])
+
+function validBoard(board: unknown, size: number): board is CellState[] {
+  return (
+    Array.isArray(board) &&
+    board.length === size &&
+    board.every((c) => typeof c === 'string' && CELL_STATES.has(c))
+  )
+}
+
+/** Undo/redo stacks as stored with the saved board, newest undo step last. */
+export interface SavedSteps {
+  past: CellState[][]
+  future: CellState[][]
+}
+
+/** The stacks to save with the board. Keeps the most recent steps on each side. */
+export function stepsToSave(history: MoveHistory): SavedSteps {
+  return {
+    past: history.past.slice(-MAX_SAVED_STEPS).map(copyBoard),
+    future: history.future.slice(0, MAX_SAVED_STEPS).map(copyBoard),
+  }
+}
+
+/**
+ * Rebuild the history of a saved board, so Resume (or a phone reloading the tab)
+ * keeps Undo and Redo working. Anything malformed is dropped rather than trusted.
+ */
+export function restoreHistory(
+  present: CellState[],
+  past?: unknown,
+  future?: unknown,
+): MoveHistory {
+  const size = present.length
+  const clean = (list: unknown): CellState[][] =>
+    Array.isArray(list) ? list.filter((b): b is CellState[] => validBoard(b, size)).map(copyBoard) : []
+  return {
+    past: clean(past).slice(-MAX_SAVED_STEPS),
+    present: copyBoard(present),
+    future: clean(future).slice(0, MAX_SAVED_STEPS),
+  }
+}

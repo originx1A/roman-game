@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { createHistory, pushMove, redoMove, undoMove } from '../src/game/history.ts'
+import {
+  MAX_SAVED_STEPS,
+  createHistory,
+  pushMove,
+  redoMove,
+  restoreHistory,
+  stepsToSave,
+  undoMove,
+} from '../src/game/history.ts'
 import type { CellState } from '../src/game/types.ts'
 
 function board(...cells: CellState[]): CellState[] {
@@ -92,4 +100,62 @@ test('repeating the same board does not add an undo step', () => {
   assert.equal(history.past.length, 1)
   history = undoMove(history)
   assert.deepEqual(history.present, ['empty'])
+})
+
+test('saved steps bring Undo and Redo back after Resume', () => {
+  let history = createHistory(board('empty', 'empty', 'empty'))
+  history = pushMove(history, board('mark', 'empty', 'empty'))
+  history = pushMove(history, board('mark', 'mark', 'empty'))
+  history = pushMove(history, board('mark', 'mark', 'mark'))
+  history = undoMove(history)
+
+  // What the draft stores, round-tripped through JSON like localStorage
+  const saved = JSON.parse(JSON.stringify({ cells: history.present, ...stepsToSave(history) }))
+  let resumed = restoreHistory(saved.cells, saved.past, saved.future)
+  assert.deepEqual(resumed.present, ['mark', 'mark', 'empty'])
+  assert.equal(resumed.past.length, 2)
+
+  resumed = undoMove(resumed)
+  assert.deepEqual(resumed.present, ['mark', 'empty', 'empty'])
+  resumed = undoMove(resumed)
+  assert.deepEqual(resumed.present, ['empty', 'empty', 'empty'])
+  resumed = redoMove(redoMove(redoMove(resumed)))
+  assert.deepEqual(resumed.present, ['mark', 'mark', 'mark'])
+})
+
+test('an undone X stays undone in the saved board', () => {
+  let history = createHistory(board('empty', 'empty'))
+  history = pushMove(history, board('mark', 'empty'))
+  history = pushMove(history, board('mark', 'mark'))
+  history = undoMove(history)
+  const saved = JSON.parse(JSON.stringify({ cells: history.present, ...stepsToSave(history) }))
+  assert.deepEqual(saved.cells, ['mark', 'empty'])
+  assert.deepEqual(restoreHistory(saved.cells, saved.past, saved.future).future, [['mark', 'mark']])
+})
+
+test('old drafts without steps resume with an empty history', () => {
+  const resumed = restoreHistory(board('mark', 'empty'))
+  assert.deepEqual(resumed.present, ['mark', 'empty'])
+  assert.equal(resumed.past.length, 0)
+  assert.equal(resumed.future.length, 0)
+})
+
+test('malformed saved steps are dropped', () => {
+  const resumed = restoreHistory(
+    board('mark', 'empty'),
+    [['empty', 'empty'], ['empty'], ['nope', 'empty'], 'x', null],
+    { not: 'a list' },
+  )
+  assert.deepEqual(resumed.past, [['empty', 'empty']])
+  assert.deepEqual(resumed.future, [])
+})
+
+test('saved steps are capped', () => {
+  let history = createHistory(board('empty'))
+  for (let i = 0; i < MAX_SAVED_STEPS + 50; i++) {
+    history = pushMove(history, board(i % 2 ? 'empty' : 'mark'))
+  }
+  const saved = stepsToSave(history)
+  assert.equal(saved.past.length, MAX_SAVED_STEPS)
+  assert.deepEqual(saved.past[saved.past.length - 1], history.past[history.past.length - 1])
 })

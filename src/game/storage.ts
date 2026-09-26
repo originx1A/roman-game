@@ -28,6 +28,10 @@ export interface BoardDraft {
   elapsedMs: number
   hintsUsed: number
   startedAt: string
+  /** Undo steps, oldest first. Older saves have none. */
+  past?: string[][]
+  /** Redo steps, next first. */
+  future?: string[][]
 }
 
 const defaultSettings: Settings = { sound: true, voice: true, reduceMotion: false }

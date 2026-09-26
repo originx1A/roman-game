@@ -11,7 +11,7 @@ import './styles/store-layer.css'
 import { ShareBar } from './components/ShareBar'
 import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './components/SparkCritter'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
-import { createHistory, pushMove, redoMove, undoMove } from './game/history'
+import { createHistory, pushMove, redoMove, restoreHistory, stepsToSave, undoMove } from './game/history'
 import {
   applyHint,
   clearBuddy,
@@ -488,6 +488,19 @@ export default function App() {
     commitHistory(createHistory(board))
   }
 
+  /** Save the board with its undo/redo steps, so Resume shows what is on screen now. */
+  function saveBoardDraft(hist: ReturnType<typeof createHistory>, extra?: { elapsedMs: number; hintsUsed: number }) {
+    if (!puzzle) return
+    saveDraft({
+      puzzleId: puzzle.id,
+      cells: hist.present,
+      elapsedMs: extra?.elapsedMs ?? elapsedMs,
+      hintsUsed: extra?.hintsUsed ?? hintsUsed,
+      startedAt: new Date().toISOString(),
+      ...stepsToSave(hist),
+    })
+  }
+
   function startPuzzle(p: Puzzle, resume = false) {
     unlockAudio()
     sfxWhoosh()
@@ -522,7 +535,9 @@ export default function App() {
     if (resume) {
       const d = loadDraft()
       if (d && d.puzzleId === p.id) {
-        adoptBoard(d.cells as CellState[])
+        // Bring the undo/redo steps back too. Phones reload a tab left in the background,
+        // and Resume used to start with an empty history (Undo greyed out).
+        commitHistory(restoreHistory(d.cells as CellState[], d.past, d.future))
         setElapsedMs(d.elapsedMs)
         setHintsUsed(d.hintsUsed)
         setRunning(true)
@@ -598,15 +613,7 @@ export default function App() {
       window.setTimeout(() => setGiggleIndex((g) => (g === meta.index ? null : g)), 900)
     }
 
-    if (puzzle) {
-      saveDraft({
-        puzzleId: puzzle.id,
-        cells: next,
-        elapsedMs,
-        hintsUsed,
-        startedAt: new Date().toISOString(),
-      })
-    }
+    saveBoardDraft(hist)
 
     if (puzzle && isSolved(puzzle, next) && !recordedRef.current) {
       recordedRef.current = true
@@ -724,14 +731,19 @@ export default function App() {
     if (historyRef.current.past.length === 0 || celebrate || defeated) return
     noteUndoRedo()
     sfxUndo()
-    commitHistory(undoMove(historyRef.current))
+    const hist = undoMove(historyRef.current)
+    commitHistory(hist)
+    // Without this the saved board kept the undone X's: Resume (or iOS reloading the tab) put them back.
+    saveBoardDraft(hist)
   }
 
   function redo() {
     if (historyRef.current.future.length === 0 || celebrate || defeated) return
     noteUndoRedo()
     sfxUndo()
-    commitHistory(redoMove(historyRef.current))
+    const hist = redoMove(historyRef.current)
+    commitHistory(hist)
+    saveBoardDraft(hist)
   }
 
   function onHint() {
@@ -796,7 +808,9 @@ export default function App() {
   function resetBoard() {
     if (!puzzle) return
     sfxWhoosh()
-    adoptBoard(emptyBoard(puzzle.size))
+    const fresh = createHistory(emptyBoard(puzzle.size))
+    commitHistory(fresh)
+    saveBoardDraft(fresh, { elapsedMs: 0, hintsUsed: 0 })
     setElapsedMs(0)
     setHintsUsed(0)
     setCelebrate(false)
