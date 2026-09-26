@@ -61,38 +61,42 @@ export function WinScreen({
       </div>
 
       <div className="win-screen-card">
-        <p className="win-screen-kicker">{difficultyLabel} · {themeLabel}</p>
-        <h2 className="win-screen-title">Victory!</h2>
-        <p className="win-screen-board">{puzzleName}</p>
+        {/* Scrolls on its own only if a very short screen can't fit it; the buttons stay pinned below. */}
+        <div className="win-screen-body">
+          <h2 className="win-screen-title">Victory!</h2>
+          <p className="win-screen-kicker">
+            <span className="win-screen-board">{puzzleName}</span> · {difficultyLabel} · {themeLabel}
+          </p>
 
-        <p className="win-roman-says">{romanSaying}</p>
+          <p className="win-roman-says">{romanSaying}</p>
 
-        {perfect ? <p className="win-perfect">Perfect clear — no hints</p> : null}
+          {perfect ? <p className="win-perfect">Perfect clear — no hints</p> : null}
 
-        <div className="win-stats" aria-label="Run stats">
-          <div className="win-stat">
-            <span className="win-stat-label">Time</span>
-            <strong className="win-stat-value">{timeLabel}</strong>
-          </div>
-          <div className="win-stat">
-            <span className="win-stat-label">Score</span>
-            <strong className="win-stat-value">{score}</strong>
-          </div>
-          <div className="win-stat">
-            <span className="win-stat-label">Sparks</span>
-            <strong className="win-stat-value">
-              {sparkCount}/{CRITTER_STASH_GOAL}
-            </strong>
-          </div>
-          <div className="win-stat">
-            <span className="win-stat-label">Hints</span>
-            <strong className="win-stat-value">{hintsUsed}</strong>
-          </div>
-          <div className="win-stat">
-            <span className="win-stat-label">Hearts</span>
-            <strong className="win-stat-value">
-              {livesLeft}/{maxLives}
-            </strong>
+          <div className="win-stats" aria-label="Run stats">
+            <div className="win-stat">
+              <span className="win-stat-label">Time</span>
+              <strong className="win-stat-value">{timeLabel}</strong>
+            </div>
+            <div className="win-stat">
+              <span className="win-stat-label">Score</span>
+              <strong className="win-stat-value">{score}</strong>
+            </div>
+            <div className="win-stat">
+              <span className="win-stat-label">Sparks</span>
+              <strong className="win-stat-value">
+                {sparkCount}/{CRITTER_STASH_GOAL}
+              </strong>
+            </div>
+            <div className="win-stat">
+              <span className="win-stat-label">Hints</span>
+              <strong className="win-stat-value">{hintsUsed}</strong>
+            </div>
+            <div className="win-stat">
+              <span className="win-stat-label">Hearts</span>
+              <strong className="win-stat-value">
+                {livesLeft}/{maxLives}
+              </strong>
+            </div>
           </div>
         </div>
 
@@ -100,24 +104,26 @@ export function WinScreen({
           <button type="button" className="btn primary win-cta" onClick={onNext}>
             Next board
           </button>
-          {onShare ? (
-            <button type="button" className="btn ghost win-cta" onClick={onShare}>
-              Share
+          <div className="win-screen-row">
+            {onShare ? (
+              <button type="button" className="btn ghost win-cta" onClick={onShare}>
+                Share
+              </button>
+            ) : null}
+            <button type="button" className="btn ghost win-cta" onClick={onReplay}>
+              Play again
             </button>
-          ) : null}
-          {onDuel ? (
-            <button type="button" className="btn ghost win-cta" onClick={onDuel}>
-              Head-to-head
-            </button>
-          ) : null}
-          {spins > 0 && onSpin ? (
-            <button type="button" className="btn ghost win-cta win-spin" onClick={onSpin}>
-              Spin prize ({spins})
-            </button>
-          ) : null}
-          <button type="button" className="btn ghost win-cta" onClick={onReplay}>
-            Replay
-          </button>
+            {onDuel ? (
+              <button type="button" className="btn ghost win-cta" onClick={onDuel}>
+                Head-to-head
+              </button>
+            ) : null}
+            {spins > 0 && onSpin ? (
+              <button type="button" className="btn ghost win-cta win-spin" onClick={onSpin}>
+                Spin prize ({spins})
+              </button>
+            ) : null}
+          </div>
           <div className="win-screen-secondary">
             <button type="button" className="btn tool" onClick={onLevels}>
               Levels
