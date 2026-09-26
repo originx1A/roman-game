@@ -243,6 +243,37 @@ OLDTIMER_LINES = {
     "old_rescue_refund": "Rescue, huh. Nothing says confidence like a refund.",
     "old_rescue_coins": "Coins well spent. That buddy was a disaster.",
     "old_rescue_cat": "Rescued! Like a cat from a tree. A very confused cat.",
+    # offhand asides — nothing to do with the move
+    "old_aside_smell": "I smell something funny. Was that you?",
+    "old_aside_heat": "Who turned the heat up in here?",
+    "old_aside_glasses": "Did somebody move my glasses?",
+    "old_aside_stove": "Hold on, I think I left the stove on.",
+    "old_aside_tuesday": "Is it Tuesday? Feels like a Tuesday.",
+    "old_aside_tea": "My tea's gone cold again. Story of my life.",
+    "old_aside_knees": "My knees just predicted rain. They're never wrong.",
+    "old_aside_remote": "Where'd I put the remote? Don't you move, I'm still talking.",
+    "old_aside_cat": "The cat's on the board again. Mentally. She's very judgmental.",
+    "old_aside_socks": "One sock's missing. I blame the squares.",
+    # friendly jabs
+    "old_jab_mitts": "You play like you're wearing oven mitts.",
+    "old_jab_bingo": "I've seen better moves at a bingo hall.",
+    "old_jab_phone": "Is this your first time holding a phone?",
+    "old_jab_backday": "Back in my day we didn't tap. We committed.",
+    "old_jab_buddy": "That buddy looks as confused as you do.",
+    "old_jab_square": "Pick a square, any square. Preferably a different one.",
+    "old_jab_thinking": "I can hear you thinking. It's very quiet.",
+    "old_jab_patience": "I've got patience. You've got... something else.",
+    "old_jab_map": "You need a map for a five-by-five? Bless your heart.",
+    "old_jab_shoes": "Tie your shoes and try that square again.",
+    # grudging praise for a correct move
+    "old_good_fine": "Fine. That one was fine. Don't get excited.",
+    "old_good_accident": "A correct buddy. I'll assume it was an accident.",
+    "old_good_tea": "Not bad. I'll allow a sip of tea.",
+    "old_good_knees": "My knees approve. High praise, from them.",
+    "old_good_once": "You got one right. Write it down, it might not happen again.",
+    "old_good_square": "That square can stay. The rest of them are still nervous.",
+    "old_good_grumble": "Hmm. Adequate. That's the nicest word I've got.",
+    "old_good_day": "Back in my day that would've been a Tuesday. Still, not terrible.",
 }
 
 # Which voice/settings produced each clip in public/voices (checked by scripts/check-voices.ts)

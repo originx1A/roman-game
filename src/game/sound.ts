@@ -18,10 +18,18 @@ let ctx: AudioContext | null = null
 let muted = false
 let voiceEnabled = true
 
+/** Old-timer only. Pitch stays natural (preservesPitch); Roman and the coach are unchanged. */
+const OLDTIMER_PLAYBACK_RATE = 1.15
+
 /** The one and only voice player. Reused for every line (and unlocked on the first tap for iOS). */
 let voiceEl: HTMLAudioElement | null = null
 /** Line currently requested/playing on the channel (null = channel free) */
 let currentLine: { priority: number; gen: number } | null = null
+/**
+ * performance.now() when the channel last became free with voices allowed.
+ * 0 means "not counting" (busy, muted, voice off, or the clock was just reset).
+ */
+let voiceFreeSince = 0
 let voiceGeneration = 0
 let voiceSafetyTimer: number | null = null
 let voiceUnlocked = false
@@ -200,6 +208,34 @@ const FALLBACK_TEXT: Partial<Record<VoiceLineId, string>> = {
   old_rescue_refund: 'Old-timer: Rescue, huh. Nothing says confidence like a refund.',
   old_rescue_coins: 'Old-timer: Coins well spent. That buddy was a disaster.',
   old_rescue_cat: 'Old-timer: Rescued! Like a cat from a tree. A very confused cat.',
+  old_aside_smell: 'Old-timer: I smell something funny. Was that you?',
+  old_aside_heat: 'Old-timer: Who turned the heat up in here?',
+  old_aside_glasses: 'Old-timer: Did somebody move my glasses?',
+  old_aside_stove: 'Old-timer: Hold on, I think I left the stove on.',
+  old_aside_tuesday: 'Old-timer: Is it Tuesday? Feels like a Tuesday.',
+  old_aside_tea: "Old-timer: My tea's gone cold again. Story of my life.",
+  old_aside_knees: "Old-timer: My knees just predicted rain. They're never wrong.",
+  old_aside_remote: "Old-timer: Where'd I put the remote? Don't you move, I'm still talking.",
+  old_aside_cat: "Old-timer: The cat's on the board again. Mentally. She's very judgmental.",
+  old_aside_socks: "Old-timer: One sock's missing. I blame the squares.",
+  old_jab_mitts: "Old-timer: You play like you're wearing oven mitts.",
+  old_jab_bingo: "Old-timer: I've seen better moves at a bingo hall.",
+  old_jab_phone: 'Old-timer: Is this your first time holding a phone?',
+  old_jab_backday: "Old-timer: Back in my day we didn't tap. We committed.",
+  old_jab_buddy: 'Old-timer: That buddy looks as confused as you do.',
+  old_jab_square: 'Old-timer: Pick a square, any square. Preferably a different one.',
+  old_jab_thinking: "Old-timer: I can hear you thinking. It's very quiet.",
+  old_jab_patience: "Old-timer: I've got patience. You've got... something else.",
+  old_jab_map: 'Old-timer: You need a map for a five-by-five? Bless your heart.',
+  old_jab_shoes: 'Old-timer: Tie your shoes and try that square again.',
+  old_good_fine: "Old-timer: Fine. That one was fine. Don't get excited.",
+  old_good_accident: "Old-timer: A correct buddy. I'll assume it was an accident.",
+  old_good_tea: "Old-timer: Not bad. I'll allow a sip of tea.",
+  old_good_knees: 'Old-timer: My knees approve. High praise, from them.',
+  old_good_once: 'Old-timer: You got one right. Write it down, it might not happen again.',
+  old_good_square: 'Old-timer: That square can stay. The rest of them are still nervous.',
+  old_good_grumble: "Old-timer: Hmm. Adequate. That's the nicest word I've got.",
+  old_good_day: "Old-timer: Back in my day that would've been a Tuesday. Still, not terrible.",
   cosmic: 'Cosmic void. Starlit mystery.',
   ruins: 'Ancient ruins. Forgotten stone.',
   neon: 'Neon night. Electric streets.',
@@ -267,6 +303,7 @@ function releaseVoice(gen: number) {
   if (gen !== voiceGeneration) return
   clearVoiceSafety()
   currentLine = null
+  voiceFreeSince = 0
   const next = waitingLine
   waitingLine = null
   if (next && performance.now() <= next.until) {
@@ -282,6 +319,7 @@ function stopVoice() {
   voiceGeneration += 1
   clearVoiceSafety()
   currentLine = null
+  voiceFreeSince = 0
   const el = voiceEl
   if (!el) return
   el.onended = null
@@ -296,6 +334,7 @@ function stopVoice() {
 
 export function setMuted(m: boolean) {
   muted = m
+  voiceFreeSince = 0
   if (m) {
     waitingLine = null
     stopVoice()
@@ -304,10 +343,28 @@ export function setMuted(m: boolean) {
 
 export function setVoiceEnabled(on: boolean) {
   voiceEnabled = on
+  voiceFreeSince = 0
   if (!on) {
     waitingLine = null
     stopVoice()
   }
+}
+
+/**
+ * How long the shared voice channel has been free, in ms.
+ * Null while a line is playing, one is waiting, effects/voices are muted, or voice lines are off.
+ * Unmuting or turning voices back on starts the clock over, so a remark doesn't fire immediately.
+ */
+export function voiceQuietMs(): number | null {
+  if (typeof performance === 'undefined') return null
+  if (muted || !voiceEnabled || currentLine || waitingLine) return null
+  if (voiceFreeSince === 0) voiceFreeSince = performance.now()
+  return performance.now() - voiceFreeSince
+}
+
+/** Drop any quiet time already counted (a new puzzle shouldn't inherit menu silence). */
+export function resetVoiceQuietClock() {
+  voiceFreeSince = 0
 }
 
 export function unlockAudio() {
@@ -602,6 +659,7 @@ export function playVoice(id: string, opts: PlayVoiceOpts = {}) {
   stopVoice()
   const gen = voiceGeneration
   currentLine = { priority, gen }
+  voiceFreeSince = 0
   // Safety net: never hold the channel forever if the browser drops an 'ended' event
   voiceSafetyTimer = window.setTimeout(() => releaseVoice(gen), 12000)
   const { rate, volume } = moodPlayback(opts.mood ?? (roleForClip(id) === 'roman' ? 'excited' : 'neutral'))
@@ -623,8 +681,11 @@ async function playClipQueue(el: HTMLAudioElement, queue: string[], gen: number,
       el.playbackRate = Math.min(0.94, Math.max(0.82, rate * 0.88))
       el.volume = Math.min(1, volume * 1.05)
     } else if (role === 'oldtimer') {
-      // Old-timer's slow, rough delivery is baked into the clip — play it as recorded
-      el.playbackRate = 1
+      // A touch faster than the recorded take. Pitch stays put so he still sounds like William.
+      const media = el as HTMLAudioElement & { webkitPreservesPitch?: boolean }
+      media.preservesPitch = true
+      media.webkitPreservesPitch = true
+      media.playbackRate = OLDTIMER_PLAYBACK_RATE
       el.volume = Math.min(1, volume * 1.05)
     } else {
       el.playbackRate = Math.min(1.2, Math.max(0.85, rate))

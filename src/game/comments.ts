@@ -175,6 +175,34 @@ export type VoiceClipId =
   | 'old_rescue_refund'
   | 'old_rescue_coins'
   | 'old_rescue_cat'
+  | 'old_aside_smell'
+  | 'old_aside_heat'
+  | 'old_aside_glasses'
+  | 'old_aside_stove'
+  | 'old_aside_tuesday'
+  | 'old_aside_tea'
+  | 'old_aside_knees'
+  | 'old_aside_remote'
+  | 'old_aside_cat'
+  | 'old_aside_socks'
+  | 'old_jab_mitts'
+  | 'old_jab_bingo'
+  | 'old_jab_phone'
+  | 'old_jab_backday'
+  | 'old_jab_buddy'
+  | 'old_jab_square'
+  | 'old_jab_thinking'
+  | 'old_jab_patience'
+  | 'old_jab_map'
+  | 'old_jab_shoes'
+  | 'old_good_fine'
+  | 'old_good_accident'
+  | 'old_good_tea'
+  | 'old_good_knees'
+  | 'old_good_once'
+  | 'old_good_square'
+  | 'old_good_grumble'
+  | 'old_good_day'
   | 'spark_1'
   | 'spark_2'
   | 'spark_3'
@@ -374,6 +402,16 @@ export const OLDTIMER_WRONG_CLIPS = [
   'old_wrong_nickel',
   'old_wrong_teacher',
   'old_wrong_loudly',
+  'old_jab_mitts',
+  'old_jab_bingo',
+  'old_jab_phone',
+  'old_jab_backday',
+  'old_jab_buddy',
+  'old_jab_square',
+  'old_jab_thinking',
+  'old_jab_patience',
+  'old_jab_map',
+  'old_jab_shoes',
 ] as const satisfies readonly VoiceClipId[]
 
 /** Old-timer grumbles when the player is slow. */
@@ -429,14 +467,42 @@ export const OLDTIMER_RESCUE_CLIPS = [
   'old_rescue_cat',
 ] as const satisfies readonly VoiceClipId[]
 
+/** Offhand remarks that have nothing to do with the move. */
+export const OLDTIMER_ASIDE_CLIPS = [
+  'old_aside_smell',
+  'old_aside_heat',
+  'old_aside_glasses',
+  'old_aside_stove',
+  'old_aside_tuesday',
+  'old_aside_tea',
+  'old_aside_knees',
+  'old_aside_remote',
+  'old_aside_cat',
+  'old_aside_socks',
+] as const satisfies readonly VoiceClipId[]
+
+/** Grudging praise after a correct buddy. */
+export const OLDTIMER_GOOD_CLIPS = [
+  'old_good_fine',
+  'old_good_accident',
+  'old_good_tea',
+  'old_good_knees',
+  'old_good_once',
+  'old_good_square',
+  'old_good_grumble',
+  'old_good_day',
+] as const satisfies readonly VoiceClipId[]
+
 /**
- * The old-timer is an occasional heckler, not a narrator: he takes roughly a third of the
- * wrong-move / idle / hint / lose slots (instead of Roman or the coach, never on top of them)
- * and keeps a quiet gap between heckles. Each of his pools is its own never-repeat-last-3 bag.
+ * The old-timer takes about one in three shared voice moments (wrong move, idle, hint, lose),
+ * instead of Roman or the coach, never on top of them. A quiet gap keeps him from stacking
+ * heckles. Each pool is its own never-repeat-last-3 bag, and the same clip is never spoken
+ * twice in a row even across pools.
  */
 export const OLDTIMER_SHARE = 0.36
 export const OLDTIMER_COOLDOWN_MS = 6500
 let oldtimerLastAt = Number.NEGATIVE_INFINITY
+let lastOldtimerClip: VoiceClipId | null = null
 
 function oldtimerTurn(share = OLDTIMER_SHARE): boolean {
   const now = Date.now()
@@ -458,6 +524,16 @@ const oldUndo = bag(OLDTIMER_UNDO_CLIPS)
 const oldLose = bag(OLDTIMER_LOSE_CLIPS)
 const oldWin = bag(OLDTIMER_WIN_CLIPS)
 const oldRescue = bag(OLDTIMER_RESCUE_CLIPS)
+const oldAside = bag(OLDTIMER_ASIDE_CLIPS)
+const oldGood = bag(OLDTIMER_GOOD_CLIPS)
+
+/** Draw from an old-timer bag, skipping a clip that just played from another bag. */
+function pickOld(draw: () => { clip: VoiceClipId; pool: readonly VoiceClipId[] }) {
+  let pick = draw()
+  if (pick.clip === lastOldtimerClip) pick = draw()
+  lastOldtimerClip = pick.clip
+  return pick
+}
 
 /** Coach (female) lines for the moments she has always voiced */
 const COACH_LOSE_CLIPS = ['out_of_hearts', 'tough_board'] as const satisfies readonly VoiceClipId[]
@@ -527,37 +603,46 @@ export function banterFor(
     | 'idle'
     | 'rescue'
     | 'undo-spam'
-    | 'win-heckle',
+    | 'win-heckle'
+    | 'aside',
   _conflict?: ConflictKind,
 ): Banter {
   const silent: Banter = { text: '', mood: 'neutral', voiceMood: 'neutral', speak: false, silent: true }
   if (event === 'idle') {
-    if (oldtimerTurn()) return voiced(oldIdle(), 'bad', 'neutral', VOICE_PRIORITY.idle)
+    if (oldtimerTurn()) return voiced(pickOld(oldIdle), 'bad', 'neutral', VOICE_PRIORITY.idle)
     return voiced(roman(nextIdle(), ROMAN_IDLE_CLIPS), 'bad', 'disappointed', VOICE_PRIORITY.idle)
   }
   if (event === 'mark') return { text: '', mood: 'neutral', voiceMood: 'neutral', speak: false, silent: true }
-  if (event === 'place-good') return { text: '', mood: 'good', voiceMood: 'happy', speak: false, giggle: true, silent: true }
+  if (event === 'place-good') {
+    // Buddy giggle still plays from the board. Praise is a voice line, so leave giggle unset.
+    if (oldtimerTurn()) return voiced(pickOld(oldGood), 'good', 'neutral', VOICE_PRIORITY.chatter)
+    return { text: '', mood: 'good', voiceMood: 'happy', speak: false, giggle: true, silent: true }
+  }
   if (event === 'place-bad') {
-    if (oldtimerTurn()) return voiced(oldWrong(), 'bad', 'neutral', VOICE_PRIORITY.wrong)
+    if (oldtimerTurn()) return voiced(pickOld(oldWrong), 'bad', 'neutral', VOICE_PRIORITY.wrong)
     return voiced(roman(nextWrong(), ROMAN_WRONG_CLIPS), 'bad', 'disappointed', VOICE_PRIORITY.wrong)
   }
   if (event === 'win') return voiced(roman(nextCheer(), ROMAN_CHEER_CLIPS), 'hype', 'excited', VOICE_PRIORITY.win)
   if (event === 'hint') {
-    if (oldtimerTurn()) return voiced(oldHint(), 'neutral', 'neutral', VOICE_PRIORITY.hint)
+    if (oldtimerTurn()) return voiced(pickOld(oldHint), 'neutral', 'neutral', VOICE_PRIORITY.hint)
     return voiced(nextHint(), 'neutral', 'happy', VOICE_PRIORITY.hint)
   }
   if (event === 'rescue') {
-    if (oldtimerTurn(0.5)) return voiced(oldRescue(), 'neutral', 'neutral', VOICE_PRIORITY.hint)
+    if (oldtimerTurn(0.5)) return voiced(pickOld(oldRescue), 'neutral', 'neutral', VOICE_PRIORITY.hint)
     return voiced(nextHint(), 'neutral', 'happy', VOICE_PRIORITY.hint)
   }
   // Undo/redo spam: only the old-timer comments, and only now and then
-  if (event === 'undo-spam') return oldtimerTurn(0.6) ? voiced(oldUndo(), 'bad', 'neutral', VOICE_PRIORITY.chatter) : silent
+  if (event === 'undo-spam') return oldtimerTurn(0.6) ? voiced(pickOld(oldUndo), 'bad', 'neutral', VOICE_PRIORITY.chatter) : silent
   // After a slow/sloppy win: sometimes a backhanded compliment, once Roman's cheer has finished
   if (event === 'win-heckle') {
-    return oldtimerTurn(0.45) ? voiced(oldWin(), 'bad', 'neutral', VOICE_PRIORITY.chatter, { waitMs: 7000 }) : silent
+    return oldtimerTurn(0.45) ? voiced(pickOld(oldWin), 'bad', 'neutral', VOICE_PRIORITY.chatter, { waitMs: 7000 }) : silent
+  }
+  // Free-channel remark. The caller already waited; share is 1 so only the cooldown applies.
+  if (event === 'aside') {
+    return oldtimerTurn(1) ? voiced(pickOld(oldAside), 'neutral', 'neutral', VOICE_PRIORITY.idle) : silent
   }
   if (event === 'lose') {
-    if (oldtimerTurn()) return voiced(oldLose(), 'bad', 'neutral', VOICE_PRIORITY.lose)
+    if (oldtimerTurn()) return voiced(pickOld(oldLose), 'bad', 'neutral', VOICE_PRIORITY.lose)
     return voiced(nextLose(), 'bad', 'disappointed', VOICE_PRIORITY.lose)
   }
   if (event === 'prize') return voiced(nextPrize(), 'hype', 'excited', VOICE_PRIORITY.prize)

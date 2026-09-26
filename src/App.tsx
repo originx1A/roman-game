@@ -96,7 +96,9 @@ import {
   sfxUndo,
   sfxWhoosh,
   sfxWin,
+  resetVoiceQuietClock,
   unlockAudio,
+  voiceQuietMs,
   warmVoices,
 } from './game/sound'
 import { COIN_PACKS, purchaseCoinPack, restorePurchases, isStoreBuild, subscribeStore, type CoinPackId } from './game/iap'
@@ -411,6 +413,38 @@ export default function App() {
     }, 7000)
     return () => {
       if (idleRef.current) window.clearInterval(idleRef.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [running, celebrate, defeated])
+
+  // Old-timer aside: if nobody has held the voice channel for a while, he drops a random remark.
+  useEffect(() => {
+    if (!running || celebrate || defeated) return
+    resetVoiceQuietClock()
+    let cancelled = false
+    let targetQuiet = 40_000 + Math.random() * 50_000
+    const arm = (ms: number) => {
+      window.setTimeout(() => {
+        if (cancelled) return
+        const quiet = voiceQuietMs()
+        if (quiet == null) {
+          arm(1500)
+          return
+        }
+        if (quiet < targetQuiet) {
+          arm(Math.max(500, Math.min(2000, targetQuiet - quiet)))
+          return
+        }
+        const line = pushBanter('aside')
+        const spoke = Boolean(line.speak && line.clip)
+        // A cooldown miss waits a few more seconds. A real remark rolls a fresh 40–90s gap.
+        targetQuiet = spoke ? 40_000 + Math.random() * 50_000 : quiet + 4000
+        arm(spoke ? 1500 : 2000)
+      }, ms)
+    }
+    arm(1500)
+    return () => {
+      cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running, celebrate, defeated])

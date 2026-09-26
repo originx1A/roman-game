@@ -56,6 +56,8 @@ const oldPools: Record<string, string[]> = {
   oldLose: quoted(block(commentSrc, 'export const OLDTIMER_LOSE_CLIPS = [', '] as const')),
   oldWin: quoted(block(commentSrc, 'export const OLDTIMER_WIN_CLIPS = [', '] as const')),
   oldRescue: quoted(block(commentSrc, 'export const OLDTIMER_RESCUE_CLIPS = [', '] as const')),
+  oldAside: quoted(block(commentSrc, 'export const OLDTIMER_ASIDE_CLIPS = [', '] as const')),
+  oldGood: quoted(block(commentSrc, 'export const OLDTIMER_GOOD_CLIPS = [', '] as const')),
 }
 
 if (voiceIds.length < 100) throw new Error(`expected the voice catalog, found ${voiceIds.length}`)

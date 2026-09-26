@@ -111,6 +111,132 @@
     "text": "Ocean deep. Abyss glow.",
     "source": "commit 6c62fd58 / 0960e489"
   },
+  "old_aside_cat": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "The cat's on the board again. Mentally. She's very judgmental."
+  },
+  "old_aside_glasses": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Did somebody move my glasses?"
+  },
+  "old_aside_heat": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Who turned the heat up in here?"
+  },
+  "old_aside_knees": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "My knees just predicted rain. They're never wrong."
+  },
+  "old_aside_remote": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Where'd I put the remote? Don't you move, I'm still talking."
+  },
+  "old_aside_smell": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "I smell something funny. Was that you?"
+  },
+  "old_aside_socks": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "One sock's missing. I blame the squares."
+  },
+  "old_aside_stove": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Hold on, I think I left the stove on."
+  },
+  "old_aside_tea": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "My tea's gone cold again. Story of my life."
+  },
+  "old_aside_tuesday": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Is it Tuesday? Feels like a Tuesday."
+  },
+  "old_good_accident": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "A correct buddy. I'll assume it was an accident."
+  },
+  "old_good_day": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Back in my day that would've been a Tuesday. Still, not terrible."
+  },
+  "old_good_fine": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Fine. That one was fine. Don't get excited."
+  },
+  "old_good_grumble": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Hmm. Adequate. That's the nicest word I've got."
+  },
+  "old_good_knees": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "My knees approve. High praise, from them."
+  },
+  "old_good_once": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "You got one right. Write it down, it might not happen again."
+  },
+  "old_good_square": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "That square can stay. The rest of them are still nervous."
+  },
+  "old_good_tea": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Not bad. I'll allow a sip of tea."
+  },
   "old_hint_push": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
@@ -194,6 +320,76 @@
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "Any day now. I'm not getting any younger."
+  },
+  "old_jab_backday": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Back in my day we didn't tap. We committed."
+  },
+  "old_jab_bingo": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "I've seen better moves at a bingo hall."
+  },
+  "old_jab_buddy": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "That buddy looks as confused as you do."
+  },
+  "old_jab_map": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "You need a map for a five-by-five? Bless your heart."
+  },
+  "old_jab_mitts": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "You play like you're wearing oven mitts."
+  },
+  "old_jab_patience": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "I've got patience. You've got... something else."
+  },
+  "old_jab_phone": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Is this your first time holding a phone?"
+  },
+  "old_jab_shoes": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Tie your shoes and try that square again."
+  },
+  "old_jab_square": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Pick a square, any square. Preferably a different one."
+  },
+  "old_jab_thinking": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "I can hear you thinking. It's very quiet."
   },
   "old_lose_goldfish": {
     "voice": "en-AU-WilliamMultilingualNeural",
