@@ -138,6 +138,7 @@ export function recordClear(input: {
         clears: 1,
         hintsOnBest: input.hintsUsed,
         clearedAt: new Date().toISOString(),
+        lastClearedAt: new Date().toISOString(),
       },
     ]
   } else {
@@ -152,6 +153,7 @@ export function recordClear(input: {
             bestMs: better ? input.elapsedMs : c.bestMs,
             hintsOnBest: better ? input.hintsUsed : c.hintsOnBest,
             clearedAt: better ? new Date().toISOString() : c.clearedAt,
+            lastClearedAt: new Date().toISOString(),
           },
     )
   }

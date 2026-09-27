@@ -33,7 +33,8 @@ import {
   isSolved,
   scoreRun,
 } from './game/logic'
-import { PUZZLES, getPuzzle, puzzlesByDifficulty, createFreshPuzzle, nextRandomPuzzle } from './game/puzzles'
+import { PUZZLES, getPuzzle, puzzlesByDifficulty, createFreshPuzzle } from './game/puzzles'
+import { pickNextBoard } from './game/nextBoard'
 import type { CellState, Challenge, DuelResult, Profile, Puzzle, Screen } from './game/types'
 import { DIFFICULTY_LABEL } from './game/types'
 import {
@@ -960,7 +961,8 @@ export default function App() {
     const prize = huntPrize(found, before, MAX_BONUS_HEARTS)
     persistWallet(applyHuntPrize(before, prize))
     pushBanter(found >= 3 ? 'hunt-all' : found > 0 ? 'hunt-some' : 'hunt-none')
-    if (prize.coins > 0) sfxCoin()
+    // All three get the Buddy Hunt fanfare instead
+    if (prize.coins > 0 && found < 3) window.setTimeout(sfxCoin, 450)
     if (found >= 3 && shellRef.current) burstConfetti(shellRef.current)
     return prize.label
   }
@@ -1515,7 +1517,7 @@ export default function App() {
               romanSaying={winLine || 'Roman says: Veni, vidi, vici!'}
               spins={wallet.spins}
               perfect={hintsUsed === 0}
-              onNext={() => startPuzzle(nextRandomPuzzle(puzzle))}
+              onNext={() => startPuzzle(pickNextBoard(puzzle, PUZZLES, getProgress().clears))}
               onReplay={resetBoard}
               onLevels={() => setScreen('levels')}
               onHome={() => setScreen('home')}

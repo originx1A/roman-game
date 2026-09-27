@@ -207,7 +207,3 @@ export function createFreshPuzzle(difficulty: Difficulty): Puzzle {
   return clone
 }
 
-/** Next board after a clear — same difficulty when possible, always a fresh layout */
-export function nextRandomPuzzle(from: Puzzle): Puzzle {
-  return createFreshPuzzle(from.difficulty)
-}

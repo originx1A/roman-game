@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Buddy } from './Board'
 import { TapButton } from './TapButton'
 import { BUDDY_HUNT_BUDDIES, BUDDY_HUNT_GRID, BUDDY_HUNT_TAPS, placeBuddies } from '../game/buddyHunt'
-import { sfxGiggle, sfxPlace, sfxTap } from '../game/sound'
+import { sfxHuntFanfare, sfxHuntFlip, sfxHuntFound, sfxHuntMiss, sfxHuntNone, unlockAudio } from '../game/sound'
 import type { ThemeId } from '../game/types'
 
 interface Props {
@@ -36,13 +36,14 @@ export function BuddyHunt({ themeId, onFinish, onMiss, onClose, debug }: Props) 
     setRevealed(next)
     setTaps(nextTaps)
     setFound(nextFound)
-    if (hit) {
-      sfxPlace()
-      sfxGiggle()
-    } else {
-      sfxTap()
-    }
+    // Inside the tap itself, so iOS lets the audio start (and resumes it if Safari paused it)
+    unlockAudio()
+    sfxHuntFlip()
+    if (hit) sfxHuntFound()
+    else sfxHuntMiss()
     if (nextFound >= BUDDY_HUNT_BUDDIES || nextTaps <= 0) {
+      if (nextFound >= BUDDY_HUNT_BUDDIES) sfxHuntFanfare()
+      else if (nextFound === 0) sfxHuntNone()
       doneRef.current = true
       setResult(onFinish(nextFound))
     } else if (!hit) {

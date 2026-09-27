@@ -27,7 +27,10 @@ export interface ClearRecord {
   bestScore: number
   clears: number
   hintsOnBest: number
+  /** Time of the best clear */
   clearedAt: string
+  /** Time of the latest clear (any score). Older saves don't have it. */
+  lastClearedAt?: string
 }
 
 export interface Profile {

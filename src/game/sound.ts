@@ -318,7 +318,7 @@ function ac(): AudioContext {
     if (!Ctor) throw new Error('Web Audio unavailable')
     ctx = new Ctor()
   }
-  if (ctx.state === 'suspended') void ctx.resume()
+  if (ctx.state !== 'running' && ctx.state !== 'closed') void ctx.resume().catch(() => {})
   return ctx
 }
 
@@ -326,7 +326,7 @@ function ac(): AudioContext {
 function ensureAudio() {
   try {
     const c = ac()
-    if (c.state === 'suspended') void c.resume()
+    if (c.state !== 'running' && c.state !== 'closed') void c.resume().catch(() => {})
   } catch {
     /* ignore */
   }
@@ -430,7 +430,7 @@ export function unlockAudio() {
   ensureAudio()
   try {
     const c = ac()
-    if (c.state === 'suspended') void c.resume()
+    if (c.state !== 'running' && c.state !== 'closed') void c.resume().catch(() => {})
     const osc = c.createOscillator()
     const g = c.createGain()
     g.gain.value = 0.00001
@@ -663,6 +663,56 @@ export function sfxAchievement() {
   tone(660, 0.12, 'sine', 0.1)
   tone(880, 0.14, 'triangle', 0.09, 0.08)
   tone(1320, 0.2, 'sine', 0.08, 0.16)
+}
+
+/*
+ * Buddy Hunt tile sounds (9.27-b). Same Web Audio synth, gains and mute switch as the other
+ * effects, so they play on top of a voice line (voices use a separate audio element).
+ */
+export const HUNT_SFX = {
+  flip: 'sfxHuntFlip',
+  found: 'sfxHuntFound',
+  miss: 'sfxHuntMiss',
+  fanfare: 'sfxHuntFanfare',
+  none: 'sfxHuntNone',
+} as const
+
+/** Every press: a short card-flip click */
+export function sfxHuntFlip() {
+  markSfx(HUNT_SFX.flip)
+  noiseBurst(0.045, 0.07)
+  tone(950, 0.06, 'triangle', 0.1, 0, 520)
+}
+
+/** Found a buddy: bright pop-chime plus the buddy giggle */
+export function sfxHuntFound() {
+  markSfx(HUNT_SFX.found)
+  tone(660, 0.1, 'sine', 0.12, 0.05)
+  tone(990, 0.12, 'triangle', 0.1, 0.1)
+  tone(1320, 0.16, 'sine', 0.09, 0.15)
+  window.setTimeout(sfxGiggle, 180)
+}
+
+/** Empty tile: a soft low whomp */
+export function sfxHuntMiss() {
+  markSfx(HUNT_SFX.miss)
+  tone(210, 0.24, 'sine', 0.16, 0.05, 90)
+  tone(140, 0.2, 'triangle', 0.07, 0.08, 70)
+}
+
+/** All three found: a little fanfare */
+export function sfxHuntFanfare() {
+  markSfx(HUNT_SFX.fanfare)
+  ;[523, 659, 784].forEach((f, i) => tone(f, 0.14, 'triangle', 0.1, 0.45 + i * 0.11))
+  ;[1047, 1319, 1568].forEach((f) => tone(f, 0.5, 'sine', 0.07, 0.8))
+  noiseBurst(0.2, 0.04, 0.8)
+}
+
+/** No buddies found: a gentle down-tone */
+export function sfxHuntNone() {
+  markSfx(HUNT_SFX.none)
+  tone(440, 0.22, 'sine', 0.09, 0.4, 350)
+  tone(330, 0.34, 'sine', 0.08, 0.62, 220)
 }
 
 export interface PlayVoiceOpts {

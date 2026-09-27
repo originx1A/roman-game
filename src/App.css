@@ -4051,3 +4051,29 @@ html.play-locked #root {
   .how-demo { width: min(100%, 200px); }
   .how-panel .how-stage { gap: 0.5rem; padding: 0.6rem 0.75rem; }
 }
+
+/* ---------- 9.27-b: nothing wider than the screen ----------
+ * Rewards was clipped on the right on 320px-wide phones (Display Zoom): the coin shop's two
+ * cards had a ~331px minimum, the panel (a flex item) grew to fit it, and the shell's
+ * overflow-x: hidden cut it off instead of letting it wrap. Panels now never grow past the
+ * screen, grids can shrink, and the shop drops to one column on narrow screens. */
+.fixed-shell > main,
+.fixed-shell > .panel {
+  min-width: 0;
+  max-width: min(980px, 100%);
+  box-sizing: border-box;
+}
+.panel {
+  padding-left: max(1.25rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1.25rem, env(safe-area-inset-right, 0px));
+  overflow-wrap: anywhere;
+}
+.coin-shop {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.product-card { min-width: 0; }
+.product-card-foot { flex-wrap: wrap; }
+@media (max-width: 359px) {
+  .coin-shop { grid-template-columns: minmax(0, 1fr); }
+  .panel { padding-left: max(1rem, env(safe-area-inset-left, 0px)); padding-right: max(1rem, env(safe-area-inset-right, 0px)); }
+}
