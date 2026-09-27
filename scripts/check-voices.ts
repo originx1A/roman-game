@@ -4,7 +4,7 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { createShuffleBag } from '../src/game/lineBag.ts'
+import { createBagSet, memoryBagStore } from '../src/game/lineBag.ts'
 
 const root = path.resolve(import.meta.dirname, '..')
 const voiceSrc = fs.readFileSync(path.join(root, 'src/game/voiceLines.ts'), 'utf8')
@@ -60,6 +60,13 @@ const oldPools: Record<string, string[]> = {
   oldGood: quoted(block(commentSrc, 'export const OLDTIMER_GOOD_CLIPS = [', '] as const')),
 }
 
+const coachPools: Record<string, string[]> = Object.fromEntries(
+  ['LOSE', 'HINT', 'BADGE', 'PRIZE', 'STASH', 'CHEER'].map((k) => [
+    `coach${k[0]}${k.slice(1).toLowerCase()}`,
+    quoted(block(commentSrc, `const COACH_${k}_CLIPS = [`, '] as const')),
+  ]),
+)
+
 if (voiceIds.length < 100) throw new Error(`expected the voice catalog, found ${voiceIds.length}`)
 
 const missing: string[] = []
@@ -72,6 +79,13 @@ if (missing.length) {
 }
 
 const known = new Set(voiceIds)
+for (const [name, ids] of Object.entries(coachPools)) {
+  for (const id of ids) {
+    if (!known.has(id)) throw new Error(`${name} pool uses unknown clip ${id}`)
+    if (!fallbackIds.has(id)) throw new Error(`${name} pool clip ${id} has no fallback text`)
+    if (id.startsWith('roman_') || id.startsWith('old_')) throw new Error(`${name} coach pool has ${id}`)
+  }
+}
 for (const [name, ids] of Object.entries({ ...pools, ...oldPools })) {
   if (ids.length < 3) throw new Error(`${name} pool has only ${ids.length} clips`)
   for (const id of ids) {
@@ -113,25 +127,24 @@ for (const [name, ids] of Object.entries(pools)) {
 }
 
 function assertBag(label: string, items: string[]) {
-  const next = createShuffleBag(items, 3)
+  // Saved shuffle bag: whole pool before any repeat, never the same line twice in a row
+  const next = createBagSet({ store: memoryBagStore() }).bag(label, items)
   const draws = Array.from({ length: items.length * 3 }, () => next())
-  const first = draws.slice(0, items.length)
-  if (new Set(first).size !== items.length) {
-    throw new Error(`${label} did not walk the whole pool before repeating`)
-  }
-  for (let i = 0; i < draws.length; i++) {
-    const recent = draws.slice(Math.max(0, i - 3), i)
-    if (recent.includes(draws[i])) {
-      throw new Error(`${label} repeated "${draws[i]}" within the last 3 lines`)
+  for (let c = 0; c < 3; c++) {
+    if (new Set(draws.slice(c * items.length, (c + 1) * items.length)).size !== items.length) {
+      throw new Error(`${label} did not walk the whole pool before repeating`)
     }
+  }
+  for (let i = 1; i < draws.length; i++) {
+    if (draws[i] === draws[i - 1]) throw new Error(`${label} repeated "${draws[i]}" back to back`)
   }
 }
 
-for (const [name, ids] of Object.entries({ ...pools, ...oldPools })) assertBag(name, ids)
+for (const [name, ids] of Object.entries({ ...pools, ...oldPools, ...coachPools })) if (ids.length > 1) assertBag(name, ids)
 
 console.log(
   `voices ok: ${voiceIds.length} clips (Roman all Brian, old-timer all William+rasp), ` +
-    Object.entries({ ...pools, ...oldPools })
+    Object.entries({ ...pools, ...oldPools, ...coachPools })
       .map(([name, ids]) => `${name} ${ids.length}`)
       .join(', '),
 )

@@ -21,6 +21,9 @@ export type WinScreenProps = {
   onSpin?: () => void
   onShare?: () => void
   onDuel?: () => void
+  /** Buddy meter after this win: filled notches of `goal`; `pending` = Buddy Hunt is ready */
+  buddyMeter?: { notches: number; goal: number; pending: boolean; perfect: boolean }
+  onBuddyHunt?: () => void
 }
 
 export function WinScreen({
@@ -43,6 +46,8 @@ export function WinScreen({
   onSpin,
   onShare,
   onDuel,
+  buddyMeter,
+  onBuddyHunt,
 }: WinScreenProps) {
   const [entered, setEntered] = useState(false)
 
@@ -98,10 +103,40 @@ export function WinScreen({
               </strong>
             </div>
           </div>
+
+          {buddyMeter ? (
+            <div
+              className={`buddy-meter ${buddyMeter.pending ? 'is-full' : ''}`}
+              aria-label={`Buddy meter ${buddyMeter.pending ? buddyMeter.goal : buddyMeter.notches} of ${buddyMeter.goal}`}
+              data-meter={buddyMeter.pending ? buddyMeter.goal : buddyMeter.notches}
+            >
+              <span className="buddy-meter-label">Buddy meter</span>
+              <span className="buddy-meter-notches">
+                {Array.from({ length: buddyMeter.goal }, (_, i) => (
+                  <i
+                    key={i}
+                    className={
+                      buddyMeter.pending || i < buddyMeter.notches
+                        ? `on ${buddyMeter.perfect && (buddyMeter.pending ? i === buddyMeter.goal - 1 : i === buddyMeter.notches - 1) ? 'new' : ''}`
+                        : ''
+                    }
+                  />
+                ))}
+              </span>
+              <span className="buddy-meter-hint">
+                {buddyMeter.pending ? 'Full!' : buddyMeter.perfect ? 'Perfect win +1' : 'Perfect wins fill it'}
+              </span>
+            </div>
+          ) : null}
         </div>
 
         <div className="win-screen-actions">
-          <button type="button" className="btn primary win-cta" onClick={onNext}>
+          {buddyMeter?.pending && onBuddyHunt ? (
+            <button type="button" className="btn primary win-cta win-hunt" onClick={onBuddyHunt}>
+              Buddy Hunt!
+            </button>
+          ) : null}
+          <button type="button" className={`btn ${buddyMeter?.pending && onBuddyHunt ? 'ghost' : 'primary'} win-cta`} onClick={onNext}>
             Next board
           </button>
           <div className="win-screen-row">

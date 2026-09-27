@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { HowDemo } from './HowDemo'
+import { HowDemo, type HowDemoId } from './HowDemo'
 
 const STEPS = [
   { title: 'One per region', blurb: 'Each colored area gets exactly one buddy.', demo: 'region' },
@@ -7,17 +7,28 @@ const STEPS = [
   { title: 'No touching', blurb: "Buddies can't share an edge or a corner — not even diagonally.", demo: 'touch' },
   { title: 'Swipe & tap', blurb: 'Swipe to paint × marks (no talking!). Tap a mark to place a buddy.', demo: 'swipe' },
   { title: 'Hearts & hints', blurb: 'Three mistakes cost a heart. Hints cost coins (or free hints).', demo: 'hearts' },
+  {
+    title: 'Buddy Hunt',
+    blurb:
+      'Every perfect win (no hints, no wrong buddies) fills one notch of the buddy meter. 3 notches open Buddy Hunt: 5 taps to find 3 hidden buddies. Find 1 = 8 coins, 2 = 15, all 3 = 15 + a bonus heart.',
+    demo: 'hunt',
+    // longer text: stay up a bit longer before the next tip
+    ms: 8000,
+  },
   { title: 'Spark critter', blurb: 'A silly spark zig-zags by at random. Catch it across games — 5 catches unlock a prize spin!', demo: 'critter' },
-] as const
+] as const satisfies readonly { title: string; blurb: string; demo: HowDemoId; ms?: number }[]
+
+const STEP_MS = 4500
 
 export function HowToPlay({ onDone, onBack }: { onDone: () => void; onBack?: () => void }) {
   const [step, setStep] = useState(0)
   const current = STEPS[step]
 
   useEffect(() => {
-    const id = window.setInterval(() => setStep((s) => (s + 1) % STEPS.length), 4500)
-    return () => window.clearInterval(id)
-  }, [])
+    const s = STEPS[step] as { ms?: number }
+    const id = window.setTimeout(() => setStep((n) => (n + 1) % STEPS.length), s.ms ?? STEP_MS)
+    return () => window.clearTimeout(id)
+  }, [step])
 
   return (
     <main className="panel scroll-pane how-panel">
@@ -58,6 +69,7 @@ export function HowToPlay({ onDone, onBack }: { onDone: () => void; onBack?: () 
         <li>Swipe to mark × (quiet). Tap a mark to place a buddy.</li>
         <li>3 mistakes = lose a round (unless a shield saves you).</li>
         <li>Win to spin prizes. Catch the spark critter 5 times across games for a bonus prize.</li>
+        <li>Perfect wins fill the buddy meter. 3 notches open Buddy Hunt: 5 taps to find 3 hidden buddies.</li>
         <li>Themed boards change buddy looks — rules stay the same.</li>
       </ol>
       <div className="cta-row">

@@ -12,6 +12,16 @@ import { ShareBar } from './components/ShareBar'
 import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './components/SparkCritter'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
 import { TapButton } from './components/TapButton'
+import { BuddyHunt } from './components/BuddyHunt'
+import {
+  BUDDY_HUNT_PERFECT_WINS,
+  applyHuntPrize,
+  huntPrize,
+  isPerfectWin,
+  recordWin,
+  showSpinPrize,
+  startHunt,
+} from './game/buddyHunt'
 import { BUILD_TAG } from './buildTag'
 import { amendMove, createHistory, pushMove, redoMove, restoreHistory, stepsToSave, undoMove } from './game/history'
 import {
@@ -78,7 +88,9 @@ import {
   loadProfile,
   loadSettings,
   loadWallet,
+  loadBuddyMeter,
   recordClear,
+  saveBuddyMeter,
   saveDraft,
   saveSettings,
   saveWallet,
@@ -208,6 +220,11 @@ export default function App() {
   const [shareChallenge, setShareChallenge] = useState<Challenge | null>(null)
   const [linkBoardError, setLinkBoardError] = useState('')
   const [showWheel, setShowWheel] = useState(false)
+  const [buddyMeter, setBuddyMeter] = useState(loadBuddyMeter)
+  const [winPerfect, setWinPerfect] = useState(false)
+  const [showHunt, setShowHunt] = useState(false)
+  /** This attempt had a wrong buddy (even shield-blocked), a hint, a rescue or a revive. */
+  const flawedRef = useRef(false)
   const [awaitingComeback, setAwaitingComeback] = useState(false)
   const [activeChallenge, setActiveChallenge] = useState<Challenge | null>(null)
   const [duel, setDuel] = useState<DuelResult | null>(null)
@@ -549,6 +566,7 @@ export default function App() {
       elapsedMs: extra?.elapsedMs ?? elapsedMs,
       hintsUsed: extra?.hintsUsed ?? hintsUsed,
       startedAt: new Date().toISOString(),
+      flawed: flawedRef.current,
       ...stepsToSave(hist),
     })
   }
@@ -577,6 +595,9 @@ export default function App() {
     setWinLine('')
     setLoseLine('')
     setShowWheel(false)
+    setShowHunt(false)
+    setWinPerfect(false)
+    flawedRef.current = false
     setLastScore(null)
     setHintIndex(null)
     setHintText('')
@@ -592,6 +613,7 @@ export default function App() {
         replaceBoard(restoreHistory(d.cells as CellState[], d.past, d.future))
         setElapsedMs(d.elapsedMs)
         setHintsUsed(d.hintsUsed)
+        flawedRef.current = d.flawed === true || d.hintsUsed > 0
         setRunning(true)
         setScreen('play')
         return
@@ -638,6 +660,7 @@ export default function App() {
       // X marks: Board already played sfxMark — never banter/voice
     } else if (meta.kind === 'stone' && meta.conflict) {
       const kind: BanterConflictKind = meta.conflictKind ?? 'generic'
+      flawedRef.current = true
       let nextLives = lives
       let w = { ...wallet, totalMistakes: wallet.totalMistakes + 1 }
       // One line per move: the losing move gets the lose line only, not a wrong-move line too
@@ -685,6 +708,13 @@ export default function App() {
         window.setTimeout(() => pushBanter('win-heckle'), 2600)
       }
       const perfect = hintsUsed === 0
+      // Buddy meter: a perfect win (no hints, rescue, wrong buddies or lost hearts) fills a notch
+      const flawless = isPerfectWin({ hintsUsed, flawed: flawedRef.current, livesLost: runMaxLives - lives })
+      const metered = recordWin(loadBuddyMeter(), flawless)
+      saveBuddyMeter(metered.meter)
+      setBuddyMeter(metered.meter)
+      setWinPerfect(flawless)
+      if (metered.filledNow) window.setTimeout(() => showToast('Buddy meter full — Buddy Hunt unlocked!'), 1200)
       const score = scoreRun({
         size: puzzle.size,
         elapsedMs,
@@ -833,6 +863,7 @@ export default function App() {
     persistWallet(w)
     sfxHint()
     pushBanter('hint')
+    flawedRef.current = true
     setHintIndex(hint.index)
     setHintText(hint.explanation)
     setHintsUsed((n) => n + 1)
@@ -858,6 +889,7 @@ export default function App() {
       return
     }
     persistWallet({ ...wallet, coins: wallet.coins - RESCUE_COST })
+    flawedRef.current = true
     sfxHint()
     pushBanter('rescue')
     setHintIndex(hit.index)
@@ -883,6 +915,9 @@ export default function App() {
     setWinLine('')
     setLoseLine('')
     setShowWheel(false)
+    setShowHunt(false)
+    setWinPerfect(false)
+    flawedRef.current = false
     setLastScore(null)
     recordedRef.current = false
     setRunning(true)
@@ -901,10 +936,33 @@ export default function App() {
     const w = { ...wallet, coins: wallet.coins - REVIVE_COST }
     persistWallet(w)
     sfxCoin()
+    flawedRef.current = true
     setLives(runMaxLives)
     setDefeated(false)
     setRunning(true)
     showToast('Revived!')
+  }
+
+  /** Buddy Hunt: opening it spends the full meter, so a reload can't replay the round. */
+  function openBuddyHunt() {
+    const current = loadBuddyMeter()
+    if (!current.pending) return
+    unlockAudio()
+    const m = startHunt(current)
+    saveBuddyMeter(m)
+    setBuddyMeter(m)
+    setShowHunt(true)
+  }
+
+  /** Round over: pay out right away (saved even if the app closes) and return the prize line. */
+  function finishBuddyHunt(found: number): string {
+    const before = loadWallet()
+    const prize = huntPrize(found, before, MAX_BONUS_HEARTS)
+    persistWallet(applyHuntPrize(before, prize))
+    pushBanter(found >= 3 ? 'hunt-all' : found > 0 ? 'hunt-some' : 'hunt-none')
+    if (prize.coins > 0) sfxCoin()
+    if (found >= 3 && shellRef.current) burstConfetti(shellRef.current)
+    return prize.label
   }
 
   function consumeSpin(): boolean {
@@ -1372,9 +1430,15 @@ export default function App() {
 
           {/* Character lines, notices and hint text: a fixed two-line slot between the HUD and the
               board. Always takes its space (never reflows the board) and never overlaps it. */}
-          <p className={`play-caption ${toast || hintText ? '' : 'is-empty'} ${toast ? 'is-voice' : ''}`} aria-live="polite">
-            {toast || hintText}
-          </p>
+          {(() => {
+            // Once the board is won or lost the global toast carries notices; don't echo them here too
+            const liveToast = celebrate || defeated ? '' : toast
+            return (
+              <p className={`play-caption ${liveToast || hintText ? '' : 'is-empty'} ${liveToast ? 'is-voice' : ''}`} aria-live="polite">
+                {liveToast || hintText}
+              </p>
+            )
+          })()}
 
           <div className="board-stage">
             <Board
@@ -1428,7 +1492,16 @@ export default function App() {
             onCatch={handleCritterCatch}
           />
 
-          {celebrate && !showWheel && (
+          {celebrate && showHunt && puzzle && (
+            <BuddyHunt
+              themeId={puzzle.theme ?? 'classic'}
+              onFinish={finishBuddyHunt}
+              onMiss={() => pushBanter('hunt-miss')}
+              onClose={() => setShowHunt(false)}
+              debug={import.meta.env.DEV}
+            />
+          )}
+          {celebrate && !showWheel && !showHunt && (
             <WinScreen
               puzzleName={puzzle.name}
               difficultyLabel={DIFFICULTY_LABEL[puzzle.difficulty]}
@@ -1446,7 +1519,14 @@ export default function App() {
               onReplay={resetBoard}
               onLevels={() => setScreen('levels')}
               onHome={() => setScreen('home')}
-              onSpin={wallet.spins > 0 ? openPrizeWheel : undefined}
+              onSpin={showSpinPrize(wallet.spins, buddyMeter.pending) ? openPrizeWheel : undefined}
+              buddyMeter={{
+                notches: buddyMeter.notches,
+                goal: BUDDY_HUNT_PERFECT_WINS,
+                pending: buddyMeter.pending,
+                perfect: winPerfect,
+              }}
+              onBuddyHunt={openBuddyHunt}
               onShare={shareWinAsChallenge}
               onDuel={duel && activeChallenge?.puzzleId === puzzle.id ? openDuelShare : undefined}
             />

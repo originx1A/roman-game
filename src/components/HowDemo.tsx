@@ -13,7 +13,7 @@ const REGIONS = [
   3, 4, 4, 4, 2,
 ]
 
-export type HowDemoId = 'region' | 'lines' | 'touch' | 'swipe' | 'hearts' | 'critter'
+export type HowDemoId = 'region' | 'lines' | 'touch' | 'swipe' | 'hearts' | 'critter' | 'hunt'
 
 const REGION_CELLS = new Set([0, 1, 2, 5, 6])
 const REGION_BUDDY = 1
@@ -28,6 +28,13 @@ const SWIPE_MARKS = [10, 11, 13]
 const SWIPE_BUDDY = 12
 const WRONG_TAPS = [0, 9, 21]
 const HINT_CELL = 16
+/** Buddy Hunt demo: 4×4 face-down tiles; taps flip in this order (buddy, miss, buddy, buddy). */
+const HUNT_TAPS: { tile: number; buddy: boolean }[] = [
+  { tile: 5, buddy: true },
+  { tile: 2, buddy: false },
+  { tile: 11, buddy: true },
+  { tile: 12, buddy: true },
+]
 
 function usePrefersReducedMotion() {
   const [reduce, setReduce] = useState(
@@ -69,6 +76,24 @@ export function HowDemo({ demo }: { demo: HowDemoId }) {
           <span key={cell} className="heart" style={{ '--at': `${0.4 + i * 0.55}s` } as CSSProperties} />
         ))}
       </div>
+      {demo === 'hunt' ? (
+        <div className="how-demo-hunt">
+          {Array.from({ length: 16 }, (_, i) => {
+            const tap = HUNT_TAPS.findIndex((t) => t.tile === i)
+            const hit = tap >= 0 ? HUNT_TAPS[tap] : null
+            return (
+              <div
+                key={i}
+                className={`how-hunt-tile ${hit ? (hit.buddy ? 'is-buddy' : 'is-empty') : ''}`}
+                style={hit ? ({ '--at': `${0.5 + tap * 0.7}s` } as CSSProperties) : undefined}
+              >
+                {hit?.buddy && <Buddy themeId="classic" />}
+                <span className="how-hunt-back">?</span>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
       <div className="how-demo-grid">
         {REGIONS.map((region, i) => {
           const color = colors.get(region) ?? { hue: 200, sat: 70, lit: 55 }
@@ -145,6 +170,7 @@ export function HowDemo({ demo }: { demo: HowDemoId }) {
           </span>
         )}
       </div>
+      )}
     </div>
   )
 }

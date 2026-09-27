@@ -1,4 +1,4 @@
-import { createShuffleBag } from './lineBag'
+import { browserBagStore, createBagSet } from './lineBag'
 import { voiceLineText } from './sound'
 
 export type CommentMood = 'good' | 'bad' | 'hype' | 'neutral'
@@ -212,6 +212,59 @@ export type VoiceClipId =
   | 'spark_have_2'
   | 'spark_have_3'
   | 'spark_have_4'
+  | 'coach_hint_look'
+  | 'coach_hint_help'
+  | 'coach_hint_glow'
+  | 'coach_hint_clue'
+  | 'coach_hint_peek'
+  | 'coach_hint_step'
+  | 'coach_hint_try'
+  | 'coach_lose_breathe'
+  | 'coach_lose_again'
+  | 'coach_lose_next'
+  | 'coach_prize_ooh'
+  | 'coach_prize_see'
+  | 'coach_badge_earned'
+  | 'coach_badge_look'
+  | 'roman_hint_wink'
+  | 'roman_hint_spy'
+  | 'roman_hint_treasure'
+  | 'roman_lose_cape'
+  | 'roman_lose_shake'
+  | 'roman_lose_pillow'
+  | 'old_wrong_toaster'
+  | 'old_wrong_bold'
+  | 'old_wrong_hallway'
+  | 'old_wrong_history'
+  | 'old_wrong_spectacles'
+  | 'old_good_clock'
+  | 'old_good_surprised'
+  | 'old_good_lucky'
+  | 'old_good_clap'
+  | 'old_hint_flashlight'
+  | 'old_hint_grandkid'
+  | 'old_hint_cane'
+  | 'old_hint_cheating'
+  | 'old_undo_face'
+  | 'old_undo_yoyo'
+  | 'old_undo_regret'
+  | 'old_undo_aging'
+  | 'old_undo_eraser'
+  | 'old_win_squirrel'
+  | 'old_win_frame'
+  | 'old_win_napped'
+  | 'old_win_twothree'
+  | 'old_lose_called'
+  | 'old_lose_sandwich'
+  | 'old_lose_nephew'
+  | 'old_lose_deal'
+  | 'old_idle_mail'
+  | 'old_idle_beard'
+  | 'old_idle_birthday'
+  | 'old_aside_humming'
+  | 'old_aside_pigeons'
+  | 'old_rescue_lifeguard'
+  | 'old_rescue_parachute'
 
 export type ConflictKind = 'touch' | 'row' | 'col' | 'region' | 'generic'
 
@@ -350,6 +403,9 @@ export const ROMAN_LOSE_CLIPS = [
   'roman_lose_fought',
   'roman_lose_snacks',
   'roman_lose_round',
+  'roman_lose_cape',
+  'roman_lose_shake',
+  'roman_lose_pillow',
 ] as const satisfies readonly VoiceClipId[]
 
 /** Hint / rescue (Roman). */
@@ -359,6 +415,9 @@ export const ROMAN_HINT_CLIPS = [
   'roman_hint_psst',
   'roman_hint_secret',
   'roman_hint_clue',
+  'roman_hint_wink',
+  'roman_hint_spy',
+  'roman_hint_treasure',
 ] as const satisfies readonly VoiceClipId[]
 
 /** Badge unlocked (Roman). */
@@ -412,6 +471,11 @@ export const OLDTIMER_WRONG_CLIPS = [
   'old_jab_patience',
   'old_jab_map',
   'old_jab_shoes',
+  'old_wrong_toaster',
+  'old_wrong_bold',
+  'old_wrong_hallway',
+  'old_wrong_history',
+  'old_wrong_spectacles',
 ] as const satisfies readonly VoiceClipId[]
 
 /** Old-timer grumbles when the player is slow. */
@@ -423,6 +487,9 @@ export const OLDTIMER_IDLE_CLIPS = [
   'old_idle_glacier',
   'old_idle_younger',
   'old_idle_gossip',
+  'old_idle_mail',
+  'old_idle_beard',
+  'old_idle_birthday',
 ] as const satisfies readonly VoiceClipId[]
 
 /** Old-timer on hints. */
@@ -432,6 +499,10 @@ export const OLDTIMER_HINT_CLIPS = [
   'old_hint_wheels',
   'old_hint_push',
   'old_hint_smart',
+  'old_hint_flashlight',
+  'old_hint_grandkid',
+  'old_hint_cane',
+  'old_hint_cheating',
 ] as const satisfies readonly VoiceClipId[]
 
 /** Old-timer on undo/redo spam. */
@@ -440,6 +511,11 @@ export const OLDTIMER_UNDO_CLIPS = [
   'old_undo_dizzy',
   'old_undo_rocking',
   'old_undo_vacation',
+  'old_undo_face',
+  'old_undo_yoyo',
+  'old_undo_regret',
+  'old_undo_aging',
+  'old_undo_eraser',
 ] as const satisfies readonly VoiceClipId[]
 
 /** Old-timer when the player runs out of hearts. */
@@ -448,6 +524,10 @@ export const OLDTIMER_LOSE_CLIPS = [
   'old_lose_goldfish',
   'old_lose_sideways',
   'old_lose_popcorn',
+  'old_lose_called',
+  'old_lose_sandwich',
+  'old_lose_nephew',
+  'old_lose_deal',
 ] as const satisfies readonly VoiceClipId[]
 
 /** Old-timer backhanded compliments after a slow or sloppy win. */
@@ -457,6 +537,10 @@ export const OLDTIMER_WIN_CLIPS = [
   'old_win_paint',
   'old_win_yesterday',
   'old_win_gaveup',
+  'old_win_squirrel',
+  'old_win_frame',
+  'old_win_napped',
+  'old_win_twothree',
 ] as const satisfies readonly VoiceClipId[]
 
 /** Old-timer when the player buys a rescue. */
@@ -465,6 +549,8 @@ export const OLDTIMER_RESCUE_CLIPS = [
   'old_rescue_refund',
   'old_rescue_coins',
   'old_rescue_cat',
+  'old_rescue_lifeguard',
+  'old_rescue_parachute',
 ] as const satisfies readonly VoiceClipId[]
 
 /** Offhand remarks that have nothing to do with the move. */
@@ -479,6 +565,8 @@ export const OLDTIMER_ASIDE_CLIPS = [
   'old_aside_remote',
   'old_aside_cat',
   'old_aside_socks',
+  'old_aside_humming',
+  'old_aside_pigeons',
 ] as const satisfies readonly VoiceClipId[]
 
 /** Grudging praise after a correct buddy. */
@@ -491,18 +579,20 @@ export const OLDTIMER_GOOD_CLIPS = [
   'old_good_square',
   'old_good_grumble',
   'old_good_day',
+  'old_good_clock',
+  'old_good_surprised',
+  'old_good_lucky',
+  'old_good_clap',
 ] as const satisfies readonly VoiceClipId[]
 
 /**
  * The old-timer takes about one in three shared voice moments (wrong move, idle, hint, lose),
  * instead of Roman or the coach, never on top of them. A quiet gap keeps him from stacking
- * heckles. Each pool is its own never-repeat-last-3 bag, and the same clip is never spoken
- * twice in a row even across pools.
+ * heckles. Each pool is its own saved shuffle bag (see voiceBags below).
  */
 export const OLDTIMER_SHARE = 0.36
 export const OLDTIMER_COOLDOWN_MS = 6500
 let oldtimerLastAt = Number.NEGATIVE_INFINITY
-let lastOldtimerClip: VoiceClipId | null = null
 
 function oldtimerTurn(share = OLDTIMER_SHARE): boolean {
   const now = Date.now()
@@ -512,47 +602,67 @@ function oldtimerTurn(share = OLDTIMER_SHARE): boolean {
   return true
 }
 
-function bag(pool: readonly VoiceClipId[]) {
-  const next = createShuffleBag(pool)
+/**
+ * Every category, for all three voices, is a shuffle bag: each line plays once in random order
+ * before any line repeats, a new shuffle never opens with the line just played, a line shared by
+ * two categories never plays twice in a row, and bag positions are saved in localStorage so a
+ * reload doesn't bring the same lines back first.
+ */
+const voiceBags = createBagSet({ store: browserBagStore() })
+
+function bag(name: string, pool: readonly VoiceClipId[]) {
+  const next = voiceBags.bag(name, pool)
   return () => ({ clip: next(), pool })
 }
 
-const oldWrong = bag(OLDTIMER_WRONG_CLIPS)
-const oldIdle = bag(OLDTIMER_IDLE_CLIPS)
-const oldHint = bag(OLDTIMER_HINT_CLIPS)
-const oldUndo = bag(OLDTIMER_UNDO_CLIPS)
-const oldLose = bag(OLDTIMER_LOSE_CLIPS)
-const oldWin = bag(OLDTIMER_WIN_CLIPS)
-const oldRescue = bag(OLDTIMER_RESCUE_CLIPS)
-const oldAside = bag(OLDTIMER_ASIDE_CLIPS)
-const oldGood = bag(OLDTIMER_GOOD_CLIPS)
+const oldWrong = bag('old.wrong', OLDTIMER_WRONG_CLIPS)
+const oldIdle = bag('old.idle', OLDTIMER_IDLE_CLIPS)
+const oldHint = bag('old.hint', OLDTIMER_HINT_CLIPS)
+const oldUndo = bag('old.undo', OLDTIMER_UNDO_CLIPS)
+const oldLose = bag('old.lose', OLDTIMER_LOSE_CLIPS)
+const oldWin = bag('old.win', OLDTIMER_WIN_CLIPS)
+const oldRescue = bag('old.rescue', OLDTIMER_RESCUE_CLIPS)
+const oldAside = bag('old.aside', OLDTIMER_ASIDE_CLIPS)
+const oldGood = bag('old.good', OLDTIMER_GOOD_CLIPS)
+/** Buddy Hunt misses: the general jabs (not the wrong-buddy lines, which talk about squares/rules) */
+const OLDTIMER_HUNT_MISS_CLIPS = [
+  'old_jab_mitts',
+  'old_jab_bingo',
+  'old_jab_backday',
+  'old_jab_thinking',
+  'old_jab_patience',
+  'old_jab_shoes',
+  'old_jab_phone',
+] as const satisfies readonly VoiceClipId[]
+const oldHuntMiss = bag('old.huntMiss', OLDTIMER_HUNT_MISS_CLIPS)
 
-/** Draw from an old-timer bag, skipping a clip that just played from another bag. */
+/** Old-timer draw. The bag set already keeps a line from playing twice in a row across bags. */
 function pickOld(draw: () => { clip: VoiceClipId; pool: readonly VoiceClipId[] }) {
-  let pick = draw()
-  if (pick.clip === lastOldtimerClip) pick = draw()
-  lastOldtimerClip = pick.clip
-  return pick
+  return draw()
 }
 
 /** Coach (female) lines for the moments she has always voiced */
-const COACH_LOSE_CLIPS = ['out_of_hearts', 'tough_board'] as const satisfies readonly VoiceClipId[]
-const COACH_HINT_CLIPS = ['nudge'] as const satisfies readonly VoiceClipId[]
-const COACH_BADGE_CLIPS = ['new_badge'] as const satisfies readonly VoiceClipId[]
-const COACH_PRIZE_CLIPS = ['prize_time'] as const satisfies readonly VoiceClipId[]
+const COACH_LOSE_CLIPS = ['out_of_hearts', 'tough_board', 'coach_lose_breathe', 'coach_lose_again', 'coach_lose_next'] as const satisfies readonly VoiceClipId[]
+const COACH_HINT_CLIPS = ['nudge', 'coach_hint_look', 'coach_hint_help', 'coach_hint_glow', 'coach_hint_clue', 'coach_hint_peek', 'coach_hint_step', 'coach_hint_try'] as const satisfies readonly VoiceClipId[]
+const COACH_BADGE_CLIPS = ['new_badge', 'coach_badge_earned', 'coach_badge_look'] as const satisfies readonly VoiceClipId[]
+const COACH_PRIZE_CLIPS = ['prize_time', 'coach_prize_ooh', 'coach_prize_see'] as const satisfies readonly VoiceClipId[]
 const COACH_STASH_CLIPS = ['spark_unlocked'] as const satisfies readonly VoiceClipId[]
 
-const nextCheer = createShuffleBag(ROMAN_CHEER_CLIPS)
-const nextWrong = createShuffleBag(ROMAN_WRONG_CLIPS)
-const nextIdle = createShuffleBag(ROMAN_IDLE_CLIPS)
+/** Quick coach praise (critter catch, Buddy Hunt finds) */
+const COACH_CHEER_CLIPS = ['nice', 'solid', 'good_call', 'that_works', 'clean'] as const satisfies readonly VoiceClipId[]
+
+const nextCheer = voiceBags.bag('roman.cheer', ROMAN_CHEER_CLIPS)
+const nextWrong = voiceBags.bag('roman.wrong', ROMAN_WRONG_CLIPS)
+const nextIdle = voiceBags.bag('roman.idle', ROMAN_IDLE_CLIPS)
+const nextCoachCheer = bag('coach.cheer', COACH_CHEER_CLIPS)
 
 /**
  * Shared moments (lose, hint, badge, prize, stash): Roman and the coach take turns, one line per
- * event. Each speaker keeps its own shuffle bag, so Roman still never repeats one of his last 3.
+ * event. Each speaker keeps its own saved shuffle bag for the moment.
  */
-function takeTurns(roman: readonly VoiceClipId[], coach: readonly VoiceClipId[]) {
-  const nextRoman = createShuffleBag(roman)
-  const nextCoach = createShuffleBag(coach)
+function takeTurns(name: string, roman: readonly VoiceClipId[], coach: readonly VoiceClipId[]) {
+  const nextRoman = voiceBags.bag(`roman.${name}`, roman)
+  const nextCoach = voiceBags.bag(`coach.${name}`, coach)
   let coachTurn = Math.random() < 0.5
   return (): { clip: VoiceClipId; pool: readonly VoiceClipId[] } => {
     const turnIsCoach = coachTurn
@@ -561,11 +671,11 @@ function takeTurns(roman: readonly VoiceClipId[], coach: readonly VoiceClipId[])
   }
 }
 
-const nextLose = takeTurns(ROMAN_LOSE_CLIPS, COACH_LOSE_CLIPS)
-const nextHint = takeTurns(ROMAN_HINT_CLIPS, COACH_HINT_CLIPS)
-const nextBadge = takeTurns(ROMAN_BADGE_CLIPS, COACH_BADGE_CLIPS)
-const nextPrize = takeTurns(ROMAN_PRIZE_CLIPS, COACH_PRIZE_CLIPS)
-const nextStash = takeTurns(ROMAN_STASH_CLIPS, COACH_STASH_CLIPS)
+const nextLose = takeTurns('lose', ROMAN_LOSE_CLIPS, COACH_LOSE_CLIPS)
+const nextHint = takeTurns('hint', ROMAN_HINT_CLIPS, COACH_HINT_CLIPS)
+const nextBadge = takeTurns('badge', ROMAN_BADGE_CLIPS, COACH_BADGE_CLIPS)
+const nextPrize = takeTurns('prize', ROMAN_PRIZE_CLIPS, COACH_PRIZE_CLIPS)
+const nextStash = takeTurns('stash', ROMAN_STASH_CLIPS, COACH_STASH_CLIPS)
 
 function voiced(
   pick: { clip: VoiceClipId; pool: readonly VoiceClipId[] },
@@ -604,7 +714,11 @@ export function banterFor(
     | 'rescue'
     | 'undo-spam'
     | 'win-heckle'
-    | 'aside',
+    | 'aside'
+    | 'hunt-miss'
+    | 'hunt-some'
+    | 'hunt-all'
+    | 'hunt-none',
   _conflict?: ConflictKind,
 ): Banter {
   const silent: Banter = { text: '', mood: 'neutral', voiceMood: 'neutral', speak: false, silent: true }
@@ -645,11 +759,19 @@ export function banterFor(
     if (oldtimerTurn()) return voiced(pickOld(oldLose), 'bad', 'neutral', VOICE_PRIORITY.lose)
     return voiced(nextLose(), 'bad', 'disappointed', VOICE_PRIORITY.lose)
   }
+  // Buddy Hunt bonus round: existing clips only, same one-voice-at-a-time channel
+  if (event === 'hunt-miss') return oldtimerTurn(0.5) ? voiced(pickOld(oldHuntMiss), 'bad', 'neutral', VOICE_PRIORITY.chatter) : silent
+  if (event === 'hunt-some') {
+    if (oldtimerTurn(0.5)) return voiced(pickOld(oldGood), 'good', 'neutral', VOICE_PRIORITY.prize)
+    return voiced(nextCoachCheer(), 'hype', 'happy', VOICE_PRIORITY.prize)
+  }
+  if (event === 'hunt-all') return voiced(roman(nextCheer(), ROMAN_CHEER_CLIPS), 'hype', 'excited', VOICE_PRIORITY.win)
+  if (event === 'hunt-none') return voiced(nextLose(), 'bad', 'disappointed', VOICE_PRIORITY.prize)
   if (event === 'prize') return voiced(nextPrize(), 'hype', 'excited', VOICE_PRIORITY.prize)
   // Badges pop a few seconds after a win: wait for Roman's win line to finish instead of cutting it
   if (event === 'achievement') return voiced(nextBadge(), 'hype', 'excited', VOICE_PRIORITY.chatter, { waitMs: 6000 })
   if (event === 'critter-stash') return voiced(nextStash(), 'hype', 'excited', VOICE_PRIORITY.wrong)
-  if (event === 'critter') return voiced({ clip: 'nice', pool: ['nice'] }, 'hype', 'happy', VOICE_PRIORITY.chatter)
+  if (event === 'critter') return voiced(nextCoachCheer(), 'hype', 'happy', VOICE_PRIORITY.chatter)
   return { text: '', mood: 'neutral', voiceMood: 'neutral', speak: false, silent: true }
 }
 

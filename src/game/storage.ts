@@ -1,3 +1,4 @@
+import { sanitizeMeter } from './buddyHunt'
 import type { Challenge, ClearRecord, Profile } from './types'
 import { DEFAULT_WALLET, type Wallet } from './rewards'
 
@@ -9,6 +10,7 @@ const KEYS = {
   boardDraft: 'roman.draft.v1',
   wallet: 'roman.wallet.v1',
   generated: 'roman.generated.v1',
+  buddyMeter: 'roman.buddymeter.v1',
 } as const
 
 export interface Settings {
@@ -32,6 +34,8 @@ export interface BoardDraft {
   past?: string[][]
   /** Redo steps, next first. */
   future?: string[][]
+  /** This attempt had a wrong buddy, a rescue or a revive (not a perfect win). */
+  flawed?: boolean
 }
 
 const defaultSettings: Settings = { sound: true, voice: true, reduceMotion: false }
@@ -269,4 +273,12 @@ export function rememberGeneratedPuzzle(puzzle: import('./types').Puzzle) {
 
 export function getGeneratedPuzzle(id: string): import('./types').Puzzle | undefined {
   return loadGeneratedPuzzles()[id]
+}
+
+export function loadBuddyMeter(): import('./buddyHunt').BuddyMeter {
+  return sanitizeMeter(read<unknown>(KEYS.buddyMeter, null))
+}
+
+export function saveBuddyMeter(meter: import('./buddyHunt').BuddyMeter) {
+  write(KEYS.buddyMeter, meter)
 }

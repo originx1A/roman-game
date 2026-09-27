@@ -41,6 +41,90 @@
     "text": "You cleared it!",
     "source": "commit 6c62fd58 / 0960e489"
   },
+  "coach_badge_earned": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Badge earned. Well done!"
+  },
+  "coach_badge_look": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Look at that shiny badge!"
+  },
+  "coach_hint_clue": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "This square is your clue."
+  },
+  "coach_hint_glow": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Follow the glow!"
+  },
+  "coach_hint_help": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Here's a little help."
+  },
+  "coach_hint_look": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Take a look here."
+  },
+  "coach_hint_peek": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Peek at this one."
+  },
+  "coach_hint_step": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "One step closer!"
+  },
+  "coach_hint_try": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Try this spot."
+  },
+  "coach_lose_again": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "So close! Go again?"
+  },
+  "coach_lose_breathe": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Deep breath. You've got this."
+  },
+  "coach_lose_next": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "That one was tricky. Next time!"
+  },
+  "coach_prize_ooh": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Ooh, a prize!"
+  },
+  "coach_prize_see": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Let's see what you got!"
+  },
   "cosmic": {
     "voice": "en-US-JennyNeural",
     "rate": "+10%",
@@ -132,12 +216,26 @@
     "post": "rasp-v1",
     "text": "Who turned the heat up in here?"
   },
+  "old_aside_humming": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Is that my radio? No? Then who's humming?"
+  },
   "old_aside_knees": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "My knees just predicted rain. They're never wrong."
+  },
+  "old_aside_pigeons": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "The pigeons out back are plotting something. I can feel it."
   },
   "old_aside_remote": {
     "voice": "en-AU-WilliamMultilingualNeural",
@@ -188,6 +286,20 @@
     "post": "rasp-v1",
     "text": "A correct buddy. I'll assume it was an accident."
   },
+  "old_good_clap": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Don't expect me to clap. My hands are cold."
+  },
+  "old_good_clock": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Even a broken clock is right twice a day."
+  },
   "old_good_day": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
@@ -216,6 +328,13 @@
     "post": "rasp-v1",
     "text": "My knees approve. High praise, from them."
   },
+  "old_good_lucky": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Lucky tap. Don't let it go to your head."
+  },
   "old_good_once": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
@@ -230,12 +349,47 @@
     "post": "rasp-v1",
     "text": "That square can stay. The rest of them are still nervous."
   },
+  "old_good_surprised": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Well, would you look at that. I'm surprised too."
+  },
   "old_good_tea": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "Not bad. I'll allow a sip of tea."
+  },
+  "old_hint_cane": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Lean on that hint. I lean on a cane. We all need something."
+  },
+  "old_hint_cheating": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Back in my day we called that cheating."
+  },
+  "old_hint_flashlight": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "A hint? Want a map and a flashlight too?"
+  },
+  "old_hint_grandkid": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "My grandkid asks for hints. He's four."
   },
   "old_hint_push": {
     "voice": "en-AU-WilliamMultilingualNeural",
@@ -272,6 +426,20 @@
     "post": "rasp-v1",
     "text": "Ah, the training wheels. Classic."
   },
+  "old_idle_beard": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "I grew a beard waiting for that. Look at it."
+  },
+  "old_idle_birthday": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Hurry up. I'd like to finish before my birthday."
+  },
   "old_idle_crossword": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
@@ -299,6 +467,13 @@
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "Should I put the kettle on? Feels like a two-kettle puzzle."
+  },
+  "old_idle_mail": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "The mail came faster than your next move."
   },
   "old_idle_nap": {
     "voice": "en-AU-WilliamMultilingualNeural",
@@ -391,6 +566,20 @@
     "post": "rasp-v1",
     "text": "I can hear you thinking. It's very quiet."
   },
+  "old_lose_called": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Called it. I called it at the first square."
+  },
+  "old_lose_deal": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Fold 'em, kiddo. Deal again."
+  },
   "old_lose_goldfish": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
@@ -398,12 +587,26 @@
     "post": "rasp-v1",
     "text": "Game over. Even my goldfish saw that coming."
   },
+  "old_lose_nephew": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "My nephew lost like that once. He's a lawyer now. Worked out fine."
+  },
   "old_lose_popcorn": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "And that's the ballgame. Rematch? I'll get my popcorn."
+  },
+  "old_lose_sandwich": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Hearts gone. Go have a sandwich and think about what you did."
   },
   "old_lose_sideways": {
     "voice": "en-AU-WilliamMultilingualNeural",
@@ -433,12 +636,26 @@
     "post": "rasp-v1",
     "text": "Coins well spent. That buddy was a disaster."
   },
+  "old_rescue_lifeguard": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Somebody call a lifeguard. You're drowning in squares."
+  },
   "old_rescue_modern": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "Buying your way out of trouble? Very modern."
+  },
+  "old_rescue_parachute": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Nice parachute. Shame about the landing."
   },
   "old_rescue_refund": {
     "voice": "en-AU-WilliamMultilingualNeural",
@@ -447,6 +664,13 @@
     "post": "rasp-v1",
     "text": "Rescue, huh. Nothing says confidence like a refund."
   },
+  "old_undo_aging": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Pick one! I'm aging over here."
+  },
   "old_undo_dizzy": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
@@ -454,12 +678,33 @@
     "post": "rasp-v1",
     "text": "Make up your mind! The board's getting dizzy."
   },
+  "old_undo_eraser": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "You'd wear out an eraser in a day."
+  },
+  "old_undo_face": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Undo all you like. You can't undo that face you're making."
+  },
   "old_undo_hokey": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "Undo, redo, undo. You're doing the hokey pokey."
+  },
+  "old_undo_regret": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "So much regret for one little square."
   },
   "old_undo_rocking": {
     "voice": "en-AU-WilliamMultilingualNeural",
@@ -475,12 +720,26 @@
     "post": "rasp-v1",
     "text": "That undo button's gonna need a vacation."
   },
+  "old_undo_yoyo": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Up, down, back, forth. You're a yo-yo."
+  },
   "old_win_eventually": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "You won. Eventually. I'll allow it."
+  },
+  "old_win_frame": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Frame it. It might not happen again."
   },
   "old_win_gaveup": {
     "voice": "en-AU-WilliamMultilingualNeural",
@@ -489,12 +748,33 @@
     "post": "rasp-v1",
     "text": "Well, look at that. The board gave up before you did."
   },
+  "old_win_napped": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Congratulations. I only napped twice."
+  },
   "old_win_paint": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "That was like watching paint dry. But with a happy ending."
+  },
+  "old_win_squirrel": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "A blindfolded squirrel would've been quicker. But fine, you won."
+  },
+  "old_win_twothree": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Messy. Slow. Victorious. I'll take one out of three."
   },
   "old_win_ugly": {
     "voice": "en-AU-WilliamMultilingualNeural",
@@ -517,6 +797,13 @@
     "post": "rasp-v1",
     "text": "Ha! Classic. Do it again, I missed it."
   },
+  "old_wrong_bold": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Bold. Wrong, but bold. Mostly wrong."
+  },
   "old_wrong_chaos": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
@@ -537,6 +824,20 @@
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "Close. Well, no. Not close at all, actually."
+  },
+  "old_wrong_hallway": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "You'd get lost in a hallway, wouldn't you?"
+  },
+  "old_wrong_history": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "That move's going in the history books. Under 'don't'."
   },
   "old_wrong_knees": {
     "voice": "en-AU-WilliamMultilingualNeural",
@@ -594,6 +895,13 @@
     "post": "rasp-v1",
     "text": "That buddy wants a refund."
   },
+  "old_wrong_spectacles": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Put your glasses on. Oh, you don't wear any? There's your problem."
+  },
   "old_wrong_stick": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
@@ -614,6 +922,13 @@
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "Somewhere, a puzzle teacher just felt a chill."
+  },
+  "old_wrong_toaster": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "I've seen a toaster make smarter choices."
   },
   "out_of_hearts": {
     "voice": "en-US-JennyNeural",
@@ -883,6 +1198,24 @@
     "pitch": "-6Hz",
     "text": "Roman says: I didn't tell you this, but try that square."
   },
+  "roman_hint_spy": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: my spy eyes see a clue."
+  },
+  "roman_hint_treasure": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: X marks the spot. Well, kinda."
+  },
+  "roman_hint_wink": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: wink wink. That square."
+  },
   "roman_idle_admire": {
     "voice": "en-US-BrianNeural",
     "rate": "-8%",
@@ -964,6 +1297,12 @@
     "text": "Roman says: a tiny lizard just clapped for you!",
     "source": "commit 0960e489"
   },
+  "roman_lose_cape": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: capes off. Try again!"
+  },
   "roman_lose_fought": {
     "voice": "en-US-BrianNeural",
     "rate": "-8%",
@@ -976,11 +1315,23 @@
     "pitch": "-6Hz",
     "text": "Roman says: out of hearts. Even legends need a nap."
   },
+  "roman_lose_pillow": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: I'm screaming into a pillow. Rematch?"
+  },
   "roman_lose_round": {
     "voice": "en-US-BrianNeural",
     "rate": "-8%",
     "pitch": "-6Hz",
     "text": "Roman says: the board wins this round. Not the war."
+  },
+  "roman_lose_shake": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: shake it off, puzzle pal. Next round!"
   },
   "roman_lose_snacks": {
     "voice": "en-US-BrianNeural",

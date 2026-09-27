@@ -153,6 +153,13 @@ ROMAN_LINES = {
     "roman_spin_lucky": "Roman says: lucky spin! Roman approves.",
     "roman_stash_party": "Roman says: five sparks! Sparkle party!",
     "roman_stash_jazz": "Roman says: critter stash! Roman is doing jazz hands.",
+    # 9.27-a: more lines for the busiest categories
+    "roman_hint_wink": 'Roman says: wink wink. That square.',
+    "roman_hint_spy": 'Roman says: my spy eyes see a clue.',
+    "roman_hint_treasure": 'Roman says: X marks the spot. Well, kinda.',
+    "roman_lose_cape": 'Roman says: capes off. Try again!',
+    "roman_lose_shake": 'Roman says: shake it off, puzzle pal. Next round!',
+    "roman_lose_pillow": "Roman says: I'm screaming into a pillow. Rematch?",
 }
 
 # Uplifting coach — plain phrases only (slightly brighter rate/pitch)
@@ -189,6 +196,21 @@ COACH_LINES = {
     "spark_have_2": "You've got two sparkles toward the bonus.",
     "spark_have_3": "You've got three sparkles toward the bonus.",
     "spark_have_4": "You've got four sparkles. So close!",
+    # 9.27-a: more lines for the busiest categories
+    "coach_hint_look": 'Take a look here.',
+    "coach_hint_help": "Here's a little help.",
+    "coach_hint_glow": 'Follow the glow!',
+    "coach_hint_clue": 'This square is your clue.',
+    "coach_hint_peek": 'Peek at this one.',
+    "coach_hint_step": 'One step closer!',
+    "coach_hint_try": 'Try this spot.',
+    "coach_lose_breathe": "Deep breath. You've got this.",
+    "coach_lose_again": 'So close! Go again?',
+    "coach_lose_next": 'That one was tricky. Next time!',
+    "coach_prize_ooh": 'Ooh, a prize!',
+    "coach_prize_see": "Let's see what you got!",
+    "coach_badge_earned": 'Badge earned. Well done!',
+    "coach_badge_look": 'Look at that shiny badge!',
 }
 
 OLDTIMER_LINES = {
@@ -274,6 +296,40 @@ OLDTIMER_LINES = {
     "old_good_square": "That square can stay. The rest of them are still nervous.",
     "old_good_grumble": "Hmm. Adequate. That's the nicest word I've got.",
     "old_good_day": "Back in my day that would've been a Tuesday. Still, not terrible.",
+    # 9.27-a: more lines for the busiest categories
+    "old_wrong_toaster": "I've seen a toaster make smarter choices.",
+    "old_wrong_bold": 'Bold. Wrong, but bold. Mostly wrong.',
+    "old_wrong_hallway": "You'd get lost in a hallway, wouldn't you?",
+    "old_wrong_history": "That move's going in the history books. Under 'don't'.",
+    "old_wrong_spectacles": "Put your glasses on. Oh, you don't wear any? There's your problem.",
+    "old_good_clock": 'Even a broken clock is right twice a day.',
+    "old_good_surprised": "Well, would you look at that. I'm surprised too.",
+    "old_good_lucky": "Lucky tap. Don't let it go to your head.",
+    "old_good_clap": "Don't expect me to clap. My hands are cold.",
+    "old_hint_flashlight": 'A hint? Want a map and a flashlight too?',
+    "old_hint_grandkid": "My grandkid asks for hints. He's four.",
+    "old_hint_cane": 'Lean on that hint. I lean on a cane. We all need something.',
+    "old_hint_cheating": 'Back in my day we called that cheating.',
+    "old_undo_face": "Undo all you like. You can't undo that face you're making.",
+    "old_undo_yoyo": "Up, down, back, forth. You're a yo-yo.",
+    "old_undo_regret": 'So much regret for one little square.',
+    "old_undo_aging": "Pick one! I'm aging over here.",
+    "old_undo_eraser": "You'd wear out an eraser in a day.",
+    "old_win_squirrel": "A blindfolded squirrel would've been quicker. But fine, you won.",
+    "old_win_frame": 'Frame it. It might not happen again.',
+    "old_win_napped": 'Congratulations. I only napped twice.',
+    "old_win_twothree": "Messy. Slow. Victorious. I'll take one out of three.",
+    "old_lose_called": 'Called it. I called it at the first square.',
+    "old_lose_sandwich": 'Hearts gone. Go have a sandwich and think about what you did.',
+    "old_lose_nephew": "My nephew lost like that once. He's a lawyer now. Worked out fine.",
+    "old_lose_deal": "Fold 'em, kiddo. Deal again.",
+    "old_idle_mail": 'The mail came faster than your next move.',
+    "old_idle_beard": 'I grew a beard waiting for that. Look at it.',
+    "old_idle_birthday": "Hurry up. I'd like to finish before my birthday.",
+    "old_aside_humming": "Is that my radio? No? Then who's humming?",
+    "old_aside_pigeons": 'The pigeons out back are plotting something. I can feel it.',
+    "old_rescue_lifeguard": "Somebody call a lifeguard. You're drowning in squares.",
+    "old_rescue_parachute": 'Nice parachute. Shame about the landing.',
 }
 
 # Which voice/settings produced each clip in public/voices (checked by scripts/check-voices.ts)
