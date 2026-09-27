@@ -107,11 +107,18 @@ import { COIN_PACKS, purchaseCoinPack, restorePurchases, isStoreBuild, subscribe
 import { loadWebPacks, type WebPackOffer } from './game/webPacks'
 import './App.css'
 
+let lastAppHeight = 0
+
 function syncAppHeight() {
   if (typeof window === 'undefined') return
   const vv = window.visualViewport
-  const h = Math.round(vv?.height ?? window.innerHeight)
-  if (h > 0) document.documentElement.style.setProperty('--app-height', `${h}px`)
+  // A pinch-zoomed visual viewport is not a new screen size: resizing the board to it made the
+  // whole play screen jump. Use the layout viewport then, and ignore sub-pixel jitter.
+  const zoomed = !!vv && vv.scale > 1.01
+  const h = Math.round(zoomed ? window.innerHeight : (vv?.height ?? window.innerHeight))
+  if (h <= 0 || Math.abs(h - lastAppHeight) < 2) return
+  lastAppHeight = h
+  document.documentElement.style.setProperty('--app-height', `${h}px`)
 }
 
 function resetPlayViewport() {
@@ -235,6 +242,36 @@ export default function App() {
       window.visualViewport?.removeEventListener('scroll', onResize)
     }
   }, [])
+
+  // Play screen stays still on iPhone: lock the document (no rubber-band, no scroll, no pinch)
+  // while a board is up. Only real scrollers inside overlays (win card body, sheets) may pan.
+  useEffect(() => {
+    if (screen !== 'play') return
+    const root = document.documentElement
+    root.classList.add('play-locked')
+    resetPlayViewport()
+    const scrollable = '.win-screen-body, .overlay, .shortfall-overlay, .result-overlay, .scroll-pane'
+    const onTouchMove = (e: TouchEvent) => {
+      const t = e.target as Element | null
+      if (t && t.closest && t.closest(scrollable)) return
+      if (e.cancelable) e.preventDefault()
+    }
+    const noGesture = (e: Event) => e.preventDefault()
+    const pinToTop = () => {
+      if (window.scrollY !== 0 || window.scrollX !== 0) window.scrollTo(0, 0)
+    }
+    document.addEventListener('touchmove', onTouchMove, { passive: false })
+    document.addEventListener('gesturestart', noGesture as EventListener, { passive: false })
+    document.addEventListener('gesturechange', noGesture as EventListener, { passive: false })
+    window.addEventListener('scroll', pinToTop, { passive: true })
+    return () => {
+      root.classList.remove('play-locked')
+      document.removeEventListener('touchmove', onTouchMove)
+      document.removeEventListener('gesturestart', noGesture as EventListener)
+      document.removeEventListener('gesturechange', noGesture as EventListener)
+      window.removeEventListener('scroll', pinToTop)
+    }
+  }, [screen])
 
   useEffect(() => {
     warmVoices()
@@ -1167,7 +1204,8 @@ export default function App() {
         </header>
       )}
 
-      {toast && <div className="toast">{toast}</div>}
+      {/* On a live board the toast text shows in the play caption slot instead (never over the board) */}
+      {toast && (screen !== 'play' || celebrate || defeated) && <div className="toast">{toast}</div>}
 
       <ShortfallSheetHost
         open={!!shortfall}
@@ -1332,6 +1370,12 @@ export default function App() {
             </div>
           </div>
 
+          {/* Character lines, notices and hint text: a fixed two-line slot between the HUD and the
+              board. Always takes its space (never reflows the board) and never overlaps it. */}
+          <p className={`play-caption ${toast || hintText ? '' : 'is-empty'} ${toast ? 'is-voice' : ''}`} aria-live="polite">
+            {toast || hintText}
+          </p>
+
           <div className="board-stage">
             <Board
               puzzle={puzzle}
@@ -1348,7 +1392,6 @@ export default function App() {
             />
           </div>
 
-          {hintText ? <p className="hint-line">{hintText}</p> : null}
 
           <div className="toolbar play-toolbar">
             <TapButton className="btn tool" onTap={undo} disabled={!history.length || celebrate || defeated}>

@@ -3690,3 +3690,87 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
 .win-screen-row > .win-cta:last-child:nth-child(odd) {
   grid-column: 1 / -1;
 }
+
+/* ——— Still play screen on iPhone (build 9.26-e) ———
+   While a board is up the document itself cannot scroll, bounce or pinch-zoom: html/body are
+   pinned, overscroll is off, and the play layer takes no pan/zoom gestures. Taps still work.
+   The Victory card body and overlay sheets keep their own inner scrolling. */
+html.play-locked,
+html.play-locked body {
+  overflow: hidden;
+  overscroll-behavior: none;
+  height: 100%;
+}
+html.play-locked body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+}
+html.play-locked #root {
+  height: 100%;
+  overflow: hidden;
+}
+.shell-play,
+.shell-play .play-fixed {
+  overscroll-behavior: none;
+  touch-action: none;
+}
+.shell-play .play-toolbar .btn,
+.shell-play .tap-button,
+.shell-play .hud-back,
+.shell-play .spark-critter {
+  touch-action: none;
+}
+.shell-play .win-screen-body,
+.shell-play .result-overlay,
+.shell-play .shortfall-overlay {
+  touch-action: pan-y;
+}
+.shell-play .win-screen .btn,
+.shell-play .result-overlay .btn,
+.shell-play .shortfall-overlay .btn {
+  touch-action: manipulation;
+}
+/* Character lines / notices / hint text: fixed two-line slot above the board (no reflow, no overlap) */
+.play-caption {
+  flex-shrink: 0;
+  width: 100%;
+  max-width: 520px;
+  height: 2.6em;
+  margin: 0.1rem auto 0.3rem;
+  padding: 0 0.35rem;
+  font-size: clamp(0.72rem, 3.3vw, 0.82rem);
+  font-weight: 800;
+  line-height: 1.3;
+  text-align: center;
+  color: rgba(244, 251, 255, 0.85);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  pointer-events: none;
+  position: relative;
+  z-index: 2;
+}
+.play-caption.is-voice {
+  color: var(--sun);
+}
+.play-caption.is-empty {
+  visibility: hidden;
+}
+/* Board height budget includes the hint slot and build label */
+.play-fixed .board {
+  width: min(100%, 520px, calc(100vw - 1.25rem), calc(var(--app-height, 100svh) - 11.5rem)) !important;
+  max-height: min(100%, calc(var(--app-height, 100svh) - 11.5rem), 520px) !important;
+}
+/* Keep the board square even when the stage is height-bound (short Safari viewports) */
+@supports (width: 1cqw) {
+  .play-fixed .board-stage {
+    container-type: size;
+  }
+  .play-fixed .board {
+    width: min(100cqw, 100cqh, 520px) !important;
+    max-width: 100cqw !important;
+    max-height: min(100cqh, 520px) !important;
+  }
+}
