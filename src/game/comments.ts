@@ -1,5 +1,5 @@
 import { browserBagStore, createBagSet } from './lineBag'
-import { voiceLineText } from './sound'
+import { setVoiceStartListener, voiceLineText } from './sound'
 import { isPlayableVoiceClip } from './voiceLines'
 import { playableTipLines, type TipId, type TipReason, type TipVoice } from './voiceTips'
 
@@ -509,6 +509,9 @@ export const OLDTIMER_IDLE_CLIPS = [
   'old_idle_mail',
   'old_idle_beard',
   'old_idle_birthday',
+  // 9.30-f: two general jabs that fit a long pause widen the idle roasts
+  'old_jab_thinking',
+  'old_jab_patience',
 ] as const satisfies readonly VoiceClipId[]
 
 /** Old-timer on hints. */
@@ -627,7 +630,17 @@ function oldtimerTurn(share = OLDTIMER_SHARE): boolean {
  * two categories never plays twice in a row, and bag positions are saved in localStorage so a
  * reload doesn't bring the same lines back first.
  */
-const voiceBags = createBagSet({ store: browserBagStore() })
+// 9.30-f: a line only counts as played once it is actually heard (skipped / stale lines stay next)
+const voiceBags = createBagSet({ store: browserBagStore(), commitOnPlay: true })
+/** The voice channel started this clip: its bag moves on (and it counts for no-back-to-back) */
+export function noteVoicePlayed(clip: string) {
+  voiceBags.markPlayed(clip)
+  pendingTurns.get(clip)?.()
+  pendingTurns.delete(clip)
+}
+setVoiceStartListener(noteVoicePlayed)
+/** Speaker / turn bags (not lines): they move on when drawn, and never count as a spoken line */
+const turnBags = createBagSet({ store: browserBagStore(), key: 'roman.voiceturns.v1' })
 
 function bag(name: string, pool: readonly VoiceClipId[]) {
   const next = voiceBags.bag(name, pool)
@@ -656,7 +669,8 @@ const OLDTIMER_HUNT_MISS_CLIPS = [
 const oldHuntMiss = bag('old.huntMiss', OLDTIMER_HUNT_MISS_CLIPS)
 /** New personal best / near miss (replay challenge) */
 export const ROMAN_RECORD_CLIPS = ['roman_record_best', 'roman_record_faster', 'roman_record_beat'] as const satisfies readonly VoiceClipId[]
-const OLDTIMER_RECORD_CLIPS = ['old_record_head', 'old_record_tea'] as const satisfies readonly VoiceClipId[]
+// 9.30-f: 'Frame it. It might not happen again.' fits a new best too (the pool had only two lines)
+const OLDTIMER_RECORD_CLIPS = ['old_record_head', 'old_record_tea', 'old_win_frame'] as const satisfies readonly VoiceClipId[]
 const oldRecord = bag('old.record', OLDTIMER_RECORD_CLIPS)
 /**
  * "Finished, but not your best": a replayed board won without beating the old best.
@@ -728,13 +742,23 @@ const nextCoachCheer = bag('coach.cheer', COACH_CHEER_CLIPS)
 function takeTurns(name: string, roman: readonly VoiceClipId[], coach: readonly VoiceClipId[]) {
   const nextRoman = voiceBags.bag(`roman.${name}`, roman)
   const nextCoach = voiceBags.bag(`coach.${name}`, coach)
-  let coachTurn = Math.random() < 0.5
+  // 9.30-f: turns are weighted by how many lines each voice has (a saved bag of turn slots), so a
+  // voice with one or two lines isn't heard every other time. The turn only moves on when the
+  // line is actually heard.
+  const slots = [...roman.map((_, i) => `roman#${i}`), ...coach.map((_, i) => `coach#${i}`)]
+  const nextTurn = turnBags.bag(`speaker.${name}`, slots)
+  let turn: string | null = null
   return (): { clip: VoiceClipId; pool: readonly VoiceClipId[] } => {
-    const turnIsCoach = coachTurn
-    coachTurn = !coachTurn
-    return turnIsCoach ? { clip: nextCoach(), pool: coach } : { clip: nextRoman(), pool: roman }
+    turn ??= nextTurn()
+    const coachTurn = turn.startsWith('coach')
+    const pick = coachTurn ? { clip: nextCoach(), pool: coach } : { clip: nextRoman(), pool: roman }
+    pendingTurns.set(pick.clip, () => (turn = null))
+    return pick
   }
 }
+/** clip → "this speaker turn is used up" (runs when that clip is heard) */
+const pendingTurns = new Map<string, () => void>()
+
 
 const nextLose = takeTurns('lose', ROMAN_LOSE_CLIPS, COACH_LOSE_CLIPS)
 const nextHint = takeTurns('hint', ROMAN_HINT_CLIPS, COACH_HINT_CLIPS)
@@ -774,7 +798,6 @@ const nextNiceTry = bag('roman.niceTry', ROMAN_NICE_TRY_CLIPS)
  * every time. The turns are their own saved bags (a separate set, so they never count as a
  * "last spoken line").
  */
-const turnBags = createBagSet({ store: browserBagStore(), key: 'roman.voiceturns.v1' })
 const ownLineTurn = (event: string) => turnBags.bag(`turn.${event}`, ['own', 'cheer'])() === 'own'
 const cheer = () => roman(nextCheer(), ROMAN_CHEER_CLIPS)
 
@@ -951,7 +974,7 @@ export function tipBanter(tip: TipId, reason?: TipReason): Banter {
   // 9.29-a: the old-timer takes two turns in every voice cycle (Tony wants more of him heard).
   // Still a shuffle bag, so the voices keep rotating and no voice runs away with it.
   const turns = voices.includes('old') && voices.length > 1 ? [...voices, 'old2'] : voices
-  const turn = turns.length === 1 ? turns[0] : voiceBags.bag(`tipvoice.${tip}`, turns)()
+  const turn = turns.length === 1 ? turns[0] : turnBags.bag(`tipvoice.${tip}`, turns)()
   const voice = (turn === 'old2' ? 'old' : turn) as TipVoice
   const pool = lines.filter((l) => l.voice === voice).map((l) => l.id) as VoiceClipId[]
   const clip = voiceBags.bag(`tip.${tip}.${reason ?? 'any'}.${voice}`, pool)()
