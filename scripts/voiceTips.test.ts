@@ -10,7 +10,7 @@ const voiceSrc = readFileSync(new URL('../src/game/voiceLines.ts', import.meta.u
 const recordedIds = new Set([...voiceSrc.matchAll(/^\s+(\w+): '\/voices\//gm)].map((m) => m[1]))
 const gate = (o: Partial<TipGate> = {}): TipGate => ({ now: 1_000_000, enabled: true, boardCount: 0, boardTips: [], lastTipAt: 0, ...o })
 
-test('every tip has lines for all three voices; new ids are unique and not recorded yet', () => {
+test('every tip has lines for all three voices; new ids are unique and recorded (9.30-g)', () => {
   const ids = new Set<string>()
   for (const id of TIP_IDS) {
     const voices = new Set(NEW_TIP_LINES[id].map((l) => l.voice))
@@ -19,7 +19,7 @@ test('every tip has lines for all three voices; new ids are unique and not recor
       assert.ok(l.id.startsWith('tip_'), l.id)
       assert.ok(!ids.has(l.id), `duplicate ${l.id}`)
       ids.add(l.id)
-      assert.ok(!recordedIds.has(l.id), `${l.id} should not be recorded before approval`)
+      assert.ok(recordedIds.has(l.id), `${l.id} approved in 9.30-g and recorded`)
       assert.ok(l.text.length > 8 && l.text.length < 140, l.id)
     }
   }
@@ -32,10 +32,11 @@ test('existing lines wired to tips are real recorded clips', () => {
 test('only recorded lines play; reason filters three-star lines', () => {
   const has = (c: string) => recordedIds.has(c)
   const text = () => 'x'
-  assert.equal(playableTipLines('first-trial', undefined, has, text).length, 0)
+  assert.equal(playableTipLines('first-trial', undefined, has, text).length, NEW_TIP_LINES['first-trial'].length + RECORDED_TIP_LINES['first-trial'].length)
   const stuck = playableTipLines('stuck', undefined, has, text)
   assert.equal(stuck[0].id, 'roman_nudge')
-  assert.ok(stuck.every((l) => l.voice === 'roman' || l.id.startsWith('old_')))
+  assert.ok(stuck.every((l) => has(l.id)))
+  assert.deepEqual([...new Set(stuck.map((l) => l.voice))].sort(), ['coach', 'old', 'roman'])
   const time = playableTipLines('three-star', 'time', has, text).map((l) => l.id)
   assert.ok(time.includes('old_win_yesterday') && !time.includes('roman_warmup'))
   const undo = playableTipLines('three-star', 'undo', has, text).map((l) => l.id)

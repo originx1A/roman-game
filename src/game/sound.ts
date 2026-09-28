@@ -320,6 +320,21 @@ const FALLBACK_TEXT: Partial<Record<VoiceLineId, string>> = {
   old_aside_pigeons: 'Old-timer: The pigeons out back are plotting something. I can feel it.',
   old_rescue_lifeguard: 'Old-timer: Somebody call a lifeguard. You\'re drowning in squares.',
   old_rescue_parachute: 'Old-timer: Nice parachute. Shame about the landing.',
+  // 9.30-g: combined not-best lines (board cleared + slower than your best)
+  old_notbest_tsk: "Old-timer: Board's clear... but slower than last time. Tsk.",
+  old_notbest_yesterday: "Old-timer: You won. Your old self still beat you, though. He's smug about it.",
+  old_notbest_rerun: "Old-timer: Same board, slower time. Like a rerun, but longer.",
+  old_notbest_ghost: "Old-timer: Done, sure. Your ghost finished first and went home.",
+  old_notbest_calendar: "Old-timer: Nice clear. Your best time is over there, waving. From far away.",
+  old_notbest_knees: "Old-timer: Cleared it. Slower than before, and I know slow. Ask my knees.",
+  old_notbest_tea: "Old-timer: You won. I finished a whole cup of tea. Last time I only got a sip.",
+  old_notbest_downhill: "Old-timer: A win, but slower than your record. It's all downhill from here, kid.",
+  old_notbest_slowpoke: "Old-timer: Board's done. Your record's safe. From you, mostly.",
+  roman_notbest_record: "Roman says: board cleared! Your record just yawned, though.",
+  roman_notbest_again: "Roman says: winner! Not your fastest. Roman noticed. Roman always notices.",
+  roman_notbest_turtle: "Roman says: you did it, turtle-style! Your best time says hi.",
+  coach_notbest_clear: "Board cleared. A little slower than your best. You know you have more in you.",
+  coach_notbest_close: "Nice finish. Not a new best this time, but the next one could be.",
 }
 
 export function voiceLineText(id: string): string | undefined {
