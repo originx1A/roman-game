@@ -93,27 +93,84 @@ export const NEW_TIP_LINES: Record<TipId, TipLine[]> = {
   ],
 }
 
-/** EXISTING recorded lines that already fit a tip (used in 9.28-b; they stay in their old bags too). */
+/**
+ * EXISTING recorded lines that already fit a tip. They stay in their original bags too.
+ * 9.28-b wired a first handful; 9.29-a adds the rest of the old-timer's recorded put-downs that
+ * fit each tip (Tony wants more of the gruff old-timer heard).
+ */
 export const RECORDED_TIP_LINES: Record<TipId, { id: string; voice: TipVoice; reason?: TipReason }[]> = {
   stall: [
     { id: 'coach_lose_breathe', voice: 'coach' },
     { id: 'old_idle_glacier', voice: 'old' },
     { id: 'old_idle_mail', voice: 'old' },
+    // 9.29-a: the rest of the old-timer's "you're slow" lines
+    { id: 'old_idle_twenty', voice: 'old' },
+    { id: 'old_idle_crossword', voice: 'old' },
+    { id: 'old_idle_kettle', voice: 'old' },
+    { id: 'old_idle_nap', voice: 'old' },
+    { id: 'old_idle_younger', voice: 'old' },
+    { id: 'old_idle_gossip', voice: 'old' },
+    { id: 'old_idle_beard', voice: 'old' },
+    { id: 'old_idle_birthday', voice: 'old' },
   ],
   'undo-spam': [
     { id: 'old_undo_regret', voice: 'old' },
     { id: 'old_undo_eraser', voice: 'old' },
+    // 9.29-a: every other recorded undo heckle
+    { id: 'old_undo_hokey', voice: 'old' },
+    { id: 'old_undo_dizzy', voice: 'old' },
+    { id: 'old_undo_rocking', voice: 'old' },
+    { id: 'old_undo_vacation', voice: 'old' },
+    { id: 'old_undo_face', voice: 'old' },
+    { id: 'old_undo_yoyo', voice: 'old' },
+    { id: 'old_undo_aging', voice: 'old' },
   ],
   'three-star': [
     { id: 'roman_warmup', voice: 'roman', reason: 'any' },
     { id: 'roman_practice', voice: 'roman', reason: 'any' },
     { id: 'old_win_twothree', voice: 'old', reason: 'any' },
     { id: 'old_win_yesterday', voice: 'old', reason: 'time' },
+    // 9.29-a: backhanded win compliments. Slow ones only when time was the miss.
+    { id: 'old_win_eventually', voice: 'old', reason: 'time' },
+    { id: 'old_win_paint', voice: 'old', reason: 'time' },
+    { id: 'old_win_squirrel', voice: 'old', reason: 'time' },
+    { id: 'old_win_napped', voice: 'old', reason: 'time' },
+    { id: 'old_win_ugly', voice: 'old', reason: 'any' },
+    { id: 'old_win_frame', voice: 'old', reason: 'any' },
+    { id: 'old_nearmiss', voice: 'old', reason: 'any' },
   ],
-  stuck: [{ id: 'roman_nudge', voice: 'roman' }],
+  stuck: [
+    { id: 'roman_nudge', voice: 'roman' },
+    // 9.29-a: the old-timer's hint grumbles (the stuck tip points at the Hint button)
+    { id: 'old_hint_stare', voice: 'old' },
+    { id: 'old_hint_tell', voice: 'old' },
+    { id: 'old_hint_push', voice: 'old' },
+    { id: 'old_hint_cane', voice: 'old' },
+    { id: 'old_hint_grandkid', voice: 'old' },
+  ],
   'first-trial': [],
   'first-daily': [],
 }
+
+/**
+ * 9.29-a general "snark" pool: the old-timer's recorded jabs. The stall, undo and stuck tips
+ * draw from it too (old-timer voice), so these get heard during play and not only after a
+ * wrong tap. They also stay in their original bags (wrong move, Buddy Hunt miss).
+ */
+export const OLD_SNARK_TIP_LINES: readonly string[] = [
+  'old_jab_mitts',
+  'old_jab_bingo',
+  'old_jab_phone',
+  'old_jab_backday',
+  'old_jab_square',
+  'old_jab_thinking',
+  'old_jab_patience',
+  'old_jab_map',
+  'old_jab_shoes',
+]
+
+/** Tips that also draw from the snark pool (mid-play nudges; not the win or first-time intros). */
+export const SNARK_TIPS: readonly TipId[] = ['stall', 'undo-spam', 'stuck']
 
 export interface TipRule {
   /** Times the player must show they get it before the tip retires. */
@@ -249,8 +306,12 @@ export function playableTipLines(
   const recorded: TipLine[] = RECORDED_TIP_LINES[id]
     .filter((l) => fits(l.reason) && hasClip(l.id))
     .map((l) => ({ ...l, text: textOf(l.id) ?? '' }))
+  const seen = new Set(recorded.map((l) => l.id))
+  const snark: TipLine[] = SNARK_TIPS.includes(id)
+    ? OLD_SNARK_TIP_LINES.filter((c) => !seen.has(c) && hasClip(c)).map((c) => ({ id: c, voice: 'old' as const, text: textOf(c) ?? '' }))
+    : []
   const fresh = NEW_TIP_LINES[id].filter((l) => fits(l.reason) && hasClip(l.id))
-  return [...recorded, ...fresh]
+  return [...recorded, ...snark, ...fresh]
 }
 
 /** Which of the three-star rules the run missed first (for the three-star tip). */

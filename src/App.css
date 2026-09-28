@@ -4705,3 +4705,448 @@ html.play-locked #root {
 .how-demo-combo b { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); }
 .how-demo-undo-btn { background: rgba(10, 22, 44, 0.9); }
 .how-demo-ghost { background: rgba(4, 10, 28, 0.7); }
+
+/* =====================================================================================
+ * 9.29-a LAYOUTS PASS
+ * html[data-layout] is set from App (readLayout): 'upright' (phones, tablets in portrait,
+ * narrow windows), 'wide' (PC and tablets in landscape), 'phone-sideways' (a phone turned
+ * sideways: play shows the "turn upright" card and pauses). html[data-device] is
+ * phone | tablet | desktop.
+ * ===================================================================================== */
+
+/* Wide-only pieces stay out of the upright layouts */
+.play-side {
+  display: contents;
+}
+.buddy-spot,
+.hud-goal,
+.kbd {
+  display: none;
+}
+
+/* ---- Upright play: respect the notch / home bar / Safari toolbars ---- */
+.shell-play .play-fixed {
+  padding-top: max(0.25rem, env(safe-area-inset-top, 0px));
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+  padding-left: max(0.6rem, env(safe-area-inset-left, 0px));
+  padding-right: max(0.6rem, env(safe-area-inset-right, 0px));
+}
+
+/* ---- Tablet portrait (and tall desktop windows): the phone layout, scaled up ---- */
+html[data-layout='upright']:not([data-device='phone']) .fixed-shell > main.play-fixed {
+  max-width: min(820px, 100%);
+}
+html[data-layout='upright']:not([data-device='phone']) .play-fixed .play-hud,
+html[data-layout='upright']:not([data-device='phone']) .play-fixed .play-caption,
+html[data-layout='upright']:not([data-device='phone']) .play-fixed .play-toolbar {
+  max-width: 760px;
+  width: 100%;
+}
+html[data-layout='upright']:not([data-device='phone']) .play-fixed .board {
+  width: min(100cqw, 100cqh, 760px) !important;
+  max-width: 100cqw !important;
+  max-height: min(100cqh, 760px) !important;
+}
+html[data-layout='upright'][data-device='tablet'] .play-hud {
+  gap: 0.6rem;
+  padding: 0.4rem 0;
+}
+html[data-layout='upright'][data-device='tablet'] .hud-back {
+  width: 2.4rem;
+  height: 2.4rem;
+  font-size: 1.1rem;
+}
+html[data-layout='upright'][data-device='tablet'] .hud-title strong {
+  font-size: 1.3rem;
+}
+html[data-layout='upright'][data-device='tablet'] .hud-title span {
+  font-size: 0.78rem;
+}
+html[data-layout='upright'][data-device='tablet'] .hud-stats {
+  font-size: 0.95rem;
+  gap: 0.6rem;
+}
+html[data-layout='upright'][data-device='tablet'] .hud-time {
+  font-size: 1.05rem;
+}
+html[data-layout='upright'][data-device='tablet'] .play-caption {
+  font-size: 1rem;
+}
+html[data-layout='upright'][data-device='tablet'] .play-toolbar {
+  gap: 0.6rem;
+  margin-top: 0.6rem !important;
+}
+html[data-layout='upright'][data-device='tablet'] .play-toolbar .btn.tool {
+  min-height: 52px;
+  padding: 0.7rem 1.15rem;
+  font-size: 1.02rem;
+}
+
+/* ---- Wide play: HUD column | board | controls + buddy spot ---- */
+html[data-layout='wide'] .fixed-shell > main.play-fixed {
+  --side-col: clamp(200px, 17vw, 320px);
+  --col-gap: clamp(1rem, 2vw, 2rem);
+  --board-size: min(
+    calc(var(--app-height, 100svh) - 2.5rem),
+    calc(100vw - 2 * var(--side-col) - 2 * var(--col-gap) - 2rem),
+    1000px
+  );
+  max-width: none;
+  width: 100%;
+  display: grid;
+  grid-template-columns: var(--side-col) var(--board-size) var(--side-col);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'hud board side'
+    'cap board side'
+    'cap board tag';
+  justify-content: center;
+  align-content: center;
+  align-items: start;
+  column-gap: var(--col-gap);
+  row-gap: 0.75rem;
+  padding: max(1.25rem, env(safe-area-inset-top, 0px)) max(1rem, env(safe-area-inset-right, 0px))
+    max(1.25rem, env(safe-area-inset-bottom, 0px)) max(1rem, env(safe-area-inset-left, 0px));
+}
+html[data-layout='wide'] .play-fixed .board-stage {
+  grid-area: board;
+  width: var(--board-size);
+  height: var(--board-size);
+  align-self: center;
+}
+html[data-layout='wide'] .play-fixed .board {
+  width: min(100cqw, 100cqh) !important;
+  max-width: 100cqw !important;
+  max-height: 100cqh !important;
+}
+
+/* HUD becomes a tidy card on the left */
+html[data-layout='wide'] .play-fixed .play-hud {
+  grid-area: hud;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.7rem;
+  padding: 0.9rem 1rem 1rem;
+  border-radius: 18px;
+  background: rgba(5, 13, 31, 0.55);
+  border: 1px solid rgba(255, 214, 102, 0.22);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  box-sizing: border-box;
+}
+html[data-layout='wide'] .play-hud .hud-back {
+  align-self: flex-start;
+  width: 2.2rem;
+  height: 2.2rem;
+  font-size: 1rem;
+}
+html[data-layout='wide'] .play-hud .hud-title strong {
+  font-size: clamp(1.15rem, 1.6vw, 1.55rem);
+  white-space: normal;
+  line-height: 1.15;
+}
+html[data-layout='wide'] .play-hud .hud-title span {
+  font-size: 0.74rem;
+  white-space: normal;
+}
+html[data-layout='wide'] .play-hud .hud-stats {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.8rem;
+  font-size: 0.9rem;
+}
+html[data-layout='wide'] .play-hud .lives {
+  flex-basis: 100%;
+}
+html[data-layout='wide'] .play-hud .hud-time {
+  flex-basis: 100%;
+  font-size: clamp(1.7rem, 2.6vw, 2.3rem);
+  line-height: 1.05;
+  opacity: 1;
+  font-variant-numeric: tabular-nums;
+}
+html[data-layout='wide'] .play-hud .hud-pace {
+  font-size: 0.5em;
+  margin-left: 0.5rem;
+}
+html[data-layout='wide'] .play-hud .hud-stash,
+html[data-layout='wide'] .play-hud .hud-rival {
+  display: inline !important;
+}
+html[data-layout='wide'] .play-hud .ghost-bar {
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  width: 100%;
+  height: 8px;
+}
+html[data-layout='wide'] .play-hud .ghost-bar .me-fill {
+  height: 4px;
+  top: 2px;
+}
+html[data-layout='wide'] .hud-goal {
+  display: block;
+  padding-top: 0.6rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.hud-goal p {
+  margin: 0;
+}
+.hud-goal-stars {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.hud-goal-have {
+  color: var(--sun);
+  font-size: 1.25rem;
+  letter-spacing: 0.08em;
+}
+.hud-goal-stars small {
+  opacity: 0.7;
+}
+.hud-goal ul {
+  list-style: none;
+  margin: 0.4rem 0;
+  padding: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+.hud-goal li {
+  opacity: 0.6;
+}
+.hud-goal li.done {
+  opacity: 1;
+  color: var(--mint);
+}
+.hud-goal-best {
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Roman's lines / hints: a fixed slot under the HUD (fixed height, so nothing ever jumps) */
+html[data-layout='wide'] .play-fixed .play-caption {
+  grid-area: cap;
+  align-self: start;
+  width: 100%;
+  max-width: none;
+  height: 6.6em;
+  margin: 0;
+  padding: 0 0.25rem;
+  font-size: 0.95rem;
+  text-align: left;
+  -webkit-line-clamp: 5;
+}
+
+/* Controls + buddy spot on the right */
+html[data-layout='wide'] .play-side {
+  grid-area: side;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 0;
+  width: 100%;
+}
+html[data-layout='wide'] .play-fixed .play-toolbar {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.55rem;
+  width: 100%;
+  max-width: none;
+  margin: 0 !important;
+}
+html[data-layout='wide'] .play-toolbar .btn.tool {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 48px;
+  padding: 0.6rem 0.95rem;
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+html[data-layout='wide'] .play-toolbar .btn.tool {
+  flex-direction: row;
+  justify-content: flex-start;
+  text-align: left;
+}
+html[data-layout='wide'] .play-toolbar .btn.tool .tool-label {
+  order: 1;
+  font-size: 1rem;
+}
+html[data-layout='wide'] .play-toolbar .btn.tool .tool-cost {
+  order: 2;
+  margin-left: auto;
+  font-size: 0.8rem;
+}
+html[data-layout='wide'][data-device='desktop'] .kbd {
+  display: inline-block;
+  order: 3;
+  margin-left: 0.5rem;
+  min-width: 1.4em;
+  padding: 0.05rem 0.35rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.08);
+  font: 800 0.72rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-align: center;
+  opacity: 0.8;
+}
+html[data-layout='wide'][data-device='desktop'] .play-toolbar .btn.tool > .kbd:only-child {
+  margin-left: auto;
+}
+html[data-layout='wide'] .buddy-spot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.35rem;
+  padding: 1.1rem 0.9rem;
+  border-radius: 18px;
+  border: 2px dashed rgba(255, 214, 102, 0.35);
+  background: rgba(5, 13, 31, 0.4);
+  font-size: 0.8rem;
+}
+.buddy-spot strong {
+  font-family: var(--font-display);
+  color: var(--sun);
+  font-size: 1.05rem;
+}
+.buddy-spot small {
+  opacity: 0.7;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.buddy-spot-ring {
+  display: grid;
+  place-items: center;
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, rgba(255, 214, 102, 0.22), rgba(255, 214, 102, 0.04) 70%);
+  border: 2px solid rgba(255, 214, 102, 0.3);
+}
+.buddy-spot-face {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.15);
+  animation: buddySpotBob 3.2s ease-in-out infinite;
+}
+@keyframes buddySpotBob {
+  50% { transform: translateY(-4px); }
+}
+html[data-layout='wide'] .play-fixed > .build-tag {
+  grid-area: tag;
+  align-self: end;
+  text-align: right;
+  margin: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .buddy-spot-face { animation: none; }
+}
+
+/* ---- Phone turned sideways during play: "turn upright" card (game paused, state kept) ---- */
+.rotate-prompt {
+  display: none;
+}
+.rotate-prompt.is-on {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: grid;
+  place-items: center;
+  padding: max(0.75rem, env(safe-area-inset-top, 0px)) max(1rem, env(safe-area-inset-right, 0px))
+    max(0.75rem, env(safe-area-inset-bottom, 0px)) max(1rem, env(safe-area-inset-left, 0px));
+  background: radial-gradient(ellipse at 50% 30%, rgba(40, 28, 8, 0.96), rgba(5, 13, 31, 0.98) 70%);
+  touch-action: none;
+}
+.rotate-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    'icon title'
+    'icon line'
+    'icon note';
+  align-items: center;
+  column-gap: 1.4rem;
+  row-gap: 0.3rem;
+  max-width: 560px;
+  padding: 1.1rem 1.5rem;
+  border-radius: 20px;
+  border: 2px solid rgba(255, 214, 102, 0.55);
+  background: linear-gradient(180deg, rgba(255, 214, 102, 0.1), rgba(255, 214, 102, 0.02));
+  box-shadow: 0 0 0 6px rgba(255, 214, 102, 0.08), 0 18px 40px rgba(0, 0, 0, 0.45);
+  text-align: left;
+}
+.rotate-card h3 {
+  grid-area: title;
+  margin: 0;
+  font-family: var(--font-display);
+  color: var(--sun);
+  font-size: 1.35rem;
+  letter-spacing: 0.02em;
+}
+.rotate-card p {
+  grid-area: line;
+  margin: 0;
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+.rotate-card small {
+  grid-area: note;
+  opacity: 0.7;
+  font-weight: 700;
+}
+.rotate-phone {
+  grid-area: icon;
+  position: relative;
+  width: 44px;
+  height: 76px;
+  border-radius: 10px;
+  border: 3px solid var(--sun);
+  animation: rotateToUpright 2.4s ease-in-out infinite;
+}
+.rotate-phone-screen {
+  position: absolute;
+  inset: 6px 4px 10px;
+  border-radius: 4px;
+  background: rgba(255, 214, 102, 0.25);
+}
+@keyframes rotateToUpright {
+  0%, 20% { transform: rotate(-90deg); }
+  55%, 100% { transform: rotate(0deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rotate-phone { animation: none; }
+}
+
+/* ---- Menus on wide screens: centered, comfortable width, no stretched buttons ---- */
+html[data-layout='wide'] .how-panel .how-stage {
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 1.5rem;
+}
+html[data-layout='wide'] .how-panel .how-rules {
+  max-width: none;
+  columns: 2;
+  column-gap: 2.5rem;
+  line-height: 1.55;
+}
+html[data-layout='wide'] .how-panel .how-rules li {
+  margin-bottom: 0.35rem;
+}
+html[data-layout='wide'] .how-panel .how-rules li {
+  break-inside: avoid;
+}
+html[data-layout='wide'] .cta-row .btn {
+  max-width: 360px;
+}

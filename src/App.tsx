@@ -162,6 +162,27 @@ import './App.css'
 
 let lastAppHeight = 0
 
+export type LayoutKind = 'upright' | 'wide' | 'phone-sideways'
+export type DeviceKind = 'phone' | 'tablet' | 'desktop'
+
+/**
+ * Screen class (9.29-a). Phones (touch, short side under 600px) are upright-first: sideways shows a
+ * "turn upright" overlay during play. Wide screens (desktop, tablets in landscape) get the three-column
+ * play layout. Everything else (tablets in portrait, narrow desktop windows) uses the upright layout.
+ */
+export function readLayout(): { layout: LayoutKind; device: DeviceKind } {
+  if (typeof window === 'undefined') return { layout: 'upright', device: 'desktop' }
+  const w = window.innerWidth
+  const h = window.innerHeight
+  const mq = (q: string) => (typeof window.matchMedia === 'function' ? window.matchMedia(q).matches : false)
+  const touch = mq('(pointer: coarse)') || (navigator.maxTouchPoints > 0 && !mq('(pointer: fine)'))
+  const short = Math.min(w, h)
+  const device: DeviceKind = touch ? (short < 600 ? 'phone' : 'tablet') : 'desktop'
+  if (device === 'phone') return { layout: w > h ? 'phone-sideways' : 'upright', device }
+  const layout: LayoutKind = w >= h * 1.15 && w >= 900 && h >= 480 ? 'wide' : 'upright'
+  return { layout, device }
+}
+
 function syncAppHeight() {
   if (typeof window === 'undefined') return
   const vv = window.visualViewport
@@ -239,11 +260,39 @@ function burstConfetti(root: HTMLElement) {
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('home')
+  const [{ layout }, setLayoutInfo] = useState(() => readLayout())
   const [profile, setProfile] = useState<Profile | null>(() => loadProfile())
   const [progress, setProgress] = useState(() => getProgress())
   const [settings, setSettings] = useState<Settings>(() => loadSettings())
   const settingsRef = useRef(settings)
   settingsRef.current = settings
+
+  // Layout class on <html> (CSS picks upright / wide / sideways-phone from it)
+  useEffect(() => {
+    const apply = () => {
+      const next = readLayout()
+      document.documentElement.dataset.layout = next.layout
+      document.documentElement.dataset.device = next.device
+      setLayoutInfo((cur) => (cur.layout === next.layout && cur.device === next.device ? cur : next))
+    }
+    apply()
+    window.addEventListener('resize', apply)
+    window.addEventListener('orientationchange', apply)
+    window.visualViewport?.addEventListener('resize', apply)
+    // Installed on a phone: ask to stay upright (Android/Chrome; iOS ignores it, the overlay covers it)
+    try {
+      const standalone = window.matchMedia('(display-mode: standalone)').matches
+      const so = window.screen as unknown as { orientation?: { lock?: (o: string) => Promise<void> } }
+      if (standalone && readLayout().device === 'phone') void so.orientation?.lock?.('portrait')?.catch(() => {})
+    } catch {
+      /* not supported */
+    }
+    return () => {
+      window.removeEventListener('resize', apply)
+      window.removeEventListener('orientationchange', apply)
+      window.visualViewport?.removeEventListener('resize', apply)
+    }
+  }, [])
   const [wallet, setWallet] = useState<Wallet>(() => loadWallet())
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null)
   const [cells, setCells] = useState<CellState[]>([])
@@ -532,8 +581,25 @@ export default function App() {
     }
   }, [])
 
+  // A phone turned sideways during a board: the "turn upright" overlay covers the board and the clock
+  // waits (board, hearts, combo and history are untouched).
+  // Only while a board is live: the win / lose screens and Buddy Hunt still show sideways
+  const rotatePaused = screen === 'play' && layout === 'phone-sideways' && !celebrate && !defeated
+  const rotatePausedRef = useRef(false)
   useEffect(() => {
-    if (!running) {
+    const was = rotatePausedRef.current
+    rotatePausedRef.current = rotatePaused
+    if (was && !rotatePaused) {
+      // back upright: the pause doesn't count as stalling
+      const now = Date.now()
+      lastActionRef.current = now
+      lastMoveRef.current = now
+      lastProgressRef.current = now
+    }
+  }, [rotatePaused])
+
+  useEffect(() => {
+    if (!running || rotatePaused) {
       if (tickRef.current) window.clearInterval(tickRef.current)
       return
     }
@@ -541,7 +607,30 @@ export default function App() {
     return () => {
       if (tickRef.current) window.clearInterval(tickRef.current)
     }
-  }, [running])
+  }, [running, rotatePaused])
+
+  // PC keyboard shortcuts on a live board: Z undo, Y redo, H hint (plus Ctrl/Cmd+Z, Ctrl+Y, Ctrl+Shift+Z)
+  const keysRef = useRef<{ undo: () => void; redo: () => void; hint: () => void }>({ undo: () => {}, redo: () => {}, hint: () => {} })
+  useEffect(() => {
+    if (screen !== 'play') return
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return
+      if (e.altKey || e.repeat) return
+      if (document.querySelector('.start-sheet, .win-screen, .buddy-hunt, .prize-overlay, .shortfall-overlay, .result-overlay, .rotate-prompt.is-on')) return
+      const k = e.key.toLowerCase()
+      const mod = e.ctrlKey || e.metaKey
+      let act: 'undo' | 'redo' | 'hint' | null = null
+      if (k === 'z' && !e.shiftKey) act = 'undo'
+      else if ((k === 'z' && e.shiftKey && mod) || k === 'y') act = 'redo'
+      else if (k === 'h' && !mod) act = 'hint'
+      if (!act) return
+      e.preventDefault()
+      keysRef.current[act]()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [screen])
 
   // Roman's Trial: the clock counts down; at zero the board is lost
   useEffect(() => {
@@ -565,6 +654,11 @@ export default function App() {
     }
     lastActionRef.current = Date.now()
     idleRef.current = window.setInterval(() => {
+      // Phone turned sideways: the game is paused, so the quiet clock is too
+      if (rotatePausedRef.current) {
+        lastActionRef.current = Date.now()
+        return
+      }
       const quietMs = Date.now() - lastActionRef.current
       // After ~16s of no taps, ~55% chance Roman pokes fun (no hints)
       if (quietMs < 16000) return
@@ -588,6 +682,7 @@ export default function App() {
     lastMoveRef.current = Math.max(lastMoveRef.current, start)
     lastProgressRef.current = Math.max(lastProgressRef.current, start)
     const id = window.setInterval(() => {
+      if (rotatePausedRef.current) return
       const now = Date.now()
       if (now - lastMoveRef.current >= TIP_TRIGGERS.stallMs && fireTip('stall')) return
       if (now - lastProgressRef.current >= TIP_TRIGGERS.stuckMs && fireTip('stuck')) lastProgressRef.current = now
@@ -605,6 +700,11 @@ export default function App() {
     const arm = (ms: number) => {
       window.setTimeout(() => {
         if (cancelled) return
+        if (rotatePausedRef.current) {
+          resetVoiceQuietClock()
+          arm(2000)
+          return
+        }
         const quiet = voiceQuietMs()
         if (quiet == null) {
           arm(1500)
@@ -1700,6 +1800,8 @@ export default function App() {
   const sheetTargets = startSheet ? targetsFor(startSheet) : null
   const sheetRec = startSheet ? records.levels[startSheet.id] : undefined
 
+  keysRef.current = { undo, redo, hint: onHint }
+
   return (
     <div
       className={`shell fixed-shell ${isStoreBuild() ? 'shell-native' : ''} ${screen === 'play' ? 'shell-play' : ''} ${screen === 'play' && celebrate && !showWheel ? 'shell-celebrate' : ''} ${hideChrome ? 'shell-immersive' : ''} shell-${screen}`}
@@ -2023,6 +2125,30 @@ export default function App() {
                 <i className="me-fill" style={{ width: `${Math.round(pace.mine * 100)}%` }} />
               </div>
             ) : null}
+            {(() => {
+              // Wide screens only (CSS): stars so far, goals and bests for this board
+              if (!catalogBoard(puzzle.id)) return null
+              const tg = targetsFor(puzzle)
+              const lv = records.levels[puzzle.id]
+              const best = mode === 'trial' ? lv?.trial : lv
+              const have = lv?.stars ?? 0
+              return (
+                <div className="hud-goal" aria-label="Goals for this board">
+                  <p className="hud-goal-stars">
+                    <span className="hud-goal-have">{starString(have)}</span>
+                    <small>{have >= 3 ? 'All 3 stars' : `${have} of 3 stars`}</small>
+                  </p>
+                  <ul>
+                    <li className={have >= 1 ? 'done' : ''}>★ Finish</li>
+                    <li className={have >= 2 ? 'done' : ''}>★★ Under {formatMs(tg.timeMs)}</li>
+                    <li className={have >= 3 ? 'done' : ''}>★★★ {tg.score3}+ pts, no undo</li>
+                  </ul>
+                  <p className="hud-goal-best">
+                    Best {best?.bestMs != null ? formatMs(best.bestMs) : '—'} · {best?.bestScore != null ? `${best.bestScore} pts` : '—'}
+                  </p>
+                </div>
+              )
+            })()}
           </div>
 
           {/* Character lines, notices and hint text: a fixed two-line slot between the HUD and the
@@ -2054,18 +2180,22 @@ export default function App() {
           </div>
 
 
+          <div className="play-side">
           <div className="toolbar play-toolbar">
             <TapButton className="btn tool" onTap={undo} disabled={!history.length || celebrate || defeated || mode === 'trial'}>
               {mode === 'trial' ? 'No undo' : 'Undo'}
+              <kbd className="kbd" aria-hidden="true">Z</kbd>
             </TapButton>
             <TapButton className="btn tool" onTap={redo} disabled={!future.length || celebrate || defeated || mode === 'trial'}>
               Redo
+              <kbd className="kbd" aria-hidden="true">Y</kbd>
             </TapButton>
             <button type="button" className="btn tool" onClick={onHint} disabled={celebrate || defeated}>
               <span className="tool-label">Hint</span>
               <span className="tool-cost">
                 {wallet.freeHints > 0 ? `${wallet.freeHints} free` : String(HINT_COST)}
               </span>
+              <kbd className="kbd" aria-hidden="true">H</kbd>
             </button>
             <button
               type="button"
@@ -2081,10 +2211,30 @@ export default function App() {
               Reset
             </button>
           </div>
+          {/* Wide screens: a spot for the player's buddy (buddies arrive in a later build) */}
+          <div className="buddy-spot" aria-label="Buddy spot (coming soon)">
+            <span className="buddy-spot-ring" aria-hidden="true">
+              <span className="buddy-spot-face" />
+            </span>
+            <strong>Buddy spot</strong>
+            <small>Your buddy will hang out here. Coming soon!</small>
+          </div>
+          </div>
           <p className="build-tag" data-build={BUILD_TAG}>{BUILD_TAG}</p>
 
+          <div className={`rotate-prompt ${rotatePaused ? 'is-on' : ''}`} role="dialog" aria-modal="true" aria-hidden={!rotatePaused} aria-label="Turn your phone upright">
+            <div className="rotate-card">
+              <span className="rotate-phone" aria-hidden="true">
+                <span className="rotate-phone-screen" />
+              </span>
+              <h3>Turn your phone upright</h3>
+              <p>Roman says: this board likes to stand tall. So do I.</p>
+              <small>Paused — your board, hearts and time are saved.</small>
+            </div>
+          </div>
+
           <SparkCritter
-            active={!celebrate && !defeated && !showWheel}
+            active={!celebrate && !defeated && !showWheel && !rotatePaused}
             stashCount={wallet.critterStash ?? 0}
             onCatch={handleCritterCatch}
           />

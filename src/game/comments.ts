@@ -832,7 +832,11 @@ export function tipBanter(tip: TipId, reason?: TipReason): Banter {
   const lines = playableTipLines(tip, reason, isPlayableVoiceClip, voiceLineText)
   if (lines.length === 0) return silent
   const voices = [...new Set(lines.map((l) => l.voice))] as TipVoice[]
-  const voice = voices.length === 1 ? voices[0] : voiceBags.bag(`tipvoice.${tip}`, voices)()
+  // 9.29-a: the old-timer takes two turns in every voice cycle (Tony wants more of him heard).
+  // Still a shuffle bag, so the voices keep rotating and no voice runs away with it.
+  const turns = voices.includes('old') && voices.length > 1 ? [...voices, 'old2'] : voices
+  const turn = turns.length === 1 ? turns[0] : voiceBags.bag(`tipvoice.${tip}`, turns)()
+  const voice = (turn === 'old2' ? 'old' : turn) as TipVoice
   const pool = lines.filter((l) => l.voice === voice).map((l) => l.id) as VoiceClipId[]
   const clip = voiceBags.bag(`tip.${tip}.${reason ?? 'any'}.${voice}`, pool)()
   const text = lines.find((l) => l.id === clip)?.text || voiceLineText(clip) || ''

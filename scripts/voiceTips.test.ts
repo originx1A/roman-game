@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { readFileSync } from 'node:fs'
 import {
-  canTip, emptyTips, missedStarReason, NEW_TIP_LINES, noteMastery, noteShown, playableTipLines, RECORDED_TIP_LINES,
+  canTip, emptyTips, missedStarReason, NEW_TIP_LINES, OLD_SNARK_TIP_LINES, SNARK_TIPS, noteMastery, noteShown, playableTipLines, RECORDED_TIP_LINES,
   sanitizeTips, TIP_IDS, TIP_RULES, TIP_TRIGGERS, type TipGate,
 } from '../src/game/voiceTips.ts'
 
@@ -34,7 +34,8 @@ test('only recorded lines play; reason filters three-star lines', () => {
   const text = () => 'x'
   assert.equal(playableTipLines('first-trial', undefined, has, text).length, 0)
   const stuck = playableTipLines('stuck', undefined, has, text)
-  assert.deepEqual(stuck.map((l) => l.id), ['roman_nudge'])
+  assert.equal(stuck[0].id, 'roman_nudge')
+  assert.ok(stuck.every((l) => l.voice === 'roman' || l.id.startsWith('old_')))
   const time = playableTipLines('three-star', 'time', has, text).map((l) => l.id)
   assert.ok(time.includes('old_win_yesterday') && time.includes('roman_warmup'))
   const undo = playableTipLines('three-star', 'undo', has, text).map((l) => l.id)
@@ -79,4 +80,23 @@ test('missed-star reason: time first, then undos, then score', () => {
   assert.equal(missedStarReason({ withinTime: false, undos: 3, scoreOk: false }), 'time')
   assert.equal(missedStarReason({ withinTime: true, undos: 1, scoreOk: false }), 'undo')
   assert.equal(missedStarReason({ withinTime: true, undos: 0, scoreOk: false }), 'score')
+})
+
+test('9.29-a: recorded old-timer put-downs join the tips (snark pool on mid-play tips only)', () => {
+  const has = (c: string) => recordedIds.has(c)
+  const text = (c: string) => c
+  for (const c of OLD_SNARK_TIP_LINES) assert.ok(recordedIds.has(c) && c.startsWith('old_'), c)
+  for (const id of TIP_IDS) {
+    const ids = playableTipLines(id, undefined, has, text).map((l) => l.id)
+    assert.equal(new Set(ids).size, ids.length, `no duplicate lines in ${id}`)
+    const snark = OLD_SNARK_TIP_LINES.filter((c) => ids.includes(c))
+    if (SNARK_TIPS.includes(id)) assert.equal(snark.length, OLD_SNARK_TIP_LINES.length, id)
+    else assert.equal(snark.length, 0, id)
+  }
+  const stall = playableTipLines('stall', undefined, has, text)
+  assert.ok(stall.filter((l) => l.voice === 'old').length >= 15)
+  assert.ok(playableTipLines('undo-spam', undefined, has, text).some((l) => l.id === 'old_undo_hokey'))
+  // slow-win jabs only when time was the miss
+  assert.ok(!playableTipLines('three-star', 'undo', has, text).some((l) => l.id === 'old_win_paint'))
+  assert.ok(playableTipLines('three-star', 'time', has, text).some((l) => l.id === 'old_win_paint'))
 })
