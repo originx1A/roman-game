@@ -56,3 +56,17 @@ test('9.30-e: queue timing uses the faster old-timer rate', () => {
   assert.match(cancel, /boardEndCancel/)
   assert.match(sound, /decideVoice\(currentLine/)
 })
+
+test("9.30-h: Roman is ~10% quicker than 9.30-g, and the channel timing follows his real rate", async () => {
+  const { romanPlaybackRate, moodPlayback } = await import('../src/game/voiceLines.ts')
+  const old = (r: number) => Math.min(0.94, Math.max(0.82, r * 0.88))
+  for (const mood of ['excited', 'happy', 'soft', 'disappointed', 'neutral'] as const) {
+    const r = moodPlayback(mood).rate
+    const ratio = romanPlaybackRate(r) / old(r)
+    assert.ok(ratio > 1.09 && ratio < 1.11, `${mood}: ${old(r)} -> ${romanPlaybackRate(r)}`)
+  }
+  assert.equal(romanPlaybackRate(moodPlayback('excited').rate), 1.034)
+  // a 4.8 s Roman take at 1.034 holds the channel ~4.64 s (was ~5.11 s at 0.94)
+  assert.equal(Math.round(V.clipEndsAt(0, 4.8, 1.034)), 4642)
+  assert.equal(Math.round(V.clipEndsAt(0, 4.8, 0.94)), 5106)
+})
