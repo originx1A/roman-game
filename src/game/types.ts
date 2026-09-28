@@ -62,6 +62,8 @@ export interface Challenge {
   puzzleName?: string
   /** Difficulty label (e.g. Easy) */
   difficulty?: string
+  /** 9.30-a: buddy on the run behind this challenge (pet id), null = Solo, undefined = older link */
+  buddy?: string | null
 }
 
 /** Head-to-head result packed in a #duel= link so both can see scores */
@@ -91,6 +93,7 @@ export type Screen =
   | 'how'
   | 'rewards'
   | 'duel'
+  | 'stable'
 
 export const DIFFICULTY_LABEL: Record<Difficulty, string> = {
   easy: 'Easy',

@@ -10,6 +10,7 @@ export type PrizeId =
   | 'heart_refill'
   | 'shield'
   | 'jackpot'
+  | 'buddy_trial'
 
 export interface Prize {
   id: PrizeId
@@ -26,6 +27,8 @@ export const PRIZES: Prize[] = [
   { id: 'heart_refill', label: 'Full hearts', weight: 12, color: '#ff6b6b' },
   { id: 'shield', label: 'Mistake shield', weight: 10, color: '#1a6dff' },
   { id: 'jackpot', label: 'JACKPOT 200', weight: 4, color: '#c77dff' },
+  // 9.30-a: a free 24h buddy from The Stable (App applies it; coins if you own them all)
+  { id: 'buddy_trial', label: 'Buddy trial 24h', weight: 6, color: '#ffb3c1' },
 ]
 
 const SPIN_MS = 2800

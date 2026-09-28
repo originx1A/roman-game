@@ -148,7 +148,7 @@ test('share text uses the player name or "I scored", never "Roman\'s score"', as
   assert.ok(!/Roman's score/.test(a + b))
 })
 
-test('records and share text carry an optional buddy (null = solo for now)', async () => {
+test('records and share text carry an optional buddy (null = Solo run)', async () => {
   const { scoreShareText, buddyShareText } = await import('../src/game/replay.ts')
   let b = emptyRecords()
   b = recordRun(b, { puzzleId: 'dawn', mode: 'normal', ms: 30000, score: 1500, undos: 0, splits: [1, 2, 3, 4, 5], targets: T5, buddy: null }).blob
@@ -157,9 +157,12 @@ test('records and share text carry an optional buddy (null = solo for now)', asy
   assert.equal(b.levels.dawn.trial?.buddy, null)
   const d = finishDaily(startDaily(b.daily, '2026-09-28', 'dawn').daily, '2026-09-28', true, { score: 1, ms: 1, buddy: null }).daily
   assert.equal(d.days['2026-09-28'].buddy, null)
-  assert.equal(buddyShareText(null), '')
+  assert.equal(buddyShareText(null), 'Solo run, no buddy')
+  assert.equal(buddyShareText(undefined), '')
   assert.ok(scoreShareText({ name: 'Tony', score: 10, levelLabel: 'Level 1 (Dawn)', buddy: 'Pip' }).startsWith('Tony scored 10 on Level 1 (Dawn) — with Pip — '))
   assert.ok(!scoreShareText({ score: 10, levelLabel: 'L', buddy: null }).includes('with'))
+  assert.ok(scoreShareText({ score: 10, levelLabel: 'L', buddy: null }).includes(' — Solo run, no buddy — '))
+  assert.ok(!scoreShareText({ score: 10, levelLabel: 'L' }).includes('Solo'))
   // old saves without the field load as solo
   assert.equal(migrateRecords({ v: 1, levels: { dawn: { bestMs: 1, stars: 1, clears: 1 } }, daily: { streak: 0, bestStreak: 0, days: {} } }, [], () => ({ size: 5 })).levels.dawn.buddy, null)
 })

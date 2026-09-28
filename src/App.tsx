@@ -14,6 +14,31 @@ import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './componen
 import { ThemeBackdrop } from './components/ThemeBackdrop'
 import { TapButton } from './components/TapButton'
 import { BuddyHunt } from './components/BuddyHunt'
+import { PetArt } from './components/PetArt'
+import { Stable } from './components/Stable'
+import { HomePet } from './components/HomePet'
+import {
+  activePerk,
+  activePet,
+  addPetXp,
+  applyGift,
+  awardStreakCoupon,
+  awardTrialClearCoupon,
+  buyPet,
+  equip as equipPet,
+  expireTrial,
+  grantTrial,
+  levelInfo,
+  normalizeGiftCode,
+  petById,
+  petLabel,
+  petWinCoins,
+  petXp,
+  winXp,
+  type Gift,
+  type PetId,
+  type PetState,
+} from './game/pets'
 import {
   BUDDY_HUNT_PERFECT_WINS,
   applyHuntPrize,
@@ -106,6 +131,7 @@ import {
   HEART_PRIZE_FALLBACK_COINS,
   RESCUE_COST,
   REVIVE_COST,
+  BUDDY_TRIAL_FALLBACK_COINS,
   applyPrize,
   badgeRank,
   badgeTitleForShare,
@@ -133,6 +159,8 @@ import {
   cleanPlayerName,
   PLAYER_NAME_MAX,
   loadBuddyMeter,
+  loadPets,
+  savePets,
   loadRecords,
   loadTips,
   saveTips,
@@ -164,6 +192,7 @@ import {
   voiceQuietMs,
   warmVoices,
   cancelVoiceBelow,
+  petGiggle,
 } from './game/sound'
 import { COIN_PACKS, purchaseCoinPack, restorePurchases, isStoreBuild, subscribeStore, type CoinPackId } from './game/iap'
 import { loadWebPacks, type WebPackOffer } from './game/webPacks'
@@ -303,6 +332,14 @@ export default function App() {
     }
   }, [])
   const [wallet, setWallet] = useState<Wallet>(() => loadWallet())
+  // 9.30-a: buddies (The Stable)
+  const [pets, setPets] = useState<PetState>(() => loadPets())
+  const [petNow, setPetNow] = useState(() => Date.now())
+  const [giftPrefill, setGiftPrefill] = useState<string | undefined>(undefined)
+  /** Buddy riding along on the board in progress (fixed at the start of the board) */
+  const runPetRef = useRef<PetId | null>(null)
+  /** Buddy freebies left on this board (free hints / free rescues) */
+  const [petFree, setPetFree] = useState({ hints: 0, rescues: 0 })
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null)
   const [cells, setCells] = useState<CellState[]>([])
   const [history, setHistory] = useState<CellState[][]>([])
@@ -471,6 +508,41 @@ export default function App() {
     return () => {
       cancelled = true
     }
+  }, [])
+
+  // 9.30-a: trial buddies end after 24h (checked every minute and when the tab comes back)
+  useEffect(() => {
+    const tick = () => {
+      const now = Date.now()
+      setPetNow(now)
+      const out = expireTrial(loadPets(), now)
+      if (out.expired) {
+        persistPets(out.state)
+        const p = petById(out.expired)
+        if (p) showToast(`${p.name}'s free trial is over. Here's a 25% coupon to keep ${p.name} for good!`)
+      }
+    }
+    tick()
+    const id = window.setInterval(tick, 60_000)
+    document.addEventListener('visibilitychange', tick)
+    return () => {
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', tick)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 9.30-a: owner gift redeem link (?gift=ROMA-XXXX) opens The Stable with the code filled in
+  useEffect(() => {
+    if (isStoreBuild()) return
+    const params = new URLSearchParams(window.location.search)
+    const gift = params.get('gift')
+    if (!gift) return
+    setGiftPrefill(normalizeGiftCode(gift))
+    setScreen('stable')
+    params.delete('gift')
+    const q = params.toString()
+    window.history.replaceState(null, '', window.location.pathname + (q ? `?${q}` : '') + window.location.hash)
   }, [])
 
   useEffect(() => {
@@ -865,6 +937,55 @@ export default function App() {
     saveWallet(next)
   }
 
+  function persistPets(next: PetState) {
+    setPets(next)
+    savePets(next)
+  }
+
+  /** 9.30-a: buddy actions from The Stable */
+  function onAdoptPet(id: PetId) {
+    const now = Date.now()
+    const w = loadWallet()
+    const r = buyPet(loadPets(), w.coins, id, now)
+    if (!r.ok) {
+      showToast(r.reason)
+      return
+    }
+    persistWallet({ ...w, coins: r.coins })
+    persistPets(r.state)
+    sfxCoin()
+    petGiggle()
+    const p = petById(id)!
+    showToast(`${p.name} the ${p.species} joined your Stable!${r.coupon ? ` (${r.coupon.pct}% coupon used)` : ''}`)
+  }
+
+  function onEquipPet(id: PetId | null) {
+    const next = equipPet(loadPets(), id, Date.now())
+    persistPets(next)
+    if (id) petGiggle()
+    showToast(id ? `Riding with ${petById(id)?.name}` : 'Solo runs: no buddy')
+  }
+
+  async function onRedeemGift(raw: string): Promise<{ ok: boolean; message: string }> {
+    const code = normalizeGiftCode(raw)
+    if (loadPets().redeemed.includes(code)) return { ok: false, message: 'You already redeemed that code.' }
+    try {
+      const res = await fetch('/api/gift-redeem', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }) })
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; gift?: Gift; reason?: string }
+      if (!j.ok || !j.gift) return { ok: false, message: j.reason ?? 'Gifts are unavailable right now.' }
+      const w = loadWallet()
+      const out = applyGift(loadPets(), w.coins, j.gift, code, Date.now())
+      persistPets(out.state)
+      if (out.coins !== w.coins) persistWallet({ ...w, coins: out.coins })
+      sfxCoin()
+      petGiggle()
+      showToast(out.message)
+      return { ok: true, message: out.message }
+    } catch {
+      return { ok: false, message: 'Gifts are unavailable right now. Try again later.' }
+    }
+  }
+
   function commitHistory(nextHist: ReturnType<typeof createHistory>) {
     historyRef.current = nextHist
     setHistory(nextHist.past)
@@ -958,18 +1079,27 @@ export default function App() {
     ].filter(Boolean).join(' · ')
     const saved = loadWallet()
     let startLives = runMode === 'trial' ? TRIAL_HEARTS : MAX_LIVES
+    // 9.30-a: the active buddy rides along (hint/heart/rescue perks are off in Roman's Trial)
+    const petsNow = loadPets()
+    const ridePet = activePet(petsNow, Date.now())
+    const ridePerk = activePerk(petsNow, Date.now())
+    runPetRef.current = ridePet
+    const trialRun = runMode === 'trial'
+    setPetFree({ hints: !trialRun && ridePerk ? ridePerk.hints : 0, rescues: !trialRun && ridePerk ? ridePerk.rescues : 0 })
+    const petHeart = !trialRun && ridePerk ? ridePerk.hearts : 0
     if (runMode !== 'trial' && (saved.bonusHearts ?? 0) > 0) {
       const left = saved.bonusHearts - 1
       persistWallet({ ...saved, bonusHearts: left })
-      startLives = MAX_LIVES + 1
+      startLives = MAX_LIVES + 1 + petHeart
       showToast(
         left > 0
           ? `Bonus heart used — this board starts with ${startLives} hearts (${left} saved)`
           : `Bonus heart used — this board starts with ${startLives} hearts`,
       )
       if (intro && !resuming) window.setTimeout(() => showToast(intro), 2500)
-    } else if (intro && !resuming) {
-      showToast(intro)
+    } else {
+      startLives += petHeart
+      if (intro && !resuming) showToast(intro)
     }
     const themeId = p.theme ?? themeForPuzzle(p.id, p.difficulty)
     setPuzzle({ ...p, theme: themeId })
@@ -1156,12 +1286,12 @@ export default function App() {
         const fullSplits = [...splitsRef.current]
         while (fullSplits.length < puzzle.size) fullSplits.push(elapsedMs)
         if (catalogBoard(puzzle.id)) {
-          const out = recordRun(rec, { puzzleId: puzzle.id, mode: runMode, ms: elapsedMs, score, undos: undosRef.current, splits: fullSplits.slice(0, puzzle.size), targets, buddy: null })
+          const out = recordRun(rec, { puzzleId: puzzle.id, mode: runMode, ms: elapsedMs, score, undos: undosRef.current, splits: fullSplits.slice(0, puzzle.size), targets, buddy: runPetRef.current })
           rec = out.blob
           replay = out.result
         }
         if (dailyRunRef.current) {
-          const fin = finishDaily(rec.daily, dailyRunRef.current, true, { score, ms: elapsedMs, buddy: null })
+          const fin = finishDaily(rec.daily, dailyRunRef.current, true, { score, ms: elapsedMs, buddy: runPetRef.current })
           rec = { ...rec, daily: fin.daily }
           if (fin.counted) dailyStreak = fin.streak
           dailyRunRef.current = null
@@ -1171,24 +1301,24 @@ export default function App() {
         /* never block the win */
       }
       const isRecord = !!replay && (replay.newBestTime || replay.newBestScore)
-      // One voice line for the win: a record, a Trial clear, the Daily, a near miss, or the usual cheer
+      // 9.30-a (Tony): won a replayed board without beating the old best = ONE combined line (board
+      // cleared + slower than your best), not a cheer followed by a tease. The win sound and banner stay.
+      const notBest = !!replay && !replay.firstClear && !replay.newBestTime && !replay.newBestScore && runMode === 'normal' && dailyStreak == null
+      // One voice line for the win: a record, a Trial clear, the Daily, not-your-best, or the usual cheer
       const winEvent = isRecord
         ? 'record'
         : runMode === 'trial'
           ? 'trial-clear'
           : dailyStreak != null
             ? 'daily-done'
-            : replay?.nearMissMs
-              ? 'near-miss'
-              : 'win'
+            : notBest
+              ? 'not-best'
+              : replay?.nearMissMs
+                ? 'near-miss'
+                : 'win'
       if (isRecord) sfxRecord()
       const win = pushBanter(winEvent)
       setWinLine(win.text || 'Roman says: nice clear!')
-      // 9.29-b: won a replayed board without beating the old best. The cheer above plays first; a
-      // teasing "not your best" line waits for it to finish (never a loss line, never on top of it).
-      const notBest = !!replay && !replay.firstClear && !replay.newBestTime && !replay.newBestScore && (winEvent === 'win' || winEvent === 'near-miss')
-      // (pushed a moment later so its caption shows when it plays; it still waits for the cheer to end)
-      if (notBest) window.setTimeout(() => pushBanter('not-best'), 1600)
       // Slow or sloppy clear (lost a heart, 2+ hints, or over 3 minutes): the old-timer may chime in
       // with a backhanded compliment once Roman's cheer is done (never on top of it)
       // Voice tips: what the player has shown they get, and how to reach 3 stars if they missed it
@@ -1256,9 +1386,44 @@ export default function App() {
       const paid = grantWinCoins(wallet, baseCoins)
       const extra = replay ? replayCoins(replay, runMode) : { coins: 0, parts: [] as string[] }
       const dailyBonus = dailyStreak != null ? dailyCoins(dailyStreak) : 0
+      // 9.30-a: buddy perk coins, growth, coupons and a cheer
+      const ridePet = runPetRef.current
+      const ridePerk = ridePet ? activePerk({ ...loadPets(), active: ridePet }, Date.now()) : null
+      const petCoins = petWinCoins(paid.gained, ridePerk)
+      let petCheer: WinReplay['pet'] = undefined
+      try {
+        let ps = loadPets()
+        const grown = addPetXp(ps, ridePet, winXp({ perfect: flawless, record: isRecord }), Date.now())
+        ps = grown.state
+        if (runMode === 'trial') {
+          const c = awardTrialClearCoupon(ps, Date.now())
+          ps = c.state
+          if (c.coupon) window.setTimeout(() => showToast(`Trial clear prize: ${c.coupon!.pct}% off ${petById(c.coupon!.pet)?.name ?? 'a buddy'} in The Stable`), 4200)
+        }
+        if (dailyStreak != null) {
+          const c = awardStreakCoupon(ps, dailyStreak, Date.now())
+          ps = c.state
+          if (c.coupon) window.setTimeout(() => showToast(`${dailyStreak}-day streak prize: ${c.coupon!.pct}% off ${petById(c.coupon!.pet)?.name ?? 'a buddy'} in The Stable`), 4400)
+        }
+        persistPets(ps)
+        if (ridePet) {
+          const p = petById(ridePet)!
+          petCheer = {
+            id: ridePet,
+            name: p.name,
+            text: isRecord ? 'New best!' : grown.levelUp ? `Level ${grown.levelUp}!` : runMode === 'trial' ? 'Victory!' : 'Ave!',
+            cheer: isRecord || !!grown.levelUp,
+          }
+          // A little giggle for a record, only when Roman isn't talking
+          if (isRecord) window.setTimeout(() => petGiggle({ quietOnly: true }), 3200)
+        }
+      } catch {
+        /* buddies are extras; never block the win */
+      }
       {
         const parts = [...extra.parts]
         if (dailyBonus) parts.push(`+${dailyBonus} daily`)
+        if (petCoins > 0 && ridePet) parts.push(`+${petCoins}\u00a0${petById(ridePet)?.name}`)
         if (runMode === 'trial') parts.unshift('2× coins')
         const c = comboRef.current
         const bits = [`combo ×${c.bestMult}`, `${undosRef.current} undo${undosRef.current === 1 ? '' : 's'}`]
@@ -1281,12 +1446,13 @@ export default function App() {
           banner,
           coinsLine: parts.join(' · ') || undefined,
           detail: bits.join(' · '),
+          pet: petCheer,
         })
         if (replay?.trialUnlockedNow) window.setTimeout(() => showToast(`3 stars! Roman's Trial unlocked on ${puzzle.name}`), 1600)
       }
       let w: Wallet = {
         ...paid.wallet,
-        coins: paid.wallet.coins + extra.coins + dailyBonus,
+        coins: paid.wallet.coins + extra.coins + dailyBonus + petCoins,
         totalWins: wallet.totalWins + 1,
         perfectWins: wallet.perfectWins + (perfect ? 1 : 0),
       }
@@ -1389,7 +1555,10 @@ export default function App() {
       return
     }
     let w = { ...wallet }
-    if (w.freeHints > 0) {
+    if (petFree.hints > 0) {
+      setPetFree((f) => ({ ...f, hints: f.hints - 1 }))
+      showToast(`Free hint from ${petById(runPetRef.current)?.name ?? 'your buddy'}`)
+    } else if (w.freeHints > 0) {
       w = { ...w, freeHints: w.freeHints - 1 }
     } else if (w.coins >= HINT_COST) {
       w = { ...w, coins: w.coins - HINT_COST }
@@ -1425,11 +1594,14 @@ export default function App() {
       showToast('No rescue needed — buddies look fine')
       return
     }
-    if (wallet.coins < RESCUE_COST) {
+    if (petFree.rescues > 0) {
+      setPetFree((f) => ({ ...f, rescues: f.rescues - 1 }))
+    } else if (wallet.coins < RESCUE_COST) {
       setShortfall({ action: 'rescue', need: RESCUE_COST })
       return
+    } else {
+      persistWallet({ ...wallet, coins: wallet.coins - RESCUE_COST })
     }
-    persistWallet({ ...wallet, coins: wallet.coins - RESCUE_COST })
     flawedRef.current = true
     sfxHint()
     pushBanter('rescue')
@@ -1540,6 +1712,19 @@ export default function App() {
   function handlePrize(prize: Prize) {
     const before = loadWallet()
     let w = applyPrize(before, prize)
+    let trialMsg = ''
+    if (prize.id === 'buddy_trial') {
+      const g = grantTrial(loadPets(), Date.now())
+      if (g.pet) {
+        persistPets(g.state)
+        const p = petById(g.pet)!
+        trialMsg = `Free 24h trial: ${p.name} the ${p.species} is riding with you!`
+        window.setTimeout(() => petGiggle({ quietOnly: true }), 2400)
+      } else {
+        w = { ...w, coins: w.coins + BUDDY_TRIAL_FALLBACK_COINS }
+        trialMsg = `+${BUDDY_TRIAL_FALLBACK_COINS} coins (you already have every buddy!)`
+      }
+    }
     const gameOpen = screen === 'play' && !!puzzle && !celebrate && !defeated && lives < runMaxLives
     if (prize.id === 'heart_refill' && gameOpen) {
       // Refill the board in progress now instead of banking a bonus heart
@@ -1564,7 +1749,7 @@ export default function App() {
         )
       else showToast(`+${HEART_PRIZE_FALLBACK_COINS} coins — you already have ${MAX_BONUS_HEARTS} bonus hearts saved`)
     } else {
-      showToast(prize.label)
+      showToast(trialMsg || prize.label)
     }
     const badges = freshBadgeIds(before, evaled.wallet)
     badges.forEach((badgeId, i) => {
@@ -1651,6 +1836,7 @@ export default function App() {
       toEmail: challengeEmail || undefined,
       scoreMs: clear?.bestMs,
       scorePts: clear?.bestScore,
+      buddy: clear ? records.levels[target.id]?.buddy ?? null : undefined,
       badgePower: totalBadgePower(wallet),
       bonusPct: totalCoinBonusPercent(wallet),
     })
@@ -1668,6 +1854,7 @@ export default function App() {
             levelLabel: levelLabelFor(target),
             stars: lv?.stars,
             timeMs: lv?.bestMs ?? clear.bestMs,
+            buddy: lv ? petLabel(lv.buddy) : undefined,
           })
         : challengeShareText(c),
     )
@@ -1693,6 +1880,7 @@ export default function App() {
       fromName: who || profile?.displayName || 'A friend',
       scoreMs: elapsedMs,
       scorePts: lastScore,
+      buddy: runPetRef.current,
       badgePower: totalBadgePower(wallet),
       bonusPct: totalCoinBonusPercent(wallet),
     })
@@ -1710,7 +1898,7 @@ export default function App() {
         stars: modeRef.current === 'normal' && lv ? lv.stars : undefined,
         timeMs: elapsedMs,
         newBest: winReplay?.banner?.kind === 'record',
-        buddy: null,
+        buddy: petLabel(runPetRef.current),
       }),
     )
     setIncoming(null)
@@ -1865,6 +2053,9 @@ export default function App() {
             <button type="button" className={screen === 'rewards' ? 'on' : ''} onClick={() => setScreen('rewards')}>
               Rewards
             </button>
+            <button type="button" className={`nav-stable ${screen === 'stable' ? 'on' : ''}`} onClick={() => setScreen('stable')}>
+              Stable
+            </button>
             <button type="button" className={screen === 'challenge' ? 'on' : ''} onClick={() => setScreen('challenge')}>
               Share
             </button>
@@ -1963,6 +2154,17 @@ export default function App() {
                 How to play
               </button>
             </div>
+          </section>
+          <section className="home-pet-row" aria-label="Your buddy">
+            <HomePet
+              id={activePet(pets, petNow)}
+              xp={(() => {
+                const a = activePet(pets, petNow)
+                return a ? petXp(pets, a) : 0
+              })()}
+              onTap={() => petGiggle()}
+              onStable={() => setScreen('stable')}
+            />
           </section>
           {dailyCard}
           <section className="stat-strip home-strip">
@@ -2076,7 +2278,11 @@ export default function App() {
                 </h3>
                 <p className="start-sheet-meta">{DIFFICULTY_LABEL[startSheet.difficulty]} · {startSheet.size}×{startSheet.size}</p>
                 <div className="start-sheet-bests">
-                  <div><span>Best time</span><strong>{sheetRec?.bestMs != null ? formatMs(sheetRec.bestMs) : '—'}</strong></div>
+                  <div>
+                    <span>Best time</span>
+                    <strong>{sheetRec?.bestMs != null ? formatMs(sheetRec.bestMs) : '—'}</strong>
+                    {sheetRec?.bestMs != null ? <RunTag buddy={sheetRec.buddy ?? null} /> : null}
+                  </div>
                   <div><span>Top score</span><strong>{sheetRec?.bestScore != null ? sheetRec.bestScore : '—'}</strong></div>
                 </div>
                 <ul className="start-sheet-goals">
@@ -2110,7 +2316,7 @@ export default function App() {
       )}
 
       {screen === 'play' && puzzle && (
-        <main className={`play play-fixed ${THEMES[puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)].className}`}>
+        <main className={`play play-fixed ${runPetRef.current ? 'has-hud-pet' : ''} ${THEMES[puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)].className}`}>
           <ThemeBackdrop themeId={puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)} />
           <div className="play-hud">
             <button type="button" className="hud-back" onClick={() => setScreen('levels')} aria-label="Back">
@@ -2160,6 +2366,12 @@ export default function App() {
                 <i className="ghost-fill" style={{ width: `${Math.round(pace.ghost * 100)}%` }} />
                 <i className="me-fill" style={{ width: `${Math.round(pace.mine * 100)}%` }} />
               </div>
+            ) : null}
+            {runPetRef.current ? (
+              // 9.30-a: phones: the buddy perches by the HUD (absolute: the board never moves)
+              <span className={`hud-pet ${celebrate ? 'is-cheer' : ''}`} data-hud-pet={runPetRef.current} aria-label={`${petById(runPetRef.current)?.name} is riding with you`}>
+                <PetArt id={runPetRef.current} size={34} />
+              </span>
             ) : null}
             {(() => {
               // Wide screens only (CSS): stars so far, goals and bests for this board
@@ -2229,7 +2441,7 @@ export default function App() {
             <button type="button" className="btn tool" onClick={onHint} disabled={celebrate || defeated}>
               <span className="tool-label">Hint</span>
               <span className="tool-cost">
-                {wallet.freeHints > 0 ? `${wallet.freeHints} free` : String(HINT_COST)}
+                {petFree.hints + wallet.freeHints > 0 ? `${petFree.hints + wallet.freeHints} free` : String(HINT_COST)}
               </span>
               <kbd className="kbd" aria-hidden="true">H</kbd>
             </button>
@@ -2241,20 +2453,40 @@ export default function App() {
               title={`Clear a misplaced buddy · ${RESCUE_COST} coins`}
             >
               <span className="tool-label">Rescue</span>
-              <span className="tool-cost">{RESCUE_COST}</span>
+              <span className="tool-cost">{petFree.rescues > 0 ? `${petFree.rescues} free` : RESCUE_COST}</span>
             </button>
             <button type="button" className="btn tool" onClick={resetBoard}>
               Reset
             </button>
           </div>
-          {/* Wide screens: a spot for the player's buddy (buddies arrive in a later build) */}
-          <div className="buddy-spot" aria-label="Buddy spot (coming soon)">
-            <span className="buddy-spot-ring" aria-hidden="true">
-              <span className="buddy-spot-face" />
-            </span>
-            <strong>Buddy spot</strong>
-            <small>Your buddy will hang out here. Coming soon!</small>
-          </div>
+          {/* Wide screens: the buddy riding along on this board (9.30-a) */}
+          {(() => {
+            const rp = runPetRef.current
+            const def = rp ? petById(rp) : undefined
+            if (!rp || !def) {
+              return (
+                <div className="buddy-spot is-solo" data-buddy-spot="solo">
+                  <span className="buddy-spot-ring" aria-hidden="true">
+                    <span className="buddy-spot-face" />
+                  </span>
+                  <strong>Solo run</strong>
+                  <small>No buddy this board. Pick one in The Stable.</small>
+                </div>
+              )
+            }
+            const lv = levelInfo(petXp(pets, rp)).level
+            return (
+              <div className={`buddy-spot has-pet ${celebrate ? 'is-cheer' : ''}`} data-buddy-spot={rp}>
+                <span className="buddy-spot-ring" aria-hidden="true">
+                  <PetArt id={rp} size={70} />
+                </span>
+                <strong>{def.name}</strong>
+                <small>
+                  Lv {lv} · {activePerk({ ...pets, active: rp }, petNow)?.label ?? def.species}
+                </small>
+              </div>
+            )
+          })()}
           </div>
           <p className="build-tag" data-build={BUILD_TAG}>{BUILD_TAG}</p>
 
@@ -2343,12 +2575,39 @@ export default function App() {
         </main>
       )}
 
+      {screen === 'stable' && (
+        <Stable
+          pets={pets}
+          coins={wallet.coins}
+          now={petNow}
+          onBuy={onAdoptPet}
+          onEquip={onEquipPet}
+          onRedeem={onRedeemGift}
+          onShop={() => setScreen('rewards')}
+          onBack={() => setScreen('home')}
+          giftCode={giftPrefill}
+          giftsOnline={!isStoreBuild()}
+        />
+      )}
+
       {screen === 'rewards' && (
         <main className="panel scroll-pane">
           <h2>Rewards</h2>
           <p className="sub">
             Unlock badges by playing, then spend coins to rank them up forever — each rank boosts coins on every win.
           </p>
+          <button type="button" className="stable-entry" onClick={() => setScreen('stable')}>
+            <span className="stable-entry-art" aria-hidden="true">
+              <PetArt id="lupa" size={40} />
+              <PetArt id="aquila" size={40} />
+              <PetArt id="leo" size={40} />
+            </span>
+            <span>
+              <strong>The Stable</strong>
+              <small>Adopt a buddy with coins. Each one has a perk.</small>
+            </span>
+            <span aria-hidden="true">›</span>
+          </button>
           <div className="stat-strip wallet-strip">
             <div><strong>{wallet.coins}</strong><span>coins</span></div>
             <div><strong>{wallet.freeHints}</strong><span>free hints</span></div>
@@ -2608,6 +2867,7 @@ export default function App() {
                 <p className="incoming-score">
                   Their score: <strong>{formatShareTime(incoming.scoreMs)}</strong> ·{' '}
                   <strong>{incoming.scorePts} pts</strong>
+                  {incoming.buddy !== undefined ? <RunTag buddy={incoming.buddy} /> : null}
                   {incoming.badgePower != null ? (
                     <>
                       <br />
@@ -2779,5 +3039,19 @@ export default function App() {
       {/* Keep clear of Netlify “Powered by” badge */}
       <div className="netlify-safe" aria-hidden />
     </div>
+  )
+}
+
+/** 9.30-a: records and challenges show the buddy used, or a Solo badge */
+function RunTag({ buddy }: { buddy: string | null }) {
+  const p = petById(buddy)
+  return p ? (
+    <span className="run-tag has-pet" data-run-buddy={p.id} title={`with ${p.name} the ${p.species}`}>
+      <PetArt id={p.id} size={18} /> {p.name}
+    </span>
+  ) : (
+    <span className="run-tag is-solo" data-run-buddy="solo">
+      Solo
+    </span>
   )
 }

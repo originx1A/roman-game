@@ -1,5 +1,6 @@
 import { sanitizeTips } from './voiceTips'
 import { sanitizeMeter } from './buddyHunt'
+import { PETS_KEY, sanitizePets, type PetState } from './pets'
 import type { Challenge, ClearRecord, Profile } from './types'
 import { DEFAULT_WALLET, type Wallet } from './rewards'
 import { migrateRecords, type ComboState, type RecordsBlob, type RunMode } from './replay'
@@ -15,6 +16,7 @@ const KEYS = {
   buddyMeter: 'roman.buddymeter.v1',
   records: 'roman.records.v1',
   tips: 'roman.tips.v1',
+  pets: PETS_KEY,
 } as const
 
 export interface Settings {
@@ -290,6 +292,7 @@ export function exportSaveJson(): string {
       challenges: loadChallenges(),
       wallet: loadWallet(),
       records: read(KEYS.records, null),
+      pets: read(KEYS.pets, null),
     },
     null,
     2,
@@ -305,6 +308,7 @@ export function importSaveJson(raw: string): boolean {
     if (data.challenges) saveChallenges(data.challenges)
     if (data.wallet) saveWallet({ ...DEFAULT_WALLET, ...data.wallet })
     if (data.records && data.records.v === 1) write(KEYS.records, data.records)
+    if (data.pets) write(KEYS.pets, sanitizePets(data.pets))
     return true
   } catch {
     return false
@@ -346,4 +350,17 @@ export function loadTips(): import('./voiceTips').TipState {
 
 export function saveTips(t: import('./voiceTips').TipState) {
   write(KEYS.tips, t)
+}
+
+/** 9.30-a: buddies (The Stable). Older saves have none: Solo, no coupons. */
+export function loadPets(): PetState {
+  return sanitizePets(read<unknown>(KEYS.pets, null))
+}
+
+export function savePets(p: PetState) {
+  try {
+    write(KEYS.pets, p)
+  } catch {
+    /* storage full / private mode: keep playing */
+  }
 }
