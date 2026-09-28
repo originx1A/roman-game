@@ -29,6 +29,8 @@ export const OLDTIMER_PLAYBACK_RATE = 1.28
 let voiceEl: HTMLAudioElement | null = null
 /** Line currently requested/playing on the channel (null = channel free) */
 let currentLine: ({ gen: number } & ChannelLine) | null = null
+/** Clip id asked for by the current line (9.30-f duplicate guard) */
+let currentClip: string | null = null
 /**
  * performance.now() when the channel last became free with voices allowed.
  * 0 means "not counting" (busy, muted, voice off, or the clock was just reset).
@@ -384,6 +386,12 @@ function releaseVoice(gen: number) {
       if (!currentLine) playVoice(next.id, { ...next.opts, waitMs: 0 })
     }, 250)
   }
+}
+
+/** 9.30-f: told when a clip actually starts playing (the line bags only count heard lines) */
+let voiceStartListener: ((clip: string) => void) | null = null
+export function setVoiceStartListener(fn: ((clip: string) => void) | null) {
+  voiceStartListener = fn
 }
 
 /** Stop whatever is on the voice channel right now */
@@ -851,6 +859,9 @@ export function playVoice(id: string, opts: PlayVoiceOpts = {}) {
   const queue = [id, ...(opts.alts ?? [])].filter((clip, i, all) => isPlayableVoiceClip(clip) && all.indexOf(clip) === i).slice(0, 5)
   if (!queue.length) return
   const priority = opts.priority ?? 1
+  // 9.30-f: the same clip already playing or waiting its turn isn't asked for twice (a line only
+  // counts as played once heard, so its bag can offer it again while it waits)
+  if ((currentLine && currentClip === id) || waitingLine?.id === id) return
   // 9.30-e: a line that has started always finishes; higher lines wait their turn (or go stale)
   const d = decideVoice(currentLine, { priority, waitMs: opts.waitMs }, performance.now())
   if (d.kind === 'skip') return
@@ -865,6 +876,7 @@ export function playVoice(id: string, opts: PlayVoiceOpts = {}) {
   stopVoice()
   const gen = voiceGeneration
   currentLine = { priority, gen, audible: false, endsAt: 0 }
+  currentClip = id
   voiceFreeSince = 0
   // Safety net while loading: never hold the channel forever if a clip never starts. Once it plays,
   // this is replaced by one sized to the clip (so the channel isn't freed while he's still talking).
@@ -914,6 +926,11 @@ async function playClipQueue(el: HTMLAudioElement, queue: string[], gen: number,
     if (gen !== voiceGeneration) return
     if (refused) break
     if (ok) {
+      try {
+        voiceStartListener?.(clipId)
+      } catch {
+        /* rotation bookkeeping never breaks playback */
+      }
       // Heard now: nothing may cut it. Size the safety net to what's left of the clip at this rate.
       const markPlaying = () => {
         if (gen !== voiceGeneration || !currentLine) return

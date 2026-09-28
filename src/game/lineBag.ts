@@ -71,8 +71,14 @@ interface SavedBags {
 export const RECENT_AVOID = 8
 
 export interface BagSet {
-  /** A picker for one category. `name` must be stable: it is the save key for this bag. */
+  /**
+   * A picker for one category. `name` must be stable: it is the save key for this bag.
+   * 9.30-f: with `commitOnPlay` the pick only counts once `markPlayed` says it was actually heard;
+   * a line that was skipped (channel busy) or dropped as stale stays next in its bag.
+   */
   bag<T extends string>(name: string, items: readonly T[]): () => T
+  /** 9.30-f: this line started playing: advance the bag(s) that offered it */
+  markPlayed(item: string): void
   /** Last line handed out by any bag in this set. */
   last(): string | null
 }
@@ -97,8 +103,11 @@ export function memoryBagStore(): BagStore & { data: Map<string, string> } {
 }
 
 export function createBagSet(
-  opts: { store?: BagStore | null; rng?: () => number; key?: string } = {},
+  opts: { store?: BagStore | null; rng?: () => number; key?: string; commitOnPlay?: boolean } = {},
 ): BagSet {
+  const commitOnPlay = !!opts.commitOnPlay
+  /** bag name → the line it last offered that hasn't been heard yet */
+  const pending = new Map<string, string>()
   const store = opts.store ?? null
   const rng = opts.rng ?? Math.random
   const key = opts.key ?? VOICE_BAGS_KEY
@@ -191,14 +200,48 @@ export function createBagSet(
         if (j > 0) [b.order[b.pos], b.order[j]] = [b.order[j], b.order[b.pos]]
       }
       const pick = b.order[b.pos]
-      b.pos += 1
       s.bags[name] = b
-      s.last = pick
-      s.recent = [...(s.recent ?? []).filter((x) => x !== pick), pick].slice(-RECENT_AVOID)
-      save()
+      if (commitOnPlay) {
+        // Not heard yet: stays at the front of this bag until markPlayed() confirms it
+        pending.set(name, pick)
+        save()
+        return pick as T
+      }
+      advance(s, name, b, pick)
       return pick as T
     }
   }
 
-  return { bag, last: () => load().last }
+  function advance(s: SavedBags, name: string, b: SavedBag, pick: string) {
+    b.pos += 1
+    s.bags[name] = b
+    s.last = pick
+    s.recent = [...(s.recent ?? []).filter((x) => x !== pick), pick].slice(-RECENT_AVOID)
+    save()
+  }
+
+  /** A line was heard: the bags that offered it (or a line from the same pool, when an alt played) move on */
+  function markPlayed(item: string) {
+    const s = load()
+    let hit = false
+    for (const [name, offered] of [...pending]) {
+      const b = s.bags[name]
+      if (!b) continue
+      const k = b.order.indexOf(item, b.pos)
+      if (offered !== item && k < 0) continue
+      pending.delete(name)
+      if (k < 0) continue
+      if (k > b.pos) [b.order[b.pos], b.order[k]] = [b.order[k], b.order[b.pos]]
+      advance(s, name, b, item)
+      hit = true
+    }
+    if (!hit) {
+      // Heard from outside any bag (a spark count, a one-off): still counts for no-back-to-back
+      s.last = item
+      s.recent = [...(s.recent ?? []).filter((x) => x !== item), item].slice(-RECENT_AVOID)
+      save()
+    }
+  }
+
+  return { bag, markPlayed, last: () => load().last }
 }
