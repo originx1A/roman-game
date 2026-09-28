@@ -27,18 +27,22 @@ export interface BoardTheme {
 }
 
 /**
- * Palettes designed so consecutive region indices look clearly different
- * (hue jump + sat/lit flip). Ocean/ember no longer muddy same-family clusters.
+ * Build 9.28-b: every theme uses the same 8 color families (maroon, orange, yellow,
+ * mint, teal, blue, indigo, pink), tuned per theme. Each set was picked so all pairs
+ * stay clearly apart for normal vision and in deuteranopia / protanopia simulation
+ * (Machado 2009, CIEDE2000 >= ~14). Light and dark shades alternate so lightness
+ * separates colors even when hue can't. Each color slot also has a shape mark
+ * (see TILE_SHAPES) so color is never the only cue.
  */
 export const THEMES: Record<ThemeId, BoardTheme> = {
   classic: {
     id: 'classic',
     label: 'Classic',
     tagline: 'Sunny buddies',
-    // teal · coral · royal · gold · magenta · lime · indigo · orange · sky · rose
-    hues: [172, 8, 222, 46, 312, 118, 258, 28, 198, 340],
-    sats: [78, 82, 74, 88, 72, 70, 68, 86, 70, 76],
-    lits: [48, 58, 54, 56, 58, 46, 56, 54, 52, 60],
+    // maroon · orange · yellow · mint · teal · blue · indigo · pink (colorblind-checked)
+    hues: [356, 22, 58, 148, 183, 212, 246, 333],
+    sats: [68, 68, 84, 68, 68, 80, 68, 72],
+    lits: [36, 56, 56, 66, 42, 48, 36, 52],
     className: 'theme-classic',
     voiceEvent: null,
   },
@@ -46,10 +50,10 @@ export const THEMES: Record<ThemeId, BoardTheme> = {
     id: 'cosmic',
     label: 'Cosmic Void',
     tagline: 'Starlit mystery',
-    // violet · cyan · hot pink · deep blue · gold · teal · lilac · lime · orange · mint
-    hues: [275, 185, 328, 230, 48, 165, 295, 105, 22, 150],
-    sats: [72, 78, 80, 70, 85, 60, 55, 68, 82, 58],
-    lits: [58, 48, 60, 42, 56, 50, 64, 52, 54, 50],
+    // maroon · orange · yellow · mint · teal · blue · indigo · pink (colorblind-checked)
+    hues: [356, 22, 52, 148, 183, 212, 246, 333],
+    sats: [64, 64, 84, 64, 64, 80, 64, 72],
+    lits: [36, 53, 53, 63, 39, 45, 36, 49],
     className: 'theme-cosmic',
     voiceEvent: 'theme-cosmic',
   },
@@ -57,10 +61,10 @@ export const THEMES: Record<ThemeId, BoardTheme> = {
     id: 'ruins',
     label: 'Ancient Ruins',
     tagline: 'Forgotten stone',
-    // sand · rust · olive · sky · terracotta · cream · moss · slate-blue · copper · sage
-    hues: [42, 14, 88, 205, 18, 38, 115, 220, 28, 130],
-    sats: [70, 78, 52, 55, 72, 45, 48, 40, 68, 42],
-    lits: [60, 46, 48, 55, 52, 68, 42, 48, 50, 52],
+    // maroon · orange · yellow · mint · teal · blue · indigo · pink (colorblind-checked)
+    hues: [356, 14, 52, 148, 183, 212, 246, 333],
+    sats: [60, 42, 60, 60, 60, 60, 60, 60],
+    lits: [36, 53, 55, 65, 41, 47, 36, 51],
     className: 'theme-ruins',
     voiceEvent: 'theme-ruins',
   },
@@ -68,10 +72,10 @@ export const THEMES: Record<ThemeId, BoardTheme> = {
     id: 'neon',
     label: 'Neon Night',
     tagline: 'Electric streets',
-    // hot pink · electric teal · purple · lime · amber · cyan · violet · white-blue · red · chartreuse
-    hues: [328, 168, 280, 112, 42, 190, 255, 210, 0, 95],
-    sats: [92, 90, 82, 88, 90, 85, 75, 60, 88, 80],
-    lits: [56, 48, 58, 52, 54, 52, 60, 62, 50, 50],
+    // maroon · orange · yellow · mint · teal · blue · indigo · pink (colorblind-checked)
+    hues: [356, 16, 58, 146, 183, 212, 246, 331],
+    sats: [80, 80, 96, 80, 80, 80, 80, 80],
+    lits: [36, 62, 50, 70, 42, 48, 36, 50],
     className: 'theme-neon',
     voiceEvent: 'theme-neon',
   },
@@ -79,10 +83,10 @@ export const THEMES: Record<ThemeId, BoardTheme> = {
     id: 'ocean',
     label: 'Ocean Deep',
     tagline: 'Abyss glow',
-    // navy · seafoam · coral accent · aqua · sand · deep teal · sky · magenta kiss · ice · peach
-    hues: [228, 155, 12, 185, 40, 175, 205, 320, 195, 25],
-    sats: [75, 62, 78, 72, 70, 68, 58, 55, 50, 70],
-    lits: [40, 58, 56, 50, 60, 44, 62, 58, 64, 58],
+    // maroon · orange · yellow · mint · teal · blue · indigo · pink (colorblind-checked)
+    hues: [356, 22, 58, 148, 183, 212, 246, 333],
+    sats: [64, 64, 75, 64, 64, 76, 64, 72],
+    lits: [36, 55, 51, 65, 41, 47, 36, 51],
     className: 'theme-ocean',
     voiceEvent: 'theme-ocean',
   },
@@ -90,10 +94,10 @@ export const THEMES: Record<ThemeId, BoardTheme> = {
     id: 'ember',
     label: 'Ember Peak',
     tagline: 'Molten heat',
-    // crimson · gold · cool teal contrast · orange · rose · yellow · charcoal-blue · coral · plum · lime
-    hues: [0, 48, 175, 28, 350, 55, 215, 14, 300, 105],
-    sats: [85, 90, 55, 88, 70, 85, 45, 80, 60, 65],
-    lits: [48, 56, 48, 54, 58, 58, 42, 56, 50, 50],
+    // maroon · orange · yellow · mint · teal · blue · indigo · pink (colorblind-checked)
+    hues: [356, 22, 54, 148, 183, 212, 246, 333],
+    sats: [66, 66, 90, 66, 66, 80, 66, 72],
+    lits: [36, 56, 56, 66, 42, 48, 36, 52],
     className: 'theme-ember',
     voiceEvent: 'theme-ember',
   },
@@ -101,13 +105,74 @@ export const THEMES: Record<ThemeId, BoardTheme> = {
     id: 'crystal',
     label: 'Crystal Cave',
     tagline: 'Prism hush',
-    // aqua · violet · peach · mint · orchid · sky · lemon · rose · indigo · coral
-    hues: [178, 275, 22, 145, 300, 205, 58, 335, 250, 8],
-    sats: [70, 62, 72, 55, 58, 60, 75, 65, 55, 70],
-    lits: [52, 60, 58, 54, 62, 56, 56, 60, 50, 56],
+    // maroon · orange · yellow · mint · teal · blue · indigo · pink (colorblind-checked)
+    hues: [356, 18, 48, 148, 183, 212, 246, 333],
+    sats: [64, 48, 68, 64, 64, 70, 64, 70],
+    lits: [36, 57, 53, 69, 45, 51, 36, 55],
     className: 'theme-crystal',
     voiceEvent: 'theme-crystal',
   },
+}
+
+/** Shape mark per palette slot (same color = same shape on every board). */
+export const TILE_SHAPES = ['dot', 'triangle', 'star', 'diamond', 'square', 'plus', 'ring', 'heart'] as const
+export type TileShape = (typeof TILE_SHAPES)[number]
+
+export interface RegionColor {
+  hue: number
+  sat: number
+  lit: number
+  /** Palette slot → shape mark. */
+  shape: TileShape
+  /** Mark ink that reads on this tile: dark ink on light tiles, light ink on dark ones. */
+  ink: 'dark' | 'light'
+}
+
+function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+  const S = s / 100
+  const L = l / 100
+  const k = (n: number) => (n + h / 30) % 12
+  const a = S * Math.min(L, 1 - L)
+  const f = (n: number) => L - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))
+  return [f(0), f(8), f(4)]
+}
+
+const CVD: number[][][] = [
+  [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+  // deuteranopia / protanopia (Machado et al. 2009, severity 1)
+  [[0.367322, 0.860646, -0.227968], [0.280085, 0.672501, 0.047413], [-0.01182, 0.04294, 0.968881]],
+  [[0.152286, 1.052583, -0.204868], [0.114503, 0.786281, 0.099216], [-0.003882, -0.048116, 1.051998]],
+]
+
+function labOf(rgb: [number, number, number], m: number[][]): [number, number, number] {
+  const lin = rgb.map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+  const v = m.map((row) => Math.min(1, Math.max(0, row[0] * lin[0] + row[1] * lin[1] + row[2] * lin[2])))
+  const X = (0.4124 * v[0] + 0.3576 * v[1] + 0.1805 * v[2]) / 0.95047
+  const Y = 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]
+  const Z = (0.0193 * v[0] + 0.1192 * v[1] + 0.9505 * v[2]) / 1.08883
+  const f = (t: number) => (t > 216 / 24389 ? Math.cbrt(t) : (24389 / 27 * t + 16) / 116)
+  return [116 * f(Y) - 16, 500 * (f(X) - f(Y)), 200 * (f(Y) - f(Z))]
+}
+
+/** Perceptual distance (CIE76) — the smallest of normal, deutan and protan views. */
+export function colorGap(
+  a: { hue: number; sat: number; lit: number },
+  b: { hue: number; sat: number; lit: number },
+): number {
+  const ra = hslToRgb(a.hue, a.sat, a.lit)
+  const rb = hslToRgb(b.hue, b.sat, b.lit)
+  let min = Infinity
+  for (const m of CVD) {
+    const la = labOf(ra, m)
+    const lb = labOf(rb, m)
+    min = Math.min(min, Math.hypot(la[0] - lb[0], la[1] - lb[1], la[2] - lb[2]))
+  }
+  return min
+}
+
+/** CIE L* of a tile color (0–100). */
+export function tileLightness(c: { hue: number; sat: number; lit: number }): number {
+  return labOf(hslToRgb(c.hue, c.sat, c.lit), CVD[0])[0]
 }
 
 function hueDist(a: number, b: number): number {
@@ -156,11 +221,22 @@ export function regionColorMap(
   themeId: ThemeId,
   regions: number[],
   size: number,
-): Map<number, { hue: number; sat: number; lit: number }> {
+): Map<number, RegionColor> {
   const theme = THEMES[themeId]
   const unique = [...new Set(regions)].sort((a, b) => a - b)
   const palette = expandPalette(theme, unique.length)
   const n = palette.hues.length
+  const slot = (pi: number) => ({ hue: palette.hues[pi], sat: palette.sats[pi], lit: palette.lits[pi] })
+  const gapCache = new Map<number, number>()
+  const gap = (a: number, b: number): number => {
+    const key = Math.min(a, b) * 1000 + Math.max(a, b)
+    let v = gapCache.get(key)
+    if (v == null) {
+      v = colorGap(slot(a), slot(b))
+      gapCache.set(key, v)
+    }
+    return v
+  }
 
   // Build adjacency between region ids (4-neighborhood)
   const adj = new Map<number, Set<number>>()
@@ -198,18 +274,16 @@ export function regionColorMap(
     }
 
     const scoreSlot = (pi: number): number => {
-      let minDist = 180
+      // Neighbors get the most distinct pair (checked for color-blind views too)
+      let minDist = 150
       for (const nb of adj.get(reg) ?? []) {
         const npi = assigned.get(nb)
         if (npi == null) continue
-        minDist = Math.min(minDist, hueDist(palette.hues[pi], palette.hues[npi]))
+        minDist = Math.min(minDist, gap(pi, npi))
       }
-      const litClash = [...usedByNeighbors].some(
-        (npi) => Math.abs(palette.lits[pi] - palette.lits[npi]) < 8,
-      )
       // Strongly prefer never-used slots so every section looks unique
       const uniqueBonus = usedGlobal.has(pi) ? 0 : 400
-      return uniqueBonus + minDist + (litClash ? 0 : 12)
+      return uniqueBonus + minDist
     }
 
     let best = 0
@@ -249,13 +323,14 @@ export function regionColorMap(
     usedGlobal.add(best)
   }
 
-  const out = new Map<number, { hue: number; sat: number; lit: number }>()
+  const out = new Map<number, RegionColor>()
   for (const reg of unique) {
     const pi = assigned.get(reg) ?? reg % n
+    const c = slot(pi)
     out.set(reg, {
-      hue: palette.hues[pi],
-      sat: palette.sats[pi],
-      lit: palette.lits[pi],
+      ...c,
+      shape: TILE_SHAPES[pi % TILE_SHAPES.length],
+      ink: tileLightness(c) > 62 ? 'dark' : 'light',
     })
   }
   return out

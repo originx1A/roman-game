@@ -1,3 +1,4 @@
+import { sanitizeTips } from './voiceTips'
 import { sanitizeMeter } from './buddyHunt'
 import type { Challenge, ClearRecord, Profile } from './types'
 import { DEFAULT_WALLET, type Wallet } from './rewards'
@@ -13,6 +14,7 @@ const KEYS = {
   generated: 'roman.generated.v1',
   buddyMeter: 'roman.buddymeter.v1',
   records: 'roman.records.v1',
+  tips: 'roman.tips.v1',
 } as const
 
 export interface Settings {
@@ -23,6 +25,10 @@ export interface Settings {
   playerName?: string
   /** The one-time "what should we call you?" prompt was shown */
   namePrompted?: boolean
+  /** How to play was shown once (it opens by itself before the first board) */
+  howSeen?: boolean
+  /** Voice tips (teaching lines). Undefined = on. */
+  voiceTips?: boolean
 }
 
 export const PLAYER_NAME_MAX = 16
@@ -332,4 +338,12 @@ export function loadBuddyMeter(): import('./buddyHunt').BuddyMeter {
 
 export function saveBuddyMeter(meter: import('./buddyHunt').BuddyMeter) {
   write(KEYS.buddyMeter, meter)
+}
+
+export function loadTips(): import('./voiceTips').TipState {
+  return sanitizeTips(read<unknown>(KEYS.tips, null))
+}
+
+export function saveTips(t: import('./voiceTips').TipState) {
+  write(KEYS.tips, t)
 }

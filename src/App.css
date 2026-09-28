@@ -4385,3 +4385,323 @@ html.play-locked #root {
   margin: 0 0 0.75rem;
   font-weight: 700;
 }
+
+/* ===== 9.28-b: tile shape marks (color is never the only cue) ===== */
+.tile-mark {
+  position: absolute;
+  z-index: 1;
+  top: 7%;
+  left: 7%;
+  width: 22%;
+  height: 22%;
+  min-width: 7px;
+  min-height: 7px;
+  max-width: 14px;
+  max-height: 14px;
+  pointer-events: none;
+  opacity: 0.5;
+  transition: opacity 0.2s ease;
+}
+.tile-mark svg { display: block; }
+.tile-mark.ink-light { color: rgba(255, 250, 238, 0.95); }
+.tile-mark.ink-dark { color: rgba(10, 22, 44, 0.8); }
+.tile-mark path { fill: currentColor; }
+/* Quieter under a buddy / X so the piece stays the focus */
+.cell.stone .tile-mark,
+.cell.mark .tile-mark { opacity: 0.32; }
+.board.board-win .tile-mark { opacity: 0.2; }
+
+/* ===== 9.28-b: Victory screen always fits one screen =====
+   Height = the real visible area (dvh / visualViewport, whichever is smaller), inside the
+   safe-area insets. WinScreen steps data-fit 0→4 until nothing overflows; each step shrinks
+   or hides something less important. Short landscape screens get a two-column card. */
+.win-screen {
+  --win-vh: min(100dvh, var(--app-height, 100dvh));
+  --win-pad-t: max(0.5rem, env(safe-area-inset-top, 0px));
+  --win-pad-b: max(0.5rem, env(safe-area-inset-bottom, 0px));
+  padding-left: max(0.6rem, env(safe-area-inset-left, 0px));
+  padding-right: max(0.6rem, env(safe-area-inset-right, 0px));
+}
+@supports not (height: 100dvh) {
+  .win-screen { --win-vh: var(--app-height, 100svh); }
+}
+.win-screen .win-screen-card { transition: padding 0.1s; }
+
+/* 1: tighter spacing, smaller title / stars */
+.win-screen[data-fit='1'] .win-screen-card,
+.win-screen[data-fit='2'] .win-screen-card,
+.win-screen[data-fit='3'] .win-screen-card,
+.win-screen[data-fit='4'] .win-screen-card { padding: 0.6rem 0.7rem 0.6rem; }
+.win-screen[data-fit='1'] .win-screen-title,
+.win-screen[data-fit='2'] .win-screen-title { font-size: 1.8rem; }
+.win-screen[data-fit='1'] .win-roman-says,
+.win-screen[data-fit='2'] .win-roman-says { padding: 0.3rem 0.5rem; font-size: 0.8rem; margin-bottom: 0.35rem; }
+.win-screen:not([data-fit='0']) .win-stars { font-size: 1.1rem; }
+.win-screen:not([data-fit='0']) .win-stats { margin-bottom: 0.4rem; }
+.win-screen:not([data-fit='0']) .win-stat { padding: 0.25rem 0.1rem; }
+.win-screen:not([data-fit='0']) .buddy-meter { margin-bottom: 0.4rem; padding: 0.2rem 0.5rem; }
+.win-screen:not([data-fit='0']) .win-screen-actions { gap: 0.32rem; }
+.win-screen:not([data-fit='0']) .win-screen-actions .win-cta { min-height: 42px; padding-top: 0.45rem; padding-bottom: 0.45rem; }
+.win-screen:not([data-fit='0']) .win-screen-secondary .btn { min-height: 34px; padding-top: 0.25rem; padding-bottom: 0.25rem; }
+
+/* 2: Roman's line to 2 lines (it's also spoken), Sparks/Hints stats go, meter hint goes */
+.win-screen[data-fit='2'] .win-roman-says,
+.win-screen[data-fit='3'] .win-roman-says {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.win-screen[data-fit='2'] .win-stat-minor,
+.win-screen[data-fit='3'] .win-stat-minor,
+.win-screen[data-fit='4'] .win-stat-minor { display: none; }
+.win-screen[data-fit='2'] .win-stats,
+.win-screen[data-fit='3'] .win-stats,
+.win-screen[data-fit='4'] .win-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.win-screen[data-fit='2'] .buddy-meter-hint,
+.win-screen[data-fit='3'] .buddy-meter-hint,
+.win-screen[data-fit='4'] .buddy-meter-hint { display: none; }
+
+/* 3: smaller title, one-line detail, Roman's line one line, stats labels inline */
+.win-screen[data-fit='3'] .win-screen-title,
+.win-screen[data-fit='4'] .win-screen-title { font-size: 1.5rem; text-shadow: 0 2px 0 #c48900; }
+.win-screen[data-fit='3'] .win-screen-kicker,
+.win-screen[data-fit='4'] .win-screen-kicker { margin-bottom: 0.25rem; font-size: 0.6rem; }
+.win-screen[data-fit='3'] .win-roman-says { -webkit-line-clamp: 1; font-size: 0.76rem; padding: 0.2rem 0.45rem; margin-bottom: 0.25rem; }
+.win-screen[data-fit='3'] .win-replay-detail,
+.win-screen[data-fit='4'] .win-replay-detail { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 0.25rem; }
+.win-screen[data-fit='3'] .win-replay,
+.win-screen[data-fit='4'] .win-replay { margin-bottom: 0.2rem; }
+.win-screen[data-fit='3'] .win-stat-label,
+.win-screen[data-fit='4'] .win-stat-label { display: inline; margin: 0 0.25rem 0 0; }
+.win-screen[data-fit='3'] .win-stat-value,
+.win-screen[data-fit='4'] .win-stat-value { font-size: 0.85rem; }
+
+/* 4: Roman's line hidden (still spoken), buttons at minimum comfortable size, Levels/Home tighter */
+.win-screen[data-fit='4'] .win-roman-says { display: none; }
+.win-screen[data-fit='4'] .win-screen-actions .win-cta { min-height: 38px; padding-top: 0.3rem; padding-bottom: 0.3rem; font-size: 0.88rem; }
+.win-screen[data-fit='4'] .win-screen-secondary .btn { min-height: 30px; font-size: 0.8rem; }
+.win-screen[data-fit='4'] .buddy-meter { margin-bottom: 0.25rem; }
+
+/* Short landscape: text left, buttons right */
+@media (max-height: 520px) and (min-width: 560px) {
+  .shell-celebrate .win-screen,
+  .win-screen { --win-gap-top: 0px; }
+  .shell-celebrate .win-screen-card,
+  .win-screen-card {
+    width: min(100%, 720px);
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    gap: 0.4rem 0.8rem;
+    align-items: center;
+  }
+  .win-screen-body { overflow: hidden; }
+}
+
+/* ===== 9.28-b: How to play — replay feature cards ===== */
+.how-new-tag {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  font-size: 0.6rem;
+  font-weight: 900;
+  background: var(--sun);
+  color: #3a2500;
+  vertical-align: 1px;
+}
+.how-demo-grid { position: relative; }
+.how-demo.is-animated[data-demo='combo'] .demo-pop-mark .mark-x,
+.how-demo.is-animated[data-demo='pace'] .demo-pace-buddy .buddy {
+  animation: howPop 0.28s ease var(--at, 0.3s) both;
+}
+.how-demo.is-animated[data-demo='undo'] .demo-undo-mark .mark-x {
+  animation: howUndoMark 3.2s ease 0.3s both;
+}
+@keyframes howUndoMark {
+  0% { opacity: 0; transform: scale(0.35); }
+  10%, 42% { opacity: 1; transform: none; }
+  52%, 100% { opacity: 0; transform: scale(0.4) rotate(-40deg); }
+}
+.how-demo-combo {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 18%;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.how-demo-combo b {
+  grid-area: 1 / 1;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(4, 10, 28, 0.85);
+  color: var(--sun);
+  font-size: 0.85rem;
+  font-weight: 900;
+  opacity: 0;
+}
+.how-demo.is-animated .how-demo-combo .c1 { animation: howFloat 0.45s ease 0.3s both; }
+.how-demo.is-animated .how-demo-combo .c2 { animation: howFloat 0.45s ease 0.75s both; }
+.how-demo.is-animated .how-demo-combo .c3 { animation: howFloat 0.45s ease 1.2s both; }
+.how-demo.is-animated .how-demo-combo .c4 { animation: howFloat 0.45s ease 1.65s both; }
+.how-demo.is-animated .how-demo-combo .c5 { animation: howFloatStay 0.6s ease 2.1s both; color: #9dffc4; }
+@keyframes howFloat {
+  0% { opacity: 0; transform: translateY(8px); }
+  30% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translateY(-10px); }
+}
+@keyframes howFloatStay {
+  from { opacity: 0; transform: translateY(8px) scale(0.8); }
+  to { opacity: 1; transform: scale(1.12); }
+}
+.how-demo-undo-btn {
+  position: absolute;
+  right: 6%;
+  bottom: 6%;
+  padding: 0.25rem 0.55rem;
+  border-radius: 10px;
+  background: rgba(244, 251, 255, 0.14);
+  border: 1px solid rgba(244, 251, 255, 0.35);
+  color: var(--foam);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+.how-demo.is-animated .how-demo-undo-btn { animation: howPress 0.35s ease 1.55s both; }
+@keyframes howPress {
+  0%, 100% { transform: none; }
+  50% { transform: scale(0.88); background: rgba(255, 209, 102, 0.45); }
+}
+.how-demo-float {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 30%;
+  text-align: center;
+  font-weight: 900;
+  font-size: 1rem;
+  color: #ff9a8a;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  pointer-events: none;
+}
+.how-demo.is-animated .how-demo-float { animation: howFloatStay 0.5s ease 1.75s both; }
+.how-demo:not(.is-animated) .how-demo-float,
+.how-demo:not(.is-animated) .how-demo-combo .c5 { opacity: 1; }
+.how-demo-pace {
+  position: absolute;
+  top: -0.2rem;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  z-index: 5;
+}
+.how-demo-pace b {
+  grid-area: 1 / 1;
+  padding: 0.12rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.how-demo-pace .ahead { background: #1f8f4e; color: #eafff2; }
+.how-demo-pace .behind { background: #b23b3b; color: #fff0ee; opacity: 0; }
+.how-demo.is-animated .how-demo-pace .ahead { animation: howSwapOut 4.4s ease infinite; }
+.how-demo.is-animated .how-demo-pace .behind { animation: howSwapIn 4.4s ease infinite; }
+@keyframes howSwapOut { 0%, 45% { opacity: 1; } 55%, 100% { opacity: 0; } }
+@keyframes howSwapIn { 0%, 45% { opacity: 0; } 55%, 100% { opacity: 1; } }
+.how-demo-ghost {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  bottom: 3%;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(244, 251, 255, 0.15);
+}
+.how-demo-ghost i {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+}
+.how-demo-ghost .ghost { background: rgba(244, 251, 255, 0.55); left: 40%; }
+.how-demo-ghost .you { background: var(--mint); left: 55%; }
+.how-demo.is-animated .how-demo-ghost .ghost { animation: howGhost 4.4s linear infinite; }
+.how-demo.is-animated .how-demo-ghost .you { animation: howYou 4.4s linear infinite; }
+@keyframes howGhost { from { left: 5%; } to { left: 90%; } }
+@keyframes howYou { 0% { left: 5%; } 45% { left: 55%; } 60% { left: 55%; } 100% { left: 80%; } }
+
+/* card demos (stars / trial / daily) */
+.how-panel-demo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  text-align: center;
+  color: var(--foam);
+  font-weight: 800;
+}
+.demo-star-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+}
+.demo-star-icons i { font-style: normal; font-size: 1.35rem; color: rgba(255, 255, 255, 0.2); }
+.demo-star-icons i.on { color: var(--sun); text-shadow: 0 0 10px rgba(255, 209, 102, 0.6); }
+.demo-star-label { font-size: 0.74rem; opacity: 0.9; }
+.how-demo.is-animated .demo-star-row { animation: howPop 0.4s ease both; }
+.how-demo.is-animated .demo-star-row.r1 { animation-delay: 0.2s; }
+.how-demo.is-animated .demo-star-row.r2 { animation-delay: 1s; }
+.how-demo.is-animated .demo-star-row.r3 { animation-delay: 1.8s; }
+.demo-trial-title,
+.demo-daily-title { font-family: var(--font-display); font-size: 1.3rem; color: var(--sun); font-weight: 400; }
+.demo-trial-clock {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(192, 57, 43, 0.35);
+  font-size: 1.1rem;
+}
+.demo-stack { display: inline-grid; }
+.demo-stack b { grid-area: 1 / 1; opacity: 0; }
+.demo-stack .k3 { opacity: 1; }
+.how-demo.is-animated .demo-stack .k1 { animation: howStep1 3.6s steps(1, end) infinite; }
+.how-demo.is-animated .demo-stack .k2 { animation: howStep2 3.6s steps(1, end) infinite; }
+.how-demo.is-animated .demo-stack .k3 { animation: howStep3 3.6s steps(1, end) infinite; }
+@keyframes howStep1 { 0%, 33% { opacity: 1; } 33.01%, 100% { opacity: 0; } }
+@keyframes howStep2 { 0%, 33% { opacity: 0; } 33.01%, 66% { opacity: 1; } 66.01%, 100% { opacity: 0; } }
+@keyframes howStep3 { 0%, 66% { opacity: 0; } 66.01%, 100% { opacity: 1; } }
+.demo-stack .hot { color: #ff9a8a; }
+.demo-trial-hearts { display: flex; gap: 0.4rem; }
+.demo-trial-hearts .heart { width: 1.1rem; height: 1.1rem; }
+.demo-trial-rules,
+.demo-daily-rules { font-size: 0.72rem; opacity: 0.85; max-width: 16rem; }
+.demo-daily-cal {
+  display: grid;
+  place-items: center;
+  width: 4.2rem;
+  height: 4.2rem;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #c0392b 0 30%, #f4fbff 30%);
+  color: #2a1a10;
+  font-size: 1.1rem;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+.demo-daily-streak { font-size: 1rem; color: #ffc49a; }
+.how-demo-combo,
+.how-demo-float,
+.how-demo-undo-btn,
+.how-demo-ghost,
+.how-demo-pace { z-index: 6; }
+.how-demo-combo b { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); }
+.how-demo-undo-btn { background: rgba(10, 22, 44, 0.9); }
+.how-demo-ghost { background: rgba(4, 10, 28, 0.7); }

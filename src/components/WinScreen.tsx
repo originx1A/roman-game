@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { CRITTER_STASH_GOAL } from './SparkCritter'
 
 /** Replay challenge extras for this win: stars, a record/near-miss banner, coins earned */
@@ -62,6 +62,36 @@ export function WinScreen({
   replay,
 }: WinScreenProps) {
   const [entered, setEntered] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  // Fit everything on one screen: step through tighter layouts (data-fit 0..4) until the card
+  // body stops overflowing. Runs on the real visible height, so Safari toolbars, safe areas and
+  // short landscape screens are all handled; the less important bits shrink or hide first.
+  useLayoutEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    const fit = () => {
+      const body = root.querySelector<HTMLElement>('.win-screen-body')
+      const card = root.querySelector<HTMLElement>('.win-screen-card')
+      if (!body || !card) return
+      for (let level = 0; level <= 4; level++) {
+        root.dataset.fit = String(level)
+        const over = body.scrollHeight - body.clientHeight > 1 || card.scrollHeight - card.clientHeight > 1
+        if (!over) break
+      }
+    }
+    fit()
+    const vv = window.visualViewport
+    window.addEventListener('resize', fit)
+    vv?.addEventListener('resize', fit)
+    const late = window.setTimeout(fit, 350)
+    document.fonts?.ready.then(fit).catch(() => {})
+    return () => {
+      window.removeEventListener('resize', fit)
+      vv?.removeEventListener('resize', fit)
+      window.clearTimeout(late)
+    }
+  }, [replay, buddyMeter, romanSaying, spins])
 
   useEffect(() => {
     const id = window.requestAnimationFrame(() => setEntered(true))
@@ -69,7 +99,7 @@ export function WinScreen({
   }, [])
 
   return (
-    <div className={`win-screen ${entered ? 'in' : ''}`} role="dialog" aria-label="Board cleared">
+    <div ref={rootRef} data-fit="0" className={`win-screen ${entered ? 'in' : ''}`} role="dialog" aria-label="Board cleared">
       <div className="win-screen-burst" aria-hidden="true" />
       <div className="win-screen-sparkles" aria-hidden="true">
         {Array.from({ length: 18 }, (_, i) => (
@@ -120,13 +150,13 @@ export function WinScreen({
               <span className="win-stat-label">Score</span>
               <strong className="win-stat-value">{score}</strong>
             </div>
-            <div className="win-stat">
+            <div className="win-stat win-stat-minor">
               <span className="win-stat-label">Sparks</span>
               <strong className="win-stat-value">
                 {sparkCount}/{CRITTER_STASH_GOAL}
               </strong>
             </div>
-            <div className="win-stat">
+            <div className="win-stat win-stat-minor">
               <span className="win-stat-label">Hints</span>
               <strong className="win-stat-value">{hintsUsed}</strong>
             </div>

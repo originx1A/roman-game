@@ -9,7 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 import type { CellState, Puzzle, ThemeId } from '../game/types'
-import { regionColorMap } from '../game/themes'
+import { regionColorMap, type TileShape } from '../game/themes'
 import {
   colOf,
   conflictKindAt,
@@ -89,6 +89,28 @@ export function Buddy({
           <span className="giggle-burst c">♪</span>
         </>
       )}
+    </span>
+  )
+}
+
+const SHAPE_PATH: Record<TileShape, string> = {
+  dot: 'M12 6.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 1 1 0-11z',
+  triangle: 'M12 4.5L20 18.5H4z',
+  star: 'M12 3.5l2.5 5.4 5.9.7-4.4 4 1.2 5.8L12 16.5l-5.2 2.9 1.2-5.8-4.4-4 5.9-.7z',
+  diamond: 'M12 3.5L19.5 12L12 20.5L4.5 12z',
+  square: 'M6 6h12v12H6z',
+  plus: 'M9.5 4.5h5v5h5v5h-5v5h-5v-5h-5v-5h5z',
+  ring: 'M12 4.5a7.5 7.5 0 1 1 0 15a7.5 7.5 0 1 1 0-15zm0 3.6a3.9 3.9 0 1 0 0 7.8a3.9 3.9 0 1 0 0-7.8z',
+  heart: 'M12 20s-7.5-4.6-7.5-10.1A4.1 4.1 0 0 1 12 7.6a4.1 4.1 0 0 1 7.5 2.3C19.5 15.4 12 20 12 20z',
+}
+
+/** Small corner shape so a tile's color is never the only cue (same color = same shape). */
+export function TileMark({ shape, ink }: { shape: TileShape; ink: 'dark' | 'light' }) {
+  return (
+    <span className={`tile-mark ink-${ink}`} data-shape={shape} aria-hidden>
+      <svg viewBox="0 0 24 24" width="100%" height="100%">
+        <path d={SHAPE_PATH[shape]} fillRule="evenodd" />
+      </svg>
     </span>
   )
 }
@@ -423,6 +445,8 @@ export function Board({
           hue: 200,
           sat: 70,
           lit: 55,
+          shape: 'dot' as TileShape,
+          ink: 'light' as const,
         }
         const bad = conflicts.cells.has(i)
         return (
@@ -450,6 +474,7 @@ export function Board({
             aria-label={`Row ${rowOf(i, size) + 1}, column ${colOf(i, size) + 1}, ${state}`}
           >
             <span className="cell-fill" />
+            <TileMark shape={style.shape} ink={style.ink} />
             {state === 'mark' && <MarkX />}
             {state === 'stone' && (
               <Buddy

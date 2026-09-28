@@ -1,5 +1,7 @@
 import { browserBagStore, createBagSet } from './lineBag'
 import { voiceLineText } from './sound'
+import { isPlayableVoiceClip } from './voiceLines'
+import { playableTipLines, type TipId, type TipReason, type TipVoice } from './voiceTips'
 
 export type CommentMood = 'good' | 'bad' | 'hype' | 'neutral'
 
@@ -816,5 +818,32 @@ export function sparkProgressBanter(have: number, goal = 5): Banter {
     clip: have === 1 ? 'spark_1' : have === 2 ? 'spark_2' : have === 3 ? 'spark_3' : 'spark_4',
     priority: VOICE_PRIORITY.chatter,
     waitMs: 2500,
+  }
+}
+
+/**
+ * Voice tip line (9.28-b). Voices take turns (a saved shuffle bag of the voices that have a
+ * recorded line for this tip), then each voice draws from its own saved shuffle bag, so no line
+ * repeats until the rest of its category has played. Returns a silent banter when nothing
+ * recorded fits yet (new lines stay silent until they are approved and recorded).
+ */
+export function tipBanter(tip: TipId, reason?: TipReason): Banter {
+  const silent: Banter = { text: '', mood: 'neutral', voiceMood: 'neutral', speak: false, silent: true }
+  const lines = playableTipLines(tip, reason, isPlayableVoiceClip, voiceLineText)
+  if (lines.length === 0) return silent
+  const voices = [...new Set(lines.map((l) => l.voice))] as TipVoice[]
+  const voice = voices.length === 1 ? voices[0] : voiceBags.bag(`tipvoice.${tip}`, voices)()
+  const pool = lines.filter((l) => l.voice === voice).map((l) => l.id) as VoiceClipId[]
+  const clip = voiceBags.bag(`tip.${tip}.${reason ?? 'any'}.${voice}`, pool)()
+  const text = lines.find((l) => l.id === clip)?.text || voiceLineText(clip) || ''
+  return {
+    text,
+    mood: 'neutral',
+    voiceMood: voice === 'old' ? 'neutral' : 'happy',
+    speak: true,
+    clip,
+    alts: pool.filter((id) => id !== clip),
+    priority: tip === 'three-star' ? VOICE_PRIORITY.chatter : VOICE_PRIORITY.idle,
+    waitMs: tip === 'three-star' ? 7000 : tip === 'first-trial' || tip === 'first-daily' ? 3000 : undefined,
   }
 }

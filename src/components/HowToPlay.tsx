@@ -16,12 +16,31 @@ const STEPS = [
     ms: 8000,
   },
   { title: 'Spark critter', blurb: 'A silly spark zig-zags by at random. Catch it across games — 5 catches unlock a prize spin!', demo: 'critter' },
-] as const satisfies readonly { title: string; blurb: string; demo: HowDemoId; ms?: number }[]
+  { title: 'Stars', blurb: '★ finish · ★★ beat the target time · ★★★ target time, a high score and zero undos. 3 stars unlocks the Trial.', demo: 'stars', isNew: true },
+  { title: 'Combo', blurb: 'Quick good moves build a combo: ×1.5, ×2, up to ×3 points. Wait 4 seconds or slip up and it resets.', demo: 'combo', isNew: true },
+  { title: 'Undo costs 25', blurb: 'Undo is always there, but each one costs 25 points and breaks your combo.', demo: 'undo', isNew: true },
+  { title: "Roman's Trial", blurb: 'Beat a board with 3 stars to unlock it: race the clock with 2 hearts and no undo. Double coins.', demo: 'trial', isNew: true },
+  { title: 'Daily Challenge', blurb: 'One new board every day. Only your first try counts — win daily to grow your streak.', demo: 'daily', isNew: true },
+  { title: 'Pace timer', blurb: 'Replaying a board? The timer turns green when you are ahead of your best and red when behind.', demo: 'pace', isNew: true },
+] as const satisfies readonly { title: string; blurb: string; demo: HowDemoId; ms?: number; isNew?: boolean }[]
+
+/** Index of the first card about the replay features (returning players start here). */
+export const HOW_NEW_START = STEPS.findIndex((s) => 'isNew' in s && s.isNew)
 
 const STEP_MS = 4500
 
-export function HowToPlay({ onDone, onBack }: { onDone: () => void; onBack?: () => void }) {
-  const [step, setStep] = useState(0)
+export function HowToPlay({
+  onDone,
+  onBack,
+  startAt = 0,
+  doneLabel = 'Choose a level',
+}: {
+  onDone: () => void
+  onBack?: () => void
+  startAt?: number
+  doneLabel?: string
+}) {
+  const [step, setStep] = useState(() => Math.max(0, Math.min(STEPS.length - 1, startAt)))
   const current = STEPS[step]
 
   useEffect(() => {
@@ -46,6 +65,7 @@ export function HowToPlay({ onDone, onBack }: { onDone: () => void; onBack?: () 
         <div className="how-caption">
           <p className="how-step-label">
             {step + 1} / {STEPS.length}
+            {'isNew' in current && current.isNew ? <span className="how-new-tag">New</span> : null}
           </p>
           <h3>{current.title}</h3>
           <p>{current.blurb}</p>
@@ -71,10 +91,13 @@ export function HowToPlay({ onDone, onBack }: { onDone: () => void; onBack?: () 
         <li>Win to spin prizes. Catch the spark critter 5 times across games for a bonus prize.</li>
         <li>Perfect wins fill the buddy meter. 3 notches open Buddy Hunt: 5 taps to find 3 hidden buddies.</li>
         <li>Themed boards change buddy looks — rules stay the same.</li>
+        <li>Stars: finish, beat the target time, then target time + high score + no undos. Undo costs 25 points.</li>
+        <li>3 stars unlocks Roman&apos;s Trial. The Daily Challenge counts your first try only.</li>
+        <li>Each color also has its own little shape in the tile corner.</li>
       </ol>
       <div className="cta-row">
         <button type="button" className="btn primary" onClick={onDone}>
-          Choose a level
+          {doneLabel}
         </button>
         <button type="button" className="btn ghost" onClick={() => setStep((s) => (s + 1) % STEPS.length)}>
           Next tip

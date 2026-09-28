@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Board } from './components/Board'
-import { HowToPlay } from './components/HowToPlay'
+import { HowToPlay, HOW_NEW_START } from './components/HowToPlay'
 import { PrizeWheel } from './components/PrizeWheel'
 import { ResultOverlay } from './components/ResultOverlay'
 import { WinScreen, type WinReplay } from './components/WinScreen'
@@ -85,7 +85,8 @@ import {
   rankLabel,
 } from './game/challenges'
 import { publicLinkWithHash, publicPlayUrl } from './game/publicUrl'
-import { banterFor, sparkProgressBanter, type ConflictKind as BanterConflictKind } from './game/comments'
+import { banterFor, sparkProgressBanter, tipBanter, type ConflictKind as BanterConflictKind } from './game/comments'
+import { canTip, missedStarReason, noteMastery, noteShown, TIP_TRIGGERS, type TipId, type TipReason, type TipState } from './game/voiceTips'
 import type { ConflictKind as BoardConflictKind } from './game/logic'
 import { THEMES, themeForPuzzle } from './game/themes'
 import {
@@ -125,6 +126,8 @@ import {
   PLAYER_NAME_MAX,
   loadBuddyMeter,
   loadRecords,
+  loadTips,
+  saveTips,
   recordClear,
   saveRecords,
   saveBuddyMeter,
@@ -239,6 +242,8 @@ export default function App() {
   const [profile, setProfile] = useState<Profile | null>(() => loadProfile())
   const [progress, setProgress] = useState(() => getProgress())
   const [settings, setSettings] = useState<Settings>(() => loadSettings())
+  const settingsRef = useRef(settings)
+  settingsRef.current = settings
   const [wallet, setWallet] = useState<Wallet>(() => loadWallet())
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null)
   const [cells, setCells] = useState<CellState[]>([])
@@ -289,6 +294,20 @@ export default function App() {
   const idleRef = useRef<number | null>(null)
   const undoTimesRef = useRef<number[]>([])
   const lastActionRef = useRef(Date.now())
+  // ---- Voice tips (9.28-b) ----
+  const tipsRef = useRef<TipState>(loadTips())
+  const boardTipsRef = useRef<TipId[]>([])
+  const lastTipAtRef = useRef(0)
+  /** Last real move (the idle roast moves lastActionRef around, so tips keep their own clock). */
+  const lastMoveRef = useRef(Date.now())
+  /** Longest pause between moves this board (stall tip mastery). */
+  const maxGapRef = useRef(0)
+  /** Last correct buddy / hint (stuck tip). */
+  const lastProgressRef = useRef(Date.now())
+  const wrongTimesRef = useRef<number[]>([])
+  /** A board waiting for the first-time How to play to finish. */
+  const pendingStartRef = useRef<{ p: Puzzle; opts: { mode?: RunMode; daily?: boolean } } | null>(null)
+  const [howStart, setHowStart] = useState(0)
   const recordedRef = useRef(false)
   /** Latest board plus undo/redo stacks. Updated on every move, not on the next render. */
   const historyRef = useRef(createHistory([] as CellState[]))
@@ -562,6 +581,21 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running, celebrate, defeated])
 
+  // Voice tips: stalling (no move for a while) and seeming stuck (no progress) — see voiceTips.ts
+  useEffect(() => {
+    if (!running || celebrate || defeated) return
+    const start = Date.now()
+    lastMoveRef.current = Math.max(lastMoveRef.current, start)
+    lastProgressRef.current = Math.max(lastProgressRef.current, start)
+    const id = window.setInterval(() => {
+      const now = Date.now()
+      if (now - lastMoveRef.current >= TIP_TRIGGERS.stallMs && fireTip('stall')) return
+      if (now - lastProgressRef.current >= TIP_TRIGGERS.stuckMs && fireTip('stuck')) lastProgressRef.current = now
+    }, 3000)
+    return () => window.clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [running, celebrate, defeated])
+
   // Old-timer aside: if nobody has held the voice channel for a while, he drops a random remark.
   useEffect(() => {
     if (!running || celebrate || defeated) return
@@ -614,7 +648,56 @@ export default function App() {
   }
 
   function bumpAction() {
-    lastActionRef.current = Date.now()
+    const now = Date.now()
+    lastActionRef.current = now
+    maxGapRef.current = Math.max(maxGapRef.current, now - lastMoveRef.current)
+    lastMoveRef.current = now
+  }
+
+  function persistTips(t: TipState) {
+    tipsRef.current = t
+    saveTips(t)
+  }
+
+  function tipMastery(id: TipId) {
+    try {
+      persistTips(noteMastery(tipsRef.current, id))
+    } catch {
+      /* tips are extras */
+    }
+  }
+
+  /**
+   * Play a voice tip if it is on, not retired, past its cooldowns and per-board caps, and the voice
+   * channel is free (or the tip waits its turn). Silent tips (no recorded line yet) don't count.
+   */
+  function fireTip(id: TipId, reason?: TipReason, opts: { needQuiet?: boolean; quietMs?: number } = {}): boolean {
+    try {
+      const now = Date.now()
+      const st = settingsRef.current
+      const gate = {
+        now,
+        enabled: st.voiceTips !== false && st.voice !== false && st.sound !== false,
+        boardCount: boardTipsRef.current.length,
+        boardTips: boardTipsRef.current,
+        lastTipAt: lastTipAtRef.current,
+      }
+      if (!canTip(tipsRef.current, id, gate)) return false
+      if (opts.needQuiet !== false) {
+        const q = voiceQuietMs()
+        if (q == null || q < (opts.quietMs ?? TIP_TRIGGERS.quietMs)) return false
+      }
+      const line = tipBanter(id, reason)
+      if (line.silent || !line.clip) return false
+      if (line.text) showToast(line.text)
+      playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
+      boardTipsRef.current = [...boardTipsRef.current, id]
+      lastTipAtRef.current = now
+      persistTips(noteShown(tipsRef.current, id, now))
+      return true
+    } catch {
+      return false
+    }
   }
 
   function saveSettingsPatch(patch: Partial<Settings>) {
@@ -697,6 +780,14 @@ export default function App() {
   }
 
   function startPuzzle(p: Puzzle, resume = false, opts: { mode?: RunMode; daily?: boolean } = {}) {
+    // First board ever: How to play opens first (returning players start at the new cards)
+    if (!resume && !settingsRef.current.howSeen) {
+      pendingStartRef.current = { p, opts }
+      setStartSheet(null)
+      setHowStart(progress.clears.length > 0 ? HOW_NEW_START : 0)
+      setScreen('how')
+      return
+    }
     unlockAudio()
     sfxWhoosh()
     resetPlayViewport()
@@ -723,6 +814,13 @@ export default function App() {
     dailyRunRef.current = dailyKey
     setDailyTag(dailyKey ? 'scored' : practice || (opts.daily && !dailyKey) ? 'practice' : '')
     setWinReplay(null)
+    boardTipsRef.current = []
+    maxGapRef.current = 0
+    wrongTimesRef.current = []
+    lastMoveRef.current = Date.now()
+    lastProgressRef.current = Date.now()
+    if (runMode === 'trial') window.setTimeout(() => fireTip('first-trial', undefined, { needQuiet: false }), 1800)
+    else if (dailyKey) window.setTimeout(() => fireTip('first-daily', undefined, { needQuiet: false }), 1800)
     comboRef.current = resuming ? resumeDraft!.combo ?? newCombo() : newCombo()
     undosRef.current = resuming ? resumeDraft!.undos ?? 0 : 0
     splitsRef.current = resuming ? resumeDraft!.splits ?? [] : []
@@ -849,6 +947,17 @@ export default function App() {
     } else if (meta.kind === 'stone' && meta.conflict) {
       const kind: BanterConflictKind = meta.conflictKind ?? 'generic'
       flawedRef.current = true
+      {
+        const now = Date.now()
+        const recent = [...wrongTimesRef.current.filter((t) => now - t < TIP_TRIGGERS.stuckWrongWindowMs), now]
+        wrongTimesRef.current = recent
+        if (recent.length >= TIP_TRIGGERS.stuckWrong) {
+          // after the wrong-move line has had its say
+          window.setTimeout(() => {
+            if (fireTip('stuck', undefined, { quietMs: 800 })) wrongTimesRef.current = []
+          }, 3500)
+        }
+      }
       let nextLives = lives
       let w = { ...wallet, totalMistakes: wallet.totalMistakes + 1 }
       // One line per move: the losing move gets the lose line only, not a wrong-move line too
@@ -876,6 +985,7 @@ export default function App() {
         setAwaitingComeback(true)
       }
     } else if (meta.kind === 'stone') {
+      lastProgressRef.current = Date.now()
       pushBanter('place-good')
       setGiggleIndex(meta.index)
       window.setTimeout(() => setGiggleIndex((g) => (g === meta.index ? null : g)), 900)
@@ -945,7 +1055,24 @@ export default function App() {
       setWinLine(win.text || 'Roman says: nice clear!')
       // Slow or sloppy clear (lost a heart, 2+ hints, or over 3 minutes): the old-timer may chime in
       // with a backhanded compliment once Roman's cheer is done (never on top of it)
-      if (winEvent === 'win' && (lives < runMaxLives || hintsUsed >= 2 || elapsedMs > 180000)) {
+      // Voice tips: what the player has shown they get, and how to reach 3 stars if they missed it
+      let tipped = false
+      try {
+        if (replay) {
+          if (replay.runStars >= 3) tipMastery('three-star')
+          else {
+            const reason = missedStarReason({ withinTime: elapsedMs <= targets.timeMs, undos: undosRef.current, scoreOk: score >= targets.score3 })
+            tipped = fireTip('three-star', reason, { needQuiet: false })
+          }
+        }
+        if (undosRef.current <= 1) tipMastery('undo-spam')
+        if (Math.max(maxGapRef.current, Date.now() - lastMoveRef.current) < TIP_TRIGGERS.steadyGapMs) tipMastery('stall')
+        if (runMode === 'trial') tipMastery('first-trial')
+        if (dailyStreak != null) tipMastery('first-daily')
+      } catch {
+        /* tips are extras */
+      }
+      if (!tipped && winEvent === 'win' && (lives < runMaxLives || hintsUsed >= 2 || elapsedMs > 180000)) {
         window.setTimeout(() => pushBanter('win-heckle'), 2600)
       }
       const prog = recordClear({
@@ -1057,7 +1184,13 @@ export default function App() {
       }
       if (shellRef.current) burstConfetti(shellRef.current)
       // First finished board: ask once what to call the player on share cards
-      if (!settings.namePrompted && !playerName) window.setTimeout(() => askNameOnce(), 2200)
+      if (!settings.namePrompted && !playerName) {
+        window.setTimeout(() => {
+          // Only over the Victory card itself — never on top of Buddy Hunt or the prize wheel
+          if (!document.querySelector('.win-screen') || document.querySelector('.buddy-hunt, .prize-overlay')) return
+          askNameOnce()
+        }, 2200)
+      }
     }
   }
 
@@ -1083,6 +1216,8 @@ export default function App() {
       undosRef.current += 1
       comboRef.current = comboMove(comboRef.current, 'undo', -1, Date.now()).combo
       showToast(`Undo · −${UNDO_COST} pts`)
+      // Repeated undos: a voice tip about what undo costs (once the heckle, if any, has finished)
+      if (undosRef.current >= TIP_TRIGGERS.undoCount) window.setTimeout(() => fireTip('undo-spam', undefined, { quietMs: 800 }), 1400)
     } catch {
       /* scoring only */
     }
@@ -1130,6 +1265,8 @@ export default function App() {
     persistWallet(w)
     sfxHint()
     pushBanter('hint')
+    tipMastery('stuck')
+    lastProgressRef.current = Date.now()
     flawedRef.current = true
     setHintIndex(hint.index)
     setHintText(hint.explanation)
@@ -1713,8 +1850,25 @@ export default function App() {
 
       {screen === 'how' && (
         <HowToPlay
-          onDone={() => setScreen('levels')}
-          onBack={() => setScreen('home')}
+          key={`how-${howStart}`}
+          startAt={howStart}
+          doneLabel={pendingStartRef.current ? "Let's play" : 'Choose a level'}
+          onDone={() => {
+            settingsRef.current = { ...settingsRef.current, howSeen: true }
+            saveSettingsPatch({ howSeen: true })
+            const pend = pendingStartRef.current
+            pendingStartRef.current = null
+            setHowStart(0)
+            if (pend) startPuzzle(pend.p, false, pend.opts)
+            else setScreen('levels')
+          }}
+          onBack={() => {
+            settingsRef.current = { ...settingsRef.current, howSeen: true }
+            saveSettingsPatch({ howSeen: true })
+            pendingStartRef.current = null
+            setHowStart(0)
+            setScreen('home')
+          }}
         />
       )}
 
@@ -2182,6 +2336,14 @@ export default function App() {
                 }}
               />
               Voice comments
+            </label>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={settings.voiceTips !== false}
+                onChange={(e) => saveSettingsPatch({ voiceTips: e.target.checked })}
+              />
+              Voice tips
             </label>
             <label className="toggle">
               <input
