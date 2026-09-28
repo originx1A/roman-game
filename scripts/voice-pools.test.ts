@@ -84,11 +84,25 @@ test('not-best (won, slower than the best) is ONE combined win line, not a cheer
   assert.match(src, /notBest\s*\n?\s*\? 'not-best'/)
   assert.doesNotMatch(src, /setTimeout\(\(\) => pushBanter\('not-best'\)/)
   assert.deepEqual([...c.EVENT_POOLS['near-miss']], ['roman.cheer'])
-  assert.ok(c.NEW_NOT_BEST_LINES.length >= 10)
-  const voices = new Set(c.NEW_NOT_BEST_LINES.map((l) => l.id.split('_')[0]))
-  assert.deepEqual([...voices].sort(), ['coach', 'old', 'roman'])
-  assert.ok(c.NEW_NOT_BEST_LINES.filter((l) => l.id.startsWith('old_')).length > c.NEW_NOT_BEST_LINES.length / 2, 'old-timer heavy')
-  for (const l of c.NEW_NOT_BEST_LINES) assert.ok(!recorded.has(l.id), `${l.id} must stay silent until approved`)
+  // 9.30-g: the 14 approved combined lines are recorded and ARE the not-best pools (all three voices)
+  const nb = [...c.OLDTIMER_NOT_BEST_CLIPS, ...c.ROMAN_NOT_BEST_CLIPS, ...c.COACH_NOT_BEST_CLIPS]
+  assert.equal(nb.length, 14)
+  for (const id of nb) assert.ok(recorded.has(id) && id.includes('_notbest_'), `${id} recorded combined line`)
+  assert.ok(c.OLDTIMER_NOT_BEST_CLIPS.length > nb.length / 2, 'old-timer heavy')
+  const heard = new Set<string>()
+  const realNow = Date.now
+  let t = realNow() + 3_600_000
+  Date.now = () => (t += 600_000) // past the old-timer cooldown each time
+  try {
+    for (let i = 0; i < 200; i++) {
+      const b = c.banterFor('not-best')
+      heard.add(b.clip!.split('_')[0])
+      c.noteVoicePlayed(b.clip!)
+    }
+  } finally {
+    Date.now = realNow
+  }
+  assert.deepEqual([...heard].sort(), ['coach', 'old', 'roman'])
 })
 
 test('once a board is won only win lines speak; once lost only loss lines; live board only play lines', () => {

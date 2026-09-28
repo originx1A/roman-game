@@ -276,6 +276,71 @@ export type VoiceClipId =
   | 'old_aside_pigeons'
   | 'old_rescue_lifeguard'
   | 'old_rescue_parachute'
+  | 'tip_stall_roman_clock'
+  | 'tip_stall_roman_combo'
+  | 'tip_stall_roman_beg'
+  | 'tip_stall_coach_combo'
+  | 'tip_stall_coach_marks'
+  | 'tip_stall_coach_fewest'
+  | 'tip_stall_old_combo'
+  | 'tip_stall_old_timer'
+  | 'tip_stall_old_free'
+  | 'tip_undo_roman_count'
+  | 'tip_undo_roman_sock'
+  | 'tip_undo_roman_rules'
+  | 'tip_undo_coach_cost'
+  | 'tip_undo_coach_stars'
+  | 'tip_undo_coach_marks'
+  | 'tip_undo_old_prices'
+  | 'tip_undo_old_rent'
+  | 'tip_undo_old_crying'
+  | 'tip_star_roman_time'
+  | 'tip_star_coach_time'
+  | 'tip_star_old_time'
+  | 'tip_star_roman_recipe'
+  | 'tip_star_coach_undo'
+  | 'tip_star_old_barber'
+  | 'tip_star_roman_combo'
+  | 'tip_star_coach_score'
+  | 'tip_star_old_coffee'
+  | 'tip_star_roman_trial'
+  | 'tip_star_coach_card'
+  | 'tip_star_old_motel'
+  | 'tip_stuck_roman_shiny'
+  | 'tip_stuck_roman_1987'
+  | 'tip_stuck_roman_row'
+  | 'tip_stuck_coach_hint'
+  | 'tip_stuck_coach_region'
+  | 'tip_stuck_coach_learn'
+  | 'tip_stuck_old_complaint'
+  | 'tip_stuck_old_knees'
+  | 'tip_stuck_old_pride'
+  | 'tip_trial_roman_welcome'
+  | 'tip_trial_roman_coins'
+  | 'tip_trial_coach_rules'
+  | 'tip_trial_coach_marks'
+  | 'tip_trial_old_life'
+  | 'tip_trial_old_doctor'
+  | 'tip_daily_roman_first'
+  | 'tip_daily_roman_streak'
+  | 'tip_daily_coach_careful'
+  | 'tip_daily_coach_streak'
+  | 'tip_daily_old_parking'
+  | 'tip_daily_old_glasses'
+  | 'old_notbest_tsk'
+  | 'old_notbest_yesterday'
+  | 'old_notbest_rerun'
+  | 'old_notbest_ghost'
+  | 'old_notbest_calendar'
+  | 'old_notbest_knees'
+  | 'old_notbest_tea'
+  | 'old_notbest_downhill'
+  | 'old_notbest_slowpoke'
+  | 'roman_notbest_record'
+  | 'roman_notbest_again'
+  | 'roman_notbest_turtle'
+  | 'coach_notbest_clear'
+  | 'coach_notbest_close'
 
 export type ConflictKind = 'touch' | 'row' | 'col' | 'region' | 'generic'
 
@@ -675,44 +740,25 @@ const oldRecord = bag('old.record', OLDTIMER_RECORD_CLIPS)
 /**
  * "Finished, but not your best": a replayed board won without beating the old best.
  * 9.30-a (Tony): ONE line for the whole moment, board cleared + slower than your best, instead of
- * the win cheer followed by a tease. Until the new combined lines are approved and recorded, one of
- * these existing teasing lines plays alone as the win line. Teasing, never a loss line.
+ * the win cheer followed by a tease. Teasing, never a loss line.
+ * 9.30-g: Tony approved the 14 combined lines and they are recorded; they replace the stand-in
+ * teasers (those stay in their own win/record/nice-try pools). Old-timer about 60%, Roman and the
+ * coach take weighted turns for the rest.
  */
-export const ROMAN_NOT_BEST_CLIPS = ['roman_stillbetter', 'roman_almost', 'roman_cocky', 'roman_okayfine'] as const satisfies readonly VoiceClipId[]
+export const ROMAN_NOT_BEST_CLIPS = ['roman_notbest_record', 'roman_notbest_again', 'roman_notbest_turtle'] as const satisfies readonly VoiceClipId[]
 export const OLDTIMER_NOT_BEST_CLIPS = [
-  'old_nearmiss',
-  'old_win_eventually',
-  'old_win_paint',
-  'old_win_squirrel',
-  'old_win_napped',
-  'old_win_yesterday',
-  'old_win_gaveup',
-  'old_win_frame',
-  'old_win_twothree',
-  'old_win_ugly',
+  'old_notbest_tsk',
+  'old_notbest_yesterday',
+  'old_notbest_rerun',
+  'old_notbest_ghost',
+  'old_notbest_calendar',
+  'old_notbest_knees',
+  'old_notbest_tea',
+  'old_notbest_downhill',
+  'old_notbest_slowpoke',
 ] as const satisfies readonly VoiceClipId[]
+export const COACH_NOT_BEST_CLIPS = ['coach_notbest_clear', 'coach_notbest_close'] as const satisfies readonly VoiceClipId[]
 const oldNotBest = bag('old.notBest', OLDTIMER_NOT_BEST_CLIPS)
-const nextNotBest = bag('roman.notBest', ROMAN_NOT_BEST_CLIPS)
-/**
- * Proposed NEW not-best lines (voice-tips-draft.md). Silent until Tony approves and they are recorded.
- * 9.30-a: each one covers the whole moment (board cleared + slower than your best) in one line.
- */
-export const NEW_NOT_BEST_LINES: readonly { id: string; text: string }[] = [
-  { id: 'old_notbest_tsk', text: "Old-timer: Board's clear... but slower than last time. Tsk." },
-  { id: 'old_notbest_yesterday', text: "Old-timer: You won. Your old self still beat you, though. He's smug about it." },
-  { id: 'old_notbest_rerun', text: 'Old-timer: Same board, slower time. Like a rerun, but longer.' },
-  { id: 'old_notbest_ghost', text: 'Old-timer: Done, sure. Your ghost finished first and went home.' },
-  { id: 'old_notbest_calendar', text: 'Old-timer: Nice clear. Your best time is over there, waving. From far away.' },
-  { id: 'old_notbest_knees', text: 'Old-timer: Cleared it. Slower than before, and I know slow. Ask my knees.' },
-  { id: 'old_notbest_tea', text: 'Old-timer: You won. I finished a whole cup of tea. Last time I only got a sip.' },
-  { id: 'old_notbest_downhill', text: "Old-timer: A win, but slower than your record. It's all downhill from here, kid." },
-  { id: 'old_notbest_slowpoke', text: "Old-timer: Board's done. Your record's safe. From you, mostly." },
-  { id: 'roman_notbest_record', text: 'Roman says: board cleared! Your record just yawned, though.' },
-  { id: 'roman_notbest_again', text: 'Roman says: winner! Not your fastest. Roman noticed. Roman always notices.' },
-  { id: 'roman_notbest_turtle', text: 'Roman says: you did it, turtle-style! Your best time says hi.' },
-  { id: 'coach_notbest_clear', text: 'Board cleared. A little slower than your best. You know you have more in you.' },
-  { id: 'coach_notbest_close', text: 'Nice finish. Not a new best this time, but the next one could be.' },
-]
 const nextRecord = voiceBags.bag('roman.record', ROMAN_RECORD_CLIPS)
 
 /** Old-timer draw. The bag set already keeps a line from playing twice in a row across bags. */
@@ -765,6 +811,8 @@ const nextHint = takeTurns('hint', ROMAN_HINT_CLIPS, COACH_HINT_CLIPS)
 const nextBadge = takeTurns('badge', ROMAN_BADGE_CLIPS, COACH_BADGE_CLIPS)
 const nextPrize = takeTurns('prize', ROMAN_PRIZE_CLIPS, COACH_PRIZE_CLIPS)
 const nextStash = takeTurns('stash', ROMAN_STASH_CLIPS, COACH_STASH_CLIPS)
+// 9.30-g: Roman and the coach share the non-old-timer not-best turns (bags roman.notBest / coach.notBest)
+const nextNotBest = takeTurns('notBest', ROMAN_NOT_BEST_CLIPS, COACH_NOT_BEST_CLIPS)
 
 /**
  * 9.29-a: Roman's Trial ran out of time. The hearts are still there, so no "out of hearts" /
@@ -1004,6 +1052,7 @@ export const VOICE_POOLS: Record<string, readonly VoiceClipId[]> = {
   'roman.cheer': ROMAN_CHEER_CLIPS,
   'roman.record': ROMAN_RECORD_CLIPS,
   'roman.notBest': ROMAN_NOT_BEST_CLIPS,
+  'coach.notBest': COACH_NOT_BEST_CLIPS,
   'roman.trialClear': ['roman_trial_clear'],
   'roman.dailyDone': ['roman_daily_done'],
   'roman.wrong': ROMAN_WRONG_CLIPS,
@@ -1050,7 +1099,7 @@ export const EVENT_POOLS: Record<BanterEvent, readonly string[]> = {
   win: ['roman.cheer'],
   record: ['roman.cheer', 'roman.record', 'old.record'],
   'near-miss': ['roman.cheer'],
-  'not-best': ['roman.notBest', 'old.notBest'],
+  'not-best': ['roman.notBest', 'coach.notBest', 'old.notBest'],
   'trial-clear': ['roman.cheer', 'roman.trialClear'],
   'daily-done': ['roman.cheer', 'roman.dailyDone'],
   'win-heckle': ['old.win'],
@@ -1071,7 +1120,7 @@ export const LOSE_POOLS = ['old.lose', 'roman.lose', 'coach.lose', 'old.timeup',
 /** Mid-board put-downs for a wrong move, idling or undo spam. */
 export const PLAY_PUTDOWN_POOLS = ['old.wrong', 'roman.wrong', 'old.idle', 'roman.idle', 'old.undo'] as const
 /** Lines that celebrate a finished board. */
-export const WIN_POOLS = ['roman.cheer', 'roman.record', 'old.record', 'roman.notBest', 'old.notBest', 'roman.trialClear', 'roman.dailyDone', 'old.win'] as const
+export const WIN_POOLS = ['roman.cheer', 'roman.record', 'old.record', 'roman.notBest', 'coach.notBest', 'old.notBest', 'roman.trialClear', 'roman.dailyDone', 'old.win'] as const
 
 /** Events that belong to a live board / a won board / a lost board; the rest can play anywhere. */
 export const PLAY_EVENTS: readonly BanterEvent[] = ['place-good', 'place-bad', 'mark', 'hint', 'rescue', 'idle', 'undo-spam', 'aside']
