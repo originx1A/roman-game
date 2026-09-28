@@ -201,6 +201,15 @@ const FALLBACK_TEXT: Partial<Record<VoiceLineId, string>> = {
   old_lose_popcorn: "Old-timer: And that's the ballgame. Rematch? I'll get my popcorn.",
   old_win_eventually: "Old-timer: You won. Eventually. I'll allow it.",
   old_win_ugly: "Old-timer: A win's a win. Even an ugly one.",
+  roman_record_best: "Roman says: new record! Somebody write that down!",
+  roman_record_faster: "Roman says: faster than ever. I've got goosebumps!",
+  roman_record_beat: "Roman says: you just beat your own best. Show-off!",
+  roman_nearmiss: "Roman says: so close! Roman felt that one.",
+  roman_trial_clear: "Roman says: you survived Roman's Trial! Double coins!",
+  roman_daily_done: "Roman says: daily challenge, done! See you tomorrow.",
+  old_record_head: "Old-timer: New record, huh. Don't let it go to your head.",
+  old_record_tea: "Old-timer: Faster than last time. I nearly spilled my tea.",
+  old_nearmiss: "Old-timer: Almost. Almost doesn't win a medal.",
   old_win_paint: 'Old-timer: That was like watching paint dry. But with a happy ending.',
   old_win_yesterday: 'Old-timer: Done already? Oh wait, you started yesterday. Nice.',
   old_win_gaveup: 'Old-timer: Well, look at that. The board gave up before you did.',
@@ -701,6 +710,14 @@ export function sfxHuntMiss() {
 }
 
 /** All three found: a little fanfare */
+/** New personal best: quick rising sparkle + chord (Web Audio, same mute/volume as the rest) */
+export function sfxRecord() {
+  markSfx('sfxRecord')
+  ;[659, 784, 988, 1319].forEach((f, i) => tone(f, 0.12, 'triangle', 0.09, 0.15 + i * 0.08))
+  ;[988, 1319, 1976].forEach((f) => tone(f, 0.6, 'sine', 0.05, 0.5))
+  noiseBurst(0.15, 0.03, 0.5)
+}
+
 export function sfxHuntFanfare() {
   markSfx(HUNT_SFX.fanfare)
   ;[523, 659, 784].forEach((f, i) => tone(f, 0.14, 'triangle', 0.1, 0.45 + i * 0.11))

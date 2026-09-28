@@ -4077,3 +4077,311 @@ html.play-locked #root {
   .coin-shop { grid-template-columns: minmax(0, 1fr); }
   .panel { padding-left: max(1rem, env(safe-area-inset-left, 0px)); padding-right: max(1rem, env(safe-area-inset-right, 0px)); }
 }
+
+/* ---------- 9.28-a: replay challenge (bests, ghost pace, stars, Trial, Daily) ---------- */
+.play-hud {
+  position: relative;
+}
+.hud-time {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  transition: background 0.25s ease, color 0.25s ease;
+}
+.hud-time.pace-ahead {
+  background: rgba(46, 204, 113, 0.22);
+  color: #7dffb0;
+}
+.hud-time.pace-behind {
+  background: rgba(255, 77, 77, 0.22);
+  color: #ff9c9c;
+}
+.hud-pace {
+  font-style: normal;
+  font-size: 0.62rem;
+  font-weight: 900;
+}
+.hud-countdown.is-low {
+  color: #ff8080;
+  animation: trialPulse 1s ease-in-out infinite;
+}
+@keyframes trialPulse {
+  50% { opacity: 0.55; }
+}
+/* thin ghost pace bar along the bottom edge of the HUD: takes no space, never moves the board */
+.ghost-bar {
+  position: absolute;
+  left: 2.2rem;
+  right: 0;
+  bottom: -0.2rem;
+  height: 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  pointer-events: none;
+}
+.ghost-bar i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 4px;
+  transition: width 0.25s linear;
+}
+.ghost-bar .ghost-fill {
+  background: rgba(255, 255, 255, 0.35);
+}
+.ghost-bar .me-fill {
+  height: 2px;
+  top: 1px;
+}
+.ghost-bar.ahead .me-fill {
+  background: #2ecc71;
+}
+.ghost-bar.behind .me-fill {
+  background: #ff5c5c;
+}
+
+/* level select */
+.lv-stars {
+  margin-left: 0.4rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.28);
+}
+.lv-stars.s1,
+.lv-stars.s2,
+.lv-stars.s3 {
+  color: var(--sun);
+}
+
+/* daily */
+.daily-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.75rem 0 1rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(255, 209, 102, 0.16), rgba(26, 109, 255, 0.14));
+  border: 1px solid rgba(255, 209, 102, 0.4);
+  min-width: 0;
+}
+.daily-text {
+  display: grid;
+  gap: 0.15rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.daily-text strong {
+  font-family: var(--font-display);
+  color: var(--sun);
+  font-size: 0.95rem;
+}
+.daily-text span {
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.daily-text .daily-status {
+  opacity: 0.7;
+  font-size: 0.72rem;
+}
+.daily-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* start sheet */
+.start-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: max(0.75rem, env(safe-area-inset-top)) 0.75rem max(0.75rem, env(safe-area-inset-bottom));
+}
+.start-sheet-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(3, 8, 20, 0.7);
+}
+.start-sheet-card {
+  position: relative;
+  width: min(100%, 380px);
+  max-height: 100%;
+  overflow-y: auto;
+  box-sizing: border-box;
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem 1.1rem;
+  border-radius: 20px;
+  background: #0d1f45;
+  border: 1px solid rgba(255, 209, 102, 0.4);
+  color: var(--foam);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.start-sheet-card h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  color: var(--sun);
+  font-size: 1.35rem;
+}
+.start-sheet-stars {
+  font-size: 1rem;
+  letter-spacing: 0.05em;
+}
+.start-sheet-meta {
+  margin: -0.35rem 0 0;
+  font-size: 0.75rem;
+  opacity: 0.7;
+  font-weight: 700;
+}
+.start-sheet-bests {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+.start-sheet-bests div {
+  display: grid;
+  padding: 0.45rem 0.6rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.start-sheet-bests span {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.7;
+  font-weight: 800;
+}
+.start-sheet-bests strong {
+  font-size: 1.15rem;
+}
+.start-sheet-goals {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.start-sheet-goals li {
+  opacity: 0.75;
+}
+.start-sheet-goals li.done {
+  opacity: 1;
+  color: var(--sun);
+}
+.start-sheet-tip,
+.start-sheet-locked {
+  margin: 0;
+  font-size: 0.72rem;
+  opacity: 0.7;
+  font-weight: 700;
+}
+.trial-btn {
+  display: grid;
+  gap: 0.1rem;
+  background: linear-gradient(135deg, #7a1f2b, #c0392b);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.trial-btn small {
+  font-size: 0.66rem;
+  opacity: 0.85;
+  font-weight: 700;
+}
+
+/* win screen extras */
+.win-replay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.6rem;
+  margin: 0 0 0.35rem;
+}
+.win-stars {
+  display: inline-flex;
+  gap: 0.1rem;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+.win-stars i {
+  font-style: normal;
+  color: rgba(255, 255, 255, 0.22);
+}
+.win-stars i.on {
+  color: var(--sun);
+  text-shadow: 0 0 10px rgba(255, 209, 102, 0.6);
+}
+.win-stars i.new {
+  animation: starPop 0.6s ease 0.4s both;
+}
+@keyframes starPop {
+  0% { transform: scale(0.2); opacity: 0; }
+  70% { transform: scale(1.35); opacity: 1; }
+  100% { transform: scale(1); }
+}
+.win-record {
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-weight: 900;
+  font-size: 0.78rem;
+  background: rgba(255, 255, 255, 0.1);
+}
+.win-record.is-record {
+  background: linear-gradient(135deg, #ffe9a8, var(--gold));
+  color: #3a2500;
+  animation: starPop 0.6s ease 0.2s both;
+}
+.win-record.is-near {
+  background: rgba(255, 140, 60, 0.25);
+  color: #ffc49a;
+}
+.win-record.is-trial {
+  background: linear-gradient(135deg, #7a1f2b, #c0392b);
+  color: #fff;
+}
+.win-record.is-daily {
+  background: rgba(46, 204, 113, 0.25);
+  color: #9dffc4;
+}
+.win-replay-detail {
+  margin: 0 0 0.45rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  opacity: 0.8;
+  color: var(--sun);
+}
+@media (max-width: 359px) {
+  .daily-card {
+    flex-wrap: wrap;
+  }
+  /* narrow phones: the pace delta wins over the spark counter */
+  .hud-stats.has-pace .hud-stash {
+    display: none;
+  }
+}
+.name-input,
+.name-setting input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 16px; /* no iOS zoom on focus */
+  padding: 0.6rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--foam);
+}
+.name-setting {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0 0 0.75rem;
+  font-weight: 700;
+}

@@ -1,6 +1,7 @@
 import { sanitizeMeter } from './buddyHunt'
 import type { Challenge, ClearRecord, Profile } from './types'
 import { DEFAULT_WALLET, type Wallet } from './rewards'
+import { migrateRecords, type ComboState, type RecordsBlob, type RunMode } from './replay'
 
 const KEYS = {
   profile: 'roman.profile.v1',
@@ -11,12 +12,26 @@ const KEYS = {
   wallet: 'roman.wallet.v1',
   generated: 'roman.generated.v1',
   buddyMeter: 'roman.buddymeter.v1',
+  records: 'roman.records.v1',
 } as const
 
 export interface Settings {
   sound: boolean
   voice: boolean
   reduceMotion: boolean
+  /** Name on share cards/text (local only). Empty = "I scored…" */
+  playerName?: string
+  /** The one-time "what should we call you?" prompt was shown */
+  namePrompted?: boolean
+}
+
+export const PLAYER_NAME_MAX = 16
+
+/** Trim, drop control characters, squash spaces, cap at 16 characters */
+export function cleanPlayerName(raw: unknown): string {
+  if (typeof raw !== 'string') return ''
+  const s = raw.replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim()
+  return Array.from(s).slice(0, PLAYER_NAME_MAX).join('').trim()
 }
 
 export interface ProgressBlob {
@@ -36,6 +51,13 @@ export interface BoardDraft {
   future?: string[][]
   /** This attempt had a wrong buddy, a rescue or a revive (not a perfect win). */
   flawed?: boolean
+  /** Replay challenge state for this attempt (older saves have none) */
+  mode?: RunMode
+  /** Daily Challenge date key when this attempt is today's first (scored) daily try */
+  daily?: string
+  combo?: ComboState
+  undos?: number
+  splits?: number[]
 }
 
 const defaultSettings: Settings = { sound: true, voice: true, reduceMotion: false }
@@ -226,6 +248,31 @@ export function loadDraft(): BoardDraft | null {
   return read(KEYS.boardDraft, null)
 }
 
+/** Personal bests, stars, Trial and Daily state. Missing/broken data falls back safely. */
+export function loadRecords(boardInfo: (id: string) => { size: number; difficulty?: string } | undefined): RecordsBlob {
+  let raw: unknown = null
+  try {
+    raw = JSON.parse(localStorage.getItem(KEYS.records) || 'null')
+  } catch {
+    raw = null
+  }
+  let clears: ClearRecord[] = []
+  try {
+    clears = getProgress().clears ?? []
+  } catch {
+    clears = []
+  }
+  return migrateRecords(raw, clears, boardInfo)
+}
+
+export function saveRecords(blob: RecordsBlob) {
+  try {
+    write(KEYS.records, blob)
+  } catch {
+    /* storage full or blocked: keep playing */
+  }
+}
+
 export function exportSaveJson(): string {
   return JSON.stringify(
     {
@@ -236,6 +283,7 @@ export function exportSaveJson(): string {
       settings: loadSettings(),
       challenges: loadChallenges(),
       wallet: loadWallet(),
+      records: read(KEYS.records, null),
     },
     null,
     2,
@@ -250,6 +298,7 @@ export function importSaveJson(raw: string): boolean {
     if (data.settings) saveSettings(data.settings)
     if (data.challenges) saveChallenges(data.challenges)
     if (data.wallet) saveWallet({ ...DEFAULT_WALLET, ...data.wallet })
+    if (data.records && data.records.v === 1) write(KEYS.records, data.records)
     return true
   } catch {
     return false

@@ -622,6 +622,27 @@
     "post": "rasp-v1",
     "text": "Out of hearts. I'd lend you one, but mine runs on duct tape."
   },
+  "old_nearmiss": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Almost. Almost doesn't win a medal."
+  },
+  "old_record_head": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "New record, huh. Don't let it go to your head."
+  },
+  "old_record_tea": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Faster than last time. I nearly spilled my tea."
+  },
   "old_rescue_cat": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
@@ -1106,6 +1127,12 @@
     "pitch": "-6Hz",
     "text": "Roman says: no cuddling \u2014 even corners count!"
   },
+  "roman_daily_done": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: daily challenge, done! See you tomorrow."
+  },
   "roman_dance": {
     "voice": "en-US-BrianNeural",
     "rate": "-8%",
@@ -1358,6 +1385,12 @@
     "pitch": "-6Hz",
     "text": "Roman says: nap time. You earned it. I earned it more."
   },
+  "roman_nearmiss": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: so close! Roman felt that one."
+  },
   "roman_nope": {
     "voice": "en-US-BrianNeural",
     "rate": "-8%",
@@ -1437,6 +1470,24 @@
     "rate": "-8%",
     "pitch": "-6Hz",
     "text": "Roman says: a raccoon stole my strategy. Still won vibes."
+  },
+  "roman_record_beat": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: you just beat your own best. Show-off!"
+  },
+  "roman_record_best": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: new record! Somebody write that down!"
+  },
+  "roman_record_faster": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: faster than ever. I've got goosebumps!"
   },
   "roman_retry": {
     "voice": "en-US-BrianNeural",
@@ -1575,6 +1626,12 @@
     "rate": "-8%",
     "pitch": "-6Hz",
     "text": "Roman says: my toes are freezing. Celebrate harder."
+  },
+  "roman_trial_clear": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: you survived Roman's Trial! Double coins!"
   },
   "roman_trumpet": {
     "voice": "en-US-BrianNeural",

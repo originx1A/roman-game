@@ -41,6 +41,12 @@ RASP_FILTER = (
 )
 
 ROMAN_LINES = {
+    "roman_record_best": "Roman says: new record! Somebody write that down!",
+    "roman_record_faster": "Roman says: faster than ever. I've got goosebumps!",
+    "roman_record_beat": "Roman says: you just beat your own best. Show-off!",
+    "roman_nearmiss": "Roman says: so close! Roman felt that one.",
+    "roman_trial_clear": "Roman says: you survived Roman's Trial! Double coins!",
+    "roman_daily_done": "Roman says: daily challenge, done! See you tomorrow.",
     "roman_awesome": "Roman says: you are awesome!",
     "roman_legend": "Roman says: absolute legend!",
     "roman_highfive": "Roman says: high five, puzzle champ!",
@@ -214,6 +220,9 @@ COACH_LINES = {
 }
 
 OLDTIMER_LINES = {
+    "old_record_head": "New record, huh. Don't let it go to your head.",
+    "old_record_tea": "Faster than last time. I nearly spilled my tea.",
+    "old_nearmiss": "Almost. Almost doesn't win a medal.",
     # wrong move
     "old_wrong_stick": "Back in my day we solved these with a stick. And we were faster.",
     "old_wrong_pigeon": "Even a pigeon would've skipped that square. A pigeon!",

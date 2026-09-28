@@ -1,6 +1,16 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { CRITTER_STASH_GOAL } from './SparkCritter'
 
+/** Replay challenge extras for this win: stars, a record/near-miss banner, coins earned */
+export type WinReplay = {
+  showStars: boolean
+  stars: number
+  starsBefore: number
+  banner?: { kind: 'record' | 'near' | 'trial' | 'daily' | 'first'; text: string }
+  coinsLine?: string
+  detail?: string
+}
+
 export type WinScreenProps = {
   puzzleName: string
   difficultyLabel: string
@@ -24,6 +34,7 @@ export type WinScreenProps = {
   /** Buddy meter after this win: filled notches of `goal`; `pending` = Buddy Hunt is ready */
   buddyMeter?: { notches: number; goal: number; pending: boolean; perfect: boolean }
   onBuddyHunt?: () => void
+  replay?: WinReplay
 }
 
 export function WinScreen({
@@ -48,6 +59,7 @@ export function WinScreen({
   onDuel,
   buddyMeter,
   onBuddyHunt,
+  replay,
 }: WinScreenProps) {
   const [entered, setEntered] = useState(false)
 
@@ -75,7 +87,29 @@ export function WinScreen({
 
           <p className="win-roman-says">{romanSaying}</p>
 
-          {perfect ? <p className="win-perfect">Perfect clear — no hints</p> : null}
+          {replay && (replay.showStars || replay.banner) ? (
+            <div className="win-replay">
+              {replay.showStars ? (
+                <span className="win-stars" aria-label={`${replay.stars} of 3 stars`} data-stars={replay.stars}>
+                  {[1, 2, 3].map((i) => (
+                    <i key={i} className={`${i <= replay.stars ? 'on' : ''} ${i > replay.starsBefore && i <= replay.stars ? 'new' : ''}`}>
+                      ★
+                    </i>
+                  ))}
+                </span>
+              ) : null}
+              {replay.banner ? (
+                <span className={`win-record is-${replay.banner.kind}`} data-banner={replay.banner.kind}>
+                  {replay.banner.text}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+          {replay ? (
+            <p className="win-replay-detail">{[replay.detail, replay.coinsLine].filter(Boolean).join(' · ')}</p>
+          ) : perfect ? (
+            <p className="win-perfect">Perfect clear — no hints</p>
+          ) : null}
 
           <div className="win-stats" aria-label="Run stats">
             <div className="win-stat">

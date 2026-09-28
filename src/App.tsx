@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { Board } from './components/Board'
 import { HowToPlay } from './components/HowToPlay'
 import { PrizeWheel } from './components/PrizeWheel'
 import { ResultOverlay } from './components/ResultOverlay'
-import { WinScreen } from './components/WinScreen'
+import { WinScreen, type WinReplay } from './components/WinScreen'
 import { type ShortfallAction } from './components/ShortfallSheet'
 import { ShortfallSheetHost } from './components/ShortfallSheetHost'
 import { CoinPackCard } from './components/CoinPackCard'
@@ -29,10 +30,41 @@ import {
   clearBuddy,
   emptyBoard,
   findHint,
+  findConflicts,
   findMisplacedBuddy,
   isSolved,
-  scoreRun,
 } from './game/logic'
+import {
+  TRIAL_HEARTS,
+  UNDO_COST,
+  comboMove,
+  comboMult,
+  dailyCoins,
+  dailyIndex,
+  finishDaily,
+  formatDelta,
+  ghostProgress,
+  ghostSplits,
+  hasBest,
+  liveStreak,
+  newCombo,
+  notePlay,
+  paceDelta,
+  recordRun,
+  replayCoins,
+  scoreRunV2,
+  scoreShareText,
+  startDaily,
+  targetsFor,
+  torontoDateKey,
+  trialTimeLimitMs,
+  trialUnlocked,
+  type ComboState,
+  type MoveKind,
+  type RecordsBlob,
+  type RunMode,
+  type RunResult,
+} from './game/replay'
 import { PUZZLES, getPuzzle, puzzlesByDifficulty, createFreshPuzzle } from './game/puzzles'
 import { pickNextBoard } from './game/nextBoard'
 import type { CellState, Challenge, DuelResult, Profile, Puzzle, Screen } from './game/types'
@@ -89,8 +121,12 @@ import {
   loadProfile,
   loadSettings,
   loadWallet,
+  cleanPlayerName,
+  PLAYER_NAME_MAX,
   loadBuddyMeter,
+  loadRecords,
   recordClear,
+  saveRecords,
   saveBuddyMeter,
   saveDraft,
   saveSettings,
@@ -108,6 +144,7 @@ import {
   sfxHeartLose,
   sfxHint,
   sfxLose,
+  sfxRecord,
   sfxUndo,
   sfxWhoosh,
   sfxWin,
@@ -154,6 +191,23 @@ function senderEmail(email: string | undefined): string {
 }
 
 const MISSING_BOARD = 'This board isn’t on this device. Ask your friend for a fresh link.'
+
+const catalogBoard = (id: string) => PUZZLES.find((p) => p.id === id)
+
+/** Buddies on the board that don't break a rule (what the ghost pace counts; never peeks at the answer) */
+function cleanBuddies(p: Puzzle, board: CellState[]): number {
+  if (board.length !== p.size * p.size) return 0
+  const conf = findConflicts(p, board).cells
+  let n = 0
+  board.forEach((c, i) => {
+    if (c === 'stone' && !conf.has(i)) n++
+  })
+  return n
+}
+
+function starString(n: number): string {
+  return '★'.repeat(n) + '☆'.repeat(Math.max(0, 3 - n))
+}
 
 function formatMs(ms: number) {
   const s = Math.floor(ms / 1000)
@@ -215,7 +269,7 @@ export default function App() {
   const [webShop, setWebShop] = useState<'loading' | 'ready' | 'unavailable'>('loading')
   const [nameInput, setNameInput] = useState('Roman')
   const [challengeEmail, setChallengeEmail] = useState('')
-  const [challengeMsg, setChallengeMsg] = useState('Can you beat Roman on this board?')
+  const [challengeMsg, setChallengeMsg] = useState('Can you beat me on this board?')
   const [shareLink, setShareLink] = useState('')
   const [shareText, setShareText] = useState('')
   const [shareChallenge, setShareChallenge] = useState<Challenge | null>(null)
@@ -242,6 +296,23 @@ export default function App() {
   const [boardVersion, setBoardVersion] = useState(0)
   /** The history step the current board stroke recorded; later changes of that stroke amend it. */
   const strokeStepRef = useRef<{ stroke: number; hist: ReturnType<typeof createHistory> } | null>(null)
+
+  // ---- Replay challenge: bests, ghost pace, combo/undo scoring, stars, Trial, Daily ----
+  const [records, setRecords] = useState<RecordsBlob>(() => loadRecords(catalogBoard))
+  const [mode, setMode] = useState<RunMode>('normal')
+  const modeRef = useRef<RunMode>('normal')
+  /** Today's date key while this attempt is the scored (first) Daily try */
+  const dailyRunRef = useRef<string | null>(null)
+  const [dailyTag, setDailyTag] = useState<'' | 'scored' | 'practice'>('')
+  const [startSheet, setStartSheet] = useState<Puzzle | null>(null)
+  const [winReplay, setWinReplay] = useState<WinReplay | null>(null)
+  // Player name for share cards (asked once: first share or first finished board)
+  const playerName = cleanPlayerName(settings.playerName)
+  const [namePrompt, setNamePrompt] = useState<null | { then?: () => void }>(null)
+  const [nameDraft, setNameDraft] = useState('')
+  const comboRef = useRef<ComboState>(newCombo())
+  const undosRef = useRef(0)
+  const splitsRef = useRef<number[]>([])
 
   const byDiff = useMemo(() => puzzlesByDifficulty(), [])
   const draft = loadDraft()
@@ -453,6 +524,19 @@ export default function App() {
     }
   }, [running])
 
+  // Roman's Trial: the clock counts down; at zero the board is lost
+  useEffect(() => {
+    if (mode !== 'trial' || !running || !puzzle || celebrate || defeated) return
+    if (elapsedMs < trialTimeLimitMs(targetsFor(puzzle))) return
+    setRunning(false)
+    setDefeated(true)
+    saveDraft(null)
+    sfxLose()
+    pushBanter('lose')
+    setLoseLine("Time's up! Roman's Trial wins this round.")
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [elapsedMs, mode, running, celebrate, defeated])
+
   // Roman idle roast — no clues, just roasting long pauses
   useEffect(() => {
     if (!running || celebrate || defeated) {
@@ -533,6 +617,41 @@ export default function App() {
     lastActionRef.current = Date.now()
   }
 
+  function saveSettingsPatch(patch: Partial<Settings>) {
+    setSettings((cur) => {
+      const next = { ...cur, ...patch }
+      saveSettings(next)
+      return next
+    })
+  }
+
+  /** Ask for a name once; `then` runs after Save or Skip */
+  function askNameOnce(then?: () => void): boolean {
+    if (settings.namePrompted || playerName) return false
+    setNameDraft('')
+    setNamePrompt({ then })
+    return true
+  }
+
+  function closeNamePrompt(save: boolean) {
+    const name = save ? cleanPlayerName(nameDraft) : ''
+    saveSettingsPatch({ namePrompted: true, ...(name ? { playerName: name } : {}) })
+    const then = namePrompt?.then
+    setNamePrompt(null)
+    if (then) window.setTimeout(then, 0)
+  }
+
+  /** Share text for this board: name, score, level, stars, best time, New best! */
+  function levelLabelFor(p: Puzzle): string {
+    const n = PUZZLES.findIndex((c) => c.id === p.id)
+    return n >= 0 ? `Level ${n + 1} (${p.name})` : `${p.name} (${DIFFICULTY_LABEL[p.difficulty]})`
+  }
+
+  function persistRecords(next: RecordsBlob) {
+    setRecords(next)
+    saveRecords(next)
+  }
+
   function persistWallet(next: Wallet) {
     setWallet(next)
     saveWallet(next)
@@ -568,17 +687,55 @@ export default function App() {
       hintsUsed: extra?.hintsUsed ?? hintsUsed,
       startedAt: new Date().toISOString(),
       flawed: flawedRef.current,
+      mode: modeRef.current,
+      daily: dailyRunRef.current ?? undefined,
+      combo: comboRef.current,
+      undos: undosRef.current,
+      splits: splitsRef.current,
       ...stepsToSave(hist),
     })
   }
 
-  function startPuzzle(p: Puzzle, resume = false) {
+  function startPuzzle(p: Puzzle, resume = false, opts: { mode?: RunMode; daily?: boolean } = {}) {
     unlockAudio()
     sfxWhoosh()
     resetPlayViewport()
+    setStartSheet(null)
+    const resumeDraft = resume ? loadDraft() : null
+    const resuming = !!resumeDraft && resumeDraft.puzzleId === p.id
+    const onCatalog = !!catalogBoard(p.id)
+    let runMode: RunMode = resuming ? resumeDraft!.mode ?? 'normal' : opts.mode ?? 'normal'
+    if (runMode === 'trial' && !onCatalog) runMode = 'normal'
+    let dailyKey: string | null = resuming ? resumeDraft!.daily ?? null : null
+    let practice = false
+    let rec = records
+    if (!resuming && opts.daily) {
+      const today = torontoDateKey()
+      const started = startDaily(rec.daily, today, p.id)
+      rec = { ...rec, daily: started.daily }
+      if (started.firstAttempt) dailyKey = today
+      else practice = true
+    }
+    if (!resuming && onCatalog) rec = notePlay(rec, p.id)
+    if (rec !== records) persistRecords(rec)
+    modeRef.current = runMode
+    setMode(runMode)
+    dailyRunRef.current = dailyKey
+    setDailyTag(dailyKey ? 'scored' : practice || (opts.daily && !dailyKey) ? 'practice' : '')
+    setWinReplay(null)
+    comboRef.current = resuming ? resumeDraft!.combo ?? newCombo() : newCombo()
+    undosRef.current = resuming ? resumeDraft!.undos ?? 0 : 0
+    splitsRef.current = resuming ? resumeDraft!.splits ?? [] : []
+    // Before the board: what to beat
+    const best = onCatalog ? hasBest(rec, p.id, runMode) : undefined
+    const intro = [
+      runMode === 'trial' ? `Roman's Trial: ${TRIAL_HEARTS} hearts, no undo, beat the clock` : '',
+      dailyKey ? 'Daily Challenge: only this first try counts' : practice ? "Daily practice: today's score is already in" : '',
+      best ? `Best ${formatMs(best.bestMs!)} · ${best.bestScore ?? 0} pts` : '',
+    ].filter(Boolean).join(' · ')
     const saved = loadWallet()
-    let startLives = MAX_LIVES
-    if ((saved.bonusHearts ?? 0) > 0) {
+    let startLives = runMode === 'trial' ? TRIAL_HEARTS : MAX_LIVES
+    if (runMode !== 'trial' && (saved.bonusHearts ?? 0) > 0) {
       const left = saved.bonusHearts - 1
       persistWallet({ ...saved, bonusHearts: left })
       startLives = MAX_LIVES + 1
@@ -587,6 +744,9 @@ export default function App() {
           ? `Bonus heart used — this board starts with ${startLives} hearts (${left} saved)`
           : `Bonus heart used — this board starts with ${startLives} hearts`,
       )
+      if (intro && !resuming) window.setTimeout(() => showToast(intro), 2500)
+    } else if (intro && !resuming) {
+      showToast(intro)
     }
     const themeId = p.theme ?? themeForPuzzle(p.id, p.difficulty)
     setPuzzle({ ...p, theme: themeId })
@@ -633,6 +793,8 @@ export default function App() {
       elapsedMs: 0,
       hintsUsed: 0,
       startedAt: new Date().toISOString(),
+      mode: runMode,
+      daily: dailyKey ?? undefined,
     })
   }
 
@@ -644,6 +806,8 @@ export default function App() {
       index: number
       conflictKind?: BoardConflictKind | null
       stroke?: number
+      /** a hint or rescue made this change (no combo points) */
+      assist?: boolean
     },
   ) {
     bumpAction()
@@ -656,6 +820,29 @@ export default function App() {
     if (hist === historyRef.current) return
     commitHistory(hist)
     strokeStepRef.current = meta.stroke != null ? { stroke: meta.stroke, hist } : null
+
+    // Skill scoring: quick good moves build a combo (shown in the caption slot, never on the HUD)
+    if (puzzle && !recordedRef.current) {
+      try {
+        const kind: MoveKind = meta.assist
+          ? 'other'
+          : meta.kind === 'mark'
+            ? 'x'
+            : meta.kind === 'stone'
+              ? meta.conflict
+                ? 'bad'
+                : 'buddy'
+              : 'other'
+        const r = comboMove(comboRef.current, kind, meta.index, Date.now())
+        comboRef.current = r.combo
+        if (r.tierUp) showToast(`Combo ×${comboMult(r.combo.streak)}!`)
+        const n = cleanBuddies(puzzle, next)
+        const splits = splitsRef.current
+        if (n > splits.length) splitsRef.current = [...splits, ...Array.from({ length: n - splits.length }, () => elapsedMs)]
+      } catch {
+        /* scoring extras only */
+      }
+    }
 
     if (meta.kind === 'mark') {
       // X marks: Board already played sfxMark — never banter/voice
@@ -701,13 +888,6 @@ export default function App() {
       setRunning(false)
       setCelebrate(true)
       sfxWin()
-      const win = pushBanter('win')
-      setWinLine(win.text || 'Roman says: nice clear!')
-      // Slow or sloppy clear (lost a heart, 2+ hints, or over 3 minutes): the old-timer may chime in
-      // with a backhanded compliment once Roman's cheer is done (never on top of it)
-      if (lives < runMaxLives || hintsUsed >= 2 || elapsedMs > 180000) {
-        window.setTimeout(() => pushBanter('win-heckle'), 2600)
-      }
       const perfect = hintsUsed === 0
       // Buddy meter: a perfect win (no hints, rescue, wrong buddies or lost hearts) fills a notch
       const flawless = isPerfectWin({ hintsUsed, flawed: flawedRef.current, livesLost: runMaxLives - lives })
@@ -716,13 +896,58 @@ export default function App() {
       setBuddyMeter(metered.meter)
       setWinPerfect(flawless)
       if (metered.filledNow) window.setTimeout(() => showToast('Buddy meter full — Buddy Hunt unlocked!'), 1200)
-      const score = scoreRun({
+      const targets = targetsFor(puzzle)
+      const runMode = modeRef.current
+      const score = scoreRunV2({
         size: puzzle.size,
+        targetMs: targets.timeMs,
         elapsedMs,
         hintsUsed,
         perfect,
+        comboPoints: comboRef.current.points,
       })
       setLastScore(score)
+      // Personal bests, stars, Trial and Daily
+      let replay: RunResult | null = null
+      let rec = records
+      let dailyStreak: number | null = null
+      try {
+        const fullSplits = [...splitsRef.current]
+        while (fullSplits.length < puzzle.size) fullSplits.push(elapsedMs)
+        if (catalogBoard(puzzle.id)) {
+          const out = recordRun(rec, { puzzleId: puzzle.id, mode: runMode, ms: elapsedMs, score, undos: undosRef.current, splits: fullSplits.slice(0, puzzle.size), targets, buddy: null })
+          rec = out.blob
+          replay = out.result
+        }
+        if (dailyRunRef.current) {
+          const fin = finishDaily(rec.daily, dailyRunRef.current, true, { score, ms: elapsedMs, buddy: null })
+          rec = { ...rec, daily: fin.daily }
+          if (fin.counted) dailyStreak = fin.streak
+          dailyRunRef.current = null
+        }
+        if (rec !== records) persistRecords(rec)
+      } catch {
+        /* never block the win */
+      }
+      const isRecord = !!replay && (replay.newBestTime || replay.newBestScore)
+      // One voice line for the win: a record, a Trial clear, the Daily, a near miss, or the usual cheer
+      const winEvent = isRecord
+        ? 'record'
+        : runMode === 'trial'
+          ? 'trial-clear'
+          : dailyStreak != null
+            ? 'daily-done'
+            : replay?.nearMissMs
+              ? 'near-miss'
+              : 'win'
+      if (isRecord) sfxRecord()
+      const win = pushBanter(winEvent)
+      setWinLine(win.text || 'Roman says: nice clear!')
+      // Slow or sloppy clear (lost a heart, 2+ hints, or over 3 minutes): the old-timer may chime in
+      // with a backhanded compliment once Roman's cheer is done (never on top of it)
+      if (winEvent === 'win' && (lives < runMaxLives || hintsUsed >= 2 || elapsedMs > 180000)) {
+        window.setTimeout(() => pushBanter('win-heckle'), 2600)
+      }
       const prog = recordClear({
         puzzleId: puzzle.id,
         elapsedMs,
@@ -764,10 +989,41 @@ export default function App() {
         setShareText(duelShareText(result))
       }
 
-      const baseCoins = Math.max(20, Math.floor(score / 8))
+      const baseCoins = Math.max(20, Math.floor(score / 8)) * (runMode === 'trial' ? 2 : 1)
       const paid = grantWinCoins(wallet, baseCoins)
+      const extra = replay ? replayCoins(replay, runMode) : { coins: 0, parts: [] as string[] }
+      const dailyBonus = dailyStreak != null ? dailyCoins(dailyStreak) : 0
+      {
+        const parts = [...extra.parts]
+        if (dailyBonus) parts.push(`+${dailyBonus} daily`)
+        if (runMode === 'trial') parts.unshift('2× coins')
+        const c = comboRef.current
+        const bits = [`combo ×${c.bestMult}`, `${undosRef.current} undo${undosRef.current === 1 ? '' : 's'}`]
+        if (perfect) bits.unshift('perfect')
+        const banner: WinReplay['banner'] = isRecord && replay
+          ? { kind: 'record', text: replay.newBestTime ? `New best! ${formatMs(elapsedMs)} (was ${formatMs(replay.prevBestMs ?? 0)})` : `New best score! ${score} pts` }
+          : runMode === 'trial'
+            ? { kind: 'trial', text: "Roman's Trial cleared!" }
+            : dailyStreak != null
+              ? { kind: 'daily', text: `Daily done · streak ${dailyStreak}` }
+              : replay?.nearMissMs
+                ? { kind: 'near', text: `${(replay.nearMissMs / 1000).toFixed(1)} sec off your best` }
+                : replay?.firstClear
+                  ? { kind: 'first', text: 'First clear. Now beat it!' }
+                  : undefined
+        setWinReplay({
+          showStars: !!replay && runMode === 'normal',
+          stars: replay?.starsAfter ?? 0,
+          starsBefore: replay?.starsBefore ?? 0,
+          banner,
+          coinsLine: parts.join(' · ') || undefined,
+          detail: bits.join(' · '),
+        })
+        if (replay?.trialUnlockedNow) window.setTimeout(() => showToast(`3 stars! Roman's Trial unlocked on ${puzzle.name}`), 1600)
+      }
       let w: Wallet = {
         ...paid.wallet,
+        coins: paid.wallet.coins + extra.coins + dailyBonus,
         totalWins: wallet.totalWins + 1,
         perfectWins: wallet.perfectWins + (perfect ? 1 : 0),
       }
@@ -800,6 +1056,8 @@ export default function App() {
         })
       }
       if (shellRef.current) burstConfetti(shellRef.current)
+      // First finished board: ask once what to call the player on share cards
+      if (!settings.namePrompted && !playerName) window.setTimeout(() => askNameOnce(), 2200)
     }
   }
 
@@ -816,10 +1074,18 @@ export default function App() {
   }
 
   function undo() {
-    if (historyRef.current.past.length === 0 || celebrate || defeated) return
+    if (historyRef.current.past.length === 0 || celebrate || defeated || modeRef.current === 'trial') return
     // Board first: a sound or voice hiccup must never cost the undo itself.
     const hist = undoMove(historyRef.current)
     replaceBoard(hist)
+    try {
+      // Each undo costs points and breaks the combo
+      undosRef.current += 1
+      comboRef.current = comboMove(comboRef.current, 'undo', -1, Date.now()).combo
+      showToast(`Undo · −${UNDO_COST} pts`)
+    } catch {
+      /* scoring only */
+    }
     // Without this the saved board kept the undone X's: Resume (or iOS reloading the tab) put them back.
     saveBoardDraft(hist)
     afterUndoRedo()
@@ -835,7 +1101,7 @@ export default function App() {
   }
 
   function redo() {
-    if (historyRef.current.future.length === 0 || celebrate || defeated) return
+    if (historyRef.current.future.length === 0 || celebrate || defeated || modeRef.current === 'trial') return
     const hist = redoMove(historyRef.current)
     replaceBoard(hist)
     saveBoardDraft(hist)
@@ -872,6 +1138,7 @@ export default function App() {
       kind: hint.kind === 'stone' ? 'stone' : 'mark',
       conflict: false,
       index: hint.index,
+      assist: true,
     })
   }
 
@@ -900,12 +1167,21 @@ export default function App() {
       kind: 'empty',
       conflict: false,
       index: hit.index,
+      assist: true,
     })
   }
 
   function resetBoard() {
     if (!puzzle) return
     sfxWhoosh()
+    comboRef.current = newCombo()
+    undosRef.current = 0
+    splitsRef.current = []
+    // Only the first Daily try scores: a restart turns it into practice
+    if (dailyRunRef.current) {
+      dailyRunRef.current = null
+      setDailyTag('practice')
+    }
     const fresh = createHistory(emptyBoard(puzzle.size))
     replaceBoard(fresh)
     saveBoardDraft(fresh, { elapsedMs: 0, hintsUsed: 0 })
@@ -921,6 +1197,7 @@ export default function App() {
     flawedRef.current = false
     setLastScore(null)
     recordedRef.current = false
+    setWinReplay(null)
     setRunning(true)
     setLives(runMaxLives)
     setHintIndex(null)
@@ -1096,7 +1373,7 @@ export default function App() {
       puzzleName: target.name,
       difficulty: DIFFICULTY_LABEL[target.difficulty],
       fromEmail: senderEmail(profile?.email),
-      fromName: profile?.displayName || 'Roman',
+      fromName: playerName || profile?.displayName || 'A friend',
       message: challengeMsg,
       toEmail: challengeEmail || undefined,
       scoreMs: clear?.bestMs,
@@ -1109,7 +1386,18 @@ export default function App() {
     setShareChallenge(c)
     const link = encodeChallengeLink(c, target)
     setShareLink(link)
-    setShareText(challengeShareText(c))
+    const lv = records.levels[target.id]
+    setShareText(
+      clear
+        ? scoreShareText({
+            name: playerName,
+            score: lv?.bestScore ?? clear.bestScore,
+            levelLabel: levelLabelFor(target),
+            stars: lv?.stars,
+            timeMs: lv?.bestMs ?? clear.bestMs,
+          })
+        : challengeShareText(c),
+    )
     void navigator.clipboard?.writeText(link)
     showToast(
       clear
@@ -1119,14 +1407,17 @@ export default function App() {
   }
 
   /** Share this win as a scored challenge so a friend can beat your time */
-  function shareWinAsChallenge() {
+  function shareWinAsChallenge(nameOverride?: string) {
     if (!puzzle || lastScore == null) return
+    // First share: ask for a name (then share with it)
+    if (nameOverride === undefined && askNameOnce(() => shareWinAsChallenge(cleanPlayerName(loadSettings().playerName)))) return
+    const who = nameOverride ?? playerName
     const c = createChallenge({
       puzzleId: puzzle.id,
       puzzleName: puzzle.name,
       difficulty: DIFFICULTY_LABEL[puzzle.difficulty],
       fromEmail: senderEmail(profile?.email),
-      fromName: profile?.displayName || 'Roman',
+      fromName: who || profile?.displayName || 'A friend',
       scoreMs: elapsedMs,
       scorePts: lastScore,
       badgePower: totalBadgePower(wallet),
@@ -1137,7 +1428,18 @@ export default function App() {
     setShareChallenge(c)
     const link = encodeChallengeLink(c, puzzle)
     setShareLink(link)
-    setShareText(challengeShareText(c))
+    const lv = records.levels[puzzle.id]
+    setShareText(
+      scoreShareText({
+        name: who,
+        score: lastScore,
+        levelLabel: levelLabelFor(puzzle),
+        stars: modeRef.current === 'normal' && lv ? lv.stars : undefined,
+        timeMs: elapsedMs,
+        newBest: winReplay?.banner?.kind === 'record',
+        buddy: null,
+      }),
+    )
     setIncoming(null)
     setActiveChallenge(null)
     setScreen('challenge')
@@ -1207,7 +1509,7 @@ export default function App() {
         puzzleName: board.name,
         difficulty: DIFFICULTY_LABEL[board.difficulty],
         fromEmail: senderEmail(profile?.email),
-        fromName: profile?.displayName || 'Roman',
+        fromName: playerName || profile?.displayName || 'A friend',
         message: challengeMsg,
         toEmail: to || undefined,
       })
@@ -1220,6 +1522,46 @@ export default function App() {
   const done = new Set(progress.clears.map((c) => c.puzzleId))
 
   const hideChrome = screen === 'play' || screen === 'how'
+
+  // Daily Challenge: same board for everyone on a Toronto date
+  const todayKey = torontoDateKey()
+  const dailyBoard = PUZZLES[dailyIndex(todayKey, PUZZLES.length)]
+  const dailyToday = records.daily.days[todayKey]
+  const dailyStreakNow = liveStreak(records.daily, todayKey)
+  const dailyDateLabel = new Date(`${todayKey}T12:00:00Z`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })
+  const dailyCard = (
+    <section className="daily-card" aria-label="Daily Challenge">
+      <div className="daily-text">
+        <strong>Daily Challenge · {dailyDateLabel}</strong>
+        <span>
+          {dailyBoard.name} · {dailyBoard.size}×{dailyBoard.size}
+          {dailyStreakNow > 0 ? ` · 🔥 ${dailyStreakNow}-day streak` : ''}
+        </span>
+        <span className="daily-status">
+          {dailyToday?.status === 'won'
+            ? `Done today: ${formatMs(dailyToday.ms ?? 0)} · ${dailyToday.score ?? 0} pts. New board tomorrow.`
+            : dailyToday
+              ? 'First try used. Practice runs don’t score.'
+              : 'Only your first try counts. Clear it to grow your streak.'}
+        </span>
+      </div>
+      <button type="button" className={`btn ${dailyToday ? 'ghost' : 'primary'} daily-btn`} onClick={() => startPuzzle(dailyBoard, false, { daily: true })}>
+        {dailyToday ? 'Practice' : 'Play daily'}
+      </button>
+    </section>
+  )
+
+  // Live ghost pace against your best (hidden until there is a best for this mode)
+  const playBest = puzzle && catalogBoard(puzzle.id) ? hasBest(records, puzzle.id, mode) : undefined
+  let pace: { delta: number; ghost: number; mine: number } | null = null
+  if (screen === 'play' && puzzle && playBest && !celebrate && !defeated) {
+    const ghost = ghostSplits(playBest.bestMs!, puzzle.size, playBest.splits)
+    const n = cleanBuddies(puzzle, cells)
+    pace = { delta: paceDelta(splitsRef.current, ghost, n, elapsedMs), ghost: ghostProgress(ghost, elapsedMs), mine: n / puzzle.size }
+  }
+  const trialLeftMs = puzzle && mode === 'trial' ? Math.max(0, trialTimeLimitMs(targetsFor(puzzle)) - elapsedMs) : 0
+  const sheetTargets = startSheet ? targetsFor(startSheet) : null
+  const sheetRec = startSheet ? records.levels[startSheet.id] : undefined
 
   return (
     <div
@@ -1267,6 +1609,40 @@ export default function App() {
       {/* On a live board the toast text shows in the play caption slot instead (never over the board) */}
       {toast && (screen !== 'play' || celebrate || defeated) && <div className="toast">{toast}</div>}
 
+      {namePrompt &&
+        createPortal(
+          <div className="start-sheet name-prompt" role="dialog" aria-modal="true" aria-label="Your name">
+            <div className="start-sheet-scrim" />
+            <form
+              className="start-sheet-card"
+              onSubmit={(e) => {
+                e.preventDefault()
+                closeNamePrompt(true)
+              }}
+            >
+              <h3>What should we call you?</h3>
+              <p className="start-sheet-tip">Your name goes on the scores you share, like “{cleanPlayerName(nameDraft) || 'Sam'} scored 1,840 on Level 1”. It stays on this device. You can change it later in Save &amp; settings.</p>
+              <input
+                className="name-input"
+                type="text"
+                value={nameDraft}
+                maxLength={PLAYER_NAME_MAX + 8}
+                placeholder="Your name"
+                autoComplete="nickname"
+                aria-label="Your name"
+                onChange={(e) => setNameDraft(e.target.value.slice(0, PLAYER_NAME_MAX + 8))}
+              />
+              <button type="submit" className="btn primary" disabled={!cleanPlayerName(nameDraft)}>
+                Save
+              </button>
+              <button type="button" className="btn ghost" onClick={() => closeNamePrompt(false)}>
+                Skip (share as “I scored…”)
+              </button>
+            </form>
+          </div>,
+          document.body,
+        )}
+
       <ShortfallSheetHost
         open={!!shortfall}
         action={shortfall?.action ?? 'hint'}
@@ -1313,6 +1689,7 @@ export default function App() {
               </button>
             </div>
           </section>
+          {dailyCard}
           <section className="stat-strip home-strip">
             <div>
               <strong>{progress.clears.length}</strong>
@@ -1344,7 +1721,8 @@ export default function App() {
       {screen === 'levels' && (
         <main className="panel levels scroll-pane">
           <h2>Levels</h2>
-          <p className="sub">Classic boards stay here. Tap Random for a brand-new layout every time.</p>
+          <p className="sub">Beat your best time and score on any board. ★ finish · ★★ beat the target time · ★★★ target time, a high score and no undos. 3 stars unlocks Roman's Trial.</p>
+          {dailyCard}
           {(['easy', 'medium', 'hard', 'expert'] as const).map((diff) => (
             <section key={diff} className="diff-block">
               <div className="diff-head">
@@ -1372,18 +1750,24 @@ export default function App() {
               </div>
               <div className="level-grid">
                 {byDiff[diff].map((p) => {
-                  const rec = progress.clears.find((c) => c.puzzleId === p.id)
+                  const rec = records.levels[p.id]
+                  const stars = rec?.stars ?? 0
                   return (
                     <button
                       key={p.id}
                       type="button"
-                      className={`level-card ${rec ? 'cleared' : ''}`}
-                      onClick={() => startPuzzle(p)}
+                      className={`level-card ${rec?.bestMs != null ? 'cleared' : ''}`}
+                      data-level={p.id}
+                      onClick={() => setStartSheet(p)}
                     >
-                      <span className="lv-name">{p.name}</span>
+                      <span className="lv-name">
+                        {p.name}
+                        <span className={`lv-stars s${stars}`} aria-label={`${stars} of 3 stars`}>{starString(stars)}</span>
+                      </span>
                       <span className="lv-meta">
                         {p.size}×{p.size} · {THEMES[themeForPuzzle(p.id, p.difficulty)].label}
-                        {rec ? ` · best ${formatMs(rec.bestMs)}` : ''}
+                        {rec?.bestMs != null ? ` · best ${formatMs(rec.bestMs)}` : ''}
+                        {trialUnlocked(records, p.id) ? ' · ⚔ Trial' : ''}
                       </span>
                     </button>
                   )
@@ -1391,6 +1775,45 @@ export default function App() {
               </div>
             </section>
           ))}
+          {startSheet && sheetTargets && createPortal(
+            <div className="start-sheet" role="dialog" aria-modal="true" aria-label={`${startSheet.name}: start`}>
+              <div className="start-sheet-scrim" onClick={() => setStartSheet(null)} />
+              <div className="start-sheet-card">
+                <h3>
+                  {startSheet.name} <span className="start-sheet-stars">{starString(sheetRec?.stars ?? 0)}</span>
+                </h3>
+                <p className="start-sheet-meta">{DIFFICULTY_LABEL[startSheet.difficulty]} · {startSheet.size}×{startSheet.size}</p>
+                <div className="start-sheet-bests">
+                  <div><span>Best time</span><strong>{sheetRec?.bestMs != null ? formatMs(sheetRec.bestMs) : '—'}</strong></div>
+                  <div><span>Top score</span><strong>{sheetRec?.bestScore != null ? sheetRec.bestScore : '—'}</strong></div>
+                </div>
+                <ul className="start-sheet-goals">
+                  <li className={(sheetRec?.stars ?? 0) >= 1 ? 'done' : ''}>★ Finish the board</li>
+                  <li className={(sheetRec?.stars ?? 0) >= 2 ? 'done' : ''}>★★ Under {formatMs(sheetTargets.timeMs)}</li>
+                  <li className={(sheetRec?.stars ?? 0) >= 3 ? 'done' : ''}>★★★ Under {formatMs(sheetTargets.timeMs)}, {sheetTargets.score3}+ pts, no undos</li>
+                </ul>
+                <p className="start-sheet-tip">Quick good moves build a combo. Each undo costs {UNDO_COST} pts.</p>
+                <button type="button" className="btn primary" onClick={() => startPuzzle(startSheet)}>
+                  {sheetRec?.bestMs != null ? 'Play · beat your best' : 'Play'}
+                </button>
+                {trialUnlocked(records, startSheet.id) ? (
+                  <button type="button" className="btn trial-btn" onClick={() => startPuzzle(startSheet, false, { mode: 'trial' })}>
+                    ⚔ Roman's Trial
+                    <small>
+                      {TRIAL_HEARTS} hearts · no undo · {formatMs(trialTimeLimitMs(sheetTargets))} clock · 2× coins
+                      {sheetRec?.trial?.bestMs != null ? ` · best ${formatMs(sheetRec.trial.bestMs)}` : ''}
+                    </small>
+                  </button>
+                ) : (
+                  <p className="start-sheet-locked">⚔ Roman's Trial unlocks at 3 stars</p>
+                )}
+                <button type="button" className="btn ghost" onClick={() => setStartSheet(null)}>
+                  Cancel
+                </button>
+              </div>
+            </div>,
+            document.body,
+          )}
         </main>
       )}
 
@@ -1404,10 +1827,16 @@ export default function App() {
             <div className="hud-title">
               <strong>{puzzle.name}</strong>
               <span>
-                {DIFFICULTY_LABEL[puzzle.difficulty]} · {THEMES[puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)].label}
+                {mode === 'trial'
+                  ? "⚔ Roman's Trial · 2× coins"
+                  : dailyTag === 'scored'
+                    ? 'Daily Challenge · first try'
+                    : dailyTag === 'practice'
+                      ? 'Daily practice'
+                      : `${DIFFICULTY_LABEL[puzzle.difficulty]} · ${THEMES[puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)].label}`}
               </span>
             </div>
-            <div className="hud-stats">
+            <div className={`hud-stats ${pace ? 'has-pace' : ''}`}>
               <span className="lives" aria-label={`${lives} lives`}>
                 {Array.from({ length: runMaxLives }, (_, i) => (
                   <i
@@ -1418,7 +1847,13 @@ export default function App() {
                   />
                 ))}
               </span>
-              <span className="hud-time">{formatMs(elapsedMs)}</span>
+              <span
+                className={`hud-time ${pace ? (pace.delta <= 0 ? 'pace-ahead' : 'pace-behind') : ''} ${mode === 'trial' ? 'hud-countdown' : ''} ${mode === 'trial' && trialLeftMs <= 10000 ? 'is-low' : ''}`}
+                data-pace={pace ? Math.round(pace.delta) : undefined}
+              >
+                {mode === 'trial' ? `⏳${formatMs(trialLeftMs)}` : formatMs(elapsedMs)}
+                {pace ? <em className="hud-pace">{formatDelta(pace.delta)}</em> : null}
+              </span>
               <span className="hud-stash" title="Catch 5 sparks across games for a prize">
                 ✨{(wallet.critterStash ?? 0)}/{CRITTER_STASH_GOAL}
               </span>
@@ -1428,6 +1863,12 @@ export default function App() {
                 </span>
               ) : null}
             </div>
+            {pace ? (
+              <div className={`ghost-bar ${pace.delta <= 0 ? 'ahead' : 'behind'}`} aria-hidden="true">
+                <i className="ghost-fill" style={{ width: `${Math.round(pace.ghost * 100)}%` }} />
+                <i className="me-fill" style={{ width: `${Math.round(pace.mine * 100)}%` }} />
+              </div>
+            ) : null}
           </div>
 
           {/* Character lines, notices and hint text: a fixed two-line slot between the HUD and the
@@ -1460,10 +1901,10 @@ export default function App() {
 
 
           <div className="toolbar play-toolbar">
-            <TapButton className="btn tool" onTap={undo} disabled={!history.length || celebrate || defeated}>
-              Undo
+            <TapButton className="btn tool" onTap={undo} disabled={!history.length || celebrate || defeated || mode === 'trial'}>
+              {mode === 'trial' ? 'No undo' : 'Undo'}
             </TapButton>
-            <TapButton className="btn tool" onTap={redo} disabled={!future.length || celebrate || defeated}>
+            <TapButton className="btn tool" onTap={redo} disabled={!future.length || celebrate || defeated || mode === 'trial'}>
               Redo
             </TapButton>
             <button type="button" className="btn tool" onClick={onHint} disabled={celebrate || defeated}>
@@ -1517,6 +1958,7 @@ export default function App() {
               romanSaying={winLine || 'Roman says: Veni, vidi, vici!'}
               spins={wallet.spins}
               perfect={hintsUsed === 0}
+              replay={winReplay ?? undefined}
               onNext={() => startPuzzle(pickNextBoard(puzzle, PUZZLES, getProgress().clears))}
               onReplay={resetBoard}
               onLevels={() => setScreen('levels')}
@@ -1529,21 +1971,34 @@ export default function App() {
                 perfect: winPerfect,
               }}
               onBuddyHunt={openBuddyHunt}
-              onShare={shareWinAsChallenge}
+              onShare={() => shareWinAsChallenge()}
               onDuel={duel && activeChallenge?.puzzleId === puzzle.id ? openDuelShare : undefined}
             />
           )}
 
           {defeated && (
-            <ResultOverlay
-              kind="lose"
-              title="Rematch?"
-              romanLine={loseLine}
-              primaryLabel={`Revive · ${REVIVE_COST}`}
-              onPrimary={revive}
-              secondaryLabel="Try again"
-              onSecondary={resetBoard}
-            />
+            mode === 'trial' ? (
+              <ResultOverlay
+                kind="lose"
+                kicker={lives > 0 ? "Time's up" : 'Out of hearts'}
+                title="Trial failed"
+                romanLine={loseLine}
+                primaryLabel="Try again"
+                onPrimary={resetBoard}
+                secondaryLabel="Levels"
+                onSecondary={() => setScreen('levels')}
+              />
+            ) : (
+              <ResultOverlay
+                kind="lose"
+                title="Rematch?"
+                romanLine={loseLine}
+                primaryLabel={`Revive · ${REVIVE_COST}`}
+                onPrimary={revive}
+                secondaryLabel="Try again"
+                onSecondary={resetBoard}
+              />
+            )
           )}
         </main>
       )}
@@ -1690,6 +2145,18 @@ export default function App() {
           )}
           <section className="settings">
             <h3>Settings</h3>
+            <label className="name-setting">
+              Your name on shared scores
+              <input
+                type="text"
+                value={settings.playerName ?? ''}
+                maxLength={PLAYER_NAME_MAX}
+                placeholder="Blank = “I scored…”"
+                aria-label="Your name on shared scores"
+                onChange={(e) => saveSettingsPatch({ playerName: e.target.value.slice(0, PLAYER_NAME_MAX), namePrompted: true })}
+                onBlur={(e) => saveSettingsPatch({ playerName: cleanPlayerName(e.target.value) })}
+              />
+            </label>
             <label className="toggle">
               <input
                 type="checkbox"

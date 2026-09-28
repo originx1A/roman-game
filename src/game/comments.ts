@@ -168,6 +168,15 @@ export type VoiceClipId =
   | 'old_lose_popcorn'
   | 'old_win_eventually'
   | 'old_win_ugly'
+  | 'roman_record_best'
+  | 'roman_record_faster'
+  | 'roman_record_beat'
+  | 'roman_nearmiss'
+  | 'roman_trial_clear'
+  | 'roman_daily_done'
+  | 'old_record_head'
+  | 'old_record_tea'
+  | 'old_nearmiss'
   | 'old_win_paint'
   | 'old_win_yesterday'
   | 'old_win_gaveup'
@@ -635,6 +644,12 @@ const OLDTIMER_HUNT_MISS_CLIPS = [
   'old_jab_phone',
 ] as const satisfies readonly VoiceClipId[]
 const oldHuntMiss = bag('old.huntMiss', OLDTIMER_HUNT_MISS_CLIPS)
+/** New personal best / near miss (replay challenge) */
+export const ROMAN_RECORD_CLIPS = ['roman_record_best', 'roman_record_faster', 'roman_record_beat'] as const satisfies readonly VoiceClipId[]
+const OLDTIMER_RECORD_CLIPS = ['old_record_head', 'old_record_tea'] as const satisfies readonly VoiceClipId[]
+const oldRecord = bag('old.record', OLDTIMER_RECORD_CLIPS)
+const oldNearMiss = bag('old.nearMiss', ['old_nearmiss'] as const satisfies readonly VoiceClipId[])
+const nextRecord = voiceBags.bag('roman.record', ROMAN_RECORD_CLIPS)
 
 /** Old-timer draw. The bag set already keeps a line from playing twice in a row across bags. */
 function pickOld(draw: () => { clip: VoiceClipId; pool: readonly VoiceClipId[] }) {
@@ -718,7 +733,11 @@ export function banterFor(
     | 'hunt-miss'
     | 'hunt-some'
     | 'hunt-all'
-    | 'hunt-none',
+    | 'hunt-none'
+    | 'record'
+    | 'near-miss'
+    | 'trial-clear'
+    | 'daily-done',
   _conflict?: ConflictKind,
 ): Banter {
   const silent: Banter = { text: '', mood: 'neutral', voiceMood: 'neutral', speak: false, silent: true }
@@ -768,6 +787,17 @@ export function banterFor(
   if (event === 'hunt-all') return voiced(roman(nextCheer(), ROMAN_CHEER_CLIPS), 'hype', 'excited', VOICE_PRIORITY.win)
   if (event === 'hunt-none') return voiced(nextLose(), 'bad', 'disappointed', VOICE_PRIORITY.prize)
   if (event === 'prize') return voiced(nextPrize(), 'hype', 'excited', VOICE_PRIORITY.prize)
+  // Replay challenge: these replace the win cheer (never on top of it)
+  if (event === 'record') {
+    if (oldtimerTurn(0.35)) return voiced(pickOld(oldRecord), 'hype', 'neutral', VOICE_PRIORITY.win)
+    return voiced(roman(nextRecord(), ROMAN_RECORD_CLIPS), 'hype', 'excited', VOICE_PRIORITY.win)
+  }
+  if (event === 'near-miss') {
+    if (oldtimerTurn(0.5)) return voiced(pickOld(oldNearMiss), 'neutral', 'neutral', VOICE_PRIORITY.win)
+    return voiced(roman('roman_nearmiss', ['roman_nearmiss']), 'neutral', 'happy', VOICE_PRIORITY.win)
+  }
+  if (event === 'trial-clear') return voiced(roman('roman_trial_clear', ['roman_trial_clear']), 'hype', 'excited', VOICE_PRIORITY.win)
+  if (event === 'daily-done') return voiced(roman('roman_daily_done', ['roman_daily_done']), 'hype', 'excited', VOICE_PRIORITY.win)
   // Badges pop a few seconds after a win: wait for Roman's win line to finish instead of cutting it
   if (event === 'achievement') return voiced(nextBadge(), 'hype', 'excited', VOICE_PRIORITY.chatter, { waitMs: 6000 })
   if (event === 'critter-stash') return voiced(nextStash(), 'hype', 'excited', VOICE_PRIORITY.wrong)
