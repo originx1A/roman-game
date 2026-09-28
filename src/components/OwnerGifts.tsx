@@ -4,7 +4,7 @@ import { PetArt } from './PetArt'
 
 /*
  * 9.30-a: Tony's private gift page (web only, hidden route /roman-owner). 9.30-c: no visible link;
- * holding the home-screen title for 5 s opens it.
+ * 7 quick taps on the home-screen title (within 3 s) open it.
  * The passphrase is the Netlify env var ROMAN_OWNER_KEY; it is typed here, checked by a Netlify
  * function, kept only in this tab's memory, and never stored or shown.
  */
