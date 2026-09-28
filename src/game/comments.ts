@@ -659,8 +659,10 @@ export const ROMAN_RECORD_CLIPS = ['roman_record_best', 'roman_record_faster', '
 const OLDTIMER_RECORD_CLIPS = ['old_record_head', 'old_record_tea'] as const satisfies readonly VoiceClipId[]
 const oldRecord = bag('old.record', OLDTIMER_RECORD_CLIPS)
 /**
- * 9.29-b "finished, but not your best": played AFTER the normal win cheer (never instead of it),
- * when a replayed board is won without beating the old best. Teasing, not a loss line.
+ * "Finished, but not your best": a replayed board won without beating the old best.
+ * 9.30-a (Tony): ONE line for the whole moment, board cleared + slower than your best, instead of
+ * the win cheer followed by a tease. Until the new combined lines are approved and recorded, one of
+ * these existing teasing lines plays alone as the win line. Teasing, never a loss line.
  */
 export const ROMAN_NOT_BEST_CLIPS = ['roman_stillbetter', 'roman_almost', 'roman_cocky', 'roman_okayfine'] as const satisfies readonly VoiceClipId[]
 export const OLDTIMER_NOT_BEST_CLIPS = [
@@ -677,14 +679,25 @@ export const OLDTIMER_NOT_BEST_CLIPS = [
 ] as const satisfies readonly VoiceClipId[]
 const oldNotBest = bag('old.notBest', OLDTIMER_NOT_BEST_CLIPS)
 const nextNotBest = bag('roman.notBest', ROMAN_NOT_BEST_CLIPS)
-/** Proposed NEW not-best lines (voice-tips-draft.md). Silent until Tony approves and they are recorded. */
+/**
+ * Proposed NEW not-best lines (voice-tips-draft.md). Silent until Tony approves and they are recorded.
+ * 9.30-a: each one covers the whole moment (board cleared + slower than your best) in one line.
+ */
 export const NEW_NOT_BEST_LINES: readonly { id: string; text: string }[] = [
+  { id: 'old_notbest_tsk', text: "Old-timer: Board's clear... but slower than last time. Tsk." },
   { id: 'old_notbest_yesterday', text: "Old-timer: You won. Your old self still beat you, though. He's smug about it." },
-  { id: 'old_notbest_rerun', text: "Old-timer: Same board, slower time. Like a rerun, but longer." },
-  { id: 'old_notbest_ghost', text: "Old-timer: Your ghost finished first. Go on, catch him." },
-  { id: 'old_notbest_calendar', text: "Old-timer: Nice win. Your best time is over there, waving. From far away." },
-  { id: 'roman_notbest_record', text: 'Roman says: you won! Your record just yawned, though.' },
+  { id: 'old_notbest_rerun', text: 'Old-timer: Same board, slower time. Like a rerun, but longer.' },
+  { id: 'old_notbest_ghost', text: 'Old-timer: Done, sure. Your ghost finished first and went home.' },
+  { id: 'old_notbest_calendar', text: 'Old-timer: Nice clear. Your best time is over there, waving. From far away.' },
+  { id: 'old_notbest_knees', text: 'Old-timer: Cleared it. Slower than before, and I know slow. Ask my knees.' },
+  { id: 'old_notbest_tea', text: 'Old-timer: You won. I finished a whole cup of tea. Last time I only got a sip.' },
+  { id: 'old_notbest_downhill', text: "Old-timer: A win, but slower than your record. It's all downhill from here, kid." },
+  { id: 'old_notbest_slowpoke', text: "Old-timer: Board's done. Your record's safe. From you, mostly." },
+  { id: 'roman_notbest_record', text: 'Roman says: board cleared! Your record just yawned, though.' },
   { id: 'roman_notbest_again', text: 'Roman says: winner! Not your fastest. Roman noticed. Roman always notices.' },
+  { id: 'roman_notbest_turtle', text: 'Roman says: you did it, turtle-style! Your best time says hi.' },
+  { id: 'coach_notbest_clear', text: 'Board cleared. A little slower than your best. You know you have more in you.' },
+  { id: 'coach_notbest_close', text: 'Nice finish. Not a new best this time, but the next one could be.' },
 ]
 const nextRecord = voiceBags.bag('roman.record', ROMAN_RECORD_CLIPS)
 
@@ -887,13 +900,13 @@ export function banterFor(
     if (oldtimerTurn(0.35)) return voiced(pickOld(oldRecord), 'hype', 'neutral', VOICE_PRIORITY.win)
     return voiced(roman(nextRecord(), ROMAN_RECORD_CLIPS), 'hype', 'excited', VOICE_PRIORITY.win)
   }
-  // 9.29-b: a near miss is still a win. It gets the normal cheer; the teasing "not your best" line
-  // follows as its own event once the cheer is done.
+  // A near miss on a first/untimed win keeps the cheer; a replayed board that misses the best uses
+  // the single 'not-best' line instead (App picks the event).
   if (event === 'near-miss') return voiced(cheer(), 'hype', 'excited', VOICE_PRIORITY.win)
+  // 9.30-a: the ONLY line for a win that doesn't beat your best (no cheer before it): it's the win line
   if (event === 'not-best') {
-    const extra = { waitMs: 9000 }
-    if (oldtimerTurn(0.6)) return voiced(pickOld(oldNotBest), 'neutral', 'neutral', VOICE_PRIORITY.chatter, extra)
-    return voiced(nextNotBest(), 'neutral', 'happy', VOICE_PRIORITY.chatter, extra)
+    if (oldtimerTurn(0.6)) return voiced(pickOld(oldNotBest), 'hype', 'neutral', VOICE_PRIORITY.win)
+    return voiced(nextNotBest(), 'hype', 'happy', VOICE_PRIORITY.win)
   }
   if (event === 'trial-clear') {
     if (!ownLineTurn('trial-clear')) return voiced(cheer(), 'hype', 'excited', VOICE_PRIORITY.win)

@@ -609,6 +609,39 @@ export function sfxGiggle() {
   synthGiggle()
 }
 
+/**
+ * 9.30-a: the player's pet buddy (The Stable) giggles when tapped or cheering. These use the three
+ * recorded buddy giggles on their own little audio element, never the Roman voice channel, and
+ * never on top of a Roman line (then it's the synth peeps). Rotates so the same giggle never
+ * plays twice in a row.
+ */
+let petGiggleEl: HTMLAudioElement | null = null
+let lastPetGiggle = -1
+export const PET_GIGGLES = ['buddy_giggle_1', 'buddy_giggle_2', 'buddy_giggle_3'] as const
+export function petGiggle(opts: { quietOnly?: boolean } = {}): string | null {
+  if (muted) return null
+  if (opts.quietOnly && (currentLine || waitingLine)) return null
+  if (currentLine || waitingLine || typeof Audio === 'undefined') {
+    synthGiggle()
+    return 'synth'
+  }
+  let i = Math.floor(Math.random() * PET_GIGGLES.length)
+  if (i === lastPetGiggle) i = (i + 1) % PET_GIGGLES.length
+  lastPetGiggle = i
+  const id = PET_GIGGLES[i]
+  try {
+    if (!petGiggleEl) petGiggleEl = new Audio()
+    petGiggleEl.pause()
+    petGiggleEl.src = voiceHref(id)
+    petGiggleEl.volume = 0.7
+    void petGiggleEl.play().catch(() => synthGiggle())
+  } catch {
+    synthGiggle()
+  }
+  if (typeof window !== 'undefined') (window as unknown as { __petGiggles?: string[] }).__petGiggles?.push(id)
+  return id
+}
+
 export function sfxHeartLose() {
   markSfx(SFX_IDS.heartLose)
   tone(420, 0.12, 'sine', 0.1, 0, 280)

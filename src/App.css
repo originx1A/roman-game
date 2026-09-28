@@ -5150,3 +5150,327 @@ html[data-layout='wide'] .how-panel .how-rules li {
 html[data-layout='wide'] .cta-row .btn {
   max-width: 360px;
 }
+
+/* =====================================================================
+   9.30-a: Buddies + The Stable
+   ===================================================================== */
+.pet-art { display: block; overflow: visible; }
+.pet-art.is-locked { filter: brightness(0) invert(0.8); opacity: 0.22; }
+.pet-art .pet-eye { animation: petBlink 5.5s infinite; }
+.pet-lupa .pet-eye { animation-delay: 0.7s; }
+.pet-leo .pet-eye { animation-delay: 1.9s; }
+.pet-invictus .pet-eye { animation-delay: 3.1s; }
+.pet-art.is-locked .pet-eye { animation: none; }
+@keyframes petBlink {
+  0%, 94%, 100% { transform: scaleY(1); }
+  96% { transform: scaleY(0.1); }
+}
+@keyframes petHop {
+  0% { transform: translateY(0) scale(1); }
+  30% { transform: translateY(-14px) scale(1.06, 0.95); }
+  55% { transform: translateY(0) scale(1.08, 0.9); }
+  75% { transform: translateY(-5px) scale(0.98, 1.03); }
+  100% { transform: translateY(0) scale(1); }
+}
+@keyframes petBob {
+  50% { transform: translateY(-3px); }
+}
+@keyframes petCheer {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  20% { transform: translateY(-8px) rotate(-8deg); }
+  40% { transform: translateY(0) rotate(0); }
+  60% { transform: translateY(-8px) rotate(8deg); }
+  80% { transform: translateY(0) rotate(0); }
+}
+
+/* ---- Home pet ---- */
+.home-pet-row { display: flex; justify-content: center; margin: 0.2rem auto 0.9rem; }
+.home-pet {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 1rem 0.45rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(5, 13, 31, 0.45);
+  border: 2px solid rgba(255, 214, 102, 0.3);
+}
+.home-pet-tap {
+  position: relative;
+  border: 0;
+  background: radial-gradient(circle at 50% 60%, rgba(255, 214, 102, 0.25), transparent 70%);
+  padding: 0;
+  cursor: pointer;
+  border-radius: 50%;
+  -webkit-tap-highlight-color: transparent;
+}
+.home-pet-body { display: block; animation: petBob 3s ease-in-out infinite; }
+.home-pet-body.is-hop { animation: petHop 0.6s ease-out 1, petBob 3s ease-in-out 0.6s infinite; }
+.home-pet-bubble {
+  position: absolute;
+  left: 60%;
+  top: -0.6rem;
+  white-space: nowrap;
+  padding: 0.2rem 0.55rem;
+  border-radius: 12px;
+  background: var(--foam);
+  color: var(--ink);
+  font-weight: 900;
+  font-size: 0.8rem;
+  animation: rise 0.25s ease both;
+  pointer-events: none;
+}
+.home-pet-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  border: 0;
+  background: transparent;
+  color: var(--foam);
+  cursor: pointer;
+  text-align: left;
+  padding: 0;
+}
+.home-pet-text strong { font-family: var(--font-display); color: var(--sun); font-size: 1.15rem; font-weight: 400; }
+.home-pet-text small { opacity: 0.75; font-weight: 800; }
+.home-pet.is-solo { cursor: pointer; color: var(--foam); font: inherit; }
+.home-pet-empty {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 2px dashed rgba(255, 214, 102, 0.45);
+  color: var(--sun);
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+}
+
+/* ---- The Stable ---- */
+.stable-head { display: flex; align-items: center; gap: 0.7rem; }
+.stable-head h2 { margin: 0; }
+.stable-head > div { flex: 1; min-width: 0; }
+.stable-sub { margin: 0; opacity: 0.75; font-weight: 700; font-size: 0.9rem; }
+.stable-coins {
+  font-weight: 900;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(255, 214, 102, 0.14);
+  color: var(--sun);
+  white-space: nowrap;
+}
+.stable-now {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.8rem 0 0.6rem;
+  font-weight: 700;
+}
+.stable-now > span { flex: 1; min-width: 10rem; }
+.stable-now strong { color: var(--sun); }
+.stable-now .btn.tool { width: auto; min-height: 0; padding: 0.4rem 0.8rem; }
+.stable-solo.on { background: rgba(61, 255, 168, 0.18); color: var(--mint); }
+.stable-trial {
+  margin: 0 0 0.7rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 12px;
+  background: rgba(255, 179, 193, 0.14);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.stable-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.7rem;
+}
+.stable-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.25rem;
+  padding: 0.6rem 0.6rem 0.7rem;
+  border-radius: 18px;
+  background: rgba(5, 13, 31, 0.5);
+  border: 2px solid rgba(244, 251, 255, 0.1);
+}
+.stable-card.is-active { border-color: var(--mint); box-shadow: 0 0 0 3px rgba(61, 255, 168, 0.15); }
+.stable-card.tier-legendary.is-owned { border-color: rgba(255, 209, 102, 0.6); }
+.stable-card-top { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.25rem; min-height: 1.2rem; }
+.stable-tier, .stable-gift {
+  font-size: 0.66rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(244, 251, 255, 0.1);
+}
+.stable-tier.tier-rare { background: rgba(26, 109, 255, 0.3); }
+.stable-tier.tier-epic { background: rgba(199, 125, 255, 0.3); }
+.stable-tier.tier-legendary { background: rgba(255, 209, 102, 0.3); color: var(--sun); }
+.stable-tier.tier-limited { background: rgba(255, 140, 26, 0.3); color: #ffc38a; }
+.stable-gift { background: rgba(61, 255, 168, 0.2); color: var(--mint); text-transform: none; }
+.stable-gift.is-trial { background: rgba(255, 179, 193, 0.2); color: #ffc9d4; }
+.stable-art { position: relative; display: grid; place-items: center; width: 100px; height: 100px; }
+.stable-card.is-owned .stable-art .pet-art { animation: petBob 3.2s ease-in-out infinite; }
+.stable-coupon {
+  position: absolute;
+  right: -1.4rem;
+  top: 0.2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.2rem 0.45rem;
+  border-radius: 10px;
+  background: var(--coral);
+  color: #fff;
+  font-weight: 900;
+  font-size: 0.78rem;
+  line-height: 1.05;
+  transform: rotate(8deg);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+.stable-coupon small { font-size: 0.6rem; opacity: 0.9; }
+.stable-card h3 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 1.15rem; color: var(--sun); }
+.stable-card h3 small { display: block; font-family: var(--font-body); font-weight: 800; color: var(--foam); opacity: 0.7; font-size: 0.72rem; }
+.stable-perk { margin: 0.1rem 0 0; font-weight: 900; font-size: 0.85rem; color: var(--mint); }
+.stable-card.is-locked .stable-perk { color: rgba(61, 255, 168, 0.75); }
+.stable-next { margin: 0; font-size: 0.72rem; opacity: 0.7; font-weight: 700; line-height: 1.3; flex: 1; }
+.stable-level { display: flex; align-items: center; gap: 0.35rem; width: 100%; font-weight: 900; font-size: 0.75rem; }
+.stable-bar { flex: 1; height: 8px; border-radius: 99px; background: rgba(244, 251, 255, 0.12); overflow: hidden; }
+.stable-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--mint), var(--sun)); }
+.stable-level small { opacity: 0.7; font-size: 0.66rem; }
+.stable-price { margin: 0.1rem 0 0; font-weight: 900; }
+.stable-price strong { color: var(--sun); font-size: 1.05rem; }
+.stable-price s { opacity: 0.55; margin-right: 0.2rem; }
+.stable-price.is-off { font-size: 0.78rem; color: #ffc38a; }
+.stable-card .stable-btn, .stable-card .stable-keep { width: 100%; min-height: 0; padding: 0.45rem 0.5rem; font-size: 0.85rem; margin-top: 0.2rem; }
+.stable-redeem { margin-top: 1.1rem; padding: 0.8rem; border-radius: 16px; background: rgba(5, 13, 31, 0.45); }
+.stable-redeem h3 { margin: 0 0 0.45rem; font-size: 1rem; }
+.stable-redeem-row { display: flex; gap: 0.5rem; }
+.stable-redeem-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: 12px;
+  border: 2px solid rgba(244, 251, 255, 0.2);
+  background: rgba(244, 251, 255, 0.06);
+  color: var(--foam);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  font-size: 1rem;
+}
+.stable-redeem-row .btn { width: auto; }
+.stable-msg { margin: 0.5rem 0 0; font-weight: 800; }
+.stable-msg.is-ok { color: var(--mint); }
+.stable-msg.is-bad { color: var(--coral); }
+.stable-note { margin: 0.8rem 0 0; font-size: 0.8rem; opacity: 0.7; font-weight: 700; }
+.linkish { border: 0; background: none; padding: 0; color: var(--sun); font: inherit; text-decoration: underline; cursor: pointer; }
+.stable-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  margin: 0.4rem 0 0.9rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: 16px;
+  border: 2px solid rgba(255, 214, 102, 0.35);
+  background: rgba(5, 13, 31, 0.5);
+  color: var(--foam);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.stable-entry > span:nth-child(2) { flex: 1; display: flex; flex-direction: column; }
+.stable-entry strong { font-family: var(--font-display); font-weight: 400; color: var(--sun); font-size: 1.1rem; }
+.stable-entry small { opacity: 0.75; font-weight: 700; }
+.stable-entry-art { display: flex; }
+.stable-entry-art .pet-art + .pet-art { margin-left: -12px; }
+
+/* ---- Records / challenges: buddy icon or Solo ---- */
+.run-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.4rem 0.05rem 0.2rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 900;
+  vertical-align: middle;
+  background: rgba(61, 255, 168, 0.14);
+  color: var(--mint);
+}
+.run-tag.is-solo { padding: 0.05rem 0.45rem; background: rgba(244, 251, 255, 0.1); color: rgba(244, 251, 255, 0.8); }
+.start-sheet-bests .run-tag { margin: 0.2rem 0 0; }
+
+/* ---- Board side: phones perch the buddy by the HUD (absolute: 0px board movement) ---- */
+.hud-pet {
+  position: absolute;
+  z-index: 3;
+  top: calc(max(0.25rem, env(safe-area-inset-top, 0px)) + 2.75rem);
+  right: max(0.35rem, env(safe-area-inset-right, 0px));
+  pointer-events: none;
+  animation: petBob 3s ease-in-out infinite;
+  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.35));
+}
+.hud-pet.is-cheer { animation: petCheer 0.9s ease-in-out 2; }
+html[data-layout='wide'] .hud-pet { display: none; }
+/* Wide screens: the buddy fills the old placeholder */
+html[data-layout='wide'] .buddy-spot.has-pet { border-style: solid; border-color: rgba(61, 255, 168, 0.35); }
+.buddy-spot.has-pet .buddy-spot-ring { width: 88px; height: 88px; }
+.buddy-spot.has-pet .pet-art { animation: petBob 3.2s ease-in-out infinite; }
+.buddy-spot.has-pet.is-cheer .pet-art { animation: petCheer 0.9s ease-in-out 2; }
+
+/* ---- Win screen: the buddy's cheer sticker (absolute; the fit steps never see it) ---- */
+.win-pet {
+  position: absolute;
+  z-index: 2;
+  top: 0.35rem;
+  left: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  pointer-events: none;
+}
+.win-pet .pet-art { animation: petBob 2.4s ease-in-out infinite; }
+.win-pet.is-cheer .pet-art { animation: petCheer 0.9s ease-in-out 3; }
+.win-pet-bubble {
+  margin: -0.15rem 0 0 0;
+  padding: 0.12rem 0.45rem;
+  border-radius: 10px;
+  background: var(--foam);
+  color: var(--ink);
+  font-weight: 900;
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+/* ---- Owner gift page (hidden route) ---- */
+.owner-page { max-width: 640px; margin: 0 auto; padding: 1.5rem 1.2rem 4rem; color: var(--foam); font-family: var(--font-body); }
+.owner-page h1 { font-family: var(--font-display); font-weight: 400; color: var(--sun); font-size: 1.6rem; }
+.owner-card { display: flex; flex-direction: column; gap: 0.8rem; padding: 1rem; border-radius: 18px; background: rgba(5, 13, 31, 0.55); border: 2px solid rgba(255, 214, 102, 0.25); }
+.owner-card label { display: flex; flex-direction: column; gap: 0.3rem; font-weight: 800; }
+.owner-card input, .owner-card select { padding: 0.55rem 0.7rem; border-radius: 10px; border: 2px solid rgba(244, 251, 255, 0.2); background: rgba(244, 251, 255, 0.06); color: var(--foam); font: inherit; }
+.owner-card select option { color: #07122a; }
+.owner-kinds, .owner-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.owner-kinds .btn.on { background: var(--sun); color: var(--ink); }
+.owner-pets { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.owner-pet { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; padding: 0.4rem; border-radius: 12px; border: 2px solid transparent; background: rgba(244, 251, 255, 0.06); color: var(--foam); font-weight: 800; cursor: pointer; }
+.owner-pet.on { border-color: var(--mint); }
+.owner-made { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+.owner-made a { color: var(--sun); word-break: break-all; }
+.owner-code { font-size: 1.3rem; letter-spacing: 0.08em; color: var(--mint); }
+.owner-warn { padding: 0.8rem 1rem; border-radius: 14px; background: rgba(255, 107, 107, 0.14); border: 2px solid rgba(255, 107, 107, 0.4); }
+.owner-warn code { background: rgba(0, 0, 0, 0.3); padding: 0.05rem 0.3rem; border-radius: 6px; }
+.owner-foot { opacity: 0.6; font-size: 0.85rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pet-art .pet-eye, .home-pet-body, .home-pet-body.is-hop, .hud-pet, .win-pet .pet-art, .buddy-spot.has-pet .pet-art, .stable-card.is-owned .stable-art .pet-art { animation: none !important; }
+}
+/* Phones: caption text keeps clear of the perched buddy (same slot height, so the board stays put) */
+html:not([data-layout='wide']) .play-fixed.has-hud-pet .play-caption { padding-left: 2.6rem; padding-right: 2.6rem; }
+/* Tablets upright: the HUD's progress bar runs full width, so the buddy perches a little lower */
+html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.25rem, env(safe-area-inset-top, 0px)) + 4.2rem); }

@@ -127,6 +127,7 @@ export function createChallenge(input: {
   bonusPct?: number
   puzzleName?: string
   difficulty?: string
+  buddy?: string | null
 }): Challenge {
   const hasScore = input.scoreMs != null && input.scorePts != null
   const board = boardLabel({
@@ -153,6 +154,7 @@ export function createChallenge(input: {
     bonusPct: input.bonusPct,
     puzzleName: input.puzzleName,
     difficulty: input.difficulty,
+    ...(hasScore && input.buddy !== undefined ? { buddy: input.buddy } : {}),
   }
 }
 
@@ -179,6 +181,7 @@ export function encodeChallengeLink(c: Challenge, board?: Puzzle | null): string
     ...(c.puzzleName ? { pn: c.puzzleName } : {}),
     ...(c.difficulty ? { d: c.difficulty } : {}),
     ...(layout ? { b: layout } : {}),
+    ...(c.buddy !== undefined ? { bu: c.buddy ?? '' } : {}),
   })
   return publicLinkWithHash(`challenge=${payload}`)
 }
@@ -202,6 +205,7 @@ export function parseChallengeFromHash(hash: string): Omit<Challenge, 'createdAt
       bonusPct: typeof data.bb === 'number' ? data.bb : undefined,
       puzzleName: typeof data.pn === 'string' ? data.pn : undefined,
       difficulty: typeof data.d === 'string' ? data.d : undefined,
+      ...(typeof data.bu === 'string' ? { buddy: data.bu || null } : {}),
     }
   } catch {
     return null

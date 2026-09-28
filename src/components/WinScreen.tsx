@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { CRITTER_STASH_GOAL } from './SparkCritter'
+import { PetArt } from './PetArt'
+import type { PetId } from '../game/pets'
 
 /** Replay challenge extras for this win: stars, a record/near-miss banner, coins earned */
 export type WinReplay = {
@@ -9,6 +11,8 @@ export type WinReplay = {
   banner?: { kind: 'record' | 'near' | 'trial' | 'daily' | 'first'; text: string }
   coinsLine?: string
   detail?: string
+  /** 9.30-a: the buddy that rode along cheers (a sticker on the card corner; takes no layout space) */
+  pet?: { id: PetId; name: string; text: string; cheer: boolean }
 }
 
 export type WinScreenProps = {
@@ -108,6 +112,12 @@ export function WinScreen({
       </div>
 
       <div className="win-screen-card">
+        {replay?.pet ? (
+          <div className={`win-pet ${replay.pet.cheer ? 'is-cheer' : ''}`} data-win-pet={replay.pet.id} aria-label={`${replay.pet.name}: ${replay.pet.text}`}>
+            <PetArt id={replay.pet.id} size={40} />
+            <span className="win-pet-bubble">{replay.pet.text}</span>
+          </div>
+        ) : null}
         {/* Scrolls on its own only if a very short screen can't fit it; the buttons stay pinned below. */}
         <div className="win-screen-body">
           <h2 className="win-screen-title">Victory!</h2>

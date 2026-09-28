@@ -414,9 +414,13 @@ export function finishDaily(
 }
 
 // ---------- share text ----------
-/** Buddy slot in share text. A later build can return "Solo run — no buddy" for null. */
+/**
+ * Buddy slot in share text (9.30-a): "with Lupa the Wolf Pup", or "Solo run, no buddy" for null.
+ * Undefined (a share without run info, e.g. an older best) adds nothing.
+ */
 export function buddyShareText(buddy: string | null | undefined): string {
-  return buddy && buddy.trim() ? `with ${buddy.trim()}` : ''
+  if (buddy === undefined) return ''
+  return buddy && buddy.trim() ? `with ${buddy.trim()}` : 'Solo run, no buddy'
 }
 
 function shareTime(ms: number): string {
@@ -435,7 +439,7 @@ export function scoreShareText(o: {
   stars?: number
   timeMs?: number
   newBest?: boolean
-  /** Buddy on this run (future feature). null/undefined = solo, which adds nothing for now */
+  /** Buddy on this run (display name). null = Solo run, undefined = unknown (adds nothing) */
   buddy?: string | null
 }): string {
   const who = o.name && o.name.trim() ? `${o.name.trim()} scored` : 'I scored'

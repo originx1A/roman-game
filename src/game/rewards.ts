@@ -6,6 +6,7 @@ export type PrizeId =
   | 'heart_refill'
   | 'shield'
   | 'jackpot'
+  | 'buddy_trial'
 
 export interface Prize {
   id: PrizeId
@@ -63,6 +64,9 @@ export const DEFAULT_WALLET: Wallet = {
   bonusHearts: 0,
 }
 
+/** Buddy trial prize when every buddy on sale is already yours */
+export const BUDDY_TRIAL_FALLBACK_COINS = 100
+
 export const PRIZES: Prize[] = [
   { id: 'coins_25', label: '+25 coins', weight: 28, color: '#ffd166' },
   { id: 'coins_50', label: '+50 coins', weight: 18, color: '#ffe08a' },
@@ -71,6 +75,8 @@ export const PRIZES: Prize[] = [
   { id: 'heart_refill', label: 'Full hearts', weight: 12, color: '#ff6b6b' },
   { id: 'shield', label: 'Mistake shield', weight: 10, color: '#1a6dff' },
   { id: 'jackpot', label: 'JACKPOT 200', weight: 4, color: '#c77dff' },
+  // 9.30-a: a free 24h buddy from The Stable (App applies it; coins if you own them all)
+  { id: 'buddy_trial', label: 'Buddy trial 24h', weight: 6, color: '#ffb3c1' },
 ]
 
 export const BADGES: BadgeDef[] = [
@@ -125,6 +131,9 @@ export function applyPrize(wallet: Wallet, prize: Prize): Wallet {
     case 'jackpot':
       next.coins += 200
       next.freeHints += 1
+      break
+    case 'buddy_trial':
+      // App starts the free 24h buddy trial (or pays BUDDY_TRIAL_FALLBACK_COINS)
       break
   }
   return unlockIf(next, 'spinner')

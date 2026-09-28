@@ -70,11 +70,24 @@ test('three-star tip (plays on a won board) never uses a loss line or a mid-boar
   }
 })
 
-test('not-best (won, slower than the best) is a teasing follow-up, queued after the cheer', () => {
-  const b = c.banterFor('not-best')
-  assert.ok(b.clip && linesOf(c.EVENT_POOLS['not-best']).has(b.clip))
-  assert.ok((b.waitMs ?? 0) > 0 && (b.priority ?? 0) < c.VOICE_PRIORITY.win, 'waits for the win cheer, never cuts it')
+test('not-best (won, slower than the best) is ONE combined win line, not a cheer then a tease', () => {
+  const src = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8')
+  for (let i = 0; i < 40; i++) {
+    const b = c.banterFor('not-best')
+    assert.ok(b.clip && linesOf(c.EVENT_POOLS['not-best']).has(b.clip))
+    assert.ok(!linesOf(['roman.cheer']).has(b.clip!) || c.ROMAN_NOT_BEST_CLIPS.includes(b.clip as never), 'a not-best line, not a plain cheer')
+    assert.equal(b.priority, c.VOICE_PRIORITY.win, 'it IS the win line')
+    assert.ok(!b.waitMs, 'nothing to wait for: no cheer plays before it')
+    assert.ok(!LOSE.has(b.clip!), 'never a loss line')
+  }
+  // App: the not-best event replaces the cheer; no second, delayed not-best line
+  assert.match(src, /notBest\s*\n?\s*\? 'not-best'/)
+  assert.doesNotMatch(src, /setTimeout\(\(\) => pushBanter\('not-best'\)/)
   assert.deepEqual([...c.EVENT_POOLS['near-miss']], ['roman.cheer'])
+  assert.ok(c.NEW_NOT_BEST_LINES.length >= 10)
+  const voices = new Set(c.NEW_NOT_BEST_LINES.map((l) => l.id.split('_')[0]))
+  assert.deepEqual([...voices].sort(), ['coach', 'old', 'roman'])
+  assert.ok(c.NEW_NOT_BEST_LINES.filter((l) => l.id.startsWith('old_')).length > c.NEW_NOT_BEST_LINES.length / 2, 'old-timer heavy')
   for (const l of c.NEW_NOT_BEST_LINES) assert.ok(!recorded.has(l.id), `${l.id} must stay silent until approved`)
 })
 
