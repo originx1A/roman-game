@@ -25,6 +25,8 @@ import {
   awardStreakCoupon,
   awardTrialClearCoupon,
   buyPet,
+  buyBundle,
+  type BundleId,
   equip as equipPet,
   expireTrial,
   grantTrial,
@@ -959,6 +961,23 @@ export default function App() {
     showToast(`${p.name} the ${p.species} joined your Stable!${r.coupon ? ` (${r.coupon.pct}% coupon used)` : ''}`)
   }
 
+  /** 9.30-b: coin bundles (several buddies at a discount; coins only) */
+  function onBuyBundle(id: BundleId) {
+    const now = Date.now()
+    const w = loadWallet()
+    const r = buyBundle(loadPets(), w.coins, id, now)
+    if (!r.ok) {
+      showToast(r.reason)
+      return
+    }
+    persistWallet({ ...w, coins: r.coins })
+    persistPets(r.state)
+    sfxCoin()
+    petGiggle()
+    const names = r.got.map((p) => petById(p)!.name)
+    showToast(`${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} joined your Stable!`)
+  }
+
   function onEquipPet(id: PetId | null) {
     const next = equipPet(loadPets(), id, Date.now())
     persistPets(next)
@@ -966,15 +985,29 @@ export default function App() {
     showToast(id ? `Riding with ${petById(id)?.name}` : 'Solo runs: no buddy')
   }
 
+  /** 9.30-b: what's in this gift? (preview card before claiming; the code isn't used) */
+  async function onPeekGift(raw: string): Promise<{ ok: boolean; message: string; gift?: Gift; note?: string; code?: string }> {
+    const code = normalizeGiftCode(raw)
+    if (loadPets().redeemed.includes(code)) return { ok: false, message: 'You already redeemed that code.' }
+    try {
+      const res = await fetch('/api/gift-redeem', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code, peek: true }) })
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; gift?: Gift; note?: string; reason?: string }
+      if (!j.ok || !j.gift) return { ok: false, message: j.reason ?? 'Gifts are unavailable right now.' }
+      return { ok: true, message: '', gift: j.gift, note: j.note ?? '', code }
+    } catch {
+      return { ok: false, message: 'Gifts are unavailable right now. Try again later.' }
+    }
+  }
+
   async function onRedeemGift(raw: string): Promise<{ ok: boolean; message: string }> {
     const code = normalizeGiftCode(raw)
     if (loadPets().redeemed.includes(code)) return { ok: false, message: 'You already redeemed that code.' }
     try {
       const res = await fetch('/api/gift-redeem', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }) })
-      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; gift?: Gift; reason?: string }
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; gift?: Gift; note?: string; reason?: string }
       if (!j.ok || !j.gift) return { ok: false, message: j.reason ?? 'Gifts are unavailable right now.' }
       const w = loadWallet()
-      const out = applyGift(loadPets(), w.coins, j.gift, code, Date.now())
+      const out = applyGift(loadPets(), w.coins, j.gift, code, Date.now(), j.note)
       persistPets(out.state)
       if (out.coins !== w.coins) persistWallet({ ...w, coins: out.coins })
       sfxCoin()
@@ -2581,7 +2614,9 @@ export default function App() {
           coins={wallet.coins}
           now={petNow}
           onBuy={onAdoptPet}
+          onBuyBundle={onBuyBundle}
           onEquip={onEquipPet}
+          onPeek={onPeekGift}
           onRedeem={onRedeemGift}
           onShop={() => setScreen('rewards')}
           onBack={() => setScreen('home')}

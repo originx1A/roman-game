@@ -1,5 +1,6 @@
 import { getStore } from '@netlify/blobs'
 import { json, siteBase } from '../lib/http.ts'
+import { cleanGiftNote, giftShareMessage } from '../../src/game/pets.ts'
 import { createGift, GIFT_STORE, OWNER_KEY_ENV, ownerKeyConfigured, ownerKeyMatches, parseGift } from '../lib/gifts.ts'
 
 /** Owner only: POST {key, gift, note?} → {code, link}. */
@@ -21,7 +22,9 @@ export default async function giftCreate(req: Request): Promise<Response> {
   try {
     const store = getStore({ name: GIFT_STORE, consistency: 'strong' })
     const code = await createGift(store, gift, typeof body.note === 'string' ? body.note : '')
-    return json({ ok: true, code, gift, link: `${siteBase()}/?gift=${code}` })
+    const link = `${siteBase()}/?gift=${code}`
+    const note = cleanGiftNote(body.note)
+    return json({ ok: true, code, gift, note, link, message: giftShareMessage({ gift, code, link, note }) })
   } catch (err) {
     console.error('gift-create failed', err instanceof Error ? err.message : 'error')
     return json({ error: 'Could not save the code. Try again.' }, 502)

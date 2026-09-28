@@ -1,8 +1,8 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
-import { GIFT_CODE_RE, normalizeGiftCode, PETS, type Gift, type PetId } from '../../src/game/pets.ts'
+import { cleanGiftNote, GIFT_CODE_RE, normalizeGiftCode, PACK_MAX_ITEMS, PETS, type Gift, type GiftItem, type PetId } from '../../src/game/pets.ts'
 
 /**
- * Owner gift codes (web only). Tony makes a one-time code like ROMA-7K2P on the hidden owner
+ * Owner gift codes (web only). The owner makes a one-time code like ROMA-7K2P on the hidden owner
  * page; a player redeems it once in The Stable. The owner passphrase lives only in the Netlify
  * env var ROMAN_OWNER_KEY and is never sent back or logged.
  */
@@ -41,6 +41,24 @@ export function makeGiftCode(rand: (n: number) => Uint8Array = (n) => crypto.get
 export function parseGift(raw: unknown): Gift | null {
   if (!raw || typeof raw !== 'object') return null
   const g = raw as Record<string, unknown>
+  if (g.kind === 'pack') {
+    // 9.30-b packs: 1-8 items, each buddy once, at most one coins line and one coupon
+    if (!Array.isArray(g.items) || !g.items.length || g.items.length > PACK_MAX_ITEMS) return null
+    const items: GiftItem[] = []
+    for (const r of g.items) {
+      const it = parseItem(r)
+      if (!it) return null
+      if (it.kind === 'pet' ? items.some((x) => x.kind === 'pet' && x.pet === it.pet) : items.some((x) => x.kind === it.kind)) return null
+      items.push(it)
+    }
+    return { kind: 'pack', pack: g.pack === 'all' ? 'all' : 'custom', items }
+  }
+  return parseItem(g)
+}
+
+function parseItem(raw: unknown): GiftItem | null {
+  if (!raw || typeof raw !== 'object') return null
+  const g = raw as Record<string, unknown>
   const petIds = PETS.map((p) => p.id) as string[]
   if (g.kind === 'pet') return typeof g.pet === 'string' && petIds.includes(g.pet) ? { kind: 'pet', pet: g.pet as PetId } : null
   if (g.kind === 'coins') {
@@ -67,14 +85,14 @@ export interface GiftRecord {
 export async function createGift(store: GiftStore, gift: Gift, note: string, rand?: (n: number) => Uint8Array): Promise<string> {
   for (let i = 0; i < 8; i++) {
     const code = makeGiftCode(rand)
-    const rec: GiftRecord = { gift, note: note.slice(0, 80), createdAt: new Date().toISOString() }
+    const rec: GiftRecord = { gift, note: cleanGiftNote(note), createdAt: new Date().toISOString() }
     const { modified } = await store.setJSON(`code/${code}`, rec, { onlyIfNew: true })
     if (modified) return code
   }
   throw new Error('Could not make a unique code')
 }
 
-export type RedeemOutcome = { ok: true; code: string; gift: Gift } | { ok: false; code: string; reason: string; status: number }
+export type RedeemOutcome = { ok: true; code: string; gift: Gift; note: string } | { ok: false; code: string; reason: string; status: number }
 
 /** One-time redeem: the first request to write the "used" marker wins; everyone after is told no. */
 export async function redeemGift(store: GiftStore, rawCode: unknown): Promise<RedeemOutcome> {
@@ -85,7 +103,18 @@ export async function redeemGift(store: GiftStore, rawCode: unknown): Promise<Re
   if (!gift) return { ok: false, code, reason: 'That gift code isn’t valid.', status: 404 }
   const { modified } = await store.setJSON(`used/${code}`, { at: new Date().toISOString() }, { onlyIfNew: true })
   if (!modified) return { ok: false, code, reason: 'That gift code was already used.', status: 409 }
-  return { ok: true, code, gift }
+  return { ok: true, code, gift, note: cleanGiftNote(rec?.note) }
+}
+
+/** 9.30-b: look before you claim. Shows what the gift is (and its note) without using the code. */
+export async function peekGift(store: GiftStore, rawCode: unknown): Promise<RedeemOutcome> {
+  const code = typeof rawCode === 'string' ? normalizeGiftCode(rawCode) : ''
+  if (!GIFT_CODE_RE.test(code)) return { ok: false, code, reason: 'That doesn’t look like a gift code (like ROMA-7K2P).', status: 400 }
+  const rec = (await store.get(`code/${code}`, { type: 'json' })) as GiftRecord | null
+  const gift = rec ? parseGift(rec.gift) : null
+  if (!gift) return { ok: false, code, reason: 'That gift code isn’t valid.', status: 404 }
+  if (await store.get(`used/${code}`, { type: 'json' })) return { ok: false, code, reason: 'That gift code was already used.', status: 409 }
+  return { ok: true, code, gift, note: cleanGiftNote(rec?.note) }
 }
 
 /** In-memory store with the same onlyIfNew rule (tests / local) */

@@ -141,7 +141,7 @@ export function onSale(p: PetDef, now: number): boolean {
 export interface OwnedPet {
   at: number
   xp: number
-  /** Gift from Tony (owner gift code) */
+  /** Owner gift code. Shown as 'Gift from Roman' (GIFT_TAG); a flag, so older gifts show the new tag too */
   gift?: boolean
 }
 export type CouponSource = 'streak' | 'trial-clear' | 'trial-end' | 'gift'
@@ -324,6 +324,60 @@ export function buyPet(s: PetState, coins: number, id: PetId, now: number): BuyR
   return { ok: true, state, coins: coins - cost, spent: cost, coupon }
 }
 
+// ---------- bundles (coins only, 9.30-b) ----------
+export type BundleId = 'starter' | 'full'
+export interface BundleDef {
+  id: BundleId
+  name: string
+  pets: PetId[]
+  /** % off the combined price of the buddies you still need */
+  pct: number
+}
+export const BUNDLES: readonly BundleDef[] = [
+  { id: 'starter', name: 'Starter pack', pets: ['lupa', 'aquila'], pct: 15 },
+  { id: 'full', name: 'Full Stable', pets: ['lupa', 'aquila', 'leo', 'invictus'], pct: 20 },
+]
+export function bundleById(id: unknown): BundleDef | undefined {
+  return BUNDLES.find((b) => b.id === id)
+}
+
+export interface BundleQuote {
+  bundle: BundleDef
+  /** buddies in it you don't own yet */
+  missing: PetId[]
+  /** full price of those */
+  full: number
+  /** what you pay (bundle discount; coupons don't stack) */
+  price: number
+  save: number
+  /** offered only while 2+ of its buddies are still missing */
+  available: boolean
+}
+
+/** Bundle price: its % off the combined price of the buddies you still need, rounded to 10 coins */
+export function bundleQuote(s: PetState, id: BundleId, now: number): BundleQuote {
+  const bundle = bundleById(id)!
+  const missing = bundle.pets.filter((p) => !s.owned[p] && onSale(petById(p)!, now))
+  const full = missing.reduce((sum, p) => sum + petById(p)!.price, 0)
+  const price = Math.round((full * (100 - bundle.pct)) / 100 / 10) * 10
+  return { bundle, missing, full, price, save: full - price, available: missing.length >= 2 }
+}
+
+export type BundleResult = { ok: true; state: PetState; coins: number; spent: number; got: PetId[] } | { ok: false; reason: string }
+
+/** Coins only. Adds every missing buddy in the bundle at once; rides with the priciest new one. */
+export function buyBundle(s: PetState, coins: number, id: BundleId, now: number): BundleResult {
+  if (!bundleById(id)) return { ok: false, reason: 'Unknown bundle' }
+  const q = bundleQuote(s, id, now)
+  if (!q.available) return { ok: false, reason: q.missing.length ? 'Just one buddy left: adopt it on its own' : 'You have all of these already' }
+  if (coins < q.price) return { ok: false, reason: `Need ${q.price - coins} more coins` }
+  const owned = { ...s.owned }
+  for (const p of q.missing) owned[p] = { at: now, xp: s.trial?.id === p ? s.trial.xp : 0 }
+  const top = [...q.missing].sort((a, b) => petById(b)!.price - petById(a)!.price)[0]
+  const state: PetState = { ...s, owned, trial: s.trial && q.missing.includes(s.trial.id) ? null : s.trial, active: top }
+  return { ok: true, state, coins: coins - q.price, spent: q.price, got: q.missing }
+}
+
 /** Win with a buddy: it grows. */
 export function addPetXp(s: PetState, id: PetId | null, xp: number, now: number): { state: PetState; levelUp: number | null } {
   if (!id || xp <= 0) return { state: s, levelUp: null }
@@ -337,7 +391,46 @@ export function addPetXp(s: PetState, id: PetId | null, xp: number, now: number)
 }
 
 // ---------- gifts (owner codes) ----------
-export type Gift = { kind: 'pet'; pet: PetId } | { kind: 'coins'; amount: number } | { kind: 'coupon'; pct: number; pet: PetId | null; days: number }
+/** 9.30-b: the tag on gifted buddies/coupons and in redeem messages (renamed from the owner's name in 9.30-b) */
+export const GIFT_TAG = 'Gift from Roman'
+export const GIFT_NOTE_MAX = 60
+
+/** The optional reason on a gift ("Happy birthday"): one line, no control characters, max 60 */
+export function cleanGiftNote(raw: unknown): string {
+  if (typeof raw !== 'string') return ''
+  const s = raw.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim()
+  return Array.from(s).slice(0, GIFT_NOTE_MAX).join('').trim()
+}
+
+/** What a gift is, in plain words: "Aquila the Eagle", "500 coins", "30% off Leo the Lion Cub (7 days to use it)" */
+export function giftLabel(g: Gift): string {
+  if (g.kind === 'pack') {
+    const parts = g.items.map(giftLabel)
+    const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0] ?? 'a gift'
+    return g.pack === 'all' ? `All buddies pack: ${list}` : `Gift pack: ${list}`
+  }
+  if (g.kind === 'pet') return petLabel(g.pet) ?? 'a buddy'
+  if (g.kind === 'coins') return `${g.amount.toLocaleString('en-US')} coins`
+  const who = g.pet ? petLabel(g.pet) ?? 'a buddy' : 'any buddy'
+  return `${g.pct}% off ${who} (${g.days} day${g.days === 1 ? '' : 's'} to use it)`
+}
+
+/** The ready-to-send message on the owner page after making a code */
+export function giftShareMessage(o: { gift: Gift; code: string; link: string; note?: string }): string {
+  const note = cleanGiftNote(o.note)
+  return `Roman sent you a gift in Roman's Game: ${giftLabel(o.gift)}!${note ? ` "${note}"` : ''} Tap to claim: ${o.link} (code ${o.code}, works once)`
+}
+/** One thing in a gift */
+export type GiftItem = { kind: 'pet'; pet: PetId } | { kind: 'coins'; amount: number } | { kind: 'coupon'; pct: number; pet: PetId | null; days: number }
+/** 9.30-b: a pack is several items behind one code (one claim). 'all' = the All buddies pack. */
+export type GiftPack = { kind: 'pack'; pack: 'all' | 'custom'; items: GiftItem[] }
+export const PACK_MAX_ITEMS = 8
+
+/** The All buddies pack: every buddy that isn't limited (holiday ones only if asked) */
+export function allBuddiesPack(includeLimited = false): GiftPack {
+  return { kind: 'pack', pack: 'all', items: PETS.filter((p) => includeLimited || !p.limited).map((p) => ({ kind: 'pet' as const, pet: p.id })) }
+}
+export type Gift = GiftItem | GiftPack
 
 export const GIFT_CODE_RE = /^ROMA-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}$/
 export function normalizeGiftCode(raw: string): string {
@@ -347,18 +440,57 @@ export function normalizeGiftCode(raw: string): string {
 }
 
 /** Apply a server-confirmed gift. A buddy you already own turns into coins instead. */
-export function applyGift(s: PetState, coins: number, gift: Gift, code: string, now: number): { state: PetState; coins: number; message: string } {
+export function applyGift(s: PetState, coins: number, gift: Gift, code: string, now: number, rawNote?: string): { state: PetState; coins: number; message: string } {
+  const out = gift.kind === 'pack' ? applyPack(s, coins, gift, code, now) : applyGiftInner(s, coins, gift, code, now)
+  const note = cleanGiftNote(rawNote)
+  return note ? { ...out, message: `${out.message} "${note}"` } : out
+}
+
+/** A pack: every item in one claim, one message listing all of it */
+function applyPack(s: PetState, coins: number, gift: GiftPack, code: string, now: number): { state: PetState; coins: number; message: string } {
+  let state = s
+  let total = coins
+  const joined: string[] = []
+  let extraCoins = 0
+  const coupons: string[] = []
+  const already: string[] = []
+  const firstActive = s.active
+  for (const it of gift.items) {
+    const before = total
+    const r = applyGiftInner(state, total, it, code, now)
+    state = r.state
+    total = r.coins
+    if (it.kind === 'pet') {
+      const p = petById(it.pet)!
+      if (s.owned[p.id]) already.push(p.name)
+      else joined.push(p.name)
+    }
+    if (it.kind === 'coins' || (it.kind === 'pet' && s.owned[it.pet])) extraCoins += total - before
+    if (it.kind === 'coupon') coupons.push(`${it.pct}% off ${it.pet ? petById(it.pet)?.name : 'any buddy'}`)
+  }
+  // ride with the first new buddy in the pack (or keep who you had)
+  const firstNew = gift.items.find((it): it is Extract<GiftItem, { kind: 'pet' }> => it.kind === 'pet' && !s.owned[it.pet])
+  state = { ...state, active: firstNew ? firstNew.pet : firstActive && hasPet(state, firstActive, now) ? firstActive : state.active }
+  const list = (a: string[]) => (a.length > 1 ? `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}` : a[0])
+  const parts: string[] = []
+  if (joined.length) parts.push(`${list(joined)} joined your Stable`)
+  if (extraCoins) parts.push(`+${extraCoins.toLocaleString('en-US')} coins${already.length ? ` (you already had ${list(already)})` : ''}`)
+  parts.push(...coupons)
+  return { state, coins: total, message: `${GIFT_TAG}: ${parts.join(', ')}!` }
+}
+
+function applyGiftInner(s: PetState, coins: number, gift: GiftItem, code: string, now: number): { state: PetState; coins: number; message: string } {
   const redeemed = [...s.redeemed.filter((c) => c !== code), code].slice(-50)
-  if (gift.kind === 'coins') return { state: { ...s, redeemed }, coins: coins + gift.amount, message: `Gift from Tony: +${gift.amount} coins!` }
+  if (gift.kind === 'coins') return { state: { ...s, redeemed }, coins: coins + gift.amount, message: `${GIFT_TAG}: +${gift.amount} coins!` }
   if (gift.kind === 'coupon') {
     const state = addCoupon({ ...s, redeemed }, { pct: gift.pct, pet: gift.pet, source: 'gift', expires: now + gift.days * DAY_MS }, now)
     const who = gift.pet ? petById(gift.pet)?.name : 'any buddy'
-    return { state, coins, message: `Gift from Tony: ${gift.pct}% off ${who}!` }
+    return { state, coins, message: `${GIFT_TAG}: ${gift.pct}% off ${who}!` }
   }
   const p = petById(gift.pet)!
   if (s.owned[p.id]) {
     const bonus = Math.round(p.price / 10)
-    return { state: { ...s, redeemed }, coins: coins + bonus, message: `You already have ${p.name}, so Tony's gift is +${bonus} coins.` }
+    return { state: { ...s, redeemed }, coins: coins + bonus, message: `You already have ${p.name}, so Roman's gift is +${bonus} coins.` }
   }
   const state: PetState = {
     ...s,
@@ -367,7 +499,7 @@ export function applyGift(s: PetState, coins: number, gift: Gift, code: string, 
     trial: s.trial?.id === p.id ? null : s.trial,
     active: p.id,
   }
-  return { state, coins, message: `Gift from Tony: ${p.name} the ${p.species} joined your Stable!` }
+  return { state, coins, message: `${GIFT_TAG}: ${p.name} the ${p.species} joined your Stable!` }
 }
 
 // ---------- share / records ----------
