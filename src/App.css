@@ -5517,3 +5517,7 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 .owner-check { display: flex !important; flex-direction: row !important; align-items: center; gap: 0.5rem; font-weight: 700; }
 .owner-check input { width: auto !important; }
 .owner-card select { -webkit-appearance: none; appearance: none; background-color: #13213f; min-width: 8rem; }
+/* 9.30-c: the home title doubles as the hidden owner door (hold 5 s): no iOS callout, no text selection */
+.no-callout { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+.owner-back { display: inline-block; margin: 0 0 0.6rem; color: var(--mint); font-weight: 800; text-decoration: none; }
+.owner-back:hover { text-decoration: underline; }

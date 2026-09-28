@@ -319,3 +319,28 @@ test('9.30-b bundles: coin prices (15% / 20% off), only missing buddies, coins o
   const r2 = P.buyBundle(tr, 99999, 'full', NOW)
   assert.ok(r2.ok && r2.state.owned.leo?.xp === 40 && r2.state.trial === null && r2.state.active === 'invictus')
 })
+
+test('9.30-c: owner door long-press: fires only after holding still, taps and drags never fire', async () => {
+  const L = await import('../src/game/longPress.ts')
+  let t: { fn: () => void; ms: number } | null = null
+  let fired = 0
+  const lp = L.createLongPress({ ms: L.OWNER_LONG_PRESS_MS, onFire: () => fired++, setTimer: (fn, ms) => (t = { fn, ms }), clearTimer: () => (t = null) })
+  const at = (x: number, y = 0, button = 0) => ({ pointerId: 1, clientX: x, clientY: y, button, isPrimary: true })
+  lp.down(at(0))
+  assert.equal(t!.ms, 5000)
+  lp.up(at(0)) // a normal tap
+  assert.equal(t, null)
+  lp.down(at(0))
+  lp.move(at(30)) // a scroll / drag
+  assert.equal(t, null)
+  lp.down(at(0, 0, 2)) // right click
+  assert.equal(t, null)
+  lp.down(at(0))
+  lp.move(at(5, 5)) // a little finger wobble is fine
+  t!.fn()
+  assert.equal(fired, 1)
+  assert.equal(lp.holding, false)
+  assert.equal(L.OWNER_PATH, '/roman-owner')
+  const m = JSON.parse(readFileSync(new URL('../public/owner.webmanifest', import.meta.url), 'utf8'))
+  assert.equal(m.start_url, '/roman-owner')
+})
