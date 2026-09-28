@@ -391,6 +391,19 @@ export function roleForClip(id: string): VoiceRole {
   return 'coach'
 }
 
+/**
+ * Roman's playback speed for a mood rate (pitch preserved). Up to 9.30-g it was
+ * min(0.94, max(0.82, rate * 0.88)); 9.30-h (Tony): about 10% quicker across the board,
+ * so 0.902–1.034 (usually 1.034 for cheers, 1.026 for happy lines).
+ */
+export const ROMAN_RATE_SCALE = 0.968
+export const ROMAN_RATE_MIN = 0.902
+export const ROMAN_RATE_MAX = 1.034
+export function romanPlaybackRate(moodRate: number): number {
+  const r = Math.min(ROMAN_RATE_MAX, Math.max(ROMAN_RATE_MIN, moodRate * ROMAN_RATE_SCALE))
+  return Math.round(r * 1000) / 1000
+}
+
 export function moodPlayback(mood: VoiceMood): { rate: number; volume: number } {
   switch (mood) {
     case 'excited':

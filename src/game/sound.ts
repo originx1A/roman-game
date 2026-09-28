@@ -8,6 +8,7 @@
 import {
   WARM_COACH_CLIPS,
   isPlayableVoiceClip,
+  romanPlaybackRate,
   moodPlayback,
   roleForClip,
   type VoiceLineId,
@@ -20,8 +21,8 @@ let muted = false
 let voiceEnabled = true
 
 /**
- * Old-timer only. Pitch stays natural (preservesPitch), so he keeps his deep gruff voice; Roman and
- * the coach are unchanged. 9.30-e (Tony): about 11% quicker than 9.30-d's 1.15.
+ * Old-timer speed. Pitch stays natural (preservesPitch), so he keeps his deep gruff voice.
+ * 9.30-e (Tony): about 11% quicker than 9.30-d's 1.15. Roman's speed: romanPlaybackRate (voiceLines.ts).
  */
 export const OLDTIMER_PLAYBACK_RATE = 1.28
 
@@ -911,14 +912,18 @@ async function playClipQueue(el: HTMLAudioElement, queue: string[], gen: number,
     el.onpause = null
     el.src = url
     const role = roleForClip(clipId)
+    // 9.30-h: pitch stays natural for every voice when the speed changes
+    const media = el as HTMLAudioElement & { webkitPreservesPitch?: boolean }
+    media.preservesPitch = true
+    media.webkitPreservesPitch = true
     if (role === 'roman') {
-      el.playbackRate = Math.min(0.94, Math.max(0.82, rate * 0.88))
+      // 9.30-h (Tony): ~10% quicker than 9.30-g. Default rate too: iOS resets playbackRate to it on a src swap
+      const romanRate = romanPlaybackRate(rate)
+      media.defaultPlaybackRate = romanRate
+      media.playbackRate = romanRate
       el.volume = Math.min(1, volume * 1.05)
     } else if (role === 'oldtimer') {
       // A touch faster than the recorded take. Pitch stays put so he still sounds like William.
-      const media = el as HTMLAudioElement & { webkitPreservesPitch?: boolean }
-      media.preservesPitch = true
-      media.webkitPreservesPitch = true
       // default rate too: a src swap resets playbackRate to it on some iOS versions
       media.defaultPlaybackRate = OLDTIMER_PLAYBACK_RATE
       media.playbackRate = OLDTIMER_PLAYBACK_RATE
@@ -927,7 +932,8 @@ async function playClipQueue(el: HTMLAudioElement, queue: string[], gen: number,
       el.playbackRate = Math.min(1.2, Math.max(0.85, rate))
       el.volume = volume
     }
-    if (role !== 'oldtimer') el.defaultPlaybackRate = el.playbackRate
+    if (role !== 'oldtimer' && role !== 'roman') el.defaultPlaybackRate = el.playbackRate
+    const wantRate = el.playbackRate
     let ok = false
     let refused = false
     try {
@@ -949,7 +955,8 @@ async function playClipQueue(el: HTMLAudioElement, queue: string[], gen: number,
       // Heard now: nothing may cut it. Size the safety net to what's left of the clip at this rate.
       const markPlaying = () => {
         if (gen !== voiceGeneration || !currentLine) return
-        if (role === 'oldtimer' && Math.abs(el.playbackRate - OLDTIMER_PLAYBACK_RATE) > 0.01) el.playbackRate = OLDTIMER_PLAYBACK_RATE
+        // iOS can reset the rate once metadata loads: put the voice's speed back before timing the clip
+        if (Math.abs(el.playbackRate - wantRate) > 0.01) el.playbackRate = wantRate
         const now = performance.now()
         currentLine.audible = true
         currentLine.endsAt = clipEndsAt(now, el.duration, el.playbackRate, el.duration - el.currentTime)
