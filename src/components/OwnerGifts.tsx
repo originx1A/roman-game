@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { PETS, type Gift } from '../game/pets'
+import { allBuddiesPack, cleanGiftNote, GIFT_NOTE_MAX, GIFT_TAG, giftLabel, giftShareMessage, PETS, type Gift, type GiftItem, type PetId } from '../game/pets'
 import { PetArt } from './PetArt'
 
 /*
@@ -22,7 +22,14 @@ export function OwnerGifts() {
   const [days, setDays] = useState(7)
   const [couponPet, setCouponPet] = useState('')
   const [note, setNote] = useState('')
-  const [made, setMade] = useState<{ code: string; link: string; what: string }[]>([])
+  // 9.30-b packs: the All buddies pack, or a custom bundle of buddies + coins + coupon
+  const [packMode, setPackMode] = useState<'all' | 'custom'>('all')
+  const [withHoliday, setWithHoliday] = useState(false)
+  const [packPets, setPackPets] = useState<PetId[]>(['lupa', 'aquila'])
+  const [packCoins, setPackCoins] = useState(0)
+  const [packCoupon, setPackCoupon] = useState(false)
+  const [made, setMade] = useState<{ code: string; link: string; what: string; message: string }[]>([])
+  const [copied, setCopied] = useState('')
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
@@ -57,19 +64,26 @@ export function OwnerGifts() {
     }
   }
 
+  const coupon = (): GiftItem => ({ kind: 'coupon', pct, pet: (couponPet || null) as PetId | null, days })
+  const customItems = (): GiftItem[] => [
+    ...PETS.filter((p) => packPets.includes(p.id)).map((p) => ({ kind: 'pet' as const, pet: p.id })),
+    ...(packCoins > 0 ? [{ kind: 'coins' as const, amount: packCoins }] : []),
+    ...(packCoupon ? [coupon()] : []),
+  ]
   const gift = (): Gift =>
     kind === 'pet'
       ? { kind: 'pet', pet: pet as never }
       : kind === 'coins'
         ? { kind: 'coins', amount }
-        : { kind: 'coupon', pct, pet: (couponPet || null) as never, days }
+        : kind === 'coupon'
+          ? coupon()
+          : packMode === 'all'
+            ? allBuddiesPack(withHoliday)
+            : { kind: 'pack', pack: 'custom', items: customItems() }
+  const packEmpty = kind === 'pack' && packMode === 'custom' && customItems().length === 0
+  const togglePackPet = (id: PetId) => setPackPets((a) => (a.includes(id) ? a.filter((x) => x !== id) : [...a, id]))
 
-  const describe = (g: Gift) =>
-    g.kind === 'pet'
-      ? `${PETS.find((p) => p.id === g.pet)?.name} (buddy)`
-      : g.kind === 'coins'
-        ? `${g.amount} coins`
-        : `${g.pct}% off ${g.pet ? PETS.find((p) => p.id === g.pet)?.name : 'any buddy'} for ${g.days} days`
+  const describe = (g: Gift) => giftLabel(g)
 
   const create = async () => {
     setErr('')
@@ -77,13 +91,14 @@ export function OwnerGifts() {
     try {
       const g = gift()
       const r = await fetch('/api/gift-create', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key, gift: g, note }) })
-      const j = (await r.json()) as { ok?: boolean; code?: string; link?: string; error?: string }
+      const j = (await r.json()) as { ok?: boolean; code?: string; link?: string; message?: string; error?: string }
       if (!j.ok || !j.code) {
         setErr(j.error ?? 'Could not make a code.')
         if (r.status === 401) setUnlocked(false)
         return
       }
-      setMade((m) => [{ code: j.code!, link: j.link ?? `${location.origin}/?gift=${j.code}`, what: describe(g) }, ...m])
+      const link = j.link ?? `${location.origin}/?gift=${j.code}`
+      setMade((m) => [{ code: j.code!, link, what: describe(g), message: j.message ?? giftShareMessage({ gift: g, code: j.code!, link, note }) }, ...m])
       setNote('')
     } catch {
       setErr('Could not reach the gift service.')
@@ -92,7 +107,37 @@ export function OwnerGifts() {
     }
   }
 
-  const copy = (t: string) => void navigator.clipboard?.writeText(t).catch(() => {})
+  const copy = (t: string, what: string) => {
+    void navigator.clipboard?.writeText(t).then(() => setCopied(what)).catch(() => {})
+  }
+  const share = (m: { message: string; code: string }) => {
+    if (navigator.share) void navigator.share({ title: `${GIFT_TAG} · Roman's Game`, text: m.message }).catch(() => {})
+    else copy(m.message, `msg-${m.code}`)
+  }
+
+  const couponFields = (
+            <div className="owner-row">
+              <label>
+                % off (5–50)
+                <input type="number" min={5} max={50} value={pct} onChange={(e) => setPct(Number(e.target.value))} />
+              </label>
+              <label>
+                Days (1–30)
+                <input type="number" min={1} max={30} value={days} onChange={(e) => setDays(Number(e.target.value))} />
+              </label>
+              <label>
+                Buddy
+                <select value={couponPet} onChange={(e) => setCouponPet(e.target.value)}>
+                  <option value="">Any buddy</option>
+                  {PETS.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+  )
 
   return (
     <main className="owner-page" data-owner={status}>
@@ -130,9 +175,9 @@ export function OwnerGifts() {
       {status === 'ready' && unlocked ? (
         <div className="owner-card">
           <div className="owner-kinds" role="radiogroup" aria-label="Gift type">
-            {(['pet', 'coins', 'coupon'] as Kind[]).map((k) => (
+            {(['pet', 'coins', 'coupon', 'pack'] as Kind[]).map((k) => (
               <button key={k} type="button" className={`btn tool ${kind === k ? 'on' : ''}`} onClick={() => setKind(k)} aria-pressed={kind === k}>
-                {k === 'pet' ? 'Buddy' : k === 'coins' ? 'Coins' : 'Coupon'}
+                {k === 'pet' ? 'Buddy' : k === 'coins' ? 'Coins' : k === 'coupon' ? 'Coupon' : 'Pack'}
               </button>
             ))}
           </div>
@@ -150,46 +195,74 @@ export function OwnerGifts() {
               Coins (10–5000)
               <input type="number" min={10} max={5000} step={10} value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
             </label>
+          ) : kind === 'coupon' ? (
+            couponFields
           ) : (
-            <div className="owner-row">
-              <label>
-                % off (5–50)
-                <input type="number" min={5} max={50} value={pct} onChange={(e) => setPct(Number(e.target.value))} />
-              </label>
-              <label>
-                Days (1–30)
-                <input type="number" min={1} max={30} value={days} onChange={(e) => setDays(Number(e.target.value))} />
-              </label>
-              <label>
-                Buddy
-                <select value={couponPet} onChange={(e) => setCouponPet(e.target.value)}>
-                  <option value="">Any buddy</option>
-                  {PETS.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+            <div className="owner-pack" data-owner-pack={packMode}>
+              <div className="owner-kinds" role="radiogroup" aria-label="Pack type">
+                <button type="button" className={`btn tool ${packMode === 'all' ? 'on' : ''}`} onClick={() => setPackMode('all')} aria-pressed={packMode === 'all'}>
+                  All buddies
+                </button>
+                <button type="button" className={`btn tool ${packMode === 'custom' ? 'on' : ''}`} onClick={() => setPackMode('custom')} aria-pressed={packMode === 'custom'}>
+                  Custom
+                </button>
+              </div>
+              {packMode === 'all' ? (
+                <label className="owner-check">
+                  <input type="checkbox" checked={withHoliday} onChange={(e) => setWithHoliday(e.target.checked)} /> Include holiday buddies ({PETS.filter((p) => p.limited).map((p) => p.name).join(', ')})
+                </label>
+              ) : (
+                <>
+                  <div className="owner-pets">
+                    {PETS.map((p) => (
+                      <button key={p.id} type="button" className={`owner-pet ${packPets.includes(p.id) ? 'on' : ''}`} onClick={() => togglePackPet(p.id)} aria-pressed={packPets.includes(p.id)}>
+                        <PetArt id={p.id} size={48} />
+                        <span>{p.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <label>
+                    Plus coins (0 = none, up to 5000)
+                    <input type="number" min={0} max={5000} step={10} value={packCoins} onChange={(e) => setPackCoins(Math.max(0, Number(e.target.value) || 0))} />
+                  </label>
+                  <label className="owner-check">
+                    <input type="checkbox" checked={packCoupon} onChange={(e) => setPackCoupon(e.target.checked)} /> Plus a coupon
+                  </label>
+                  {packCoupon ? couponFields : null}
+                </>
+              )}
             </div>
           )}
           <label>
-            Note (just for you)
-            <input value={note} maxLength={80} onChange={(e) => setNote(e.target.value)} placeholder="For Roman's birthday" />
+            Reason (optional, the player sees it) · {cleanGiftNote(note).length}/{GIFT_NOTE_MAX}
+            <input value={note} maxLength={GIFT_NOTE_MAX} onChange={(e) => setNote(e.target.value.slice(0, GIFT_NOTE_MAX))} placeholder="Happy birthday!" />
           </label>
-          <button type="button" className="btn primary" onClick={() => void create()} disabled={busy}>
-            Make a one-time code
+          <p className="owner-preview">
+            They'll see: <strong>{GIFT_TAG}: {describe(gift())}</strong>
+            {cleanGiftNote(note) ? <> · “{cleanGiftNote(note)}”</> : null}
+          </p>
+          <button type="button" className="btn primary" onClick={() => void create()} disabled={busy || packEmpty}>
+            {kind === 'pack' ? 'Make one code for the whole pack' : 'Make a one-time code'}
           </button>
           {made.length ? (
             <ul className="owner-made">
               {made.map((m) => (
-                <li key={m.code}>
+                <li key={m.code} data-owner-code={m.code}>
                   <strong className="owner-code">{m.code}</strong> · {m.what}
-                  <br />
-                  <a href={m.link}>{m.link}</a>{' '}
-                  <button type="button" className="btn tool" onClick={() => copy(m.link)}>
-                    Copy link
-                  </button>
+                  <p className="owner-message" data-owner-message>
+                    {m.message}
+                  </p>
+                  <div className="owner-row">
+                    <button type="button" className="btn primary" onClick={() => copy(m.message, `msg-${m.code}`)}>
+                      {copied === `msg-${m.code}` ? 'Copied ✓' : 'Copy message'}
+                    </button>
+                    <button type="button" className="btn tool" onClick={() => share(m)}>
+                      Share…
+                    </button>
+                    <button type="button" className="btn tool" onClick={() => copy(m.link, `link-${m.code}`)}>
+                      {copied === `link-${m.code}` ? 'Link copied ✓' : 'Copy link'}
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -197,7 +270,7 @@ export function OwnerGifts() {
         </div>
       ) : null}
       {err ? <p className="owner-warn">{err}</p> : null}
-      <p className="owner-foot">Each code works once. Players redeem in The Stable (or open the link).</p>
+      <p className="owner-foot">Each code works once. Players redeem in The Stable (or open the link), and see it as “{GIFT_TAG}”.</p>
     </main>
   )
 }

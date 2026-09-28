@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { register } from 'node:module'
 import { test } from 'node:test'
+import { readFileSync } from 'node:fs'
 
 register('./ts-resolve.mjs', import.meta.url)
 const P = await import('../src/game/pets.ts')
@@ -189,6 +190,9 @@ test('owner passphrase: timing-safe, never matches when unset', () => {
 test('applying gifts: buddy with Gift tag, coins, coupon; owned buddy turns into coins', () => {
   let s = P.emptyPets()
   const a = P.applyGift(s, 100, { kind: 'pet', pet: 'leo' }, 'ROMA-AAAA', NOW)
+  assert.equal(P.GIFT_TAG, 'Gift from Roman')
+  assert.ok(a.message.startsWith('Gift from Roman: '), a.message)
+  assert.ok(!/Tony/.test(a.message))
   assert.equal(a.state.owned.leo?.gift, true)
   assert.equal(a.state.active, 'leo')
   assert.ok(a.state.redeemed.includes('ROMA-AAAA'))
@@ -198,4 +202,120 @@ test('applying gifts: buddy with Gift tag, coins, coupon; owned buddy turns into
   assert.equal(P.couponFor(s, 'invictus', NOW)?.pct, 40)
   assert.equal(P.couponFor(s, 'invictus', NOW + 4 * DAY), null)
   assert.equal(P.applyGift(s, 5, { kind: 'coins', amount: 250 }, 'ROMA-DDDD', NOW).coins, 255)
+  assert.match(P.applyGift(s, 5, { kind: 'coins', amount: 250 }, 'ROMA-DDDD', NOW).message, /^Gift from Roman: \+250 coins!$/)
+  assert.match(dup.message, /Roman's gift/)
+})
+
+test('9.30-b: gifts redeemed in 9.30-a (flag + gift coupons) load unchanged and display as Gift from Roman', () => {
+  const old = P.sanitizePets({ owned: { aquila: { at: 1, xp: 5, gift: true } }, active: 'aquila', coupons: [{ id: 'g', pct: 30, pet: null, source: 'gift', expires: NOW + DAY }] })
+  assert.equal(old.owned.aquila?.gift, true)
+  assert.equal(old.coupons[0].source, 'gift')
+  const ui = readFileSync(new URL('../src/components/Stable.tsx', import.meta.url), 'utf8')
+  assert.ok(!/Tony/.test(ui), 'no Tony tag left in The Stable')
+  assert.match(ui, /GIFT_TAG/)
+})
+
+test('9.30-b: gift says what it is: label, note (60 max), ready-to-send message, preview without using the code', async () => {
+  assert.equal(P.giftLabel({ kind: 'pet', pet: 'aquila' }), 'Aquila the Eagle')
+  assert.equal(P.giftLabel({ kind: 'coins', amount: 1500 }), '1,500 coins')
+  assert.equal(P.giftLabel({ kind: 'coupon', pct: 30, pet: 'leo', days: 7 }), '30% off Leo the Lion Cub (7 days to use it)')
+  assert.equal(P.giftLabel({ kind: 'coupon', pct: 20, pet: null, days: 1 }), '20% off any buddy (1 day to use it)')
+  assert.equal(P.cleanGiftNote('  Happy\nbirthday!\u0007 '), 'Happy birthday!')
+  assert.equal(P.cleanGiftNote('x'.repeat(100)).length, P.GIFT_NOTE_MAX)
+  assert.equal(P.cleanGiftNote(42), '')
+  const msg = P.giftShareMessage({ gift: { kind: 'pet', pet: 'aquila' }, code: 'ROMA-7K2P', link: 'https://romans-game.netlify.app/?gift=ROMA-7K2P', note: 'Happy birthday' })
+  assert.equal(msg, `Roman sent you a gift in Roman's Game: Aquila the Eagle! "Happy birthday" Tap to claim: https://romans-game.netlify.app/?gift=ROMA-7K2P (code ROMA-7K2P, works once)`)
+  assert.ok(!P.giftShareMessage({ gift: { kind: 'coins', amount: 500 }, code: 'ROMA-AAAA', link: 'L' }).includes('"'))
+  // claim message carries the note
+  assert.match(P.applyGift(P.emptyPets(), 0, { kind: 'coins', amount: 500 }, 'ROMA-AAAA', NOW, 'Happy birthday').message, /^Gift from Roman: \+500 coins! "Happy birthday"$/)
+  // peek shows it without using it; after the claim, peek says used
+  const store = G.memoryGiftStore()
+  const code = await G.createGift(store, { kind: 'pet', pet: 'aquila' }, 'Happy birthday, with a much too long note that keeps going and going and going')
+  const p1 = await G.peekGift(store, code)
+  assert.ok(p1.ok && p1.gift.kind === 'pet' && p1.note.length <= P.GIFT_NOTE_MAX && p1.note.startsWith('Happy birthday'))
+  assert.ok((await G.peekGift(store, code)).ok, 'peeking twice is fine')
+  const r = await G.redeemGift(store, code)
+  assert.ok(r.ok && r.note === p1.note)
+  const p2 = await G.peekGift(store, code)
+  assert.ok(!p2.ok && p2.status === 409)
+  assert.equal((await G.peekGift(store, 'ROMA-ZZZZ')).ok, false)
+})
+
+test('9.30-b packs: All buddies pack (holiday optional), custom pack validation, one code one claim, one message', async () => {
+  const all = P.allBuddiesPack()
+  assert.deepEqual(all.items.map((i) => (i.kind === 'pet' ? i.pet : i.kind)), ['lupa', 'aquila', 'leo', 'invictus'])
+  assert.deepEqual(P.allBuddiesPack(true).items.length, 5)
+  assert.equal(P.giftLabel(all), 'All buddies pack: Lupa the Wolf Pup, Aquila the Eagle, Leo the Lion Cub and Invictus the War Horse')
+  const custom = { kind: 'pack', pack: 'custom', items: [{ kind: 'pet', pet: 'lupa' }, { kind: 'coins', amount: 1000 }, { kind: 'coupon', pct: 30, pet: null, days: 7 }] } as const
+  assert.deepEqual(G.parseGift(custom), custom)
+  assert.equal(
+    P.giftShareMessage({ gift: custom as never, code: 'ROMA-7K2P', link: 'L', note: 'Happy birthday' }),
+    `Roman sent you a gift in Roman's Game: Gift pack: Lupa the Wolf Pup, 1,000 coins and 30% off any buddy (7 days to use it)! "Happy birthday" Tap to claim: L (code ROMA-7K2P, works once)`,
+  )
+  // bad packs are refused
+  assert.equal(G.parseGift({ kind: 'pack', items: [] }), null)
+  assert.equal(G.parseGift({ kind: 'pack', items: [{ kind: 'pet', pet: 'lupa' }, { kind: 'pet', pet: 'lupa' }] }), null)
+  assert.equal(G.parseGift({ kind: 'pack', items: [{ kind: 'coins', amount: 10 }, { kind: 'coins', amount: 20 }] }), null)
+  assert.equal(G.parseGift({ kind: 'pack', items: [{ kind: 'pet', pet: 'dragon' }] }), null)
+  assert.equal(G.parseGift({ kind: 'pack', items: [{ kind: 'pack', items: [{ kind: 'pet', pet: 'lupa' }] }] }), null)
+  assert.equal(G.parseGift({ kind: 'pack', items: Array.from({ length: 9 }, () => ({ kind: 'pet', pet: 'lupa' })) }), null)
+  assert.equal((G.parseGift({ kind: 'pack', pack: 'weird', items: [{ kind: 'pet', pet: 'lupa' }] }) as { pack: string }).pack, 'custom')
+  // one code, one claim (preview shows the whole pack first)
+  const store = G.memoryGiftStore()
+  const code = await G.createGift(store, all, 'For Roman')
+  const peek = await G.peekGift(store, code)
+  assert.ok(peek.ok && peek.gift.kind === 'pack' && peek.gift.items.length === 4)
+  const race = await Promise.all([G.redeemGift(store, code), G.redeemGift(store, code)])
+  assert.equal(race.filter((r) => r.ok).length, 1)
+  // applying: new buddies join (tagged), owned ones become coins, coupon added, one message
+  let s = P.emptyPets()
+  s = P.buyPet(s, 99999, 'aquila', NOW).state as typeof s
+  const out = P.applyGift(s, 100, all, code, NOW, 'For Roman')
+  assert.deepEqual(Object.keys(out.state.owned).sort(), ['aquila', 'invictus', 'leo', 'lupa'])
+  assert.equal(out.state.owned.lupa?.gift, true)
+  assert.equal(out.state.owned.aquila?.gift, undefined)
+  assert.equal(out.coins, 100 + 600)
+  assert.equal(out.state.active, 'lupa')
+  assert.equal(out.message, 'Gift from Roman: Lupa, Leo and Invictus joined your Stable, +600 coins (you already had Aquila)! "For Roman"')
+  assert.deepEqual(out.state.redeemed, [code])
+  const c = P.applyGift(P.emptyPets(), 0, custom as never, 'ROMA-BBBB', NOW)
+  assert.equal(c.message, 'Gift from Roman: Lupa joined your Stable, +1,000 coins, 30% off any buddy!')
+  assert.equal(c.coins, 1000)
+  assert.equal(c.state.coupons[0].source, 'gift')
+})
+
+test('9.30-b bundles: coin prices (15% / 20% off), only missing buddies, coins only, no coupon stacking', () => {
+  const s0 = P.emptyPets()
+  const starter = P.bundleQuote(s0, 'starter', NOW)
+  assert.equal(starter.full, 3600 + 6000)
+  assert.equal(starter.price, 8160)
+  assert.equal(starter.save, 1440)
+  const full = P.bundleQuote(s0, 'full', NOW)
+  assert.equal(full.full, 3600 + 6000 + 9500 + 25000)
+  assert.equal(full.price, 35280)
+  for (const b of P.BUNDLES) assert.ok(!b.pets.some((id) => P.petById(id)!.limited), 'no holiday buddies in bundles')
+  // own Lupa: Starter isn't offered (one left), Full prices the other 3
+  const withLupa = P.buyPet(s0, 99999, 'lupa', NOW).state as typeof s0
+  assert.equal(P.bundleQuote(withLupa, 'starter', NOW).available, false)
+  const f2 = P.bundleQuote(withLupa, 'full', NOW)
+  assert.deepEqual(f2.missing, ['aquila', 'leo', 'invictus'])
+  assert.equal(f2.price, Math.round(((6000 + 9500 + 25000) * 0.8) / 10) * 10)
+  // buying
+  assert.deepEqual(P.buyBundle(s0, 8159, 'starter', NOW), { ok: false, reason: 'Need 1 more coins' })
+  const coupon = P.awardStreakCoupon(s0, 7, NOW).state
+  const r = P.buyBundle(coupon, 9000, 'starter', NOW)
+  assert.ok(r.ok)
+  if (r.ok) {
+    assert.equal(r.coins, 840)
+    assert.equal(r.spent, 8160)
+    assert.deepEqual(r.got, ['lupa', 'aquila'])
+    assert.equal(r.state.active, 'aquila')
+    assert.equal(r.state.coupons.length, coupon.coupons.length, 'coupon is kept, not used')
+    assert.equal(r.state.owned.lupa?.gift, undefined)
+    assert.equal(P.buyBundle(r.state, 99999, 'starter', NOW).ok, false)
+  }
+  // a trial buddy keeps its XP when bought in a bundle
+  const tr = { ...s0, trial: { id: 'leo' as const, until: NOW + DAY, xp: 40 }, active: 'leo' as const }
+  const r2 = P.buyBundle(tr, 99999, 'full', NOW)
+  assert.ok(r2.ok && r2.state.owned.leo?.xp === 40 && r2.state.trial === null && r2.state.active === 'invictus')
 })

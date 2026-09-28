@@ -1,6 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
+  BUNDLES,
+  bundleQuote,
+  type BundleId,
   couponFor,
+  GIFT_TAG,
+  giftLabel,
+  type Gift,
   hasPet,
   levelInfo,
   onSale,
@@ -29,7 +35,7 @@ const COUPON_FROM: Record<Coupon['source'], string> = {
   streak: '7-day streak',
   'trial-clear': 'Trial clear',
   'trial-end': 'Trial ended',
-  gift: 'Gift from Tony',
+  gift: GIFT_TAG,
 }
 
 export type StableProps = {
@@ -37,7 +43,12 @@ export type StableProps = {
   coins: number
   now: number
   onBuy: (id: PetId) => void
+  /** 9.30-b coin bundles */
+  onBuyBundle: (id: BundleId) => void
   onEquip: (id: PetId | null) => void
+  /** Look up a gift code without using it (the preview card) */
+  onPeek: (code: string) => Promise<{ ok: boolean; message: string; gift?: Gift; note?: string; code?: string }>
+  /** Claim it (uses the code) */
   onRedeem: (code: string) => Promise<{ ok: boolean; message: string }>
   onShop: () => void
   onBack: () => void
@@ -47,24 +58,52 @@ export type StableProps = {
   giftsOnline: boolean
 }
 
-export function Stable({ pets, coins, now, onBuy, onEquip, onRedeem, onShop, onBack, giftCode, giftsOnline }: StableProps) {
+export function Stable({ pets, coins, now, onBuy, onBuyBundle, onEquip, onPeek, onRedeem, onShop, onBack, giftCode, giftsOnline }: StableProps) {
   const [code, setCode] = useState(giftCode ?? '')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const active = pets.active && hasPet(pets, pets.active, now) ? pets.active : null
 
-  const redeem = async () => {
-    if (!code.trim() || busy) return
+  const [preview, setPreview] = useState<{ code: string; gift: Gift; note: string } | null>(null)
+  const autoPeeked = useRef(false)
+
+  /** Step 1: show what the gift is (doesn't use the code) */
+  const check = async (raw = code) => {
+    if (!raw.trim() || busy) return
     setBusy(true)
     setMsg(null)
+    setPreview(null)
     try {
-      const r = await onRedeem(code)
-      setMsg({ ok: r.ok, text: r.message })
-      if (r.ok) setCode('')
+      const r = await onPeek(raw)
+      if (r.ok && r.gift) setPreview({ code: r.code ?? raw, gift: r.gift, note: r.note ?? '' })
+      else setMsg({ ok: false, text: r.message })
     } finally {
       setBusy(false)
     }
   }
+
+  /** Step 2: claim it */
+  const claim = async () => {
+    if (!preview || busy) return
+    setBusy(true)
+    try {
+      const r = await onRedeem(preview.code)
+      setMsg({ ok: r.ok, text: r.message })
+      if (r.ok) setCode('')
+      setPreview(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // A redeem link (?gift=CODE) shows its preview right away
+  useEffect(() => {
+    if (giftCode && giftsOnline && !autoPeeked.current) {
+      autoPeeked.current = true
+      void check(giftCode)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [giftCode, giftsOnline])
 
   return (
     <main className="panel scroll-pane stable" data-screen="stable">
@@ -127,7 +166,7 @@ export function Stable({ pets, coins, now, onBuy, onEquip, onRedeem, onShop, onB
             >
               <div className="stable-card-top">
                 <span className={`stable-tier tier-${p.tier}`}>{p.limited ? `Limited · ${p.limited.label}` : TIER_LABEL[p.tier]}</span>
-                {owned?.gift ? <span className="stable-gift">🎁 Gift from Tony</span> : null}
+                {owned?.gift ? <span className="stable-gift">🎁 {GIFT_TAG}</span> : null}
                 {trial ? <span className="stable-gift is-trial">Trial · {leftLabel(pets.trial!.until - now)}</span> : null}
               </div>
               <div className="stable-art">
@@ -185,6 +224,42 @@ export function Stable({ pets, coins, now, onBuy, onEquip, onRedeem, onShop, onB
         })}
       </div>
 
+      {BUNDLES.map((b) => bundleQuote(pets, b.id, now)).some((q) => q.available) ? (
+        <section className="stable-bundles" aria-label="Bundles">
+          <h3>Bundles</h3>
+          {BUNDLES.map((b) => {
+            const q = bundleQuote(pets, b.id, now)
+            if (!q.available) return null
+            const partial = q.missing.length < b.pets.length
+            return (
+              <article key={b.id} className="stable-bundle" data-bundle={b.id} data-price={q.price}>
+                <span className="stable-bundle-art" aria-hidden="true">
+                  {q.missing.map((id) => (
+                    <PetArt key={id} id={id} size={44} locked />
+                  ))}
+                </span>
+                <div className="stable-bundle-text">
+                  <strong>
+                    {b.name} <span className="stable-bundle-off">{b.pct}% off</span>
+                  </strong>
+                  <small>
+                    {q.missing.map((id) => PETS.find((p) => p.id === id)!.name).join(' + ')}
+                    {partial ? ' (the ones you still need)' : ''}
+                  </small>
+                  <span className="stable-price">
+                    <s>{q.full}</s> <strong>{q.price}</strong> 🪙 · save {q.save}
+                  </span>
+                </div>
+                <button type="button" className="btn primary stable-btn" onClick={() => onBuyBundle(b.id)} disabled={coins < q.price}>
+                  {coins >= q.price ? 'Adopt all' : `Need ${q.price - coins} more`}
+                </button>
+              </article>
+            )
+          })}
+          <p className="stable-note">Bundle prices don't stack with coupons.</p>
+        </section>
+      ) : null}
+
       <section className="stable-redeem" aria-label="Gift code">
         <h3>Got a gift code?</h3>
         {giftsOnline ? (
@@ -198,13 +273,53 @@ export function Stable({ pets, coins, now, onBuy, onEquip, onRedeem, onShop, onB
               autoCapitalize="characters"
               spellCheck={false}
             />
-            <button type="button" className="btn primary" onClick={redeem} disabled={busy || !code.trim()}>
-              {busy ? '…' : 'Redeem'}
+            <button type="button" className="btn primary" onClick={() => void check()} disabled={busy || !code.trim()}>
+              {busy && !preview ? '…' : 'Redeem'}
             </button>
           </div>
         ) : (
           <p className="stable-note">Gift codes work on the website version.</p>
         )}
+        {preview ? (
+          <div className="gift-preview" data-gift-preview={preview.gift.kind} role="dialog" aria-label={`${GIFT_TAG}: ${giftLabel(preview.gift)}`}>
+            <span className={`gift-preview-art ${preview.gift.kind === 'pack' ? 'is-pack' : ''}`} aria-hidden="true">
+              {(preview.gift.kind === 'pack' ? preview.gift.items : [preview.gift]).slice(0, 6).map((it, i) =>
+                it.kind === 'pet' ? (
+                  <PetArt key={i} id={it.pet} size={preview.gift.kind === 'pack' ? 40 : 72} />
+                ) : (
+                  <span key={i} className="gift-preview-icon">
+                    {it.kind === 'coins' ? '🪙' : '🏷️'}
+                  </span>
+                ),
+              )}
+            </span>
+            <div className="gift-preview-text">
+              <small>🎁 {GIFT_TAG}</small>
+              {preview.gift.kind === 'pack' ? (
+                <>
+                  <strong>{preview.gift.pack === 'all' ? 'All buddies pack' : 'Gift pack'}</strong>
+                  <ul className="gift-preview-items">
+                    {preview.gift.items.map((it, i) => (
+                      <li key={i}>{giftLabel(it)}</li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <strong>{giftLabel(preview.gift)}</strong>
+              )}
+              {preview.note ? <em>“{preview.note}”</em> : null}
+              <span className="gift-preview-code">Code {preview.code} · works once</span>
+            </div>
+            <div className="gift-preview-actions">
+              <button type="button" className="btn primary" onClick={() => void claim()} disabled={busy}>
+                {busy ? '…' : 'Claim'}
+              </button>
+              <button type="button" className="btn tool" onClick={() => setPreview(null)} disabled={busy}>
+                Not now
+              </button>
+            </div>
+          </div>
+        ) : null}
         {msg ? <p className={`stable-msg ${msg.ok ? 'is-ok' : 'is-bad'}`}>{msg.text}</p> : null}
       </section>
 

@@ -5474,3 +5474,46 @@ html[data-layout='wide'] .buddy-spot.has-pet { border-style: solid; border-color
 html:not([data-layout='wide']) .play-fixed.has-hud-pet .play-caption { padding-left: 2.6rem; padding-right: 2.6rem; }
 /* Tablets upright: the HUD's progress bar runs full width, so the buddy perches a little lower */
 html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.25rem, env(safe-area-inset-top, 0px)) + 4.2rem); }
+
+/* 9.30-b: gift preview before claiming, and the owner page's ready-to-send message */
+.gift-preview {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.6rem 0.8rem;
+  align-items: center;
+  margin-top: 0.7rem;
+  padding: 0.8rem;
+  border-radius: 16px;
+  border: 2px solid rgba(61, 255, 168, 0.45);
+  background: linear-gradient(135deg, rgba(61, 255, 168, 0.12), rgba(255, 214, 102, 0.1));
+  animation: rise 0.25s ease both;
+}
+.gift-preview-art { display: grid; place-items: center; width: 76px; height: 76px; border-radius: 50%; background: rgba(5, 13, 31, 0.5); }
+.gift-preview-icon { font-size: 2.4rem; }
+.gift-preview-text { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.gift-preview-text small { color: var(--mint); font-weight: 900; font-size: 0.8rem; }
+.gift-preview-text strong { font-family: var(--font-display); font-weight: 400; color: var(--sun); font-size: 1.2rem; line-height: 1.15; }
+.gift-preview-text em { font-weight: 800; opacity: 0.9; }
+.gift-preview-code { font-size: 0.72rem; opacity: 0.65; font-weight: 800; }
+.gift-preview-actions { grid-column: 1 / -1; display: flex; gap: 0.5rem; }
+.gift-preview-actions .btn { width: auto; flex: 1; }
+.owner-preview { margin: 0; font-size: 0.9rem; opacity: 0.85; }
+.owner-message { margin: 0.4rem 0; padding: 0.6rem 0.7rem; border-radius: 10px; background: rgba(244, 251, 255, 0.08); font-weight: 700; line-height: 1.4; user-select: all; word-break: break-word; }
+/* 9.30-b: gift packs in the preview, and coin bundles in The Stable */
+.gift-preview-art.is-pack { width: auto; height: auto; max-width: 96px; border-radius: 14px; padding: 0.3rem; display: flex; flex-wrap: wrap; justify-content: center; gap: 0.1rem; }
+.gift-preview-art.is-pack .gift-preview-icon { font-size: 1.6rem; }
+.gift-preview-items { margin: 0.1rem 0 0.2rem; padding-left: 1.1rem; font-weight: 800; font-size: 0.9rem; line-height: 1.35; }
+.stable-bundles { margin-top: 1.1rem; padding: 0.8rem; border-radius: 16px; background: rgba(5, 13, 31, 0.45); display: flex; flex-direction: column; gap: 0.6rem; }
+.stable-bundles h3 { margin: 0; font-size: 1rem; }
+.stable-bundles .stable-note { margin: 0; }
+.stable-bundle { display: grid; grid-template-columns: auto 1fr; gap: 0.5rem 0.7rem; align-items: center; padding: 0.6rem; border-radius: 14px; border: 1px solid rgba(255, 214, 102, 0.35); background: rgba(255, 214, 102, 0.06); }
+.stable-bundle-art { display: flex; flex-wrap: wrap; max-width: 96px; gap: 0.1rem; }
+.stable-bundle-text { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+.stable-bundle-text > strong { font-size: 1rem; }
+.stable-bundle-text small { opacity: 0.8; font-weight: 700; }
+.stable-bundle-off { display: inline-block; margin-left: 0.3rem; padding: 0.05rem 0.4rem; border-radius: 999px; background: var(--mint); color: #062; font-size: 0.72rem; font-weight: 900; vertical-align: middle; }
+.stable-bundle .stable-btn { grid-column: 1 / -1; }
+.owner-pack { display: flex; flex-direction: column; gap: 0.6rem; }
+.owner-check { display: flex !important; flex-direction: row !important; align-items: center; gap: 0.5rem; font-weight: 700; }
+.owner-check input { width: auto !important; }
+.owner-card select { -webkit-appearance: none; appearance: none; background-color: #13213f; min-width: 8rem; }
