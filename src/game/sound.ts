@@ -400,6 +400,16 @@ function stopVoice() {
   }
 }
 
+/**
+ * 9.29-a: a board just ended. Drop any line still waiting for the channel and cut a line that is
+ * playing below `minPriority`, so a stall/wrong/undo/old-timer line queued a moment earlier can't
+ * play over (or after) the win or lose line.
+ */
+export function cancelVoiceBelow(minPriority: number) {
+  if (waitingLine && (waitingLine.opts.priority ?? 1) < minPriority) waitingLine = null
+  if (currentLine && currentLine.priority < minPriority) stopVoice()
+}
+
 export function setMuted(m: boolean) {
   muted = m
   voiceFreeSince = 0
@@ -842,13 +852,17 @@ async function playClipQueue(el: HTMLAudioElement, queue: string[], gen: number,
       el.volume = volume
     }
     let ok = false
+    let refused = false
     try {
       await el.play()
       ok = !el.error
     } catch {
-      ok = false
+      // The browser refused to play (autoplay / interrupted). The next clip would be refused too:
+      // stop here instead of walking the pool in order (that made the first alts repeat a lot).
+      refused = true
     }
     if (gen !== voiceGeneration) return
+    if (refused) break
     if (ok) {
       const done = () => releaseVoice(gen)
       el.onended = done

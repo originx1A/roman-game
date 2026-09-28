@@ -37,7 +37,7 @@ test('only recorded lines play; reason filters three-star lines', () => {
   assert.equal(stuck[0].id, 'roman_nudge')
   assert.ok(stuck.every((l) => l.voice === 'roman' || l.id.startsWith('old_')))
   const time = playableTipLines('three-star', 'time', has, text).map((l) => l.id)
-  assert.ok(time.includes('old_win_yesterday') && time.includes('roman_warmup'))
+  assert.ok(time.includes('old_win_yesterday') && !time.includes('roman_warmup'))
   const undo = playableTipLines('three-star', 'undo', has, text).map((l) => l.id)
   assert.ok(!undo.includes('old_win_yesterday'))
   // once a new line is recorded it joins automatically

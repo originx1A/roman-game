@@ -126,8 +126,8 @@ export const RECORDED_TIP_LINES: Record<TipId, { id: string; voice: TipVoice; re
     { id: 'old_undo_aging', voice: 'old' },
   ],
   'three-star': [
-    { id: 'roman_warmup', voice: 'roman', reason: 'any' },
-    { id: 'roman_practice', voice: 'roman', reason: 'any' },
+    // 9.29-b: roman_warmup / roman_practice left (they are end-of-run "try again" lines, now in
+    // the lose / nice-try pools; a won board must not hear them)
     { id: 'old_win_twothree', voice: 'old', reason: 'any' },
     { id: 'old_win_yesterday', voice: 'old', reason: 'time' },
     // 9.29-a: backhanded win compliments. Slow ones only when time was the miss.
@@ -137,7 +137,6 @@ export const RECORDED_TIP_LINES: Record<TipId, { id: string; voice: TipVoice; re
     { id: 'old_win_napped', voice: 'old', reason: 'time' },
     { id: 'old_win_ugly', voice: 'old', reason: 'any' },
     { id: 'old_win_frame', voice: 'old', reason: 'any' },
-    { id: 'old_nearmiss', voice: 'old', reason: 'any' },
   ],
   stuck: [
     { id: 'roman_nudge', voice: 'roman' },

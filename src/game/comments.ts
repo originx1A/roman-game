@@ -375,16 +375,9 @@ export const ROMAN_WRONG_CLIPS = [
   'roman_rowmate',
   'roman_coltaken',
   'roman_cuddle',
-  'roman_highhopes',
-  'roman_cantwin',
   'roman_trying',
-  'roman_stillbetter',
   'roman_skillissue',
-  'roman_warmup',
-  'roman_almost',
   'roman_sleeping',
-  'roman_practice',
-  'roman_myboard',
   'roman_wrong_bold',
   'roman_wrong_complaint',
   'roman_wrong_oof',
@@ -417,6 +410,21 @@ export const ROMAN_LOSE_CLIPS = [
   'roman_lose_cape',
   'roman_lose_shake',
   'roman_lose_pillow',
+  // 9.29-a: these end-of-run lines were in the wrong-move pool (so they could play mid-board)
+  'roman_highhopes',
+  'roman_warmup',
+] as const satisfies readonly VoiceClipId[]
+
+/**
+ * 9.29-a: "nice try" lines (Roman) for missing the Buddy Hunt bonus after a WIN. Kept apart from
+ * the lose pools: a won board must never hear "out of hearts" (it used the lose pool before).
+ * These were in the wrong-move pool before.
+ */
+export const ROMAN_NICE_TRY_CLIPS = [
+  'roman_cantwin',
+  'roman_myboard',
+  'roman_stillbetter',
+  'roman_practice',
 ] as const satisfies readonly VoiceClipId[]
 
 /** Hint / rescue (Roman). */
@@ -650,7 +658,34 @@ const oldHuntMiss = bag('old.huntMiss', OLDTIMER_HUNT_MISS_CLIPS)
 export const ROMAN_RECORD_CLIPS = ['roman_record_best', 'roman_record_faster', 'roman_record_beat'] as const satisfies readonly VoiceClipId[]
 const OLDTIMER_RECORD_CLIPS = ['old_record_head', 'old_record_tea'] as const satisfies readonly VoiceClipId[]
 const oldRecord = bag('old.record', OLDTIMER_RECORD_CLIPS)
-const oldNearMiss = bag('old.nearMiss', ['old_nearmiss'] as const satisfies readonly VoiceClipId[])
+/**
+ * 9.29-b "finished, but not your best": played AFTER the normal win cheer (never instead of it),
+ * when a replayed board is won without beating the old best. Teasing, not a loss line.
+ */
+export const ROMAN_NOT_BEST_CLIPS = ['roman_stillbetter', 'roman_almost', 'roman_cocky', 'roman_okayfine'] as const satisfies readonly VoiceClipId[]
+export const OLDTIMER_NOT_BEST_CLIPS = [
+  'old_nearmiss',
+  'old_win_eventually',
+  'old_win_paint',
+  'old_win_squirrel',
+  'old_win_napped',
+  'old_win_yesterday',
+  'old_win_gaveup',
+  'old_win_frame',
+  'old_win_twothree',
+  'old_win_ugly',
+] as const satisfies readonly VoiceClipId[]
+const oldNotBest = bag('old.notBest', OLDTIMER_NOT_BEST_CLIPS)
+const nextNotBest = bag('roman.notBest', ROMAN_NOT_BEST_CLIPS)
+/** Proposed NEW not-best lines (voice-tips-draft.md). Silent until Tony approves and they are recorded. */
+export const NEW_NOT_BEST_LINES: readonly { id: string; text: string }[] = [
+  { id: 'old_notbest_yesterday', text: "Old-timer: You won. Your old self still beat you, though. He's smug about it." },
+  { id: 'old_notbest_rerun', text: "Old-timer: Same board, slower time. Like a rerun, but longer." },
+  { id: 'old_notbest_ghost', text: "Old-timer: Your ghost finished first. Go on, catch him." },
+  { id: 'old_notbest_calendar', text: "Old-timer: Nice win. Your best time is over there, waving. From far away." },
+  { id: 'roman_notbest_record', text: 'Roman says: you won! Your record just yawned, though.' },
+  { id: 'roman_notbest_again', text: 'Roman says: winner! Not your fastest. Roman noticed. Roman always notices.' },
+]
 const nextRecord = voiceBags.bag('roman.record', ROMAN_RECORD_CLIPS)
 
 /** Old-timer draw. The bag set already keeps a line from playing twice in a row across bags. */
@@ -694,6 +729,52 @@ const nextBadge = takeTurns('badge', ROMAN_BADGE_CLIPS, COACH_BADGE_CLIPS)
 const nextPrize = takeTurns('prize', ROMAN_PRIZE_CLIPS, COACH_PRIZE_CLIPS)
 const nextStash = takeTurns('stash', ROMAN_STASH_CLIPS, COACH_STASH_CLIPS)
 
+/**
+ * 9.29-a: Roman's Trial ran out of time. The hearts are still there, so no "out of hearts" /
+ * "hearts gone" lines here (they used to come from the lose pool).
+ */
+export const ROMAN_TIMEUP_CLIPS = [
+  'roman_lose_fought',
+  'roman_lose_round',
+  'roman_lose_cape',
+  'roman_lose_shake',
+  'roman_lose_pillow',
+  'roman_highhopes',
+  'roman_warmup',
+] as const satisfies readonly VoiceClipId[]
+export const COACH_TIMEUP_CLIPS = ['tough_board', 'coach_lose_breathe', 'coach_lose_again', 'coach_lose_next'] as const satisfies readonly VoiceClipId[]
+export const OLDTIMER_TIMEUP_CLIPS = [
+  'old_lose_goldfish',
+  'old_lose_sideways',
+  'old_lose_popcorn',
+  'old_lose_called',
+  'old_lose_nephew',
+  'old_lose_deal',
+] as const satisfies readonly VoiceClipId[]
+const nextTimeUp = takeTurns('timeup', ROMAN_TIMEUP_CLIPS, COACH_TIMEUP_CLIPS)
+const oldTimeUp = bag('old.timeup', OLDTIMER_TIMEUP_CLIPS)
+const nextNiceTry = bag('roman.niceTry', ROMAN_NICE_TRY_CLIPS)
+
+/**
+ * 9.29-a: the win moments with only a line or three of their own (new record, near miss, Trial
+ * clear, Daily done) take turns with the big win-cheer bag, so the same few lines don't come back
+ * every time. The turns are their own saved bags (a separate set, so they never count as a
+ * "last spoken line").
+ */
+const turnBags = createBagSet({ store: browserBagStore(), key: 'roman.voiceturns.v1' })
+const ownLineTurn = (event: string) => turnBags.bag(`turn.${event}`, ['own', 'cheer'])() === 'own'
+const cheer = () => roman(nextCheer(), ROMAN_CHEER_CLIPS)
+
+/** Fallback clips (only used if the chosen file is missing), shuffled so no line is the usual stand-in */
+function shuffledAlts(pool: readonly VoiceClipId[], clip: VoiceClipId): VoiceClipId[] {
+  const out = pool.filter((id) => id !== clip)
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[out[i], out[j]] = [out[j], out[i]]
+  }
+  return out.slice(0, 4)
+}
+
 function voiced(
   pick: { clip: VoiceClipId; pool: readonly VoiceClipId[] },
   mood: CommentMood,
@@ -707,7 +788,7 @@ function voiced(
     voiceMood,
     speak: true,
     clip: pick.clip,
-    alts: pick.pool.filter((id) => id !== pick.clip),
+    alts: shuffledAlts(pick.pool, pick.clip),
     priority,
     ...extra,
   }
@@ -739,7 +820,9 @@ export function banterFor(
     | 'record'
     | 'near-miss'
     | 'trial-clear'
-    | 'daily-done',
+    | 'daily-done'
+    | 'not-best'
+    | 'time-up',
   _conflict?: ConflictKind,
 ): Banter {
   const silent: Banter = { text: '', mood: 'neutral', voiceMood: 'neutral', speak: false, silent: true }
@@ -787,19 +870,39 @@ export function banterFor(
     return voiced(nextCoachCheer(), 'hype', 'happy', VOICE_PRIORITY.prize)
   }
   if (event === 'hunt-all') return voiced(roman(nextCheer(), ROMAN_CHEER_CLIPS), 'hype', 'excited', VOICE_PRIORITY.win)
-  if (event === 'hunt-none') return voiced(nextLose(), 'bad', 'disappointed', VOICE_PRIORITY.prize)
+  // Missed the bonus round, but the board was WON: a "nice try", never an "out of hearts" line
+  if (event === 'hunt-none') {
+    if (oldtimerTurn(0.5)) return voiced(pickOld(oldHuntMiss), 'bad', 'neutral', VOICE_PRIORITY.prize)
+    return voiced(nextNiceTry(), 'neutral', 'happy', VOICE_PRIORITY.prize)
+  }
+  // Roman's Trial clock ran out (hearts left): lose lines that don't talk about hearts
+  if (event === 'time-up') {
+    if (oldtimerTurn()) return voiced(pickOld(oldTimeUp), 'bad', 'neutral', VOICE_PRIORITY.lose)
+    return voiced(nextTimeUp(), 'bad', 'disappointed', VOICE_PRIORITY.lose)
+  }
   if (event === 'prize') return voiced(nextPrize(), 'hype', 'excited', VOICE_PRIORITY.prize)
   // Replay challenge: these replace the win cheer (never on top of it)
   if (event === 'record') {
+    if (!ownLineTurn('record')) return voiced(cheer(), 'hype', 'excited', VOICE_PRIORITY.win)
     if (oldtimerTurn(0.35)) return voiced(pickOld(oldRecord), 'hype', 'neutral', VOICE_PRIORITY.win)
     return voiced(roman(nextRecord(), ROMAN_RECORD_CLIPS), 'hype', 'excited', VOICE_PRIORITY.win)
   }
-  if (event === 'near-miss') {
-    if (oldtimerTurn(0.5)) return voiced(pickOld(oldNearMiss), 'neutral', 'neutral', VOICE_PRIORITY.win)
-    return voiced(roman('roman_nearmiss', ['roman_nearmiss']), 'neutral', 'happy', VOICE_PRIORITY.win)
+  // 9.29-b: a near miss is still a win. It gets the normal cheer; the teasing "not your best" line
+  // follows as its own event once the cheer is done.
+  if (event === 'near-miss') return voiced(cheer(), 'hype', 'excited', VOICE_PRIORITY.win)
+  if (event === 'not-best') {
+    const extra = { waitMs: 9000 }
+    if (oldtimerTurn(0.6)) return voiced(pickOld(oldNotBest), 'neutral', 'neutral', VOICE_PRIORITY.chatter, extra)
+    return voiced(nextNotBest(), 'neutral', 'happy', VOICE_PRIORITY.chatter, extra)
   }
-  if (event === 'trial-clear') return voiced(roman('roman_trial_clear', ['roman_trial_clear']), 'hype', 'excited', VOICE_PRIORITY.win)
-  if (event === 'daily-done') return voiced(roman('roman_daily_done', ['roman_daily_done']), 'hype', 'excited', VOICE_PRIORITY.win)
+  if (event === 'trial-clear') {
+    if (!ownLineTurn('trial-clear')) return voiced(cheer(), 'hype', 'excited', VOICE_PRIORITY.win)
+    return voiced(roman('roman_trial_clear', ['roman_trial_clear']), 'hype', 'excited', VOICE_PRIORITY.win)
+  }
+  if (event === 'daily-done') {
+    if (!ownLineTurn('daily-done')) return voiced(cheer(), 'hype', 'excited', VOICE_PRIORITY.win)
+    return voiced(roman('roman_daily_done', ['roman_daily_done']), 'hype', 'excited', VOICE_PRIORITY.win)
+  }
   // Badges pop a few seconds after a win: wait for Roman's win line to finish instead of cutting it
   if (event === 'achievement') return voiced(nextBadge(), 'hype', 'excited', VOICE_PRIORITY.chatter, { waitMs: 6000 })
   if (event === 'critter-stash') return voiced(nextStash(), 'hype', 'excited', VOICE_PRIORITY.wrong)
@@ -839,6 +942,7 @@ export function tipBanter(tip: TipId, reason?: TipReason): Banter {
   const voice = (turn === 'old2' ? 'old' : turn) as TipVoice
   const pool = lines.filter((l) => l.voice === voice).map((l) => l.id) as VoiceClipId[]
   const clip = voiceBags.bag(`tip.${tip}.${reason ?? 'any'}.${voice}`, pool)()
+  const alts = shuffledAlts(pool, clip)
   const text = lines.find((l) => l.id === clip)?.text || voiceLineText(clip) || ''
   return {
     text,
@@ -846,8 +950,108 @@ export function tipBanter(tip: TipId, reason?: TipReason): Banter {
     voiceMood: voice === 'old' ? 'neutral' : 'happy',
     speak: true,
     clip,
-    alts: pool.filter((id) => id !== clip),
+    alts,
     priority: tip === 'three-star' ? VOICE_PRIORITY.chatter : VOICE_PRIORITY.idle,
     waitMs: tip === 'three-star' ? 7000 : tip === 'first-trial' || tip === 'first-daily' ? 3000 : undefined,
   }
+}
+
+/* ------------------------------------------------------------------------------------------ *
+ * 9.29-a voice audit: which pools each event may draw from, and when each event may speak.
+ * Tests (scripts/voice-pools.test.ts) play banterFor() and check every line against this map.
+ * ------------------------------------------------------------------------------------------ */
+
+export type BanterEvent = Parameters<typeof banterFor>[0]
+
+/** Every saved shuffle bag (name → lines). */
+export const VOICE_POOLS: Record<string, readonly VoiceClipId[]> = {
+  'roman.cheer': ROMAN_CHEER_CLIPS,
+  'roman.record': ROMAN_RECORD_CLIPS,
+  'roman.notBest': ROMAN_NOT_BEST_CLIPS,
+  'roman.trialClear': ['roman_trial_clear'],
+  'roman.dailyDone': ['roman_daily_done'],
+  'roman.wrong': ROMAN_WRONG_CLIPS,
+  'roman.idle': ROMAN_IDLE_CLIPS,
+  'roman.lose': ROMAN_LOSE_CLIPS,
+  'roman.timeup': ROMAN_TIMEUP_CLIPS,
+  'roman.niceTry': ROMAN_NICE_TRY_CLIPS,
+  'roman.hint': ROMAN_HINT_CLIPS,
+  'roman.badge': ROMAN_BADGE_CLIPS,
+  'roman.prize': ROMAN_PRIZE_CLIPS,
+  'roman.stash': ROMAN_STASH_CLIPS,
+  'coach.cheer': COACH_CHEER_CLIPS,
+  'coach.lose': COACH_LOSE_CLIPS,
+  'coach.timeup': COACH_TIMEUP_CLIPS,
+  'coach.hint': COACH_HINT_CLIPS,
+  'coach.badge': COACH_BADGE_CLIPS,
+  'coach.prize': COACH_PRIZE_CLIPS,
+  'coach.stash': COACH_STASH_CLIPS,
+  'old.wrong': OLDTIMER_WRONG_CLIPS,
+  'old.idle': OLDTIMER_IDLE_CLIPS,
+  'old.hint': OLDTIMER_HINT_CLIPS,
+  'old.undo': OLDTIMER_UNDO_CLIPS,
+  'old.lose': OLDTIMER_LOSE_CLIPS,
+  'old.timeup': OLDTIMER_TIMEUP_CLIPS,
+  'old.win': OLDTIMER_WIN_CLIPS,
+  'old.rescue': OLDTIMER_RESCUE_CLIPS,
+  'old.aside': OLDTIMER_ASIDE_CLIPS,
+  'old.good': OLDTIMER_GOOD_CLIPS,
+  'old.huntMiss': OLDTIMER_HUNT_MISS_CLIPS,
+  'old.record': OLDTIMER_RECORD_CLIPS,
+  'old.notBest': OLDTIMER_NOT_BEST_CLIPS,
+}
+
+/** The pools each event is allowed to draw from. */
+export const EVENT_POOLS: Record<BanterEvent, readonly string[]> = {
+  'place-good': ['old.good'],
+  'place-bad': ['old.wrong', 'roman.wrong'],
+  mark: [],
+  hint: ['old.hint', 'roman.hint', 'coach.hint'],
+  rescue: ['old.rescue', 'roman.hint', 'coach.hint'],
+  idle: ['old.idle', 'roman.idle'],
+  'undo-spam': ['old.undo'],
+  aside: ['old.aside'],
+  win: ['roman.cheer'],
+  record: ['roman.cheer', 'roman.record', 'old.record'],
+  'near-miss': ['roman.cheer'],
+  'not-best': ['roman.notBest', 'old.notBest'],
+  'trial-clear': ['roman.cheer', 'roman.trialClear'],
+  'daily-done': ['roman.cheer', 'roman.dailyDone'],
+  'win-heckle': ['old.win'],
+  'hunt-miss': ['old.huntMiss'],
+  'hunt-some': ['old.good', 'coach.cheer'],
+  'hunt-all': ['roman.cheer'],
+  'hunt-none': ['old.huntMiss', 'roman.niceTry'],
+  lose: ['old.lose', 'roman.lose', 'coach.lose'],
+  'time-up': ['old.timeup', 'roman.timeup', 'coach.timeup'],
+  prize: ['roman.prize', 'coach.prize'],
+  achievement: ['roman.badge', 'coach.badge'],
+  'critter-stash': ['roman.stash', 'coach.stash'],
+  critter: ['coach.cheer'],
+}
+
+/** Lines only for a lost board (hearts gone / Trial clock out). */
+export const LOSE_POOLS = ['old.lose', 'roman.lose', 'coach.lose', 'old.timeup', 'roman.timeup', 'coach.timeup'] as const
+/** Mid-board put-downs for a wrong move, idling or undo spam. */
+export const PLAY_PUTDOWN_POOLS = ['old.wrong', 'roman.wrong', 'old.idle', 'roman.idle', 'old.undo'] as const
+/** Lines that celebrate a finished board. */
+export const WIN_POOLS = ['roman.cheer', 'roman.record', 'old.record', 'roman.notBest', 'old.notBest', 'roman.trialClear', 'roman.dailyDone', 'old.win'] as const
+
+/** Events that belong to a live board / a won board / a lost board; the rest can play anywhere. */
+export const PLAY_EVENTS: readonly BanterEvent[] = ['place-good', 'place-bad', 'mark', 'hint', 'rescue', 'idle', 'undo-spam', 'aside']
+export const WIN_EVENTS: readonly BanterEvent[] = ['win', 'record', 'near-miss', 'not-best', 'trial-clear', 'daily-done', 'win-heckle', 'hunt-miss', 'hunt-some', 'hunt-all', 'hunt-none']
+export const LOSE_EVENTS: readonly BanterEvent[] = ['lose', 'time-up']
+
+export type BoardOutcome = 'won' | 'lost' | null
+
+/**
+ * May this event speak now? Once a board is won, only win lines (and badge / prize / spark lines)
+ * play: a wrong-move, idle, undo or old-timer put-down queued just before the win is dropped, and
+ * a lose line can never follow a win (and the other way round).
+ */
+export function eventAllowed(event: BanterEvent, outcome: BoardOutcome): boolean {
+  if (PLAY_EVENTS.includes(event)) return outcome === null
+  if (WIN_EVENTS.includes(event)) return outcome === 'won'
+  if (LOSE_EVENTS.includes(event)) return outcome === 'lost'
+  return true
 }

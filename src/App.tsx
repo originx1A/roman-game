@@ -85,7 +85,15 @@ import {
   rankLabel,
 } from './game/challenges'
 import { publicLinkWithHash, publicPlayUrl } from './game/publicUrl'
-import { banterFor, sparkProgressBanter, tipBanter, type ConflictKind as BanterConflictKind } from './game/comments'
+import {
+  banterFor,
+  eventAllowed,
+  sparkProgressBanter,
+  tipBanter,
+  VOICE_PRIORITY,
+  type BoardOutcome,
+  type ConflictKind as BanterConflictKind,
+} from './game/comments'
 import { canTip, missedStarReason, noteMastery, noteShown, TIP_TRIGGERS, type TipId, type TipReason, type TipState } from './game/voiceTips'
 import type { ConflictKind as BoardConflictKind } from './game/logic'
 import { THEMES, themeForPuzzle } from './game/themes'
@@ -155,6 +163,7 @@ import {
   unlockAudio,
   voiceQuietMs,
   warmVoices,
+  cancelVoiceBelow,
 } from './game/sound'
 import { COIN_PACKS, purchaseCoinPack, restorePurchases, isStoreBuild, subscribeStore, type CoinPackId } from './game/iap'
 import { loadWebPacks, type WebPackOffer } from './game/webPacks'
@@ -307,6 +316,9 @@ export default function App() {
   const [hintText, setHintText] = useState('')
   const [celebrate, setCelebrate] = useState(false)
   const [defeated, setDefeated] = useState(false)
+  /** Set the moment a board is won or lost (before any state update lands), cleared for the next
+   *  board. Voice lines check it so nothing from the live board speaks after the result. */
+  const boardOverRef = useRef<BoardOutcome>(null)
   const [winLine, setWinLine] = useState('')
   const [loseLine, setLoseLine] = useState('')
   const [lives, setLives] = useState(MAX_LIVES)
@@ -632,15 +644,22 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [screen])
 
+  // A new board (or a comeback after a loss) is live again: its voice lines may speak
+  useEffect(() => {
+    if (!celebrate && !defeated) boardOverRef.current = null
+  }, [celebrate, defeated])
+
   // Roman's Trial: the clock counts down; at zero the board is lost
   useEffect(() => {
-    if (mode !== 'trial' || !running || !puzzle || celebrate || defeated) return
+    if (mode !== 'trial' || !running || !puzzle || celebrate || defeated || boardOverRef.current) return
     if (elapsedMs < trialTimeLimitMs(targetsFor(puzzle))) return
+    boardOverRef.current = 'lost'
+    cancelVoiceBelow(VOICE_PRIORITY.lose)
     setRunning(false)
     setDefeated(true)
     saveDraft(null)
     sfxLose()
-    pushBanter('lose')
+    pushBanter('time-up')
     setLoseLine("Time's up! Roman's Trial wins this round.")
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elapsedMs, mode, running, celebrate, defeated])
@@ -738,6 +757,8 @@ export default function App() {
     event: Parameters<typeof banterFor>[0],
     conflict?: BanterConflictKind,
   ) {
+    // Wrong spot guard: once the board is won only win lines play, once lost only lose lines
+    if (!eventAllowed(event, boardOverRef.current)) return { text: '', mood: 'neutral', voiceMood: 'neutral', speak: false, silent: true } as ReturnType<typeof banterFor>
     const line = banterFor(event, conflict)
     if (line.silent && !line.giggle) return line
     if (line.text) showToast(line.text)
@@ -783,6 +804,10 @@ export default function App() {
         lastTipAt: lastTipAtRef.current,
       }
       if (!canTip(tipsRef.current, id, gate)) return false
+      // A stall/stuck/undo tip queued before the result never plays after it; the three-star tip
+      // is the only one for a won board
+      const over = boardOverRef.current
+      if (over === 'lost' || (over === 'won') !== (id === 'three-star')) return false
       if (opts.needQuiet !== false) {
         const q = voiceQuietMs()
         if (q == null || q < (opts.quietMs ?? TIP_TRIGGERS.quietMs)) return false
@@ -1076,6 +1101,8 @@ export default function App() {
       }
       persistWallet(w)
       if (nextLives <= 0) {
+        boardOverRef.current = 'lost'
+        cancelVoiceBelow(VOICE_PRIORITY.lose)
         setDefeated(true)
         setRunning(false)
         saveDraft(null)
@@ -1086,7 +1113,8 @@ export default function App() {
       }
     } else if (meta.kind === 'stone') {
       lastProgressRef.current = Date.now()
-      pushBanter('place-good')
+      // The winning buddy gets the win line only (no old-timer grumble cut off by the cheer)
+      if (!(puzzle && isSolved(puzzle, next))) pushBanter('place-good')
       setGiggleIndex(meta.index)
       window.setTimeout(() => setGiggleIndex((g) => (g === meta.index ? null : g)), 900)
     }
@@ -1095,6 +1123,9 @@ export default function App() {
 
     if (puzzle && isSolved(puzzle, next) && !recordedRef.current) {
       recordedRef.current = true
+      boardOverRef.current = 'won'
+      // Drop anything queued from the live board (wrong move, stall, tip, old-timer) before the win line
+      cancelVoiceBelow(VOICE_PRIORITY.win)
       setRunning(false)
       setCelebrate(true)
       sfxWin()
@@ -1153,6 +1184,11 @@ export default function App() {
       if (isRecord) sfxRecord()
       const win = pushBanter(winEvent)
       setWinLine(win.text || 'Roman says: nice clear!')
+      // 9.29-b: won a replayed board without beating the old best. The cheer above plays first; a
+      // teasing "not your best" line waits for it to finish (never a loss line, never on top of it).
+      const notBest = !!replay && !replay.firstClear && !replay.newBestTime && !replay.newBestScore && (winEvent === 'win' || winEvent === 'near-miss')
+      // (pushed a moment later so its caption shows when it plays; it still waits for the cheer to end)
+      if (notBest) window.setTimeout(() => pushBanter('not-best'), 1600)
       // Slow or sloppy clear (lost a heart, 2+ hints, or over 3 minutes): the old-timer may chime in
       // with a backhanded compliment once Roman's cheer is done (never on top of it)
       // Voice tips: what the player has shown they get, and how to reach 3 stars if they missed it
@@ -1160,7 +1196,7 @@ export default function App() {
       try {
         if (replay) {
           if (replay.runStars >= 3) tipMastery('three-star')
-          else {
+          else if (!notBest) {
             const reason = missedStarReason({ withinTime: elapsedMs <= targets.timeMs, undos: undosRef.current, scoreOk: score >= targets.score3 })
             tipped = fireTip('three-star', reason, { needQuiet: false })
           }
@@ -1172,7 +1208,7 @@ export default function App() {
       } catch {
         /* tips are extras */
       }
-      if (!tipped && winEvent === 'win' && (lives < runMaxLives || hintsUsed >= 2 || elapsedMs > 180000)) {
+      if (!tipped && !notBest && winEvent === 'win' && (lives < runMaxLives || hintsUsed >= 2 || elapsedMs > 180000)) {
         window.setTimeout(() => pushBanter('win-heckle'), 2600)
       }
       const prog = recordClear({

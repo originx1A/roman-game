@@ -61,8 +61,14 @@ interface SavedBag {
 interface SavedBags {
   /** Last line handed out by any bag (for the cross-category no-back-to-back rule). */
   last: string | null
+  /** 9.29-a: the last few lines handed out by any bag, newest last. A line shared by two
+   *  categories (or a tip and its original spot) waits until these have moved on. */
+  recent?: string[]
   bags: Record<string, SavedBag>
 }
+
+/** How many recently spoken lines (across every category) a bag steps around when it can. */
+export const RECENT_AVOID = 8
 
 export interface BagSet {
   /** A picker for one category. `name` must be stable: it is the save key for this bag. */
@@ -105,12 +111,13 @@ export function createBagSet(
       const raw = store?.get(key)
       const v = raw ? (JSON.parse(raw) as Partial<SavedBags>) : null
       if (v && typeof v === 'object' && v.bags && typeof v.bags === 'object') {
-        parsed = { last: typeof v.last === 'string' ? v.last : null, bags: v.bags as Record<string, SavedBag> }
+        const recent = Array.isArray(v.recent) ? v.recent.filter((x): x is string => typeof x === 'string').slice(-RECENT_AVOID) : []
+        parsed = { last: typeof v.last === 'string' ? v.last : null, recent, bags: v.bags as Record<string, SavedBag> }
       }
     } catch {
       parsed = null
     }
-    state = parsed ?? { last: null, bags: {} }
+    state = parsed ?? { last: null, recent: [], bags: {} }
     return state
   }
 
@@ -176,10 +183,18 @@ export function createBagSet(
           b = newCycle(items, [s.last])
         }
       }
+      // Step around lines heard lately in other categories (swap within what's left of this cycle,
+      // so every line still plays once per cycle)
+      const recent = new Set(s.recent ?? [])
+      if (recent.has(b.order[b.pos])) {
+        const j = b.order.findIndex((x, k) => k > b.pos && !recent.has(x) && x !== s.last)
+        if (j > 0) [b.order[b.pos], b.order[j]] = [b.order[j], b.order[b.pos]]
+      }
       const pick = b.order[b.pos]
       b.pos += 1
       s.bags[name] = b
       s.last = pick
+      s.recent = [...(s.recent ?? []).filter((x) => x !== pick), pick].slice(-RECENT_AVOID)
       save()
       return pick as T
     }
