@@ -187,6 +187,23 @@ ROMAN_LINES = {
     "roman_notbest_record": "Roman says: board cleared! Your record just yawned, though.",
     "roman_notbest_again": "Roman says: winner! Not your fastest. Roman noticed. Roman always notices.",
     "roman_notbest_turtle": "Roman says: you did it, turtle-style! Your best time says hi.",
+    # 9.30-i: approved thin-pool lines (voice-lines-draft-2.md)
+    "roman_record_fireworks": "Roman says: new best time! Cue the fireworks!",
+    "roman_record_clock": "Roman says: the clock can't even keep up with you!",
+    "roman_record_fridge": "Roman says: new record! That's going on the fridge.",
+    "roman_record_zoom": "Roman says: zoom! You just beat your old self.",
+    "roman_record_notes": "Roman says: record smashed. Roman is taking notes.",
+    "roman_record_socks": "Roman says: new record! You knocked my socks off. Both of them.",
+    "roman_trial_shocked": "Roman says: you beat Roman's Trial! Roman is shocked. Shocked!",
+    "roman_trial_coins": "Roman says: Trial cleared! Double coins, coming right up.",
+    "roman_trial_unfair": "Roman says: you beat the clock AND my Trial. Not fair!",
+    "roman_trial_crown": "Roman says: Trial champion! Roman will make you a paper crown.",
+    "roman_trial_harder": "Roman says: you survived! Roman needs a harder Trial.",
+    "roman_daily_streak": "Roman says: daily done! Keep that streak rolling.",
+    "roman_daily_cook": "Roman says: that's today's board. Roman will cook up a new one tomorrow.",
+    "roman_daily_calendar": "Roman says: daily challenge crushed! Mark the calendar.",
+    "roman_daily_snack": "Roman says: daily done! Go have a snack. You earned it.",
+    "roman_daily_sametime": "Roman says: done for today! Same time tomorrow?",
 }
 
 # Uplifting coach — plain phrases only (slightly brighter rate/pitch)
@@ -258,6 +275,27 @@ COACH_LINES = {
     "tip_daily_coach_streak": "Come back every day to build your streak and earn more coins.",
     "coach_notbest_clear": "Board cleared. A little slower than your best. You know you have more in you.",
     "coach_notbest_close": "Nice finish. Not a new best this time, but the next one could be.",
+    # 9.30-i: approved thin-pool lines (voice-lines-draft-2.md)
+    "coach_record_best": "New best time. Amazing work!",
+    "coach_record_faster": "That's your fastest yet. Well done!",
+    "coach_record_proud": "A new record! You should be proud.",
+    "coach_record_practice": "New record. All that practice is paying off!",
+    "coach_trial_clear": "You cleared the Trial. Double coins for you!",
+    "coach_trial_clock": "You beat the clock! Great focus.",
+    "coach_trial_steady": "Trial complete. Nice and steady under pressure.",
+    "coach_daily_done": "Daily challenge done. See you tomorrow!",
+    "coach_daily_streak": "Another day, another win. Keep the streak going!",
+    "coach_daily_great": "Today's board is done. Great job!",
+    "coach_notbest_stands": "Board cleared! Your best time still stands. Try again?",
+    "coach_notbest_okay": "You won. A bit slower this time, and that's okay.",
+    "coach_notbest_chase": "Nice clear. Your best time is still out there to chase.",
+    "coach_notbest_breath": "Board done! Not quite your best. Take a breath and go again.",
+    "coach_notbest_safe": "Good win. Your record's safe for now. You'll get it.",
+    "coach_notbest_practice": "Cleared it. Slower than your best, but every run is practice.",
+    "coach_stash_five": "All five sparks! Bonus unlocked!",
+    "coach_stash_complete": "Critter stash complete. Nice catching!",
+    "coach_stash_bonus": "That's the whole stash. Enjoy the bonus!",
+    "coach_stash_sparkle": "Five for five! Time to sparkle.",
 }
 
 OLDTIMER_LINES = {
@@ -407,6 +445,19 @@ OLDTIMER_LINES = {
     "old_notbest_tea": "You won. I finished a whole cup of tea. Last time I only got a sip.",
     "old_notbest_downhill": "A win, but slower than your record. It's all downhill from here, kid.",
     "old_notbest_slowpoke": "Board's done. Your record's safe. From you, mostly.",
+    # 9.30-i: approved thin-pool lines (voice-lines-draft-2.md)
+    "old_record_nap": "New record. I didn't even get to finish my nap.",
+    "old_record_teeth": "Faster than ever. I almost dropped my teeth.",
+    "old_record_luck": "A new best? Beginner's luck. Probably. Maybe.",
+    "old_record_showoff": "New record. Back in my day we called that showing off.",
+    "old_record_rocking": "That was quick. My rocking chair's still rocking.",
+    "old_record_pencil": "Fine, it's a record. I'll write it down. Where'd I put my pencil?",
+    "old_trial_huh": "You beat the Trial. Huh. Didn't see that coming.",
+    "old_trial_candy": "Double coins, eh? Don't spend it all on candy.",
+    "old_trial_complaint": "Beat the clock, did ya? The clock's filing a complaint.",
+    "old_daily_paper": "Daily done. Now I can read my paper in peace.",
+    "old_daily_tomorrow": "That's today's. Come back tomorrow. I'll still be here. Probably.",
+    "old_daily_everyday": "Every day, huh? Even I don't show up every day.",
 }
 
 # Which voice/settings produced each clip in public/voices (checked by scripts/check-voices.ts)

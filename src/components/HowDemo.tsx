@@ -15,9 +15,9 @@ const REGIONS = [
 
 export type HowDemoId =
   | 'region' | 'lines' | 'touch' | 'swipe' | 'hearts' | 'critter' | 'hunt'
-  | 'stars' | 'combo' | 'undo' | 'trial' | 'daily' | 'pace'
+  | 'stars' | 'combo' | 'undo' | 'trial' | 'daily' | 'pace' | 'remix'
 
-const PANEL_DEMOS = new Set<HowDemoId>(['stars', 'trial', 'daily'])
+const PANEL_DEMOS = new Set<HowDemoId>(['stars', 'trial', 'daily', 'remix'])
 const COMBO_MARKS = [10, 11, 12, 13, 14]
 const UNDO_CELL = 12
 const PACE_BUDDIES = [1, 8, 10, 17]
@@ -259,6 +259,27 @@ function DemoPanel({ demo }: { demo: HowDemoId }) {
           <span className="heart on" />
         </span>
         <span className="demo-trial-rules">No undo · 2 hearts · 2× coins</span>
+      </div>
+    )
+  }
+  if (demo === 'remix') {
+    return (
+      <div className="how-panel-demo demo-daily demo-remix">
+        <span className="demo-daily-title">Remix boards</span>
+        <span className="demo-remix-sizes">
+          {['5×5', '6×6', '7×7', '8×8'].map((sz) => (
+            <i key={sz}>{sz}</i>
+          ))}
+        </span>
+        <span className="demo-daily-streak">
+          New boards in{' '}
+          <span className="demo-stack">
+            <b className="k1">3d</b>
+            <b className="k2">2d</b>
+            <b className="k3">1d</b>
+          </span>
+        </span>
+        <span className="demo-daily-rules">Same boards for everyone · + Endless mode</span>
       </div>
     )
   }

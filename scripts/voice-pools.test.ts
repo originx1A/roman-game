@@ -86,9 +86,9 @@ test('not-best (won, slower than the best) is ONE combined win line, not a cheer
   assert.deepEqual([...c.EVENT_POOLS['near-miss']], ['roman.cheer'])
   // 9.30-g: the 14 approved combined lines are recorded and ARE the not-best pools (all three voices)
   const nb = [...c.OLDTIMER_NOT_BEST_CLIPS, ...c.ROMAN_NOT_BEST_CLIPS, ...c.COACH_NOT_BEST_CLIPS]
-  assert.equal(nb.length, 14)
+  assert.equal(nb.length, 20) // 9.30-i: +6 coach lines
   for (const id of nb) assert.ok(recorded.has(id) && id.includes('_notbest_'), `${id} recorded combined line`)
-  assert.ok(c.OLDTIMER_NOT_BEST_CLIPS.length > nb.length / 2, 'old-timer heavy')
+  assert.equal(c.OLDTIMER_NOT_BEST_CLIPS.length, 9) // he still gets ~60% of these moments by turn share
   const heard = new Set<string>()
   const realNow = Date.now
   let t = realNow() + 3_600_000

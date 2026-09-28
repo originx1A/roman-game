@@ -13,6 +13,8 @@ const KEYS = {
   boardDraft: 'roman.draft.v1',
   wallet: 'roman.wallet.v1',
   generated: 'roman.generated.v1',
+  remix: 'roman.remix.v1',
+  endless: 'roman.endless.v1',
   buddyMeter: 'roman.buddymeter.v1',
   records: 'roman.records.v1',
   tips: 'roman.tips.v1',
@@ -334,6 +336,50 @@ export function rememberGeneratedPuzzle(puzzle: import('./types').Puzzle) {
 
 export function getGeneratedPuzzle(id: string): import('./types').Puzzle | undefined {
   return loadGeneratedPuzzles()[id]
+}
+
+/** 9.30-i: Remix boards built for the live set (older sets are dropped when a new set is saved) */
+export function loadRemixBoards(set: number): Record<string, import('./types').Puzzle> {
+  const c = read<{ set?: number; boards?: Record<string, import('./types').Puzzle> } | null>(KEYS.remix, null)
+  return c && c.set === set && c.boards && typeof c.boards === 'object' ? c.boards : {}
+}
+
+export function saveRemixBoard(set: number, puzzle: import('./types').Puzzle) {
+  try {
+    write(KEYS.remix, { set, boards: { ...loadRemixBoards(set), [puzzle.id]: puzzle } })
+  } catch {
+    /* storage full: the board is rebuilt from its seed next time */
+  }
+}
+
+export function getRemixBoard(id: string): import('./types').Puzzle | undefined {
+  const c = read<{ boards?: Record<string, import('./types').Puzzle> } | null>(KEYS.remix, null)
+  return c?.boards?.[id]
+}
+
+/** 9.30-i Endless mode: boards cleared (all sizes, and per size) */
+export interface EndlessStats {
+  cleared: number
+  bySize: Record<string, number>
+}
+
+export function loadEndless(): EndlessStats {
+  const e = read<Partial<EndlessStats> | null>(KEYS.endless, null)
+  const cleared = typeof e?.cleared === 'number' && e.cleared >= 0 ? Math.floor(e.cleared) : 0
+  const bySize: Record<string, number> = {}
+  for (const [k, v] of Object.entries(e?.bySize ?? {})) if (typeof v === 'number' && v >= 0) bySize[k] = Math.floor(v)
+  return { cleared, bySize }
+}
+
+export function noteEndlessClear(size: number): EndlessStats {
+  const e = loadEndless()
+  const next = { cleared: e.cleared + 1, bySize: { ...e.bySize, [size]: (e.bySize[size] ?? 0) + 1 } }
+  try {
+    write(KEYS.endless, next)
+  } catch {
+    /* keep playing */
+  }
+  return next
 }
 
 export function loadBuddyMeter(): import('./buddyHunt').BuddyMeter {

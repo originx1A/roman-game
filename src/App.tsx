@@ -18,6 +18,18 @@ import { TapButton } from './components/TapButton'
 import { BuddyHunt } from './components/BuddyHunt'
 import { PetArt } from './components/PetArt'
 import { Stable } from './components/Stable'
+import { RemixScreen } from './components/RemixScreen'
+import {
+  nextRemixSize,
+  parseRemixId,
+  REMIX_SIZES,
+  remixCountdownLabel,
+  remixEndsAtMs,
+  remixId,
+  remixSetNow,
+  type RemixSize,
+} from './game/remix'
+import { buildEndlessInBackground, buildRemixInBackground } from './game/boardBuilder'
 import { HomePet } from './components/HomePet'
 import {
   activePerk,
@@ -96,7 +108,7 @@ import {
 } from './game/replay'
 import { PUZZLES, getPuzzle, puzzlesByDifficulty, createFreshPuzzle } from './game/puzzles'
 import { pickNextBoard } from './game/nextBoard'
-import type { CellState, Challenge, DuelResult, Profile, Puzzle, Screen } from './game/types'
+import type { CellState, Challenge, Difficulty, DuelResult, Profile, Puzzle, Screen } from './game/types'
 import { DIFFICULTY_LABEL } from './game/types'
 import {
   boardLabel,
@@ -166,6 +178,12 @@ import {
   loadPets,
   savePets,
   loadRecords,
+  loadEndless,
+  loadRemixBoards,
+  noteEndlessClear,
+  rememberGeneratedPuzzle,
+  saveRemixBoard,
+  type EndlessStats,
   loadTips,
   saveTips,
   recordClear,
@@ -260,6 +278,18 @@ function senderEmail(email: string | undefined): string {
 const MISSING_BOARD = 'This board isn’t on this device. Ask your friend for a fresh link.'
 
 const catalogBoard = (id: string) => PUZZLES.find((p) => p.id === id)
+/** 9.30-i: boards that keep bests, stars and the Trial: the catalog plus Remix boards (stable ids) */
+const hasRecords = (id: string) => !!catalogBoard(id) || !!parseRemixId(id)
+
+/** Remix boards already built for a set, by size */
+function remixBoardsFromCache(set: number): Partial<Record<RemixSize, Puzzle>> {
+  const out: Partial<Record<RemixSize, Puzzle>> = {}
+  for (const p of Object.values(loadRemixBoards(set))) {
+    const r = parseRemixId(p?.id ?? '')
+    if (r && r.set === set && Array.isArray(p.regions) && p.regions.length === r.size * r.size) out[r.size] = p
+  }
+  return out
+}
 
 /** Buddies on the board that don't break a rule (what the ghost pace counts; never peeks at the answer) */
 function cleanBuddies(p: Puzzle, board: CellState[]): number {
@@ -409,7 +439,7 @@ export default function App() {
   const lastProgressRef = useRef(Date.now())
   const wrongTimesRef = useRef<number[]>([])
   /** A board waiting for the first-time How to play to finish. */
-  const pendingStartRef = useRef<{ p: Puzzle; opts: { mode?: RunMode; daily?: boolean } } | null>(null)
+  const pendingStartRef = useRef<{ p: Puzzle; opts: { mode?: RunMode; daily?: boolean; endless?: boolean } } | null>(null)
   const [howStart, setHowStart] = useState(0)
   const recordedRef = useRef(false)
   /** Latest board plus undo/redo stacks. Updated on every move, not on the next render. */
@@ -427,6 +457,43 @@ export default function App() {
   const dailyRunRef = useRef<string | null>(null)
   const [dailyTag, setDailyTag] = useState<'' | 'scored' | 'practice'>('')
   const [startSheet, setStartSheet] = useState<Puzzle | null>(null)
+
+  // ---- 9.30-i: Remix boards (a new set of 4 every 3 days at midnight Toronto) + Endless mode ----
+  const [clockNow, setClockNow] = useState(() => Date.now())
+  const remixSet = remixSetNow(new Date(clockNow))
+  const remixMsLeft = remixEndsAtMs(new Date(clockNow)) - clockNow
+  const [remixBoards, setRemixBoards] = useState(() => ({ set: remixSet, boards: remixBoardsFromCache(remixSet) }))
+  const liveRemix = remixBoards.set === remixSet ? remixBoards.boards : {}
+  const [remixBuilding, setRemixBuilding] = useState<RemixSize[]>([])
+  const [remixFailed, setRemixFailed] = useState<RemixSize[]>([])
+  const remixJobsRef = useRef(new Set<string>())
+  const [endless, setEndless] = useState<EndlessStats>(() => loadEndless())
+  const [endlessBusy, setEndlessBusy] = useState<Difficulty | null>(null)
+  /** Difficulty while this run is an Endless board (Next makes another fresh one) */
+  const endlessRef = useRef<Difficulty | null>(null)
+  const screenNowRef = useRef<Screen>('home')
+  const startPuzzleRef = useRef<(p: Puzzle, resume?: boolean, opts?: { mode?: RunMode; daily?: boolean; endless?: boolean }) => void>(() => {})
+  screenNowRef.current = screen
+  // The countdown ticks while off the board (every 30 s is plenty for "2d 5h" / "5h 12m")
+  useEffect(() => {
+    if (screen === 'play') return
+    setClockNow(Date.now())
+    const t = window.setInterval(() => setClockNow(Date.now()), 30_000)
+    return () => window.clearInterval(t)
+  }, [screen])
+  // A new set started (midnight Toronto): switch to its boards
+  useEffect(() => {
+    if (remixBoards.set === remixSet) return
+    setRemixBoards({ set: remixSet, boards: remixBoardsFromCache(remixSet) })
+    setRemixBuilding([])
+    setRemixFailed([])
+  }, [remixSet, remixBoards.set])
+  // Opening the Remix screen builds the quick boards (5×5 to 7×7); the 8×8 waits until it's tapped
+  useEffect(() => {
+    if (screen !== 'remix') return
+    for (const size of [5, 6, 7] as const) if (!remixBoardsFromCache(remixSet)[size]) buildRemix(size)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, remixSet])
   const [winReplay, setWinReplay] = useState<WinReplay | null>(null)
   // Player name for share cards (asked once: first share or first finished board)
   const playerName = cleanPlayerName(settings.playerName)
@@ -1064,7 +1131,7 @@ export default function App() {
     })
   }
 
-  function startPuzzle(p: Puzzle, resume = false, opts: { mode?: RunMode; daily?: boolean } = {}) {
+  function startPuzzle(p: Puzzle, resume = false, opts: { mode?: RunMode; daily?: boolean; endless?: boolean } = {}) {
     // First board ever: How to play opens first (returning players start at the new cards)
     if (!resume && !settingsRef.current.howSeen) {
       pendingStartRef.current = { p, opts }
@@ -1080,7 +1147,7 @@ export default function App() {
     setStartSheet(null)
     const resumeDraft = resume ? loadDraft() : null
     const resuming = !!resumeDraft && resumeDraft.puzzleId === p.id
-    const onCatalog = !!catalogBoard(p.id)
+    const onCatalog = hasRecords(p.id)
     let runMode: RunMode = resuming ? resumeDraft!.mode ?? 'normal' : opts.mode ?? 'normal'
     if (runMode === 'trial' && !onCatalog) runMode = 'normal'
     let dailyKey: string | null = resuming ? resumeDraft!.daily ?? null : null
@@ -1098,6 +1165,7 @@ export default function App() {
     modeRef.current = runMode
     setMode(runMode)
     dailyRunRef.current = dailyKey
+    endlessRef.current = !resuming && opts.endless ? p.difficulty : null
     setDailyTag(dailyKey ? 'scored' : practice || (opts.daily && !dailyKey) ? 'practice' : '')
     setWinReplay(null)
     boardTipsRef.current = []
@@ -1325,7 +1393,7 @@ export default function App() {
       try {
         const fullSplits = [...splitsRef.current]
         while (fullSplits.length < puzzle.size) fullSplits.push(elapsedMs)
-        if (catalogBoard(puzzle.id)) {
+        if (hasRecords(puzzle.id)) {
           const out = recordRun(rec, { puzzleId: puzzle.id, mode: runMode, ms: elapsedMs, score, undos: undosRef.current, splits: fullSplits.slice(0, puzzle.size), targets, buddy: runPetRef.current })
           rec = out.blob
           replay = out.result
@@ -1337,6 +1405,7 @@ export default function App() {
           dailyRunRef.current = null
         }
         if (rec !== records) persistRecords(rec)
+        if (endlessRef.current) setEndless(noteEndlessClear(puzzle.size))
       } catch {
         /* never block the win */
       }
@@ -2030,6 +2099,106 @@ export default function App() {
   const dailyToday = records.daily.days[todayKey]
   const dailyStreakNow = liveStreak(records.daily, todayKey)
   const dailyDateLabel = new Date(`${todayKey}T12:00:00Z`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })
+  function buildRemix(size: RemixSize, openAfter = false) {
+    const set = remixSet
+    const key = `${set}-${size}`
+    if (remixJobsRef.current.has(key)) return
+    remixJobsRef.current.add(key)
+    setRemixBuilding((b) => [...b.filter((x) => x !== size), size])
+    setRemixFailed((f) => f.filter((x) => x !== size))
+    void buildRemixInBackground(set, size).then((p) => {
+      remixJobsRef.current.delete(key)
+      setRemixBuilding((b) => b.filter((x) => x !== size))
+      if (!p) {
+        setRemixFailed((f) => [...f.filter((x) => x !== size), size])
+        return
+      }
+      saveRemixBoard(set, p)
+      setRemixBoards((r) => (r.set === set ? { set, boards: { ...r.boards, [size]: p } } : r))
+      if (openAfter && screenNowRef.current === 'remix') setStartSheet(p)
+    })
+  }
+
+  function openRemix(size: RemixSize) {
+    const p = liveRemix[size]
+    if (p) setStartSheet(p)
+    else buildRemix(size, true)
+  }
+
+  function startEndless(difficulty: Difficulty) {
+    if (endlessBusy) return
+    setEndlessBusy(difficulty)
+    showToast('Making a fresh board…')
+    void buildEndlessInBackground(difficulty).then((p) => {
+      setEndlessBusy(null)
+      const board = p ?? createFreshPuzzle(difficulty)
+      rememberGeneratedPuzzle(board)
+      startPuzzleRef.current(board, false, { endless: true })
+    })
+  }
+
+  startPuzzleRef.current = startPuzzle
+
+  const remixClearedCount = REMIX_SIZES.filter((sz) => records.levels[remixId(remixSet, sz)]?.bestMs != null).length
+  const remixCard = (
+    <section className="daily-card remix-entry" aria-label="Remix boards">
+      <div className="daily-text">
+        <strong>Remix boards</strong>
+        <span>4 new boards every 3 days · same for everyone{remixClearedCount ? ` · ${remixClearedCount}/4 cleared` : ''}</span>
+        <span className="daily-status">New boards in {remixCountdownLabel(remixMsLeft)} · plus Endless mode</span>
+      </div>
+      <button type="button" className="btn ghost daily-btn" data-open-remix onClick={() => setScreen('remix')}>
+        Remix
+      </button>
+    </section>
+  )
+
+  const sheetTargets = startSheet ? targetsFor(startSheet) : null
+  const sheetRec = startSheet ? records.levels[startSheet.id] : undefined
+  const startSheetEl = startSheet && sheetTargets && createPortal(
+            <div className="start-sheet" role="dialog" aria-modal="true" aria-label={`${startSheet.name}: start`}>
+              <div className="start-sheet-scrim" onClick={() => setStartSheet(null)} />
+              <div className="start-sheet-card">
+                <h3>
+                  {startSheet.name} <span className="start-sheet-stars">{starString(sheetRec?.stars ?? 0)}</span>
+                </h3>
+                <p className="start-sheet-meta">{DIFFICULTY_LABEL[startSheet.difficulty]} · {startSheet.size}×{startSheet.size}</p>
+                <div className="start-sheet-bests">
+                  <div>
+                    <span>Best time</span>
+                    <strong>{sheetRec?.bestMs != null ? formatMs(sheetRec.bestMs) : '—'}</strong>
+                    {sheetRec?.bestMs != null ? <RunTag buddy={sheetRec.buddy ?? null} /> : null}
+                  </div>
+                  <div><span>Top score</span><strong>{sheetRec?.bestScore != null ? sheetRec.bestScore : '—'}</strong></div>
+                </div>
+                <ul className="start-sheet-goals">
+                  <li className={(sheetRec?.stars ?? 0) >= 1 ? 'done' : ''}>★ Finish the board</li>
+                  <li className={(sheetRec?.stars ?? 0) >= 2 ? 'done' : ''}>★★ Under {formatMs(sheetTargets.timeMs)}</li>
+                  <li className={(sheetRec?.stars ?? 0) >= 3 ? 'done' : ''}>★★★ Under {formatMs(sheetTargets.timeMs)}, {sheetTargets.score3}+ pts, no undos</li>
+                </ul>
+                <p className="start-sheet-tip">Quick good moves build a combo. Each undo costs {UNDO_COST} pts.</p>
+                <button type="button" className="btn primary" onClick={() => startPuzzle(startSheet)}>
+                  {sheetRec?.bestMs != null ? 'Play · beat your best' : 'Play'}
+                </button>
+                {trialUnlocked(records, startSheet.id) ? (
+                  <button type="button" className="btn trial-btn" onClick={() => startPuzzle(startSheet, false, { mode: 'trial' })}>
+                    ⚔ Roman's Trial
+                    <small>
+                      {TRIAL_HEARTS} hearts · no undo · {formatMs(trialTimeLimitMs(sheetTargets))} clock · 2× coins
+                      {sheetRec?.trial?.bestMs != null ? ` · best ${formatMs(sheetRec.trial.bestMs)}` : ''}
+                    </small>
+                  </button>
+                ) : (
+                  <p className="start-sheet-locked">⚔ Roman's Trial unlocks at 3 stars</p>
+                )}
+                <button type="button" className="btn ghost" onClick={() => setStartSheet(null)}>
+                  Cancel
+                </button>
+              </div>
+            </div>,
+            document.body,
+          )
+
   const dailyCard = (
     <section className="daily-card" aria-label="Daily Challenge">
       <div className="daily-text">
@@ -2053,7 +2222,7 @@ export default function App() {
   )
 
   // Live ghost pace against your best (hidden until there is a best for this mode)
-  const playBest = puzzle && catalogBoard(puzzle.id) ? hasBest(records, puzzle.id, mode) : undefined
+  const playBest = puzzle && hasRecords(puzzle.id) ? hasBest(records, puzzle.id, mode) : undefined
   let pace: { delta: number; ghost: number; mine: number } | null = null
   if (screen === 'play' && puzzle && playBest && !celebrate && !defeated) {
     const ghost = ghostSplits(playBest.bestMs!, puzzle.size, playBest.splits)
@@ -2061,8 +2230,6 @@ export default function App() {
     pace = { delta: paceDelta(splitsRef.current, ghost, n, elapsedMs), ghost: ghostProgress(ghost, elapsedMs), mine: n / puzzle.size }
   }
   const trialLeftMs = puzzle && mode === 'trial' ? Math.max(0, trialTimeLimitMs(targetsFor(puzzle)) - elapsedMs) : 0
-  const sheetTargets = startSheet ? targetsFor(startSheet) : null
-  const sheetRec = startSheet ? records.levels[startSheet.id] : undefined
 
   keysRef.current = { undo, redo, hint: onHint }
 
@@ -2209,6 +2376,7 @@ export default function App() {
             />
           </section>
           {dailyCard}
+          {remixCard}
           <section className="stat-strip home-strip">
             <div>
               <strong>{progress.clears.length}</strong>
@@ -2259,6 +2427,7 @@ export default function App() {
           <h2>Levels</h2>
           <p className="sub">Beat your best time and score on any board. ★ finish · ★★ beat the target time · ★★★ target time, a high score and no undos. 3 stars unlocks Roman's Trial.</p>
           {dailyCard}
+          {remixCard}
           {(['easy', 'medium', 'hard', 'expert'] as const).map((diff) => (
             <section key={diff} className="diff-block">
               <div className="diff-head">
@@ -2272,16 +2441,11 @@ export default function App() {
                 <button
                   type="button"
                   className="btn ghost random-btn"
-                  onClick={() => {
-                    showToast('Shuffling a fresh board…')
-                    // Defer so toast paints before heavy generate on expert
-                    window.setTimeout(() => {
-                      const p = createFreshPuzzle(diff)
-                      startPuzzle(p)
-                    }, 30)
-                  }}
+                  data-endless-level={diff}
+                  disabled={endlessBusy != null}
+                  onClick={() => startEndless(diff)}
                 >
-                  Random
+                  {endlessBusy === diff ? 'Making…' : 'Endless'}
                 </button>
               </div>
               <div className="level-grid">
@@ -2311,49 +2475,7 @@ export default function App() {
               </div>
             </section>
           ))}
-          {startSheet && sheetTargets && createPortal(
-            <div className="start-sheet" role="dialog" aria-modal="true" aria-label={`${startSheet.name}: start`}>
-              <div className="start-sheet-scrim" onClick={() => setStartSheet(null)} />
-              <div className="start-sheet-card">
-                <h3>
-                  {startSheet.name} <span className="start-sheet-stars">{starString(sheetRec?.stars ?? 0)}</span>
-                </h3>
-                <p className="start-sheet-meta">{DIFFICULTY_LABEL[startSheet.difficulty]} · {startSheet.size}×{startSheet.size}</p>
-                <div className="start-sheet-bests">
-                  <div>
-                    <span>Best time</span>
-                    <strong>{sheetRec?.bestMs != null ? formatMs(sheetRec.bestMs) : '—'}</strong>
-                    {sheetRec?.bestMs != null ? <RunTag buddy={sheetRec.buddy ?? null} /> : null}
-                  </div>
-                  <div><span>Top score</span><strong>{sheetRec?.bestScore != null ? sheetRec.bestScore : '—'}</strong></div>
-                </div>
-                <ul className="start-sheet-goals">
-                  <li className={(sheetRec?.stars ?? 0) >= 1 ? 'done' : ''}>★ Finish the board</li>
-                  <li className={(sheetRec?.stars ?? 0) >= 2 ? 'done' : ''}>★★ Under {formatMs(sheetTargets.timeMs)}</li>
-                  <li className={(sheetRec?.stars ?? 0) >= 3 ? 'done' : ''}>★★★ Under {formatMs(sheetTargets.timeMs)}, {sheetTargets.score3}+ pts, no undos</li>
-                </ul>
-                <p className="start-sheet-tip">Quick good moves build a combo. Each undo costs {UNDO_COST} pts.</p>
-                <button type="button" className="btn primary" onClick={() => startPuzzle(startSheet)}>
-                  {sheetRec?.bestMs != null ? 'Play · beat your best' : 'Play'}
-                </button>
-                {trialUnlocked(records, startSheet.id) ? (
-                  <button type="button" className="btn trial-btn" onClick={() => startPuzzle(startSheet, false, { mode: 'trial' })}>
-                    ⚔ Roman's Trial
-                    <small>
-                      {TRIAL_HEARTS} hearts · no undo · {formatMs(trialTimeLimitMs(sheetTargets))} clock · 2× coins
-                      {sheetRec?.trial?.bestMs != null ? ` · best ${formatMs(sheetRec.trial.bestMs)}` : ''}
-                    </small>
-                  </button>
-                ) : (
-                  <p className="start-sheet-locked">⚔ Roman's Trial unlocks at 3 stars</p>
-                )}
-                <button type="button" className="btn ghost" onClick={() => setStartSheet(null)}>
-                  Cancel
-                </button>
-              </div>
-            </div>,
-            document.body,
-          )}
+          {startSheetEl}
         </main>
       )}
 
@@ -2361,7 +2483,7 @@ export default function App() {
         <main className={`play play-fixed ${runPetRef.current ? 'has-hud-pet' : ''} ${THEMES[puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)].className}`}>
           <ThemeBackdrop themeId={puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)} />
           <div className="play-hud">
-            <button type="button" className="hud-back" onClick={() => setScreen('levels')} aria-label="Back">
+            <button type="button" className="hud-back" onClick={() => setScreen(parseRemixId(puzzle.id) || endlessRef.current ? 'remix' : 'levels')} aria-label="Back">
               ←
             </button>
             <div className="hud-title">
@@ -2417,7 +2539,7 @@ export default function App() {
             ) : null}
             {(() => {
               // Wide screens only (CSS): stars so far, goals and bests for this board
-              if (!catalogBoard(puzzle.id)) return null
+              if (!hasRecords(puzzle.id)) return null
               const tg = targetsFor(puzzle)
               const lv = records.levels[puzzle.id]
               const best = mode === 'trial' ? lv?.trial : lv
@@ -2573,7 +2695,25 @@ export default function App() {
               spins={wallet.spins}
               perfect={hintsUsed === 0}
               replay={winReplay ?? undefined}
-              onNext={() => startPuzzle(pickNextBoard(puzzle, PUZZLES, getProgress().clears))}
+              onNext={() => {
+                // 9.30-i: Remix → the next uncleared board of the live set; Endless → another fresh board
+                const rm = parseRemixId(puzzle.id)
+                if (rm) {
+                  const nxt = rm.set === remixSet ? nextRemixSize(rm.size, (s) => records.levels[remixId(rm.set, s)]?.bestMs != null) : null
+                  const nb = nxt ? liveRemix[nxt] : undefined
+                  if (nb) startPuzzle(nb)
+                  else {
+                    setScreen('remix')
+                    if (nxt) buildRemix(nxt, true)
+                  }
+                  return
+                }
+                if (endlessRef.current) {
+                  startEndless(endlessRef.current)
+                  return
+                }
+                startPuzzle(pickNextBoard(puzzle, PUZZLES, getProgress().clears))
+              }}
               onReplay={resetBoard}
               onLevels={() => setScreen('levels')}
               onHome={() => setScreen('home')}
@@ -2615,6 +2755,29 @@ export default function App() {
             )
           )}
         </main>
+      )}
+
+      {screen === 'remix' && (
+        <>
+          <RemixScreen
+            set={remixSet}
+            msLeft={remixMsLeft}
+            boards={liveRemix}
+            building={remixBuilding}
+            failed={remixFailed}
+            levelInfo={(id) => {
+              const lv = records.levels[id]
+              return lv ? { stars: lv.stars ?? 0, bestMs: lv.bestMs } : undefined
+            }}
+            formatMs={formatMs}
+            starString={starString}
+            onOpenBoard={openRemix}
+            endless={endless}
+            endlessBusy={endlessBusy}
+            onEndless={startEndless}
+          />
+          {startSheetEl}
+        </>
       )}
 
       {screen === 'stable' && (
