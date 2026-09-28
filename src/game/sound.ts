@@ -13,18 +13,22 @@ import {
   type VoiceLineId,
   type VoiceMood,
 } from './voiceLines'
+import { boardEndCancel, clipEndsAt, decideVoice, replacesWaiting, type ChannelLine } from './voiceChannel'
 
 let ctx: AudioContext | null = null
 let muted = false
 let voiceEnabled = true
 
-/** Old-timer only. Pitch stays natural (preservesPitch); Roman and the coach are unchanged. */
-const OLDTIMER_PLAYBACK_RATE = 1.15
+/**
+ * Old-timer only. Pitch stays natural (preservesPitch), so he keeps his deep gruff voice; Roman and
+ * the coach are unchanged. 9.30-e (Tony): about 11% quicker than 9.30-d's 1.15.
+ */
+export const OLDTIMER_PLAYBACK_RATE = 1.28
 
 /** The one and only voice player. Reused for every line (and unlocked on the first tap for iOS). */
 let voiceEl: HTMLAudioElement | null = null
 /** Line currently requested/playing on the channel (null = channel free) */
-let currentLine: { priority: number; gen: number } | null = null
+let currentLine: ({ gen: number } & ChannelLine) | null = null
 /**
  * performance.now() when the channel last became free with voices allowed.
  * 0 means "not counting" (busy, muted, voice off, or the clock was just reset).
@@ -393,6 +397,7 @@ function stopVoice() {
   el.onended = null
   el.onerror = null
   el.onpause = null
+  el.onloadedmetadata = null
   try {
     el.pause()
   } catch {
@@ -401,13 +406,20 @@ function stopVoice() {
 }
 
 /**
- * 9.29-a: a board just ended. Drop any line still waiting for the channel and cut a line that is
- * playing below `minPriority`, so a stall/wrong/undo/old-timer line queued a moment earlier can't
- * play over (or after) the win or lose line.
+ * 9.29-a: a board just ended. Drop any line still WAITING for the channel below `minPriority`, so a
+ * stall/wrong/undo/old-timer line queued a moment earlier can't play after the win or lose line.
+ * 9.30-e: a line that is already playing is never cut (the old-timer finishes his sentence; the
+ * win/lose line waits for him). Only one still loading (not heard yet) is dropped.
  */
 export function cancelVoiceBelow(minPriority: number) {
-  if (waitingLine && (waitingLine.opts.priority ?? 1) < minPriority) waitingLine = null
-  if (currentLine && currentLine.priority < minPriority) stopVoice()
+  const c = boardEndCancel(currentLine, waitingLine ? (waitingLine.opts.priority ?? 1) : null, minPriority)
+  if (c.dropWaiting) waitingLine = null
+  if (c.stopCurrent) stopVoice()
+}
+
+/** 9.30-e: a new board starts: lines queued on the last board don't play on this one (a line already playing still finishes) */
+export function dropWaitingVoice() {
+  waitingLine = null
 }
 
 export function setMuted(m: boolean) {
@@ -839,10 +851,11 @@ export function playVoice(id: string, opts: PlayVoiceOpts = {}) {
   const queue = [id, ...(opts.alts ?? [])].filter((clip, i, all) => isPlayableVoiceClip(clip) && all.indexOf(clip) === i).slice(0, 5)
   if (!queue.length) return
   const priority = opts.priority ?? 1
-  if (currentLine && priority <= currentLine.priority) {
-    if (opts.waitMs && (!waitingLine || priority >= (waitingLine.opts.priority ?? 1))) {
-      waitingLine = { id, opts, until: performance.now() + opts.waitMs }
-    }
+  // 9.30-e: a line that has started always finishes; higher lines wait their turn (or go stale)
+  const d = decideVoice(currentLine, { priority, waitMs: opts.waitMs }, performance.now())
+  if (d.kind === 'skip') return
+  if (d.kind === 'wait') {
+    if (replacesWaiting(waitingLine ? (waitingLine.opts.priority ?? 1) : null, priority)) waitingLine = { id, opts, until: d.until }
     return
   }
   if (waitingLine && priority >= (waitingLine.opts.priority ?? 1)) waitingLine = null
@@ -851,9 +864,10 @@ export function playVoice(id: string, opts: PlayVoiceOpts = {}) {
 
   stopVoice()
   const gen = voiceGeneration
-  currentLine = { priority, gen }
+  currentLine = { priority, gen, audible: false, endsAt: 0 }
   voiceFreeSince = 0
-  // Safety net: never hold the channel forever if the browser drops an 'ended' event
+  // Safety net while loading: never hold the channel forever if a clip never starts. Once it plays,
+  // this is replaced by one sized to the clip (so the channel isn't freed while he's still talking).
   voiceSafetyTimer = window.setTimeout(() => releaseVoice(gen), 12000)
   const { rate, volume } = moodPlayback(opts.mood ?? (roleForClip(id) === 'roman' ? 'excited' : 'neutral'))
   void playClipQueue(el, queue, gen, rate, volume)
@@ -878,12 +892,15 @@ async function playClipQueue(el: HTMLAudioElement, queue: string[], gen: number,
       const media = el as HTMLAudioElement & { webkitPreservesPitch?: boolean }
       media.preservesPitch = true
       media.webkitPreservesPitch = true
+      // default rate too: a src swap resets playbackRate to it on some iOS versions
+      media.defaultPlaybackRate = OLDTIMER_PLAYBACK_RATE
       media.playbackRate = OLDTIMER_PLAYBACK_RATE
       el.volume = Math.min(1, volume * 1.05)
     } else {
       el.playbackRate = Math.min(1.2, Math.max(0.85, rate))
       el.volume = volume
     }
+    if (role !== 'oldtimer') el.defaultPlaybackRate = el.playbackRate
     let ok = false
     let refused = false
     try {
@@ -897,6 +914,19 @@ async function playClipQueue(el: HTMLAudioElement, queue: string[], gen: number,
     if (gen !== voiceGeneration) return
     if (refused) break
     if (ok) {
+      // Heard now: nothing may cut it. Size the safety net to what's left of the clip at this rate.
+      const markPlaying = () => {
+        if (gen !== voiceGeneration || !currentLine) return
+        if (role === 'oldtimer' && Math.abs(el.playbackRate - OLDTIMER_PLAYBACK_RATE) > 0.01) el.playbackRate = OLDTIMER_PLAYBACK_RATE
+        const now = performance.now()
+        currentLine.audible = true
+        currentLine.endsAt = clipEndsAt(now, el.duration, el.playbackRate, el.duration - el.currentTime)
+        clearVoiceSafety()
+        const left = currentLine.endsAt ? currentLine.endsAt - now : 20000
+        voiceSafetyTimer = window.setTimeout(() => releaseVoice(gen), left + 2500)
+      }
+      markPlaying()
+      el.onloadedmetadata = markPlaying
       const done = () => releaseVoice(gen)
       el.onended = done
       el.onerror = done
