@@ -1,3 +1,5 @@
+import { useLongPress } from './components/useLongPress'
+import { OWNER_LONG_PRESS_MS, OWNER_PATH } from './game/longPress'
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Board } from './components/Board'
@@ -943,6 +945,9 @@ export default function App() {
     setPets(next)
     savePets(next)
   }
+
+  /** 9.30-c: hidden way to the owner page: hold the home title 5 s (still needs the passphrase) */
+  const ownerDoor = useLongPress(OWNER_LONG_PRESS_MS, () => window.location.assign(OWNER_PATH), !isStoreBuild())
 
   /** 9.30-a: buddy actions from The Stable */
   function onAdoptPet(id: PetId) {
@@ -2162,7 +2167,9 @@ export default function App() {
         <main className="home scroll-pane">
           <section className="hero">
             <p className="eyebrow">Logic puzzle</p>
-            <h1 className="logo-hero">Roman</h1>
+            <h1 className="logo-hero no-callout" {...ownerDoor}>
+              Roman
+            </h1>
             <p className="lede">
               Drop animated buddies — one per row, column, and region. They hate cuddling (even corners).
             </p>
