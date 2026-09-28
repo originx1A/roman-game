@@ -1,6 +1,6 @@
 import type { Puzzle, Difficulty } from './types'
 import { generateRandomPuzzle } from './generatePuzzle'
-import { getGeneratedPuzzle, rememberGeneratedPuzzle } from './storage'
+import { getGeneratedPuzzle, getRemixBoard, rememberGeneratedPuzzle } from './storage'
 
 export const PUZZLES: Puzzle[] = [
   {
@@ -166,7 +166,7 @@ export const PUZZLES: Puzzle[] = [
 ]
 
 export function getPuzzle(id: string): Puzzle | undefined {
-  return PUZZLES.find((p) => p.id === id) ?? getGeneratedPuzzle(id)
+  return PUZZLES.find((p) => p.id === id) ?? getRemixBoard(id) ?? getGeneratedPuzzle(id)
 }
 
 export function puzzlesByDifficulty(): Record<Difficulty, Puzzle[]> {
@@ -198,8 +198,8 @@ export function createFreshPuzzle(difficulty: Difficulty): Puzzle {
   // Clone with a unique id so progress treats it as a new run
   const clone: Puzzle = {
     ...pick,
-    id: `remix-${pick.id}-${Date.now().toString(36)}`,
-    name: `${pick.name} Remix`,
+    id: `shuffle-${pick.id}-${Date.now().toString(36)}`,
+    name: `${pick.name} Shuffle`,
     regions: [...pick.regions],
     solution: [...pick.solution],
   }

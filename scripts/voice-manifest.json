@@ -53,6 +53,24 @@
     "pitch": "+6Hz",
     "text": "Look at that shiny badge!"
   },
+  "coach_daily_done": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Daily challenge done. See you tomorrow!"
+  },
+  "coach_daily_great": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Today's board is done. Great job!"
+  },
+  "coach_daily_streak": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Another day, another win. Keep the streak going!"
+  },
   "coach_hint_clue": {
     "voice": "en-US-JennyNeural",
     "rate": "+10%",
@@ -113,6 +131,18 @@
     "pitch": "+6Hz",
     "text": "That one was tricky. Next time!"
   },
+  "coach_notbest_breath": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Board done! Not quite your best. Take a breath and go again."
+  },
+  "coach_notbest_chase": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Nice clear. Your best time is still out there to chase."
+  },
   "coach_notbest_clear": {
     "voice": "en-US-JennyNeural",
     "rate": "+10%",
@@ -125,6 +155,30 @@
     "pitch": "+6Hz",
     "text": "Nice finish. Not a new best this time, but the next one could be."
   },
+  "coach_notbest_okay": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "You won. A bit slower this time, and that's okay."
+  },
+  "coach_notbest_practice": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Cleared it. Slower than your best, but every run is practice."
+  },
+  "coach_notbest_safe": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Good win. Your record's safe for now. You'll get it."
+  },
+  "coach_notbest_stands": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Board cleared! Your best time still stands. Try again?"
+  },
   "coach_prize_ooh": {
     "voice": "en-US-JennyNeural",
     "rate": "+10%",
@@ -136,6 +190,72 @@
     "rate": "+10%",
     "pitch": "+6Hz",
     "text": "Let's see what you got!"
+  },
+  "coach_record_best": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "New best time. Amazing work!"
+  },
+  "coach_record_faster": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "That's your fastest yet. Well done!"
+  },
+  "coach_record_practice": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "New record. All that practice is paying off!"
+  },
+  "coach_record_proud": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "A new record! You should be proud."
+  },
+  "coach_stash_bonus": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "That's the whole stash. Enjoy the bonus!"
+  },
+  "coach_stash_complete": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Critter stash complete. Nice catching!"
+  },
+  "coach_stash_five": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "All five sparks! Bonus unlocked!"
+  },
+  "coach_stash_sparkle": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Five for five! Time to sparkle."
+  },
+  "coach_trial_clear": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "You cleared the Trial. Double coins for you!"
+  },
+  "coach_trial_clock": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "You beat the clock! Great focus."
+  },
+  "coach_trial_steady": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Trial complete. Nice and steady under pressure."
   },
   "cosmic": {
     "voice": "en-US-JennyNeural",
@@ -290,6 +410,27 @@
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "Is it Tuesday? Feels like a Tuesday."
+  },
+  "old_daily_everyday": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Every day, huh? Even I don't show up every day."
+  },
+  "old_daily_paper": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Daily done. Now I can read my paper in peace."
+  },
+  "old_daily_tomorrow": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "That's today's. Come back tomorrow. I'll still be here. Probably."
   },
   "old_good_accident": {
     "voice": "en-AU-WilliamMultilingualNeural",
@@ -711,12 +852,54 @@
     "post": "rasp-v1",
     "text": "New record, huh. Don't let it go to your head."
   },
+  "old_record_luck": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "A new best? Beginner's luck. Probably. Maybe."
+  },
+  "old_record_nap": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "New record. I didn't even get to finish my nap."
+  },
+  "old_record_pencil": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Fine, it's a record. I'll write it down. Where'd I put my pencil?"
+  },
+  "old_record_rocking": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "That was quick. My rocking chair's still rocking."
+  },
+  "old_record_showoff": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "New record. Back in my day we called that showing off."
+  },
   "old_record_tea": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "Faster than last time. I nearly spilled my tea."
+  },
+  "old_record_teeth": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Faster than ever. I almost dropped my teeth."
   },
   "old_rescue_cat": {
     "voice": "en-AU-WilliamMultilingualNeural",
@@ -759,6 +942,27 @@
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "Rescue, huh. Nothing says confidence like a refund."
+  },
+  "old_trial_candy": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Double coins, eh? Don't spend it all on candy."
+  },
+  "old_trial_complaint": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Beat the clock, did ya? The clock's filing a complaint."
+  },
+  "old_trial_huh": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "You beat the Trial. Huh. Didn't see that coming."
   },
   "old_undo_aging": {
     "voice": "en-AU-WilliamMultilingualNeural",
@@ -1202,11 +1406,41 @@
     "pitch": "-6Hz",
     "text": "Roman says: no cuddling \u2014 even corners count!"
   },
+  "roman_daily_calendar": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: daily challenge crushed! Mark the calendar."
+  },
+  "roman_daily_cook": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: that's today's board. Roman will cook up a new one tomorrow."
+  },
   "roman_daily_done": {
     "voice": "en-US-BrianNeural",
     "rate": "-8%",
     "pitch": "-6Hz",
     "text": "Roman says: daily challenge, done! See you tomorrow."
+  },
+  "roman_daily_sametime": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: done for today! Same time tomorrow?"
+  },
+  "roman_daily_snack": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: daily done! Go have a snack. You earned it."
+  },
+  "roman_daily_streak": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: daily done! Keep that streak rolling."
   },
   "roman_dance": {
     "voice": "en-US-BrianNeural",
@@ -1576,11 +1810,47 @@
     "pitch": "-6Hz",
     "text": "Roman says: new record! Somebody write that down!"
   },
+  "roman_record_clock": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: the clock can't even keep up with you!"
+  },
   "roman_record_faster": {
     "voice": "en-US-BrianNeural",
     "rate": "-8%",
     "pitch": "-6Hz",
     "text": "Roman says: faster than ever. I've got goosebumps!"
+  },
+  "roman_record_fireworks": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: new best time! Cue the fireworks!"
+  },
+  "roman_record_fridge": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: new record! That's going on the fridge."
+  },
+  "roman_record_notes": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: record smashed. Roman is taking notes."
+  },
+  "roman_record_socks": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: new record! You knocked my socks off. Both of them."
+  },
+  "roman_record_zoom": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: zoom! You just beat your old self."
   },
   "roman_retry": {
     "voice": "en-US-BrianNeural",
@@ -1725,6 +1995,36 @@
     "rate": "-8%",
     "pitch": "-6Hz",
     "text": "Roman says: you survived Roman's Trial! Double coins!"
+  },
+  "roman_trial_coins": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: Trial cleared! Double coins, coming right up."
+  },
+  "roman_trial_crown": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: Trial champion! Roman will make you a paper crown."
+  },
+  "roman_trial_harder": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: you survived! Roman needs a harder Trial."
+  },
+  "roman_trial_shocked": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: you beat Roman's Trial! Roman is shocked. Shocked!"
+  },
+  "roman_trial_unfair": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: you beat the clock AND my Trial. Not fair!"
   },
   "roman_trumpet": {
     "voice": "en-US-BrianNeural",

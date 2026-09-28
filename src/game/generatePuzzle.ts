@@ -167,7 +167,7 @@ function growRegions(size: number, stones: number[], rng: () => number): number[
   return regions
 }
 
-function countSolutions(regions: number[], size: number, limit = 2): number {
+export function countSolutions(regions: number[], size: number, limit = 2): number {
   const n = size * size
   const cellsByRegion: number[][] = Array.from({ length: size }, () => [])
   for (let i = 0; i < n; i++) cellsByRegion[regions[i]].push(i)
