@@ -1,5 +1,5 @@
-import { useLongPress } from './components/useLongPress'
-import { OWNER_LONG_PRESS_MS, OWNER_PATH } from './game/longPress'
+import { useTapCount } from './components/useTapCount'
+import { OWNER_PATH, OWNER_TAP_WINDOW_MS, OWNER_TAPS } from './game/ownerDoor'
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Board } from './components/Board'
@@ -946,8 +946,8 @@ export default function App() {
     savePets(next)
   }
 
-  /** 9.30-c: hidden way to the owner page: hold the home title 5 s (still needs the passphrase) */
-  const ownerDoor = useLongPress(OWNER_LONG_PRESS_MS, () => window.location.assign(OWNER_PATH), !isStoreBuild())
+  /** 9.30-d: hidden way to the owner page: 7 quick taps on the home title within 3 s (still needs the passphrase) */
+  const ownerDoor = useTapCount(OWNER_TAPS, OWNER_TAP_WINDOW_MS, () => window.location.assign(OWNER_PATH), !isStoreBuild())
 
   /** 9.30-a: buddy actions from The Stable */
   function onAdoptPet(id: PetId) {
@@ -2165,7 +2165,7 @@ export default function App() {
 
       {screen === 'home' && (
         <main className="home scroll-pane">
-          <section className="hero">
+          <section className="hero no-callout">
             <p className="eyebrow">Logic puzzle</p>
             <h1 className="logo-hero no-callout" {...ownerDoor}>
               Roman

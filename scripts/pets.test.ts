@@ -320,27 +320,26 @@ test('9.30-b bundles: coin prices (15% / 20% off), only missing buddies, coins o
   assert.ok(r2.ok && r2.state.owned.leo?.xp === 40 && r2.state.trial === null && r2.state.active === 'invictus')
 })
 
-test('9.30-c: owner door long-press: fires only after holding still, taps and drags never fire', async () => {
-  const L = await import('../src/game/longPress.ts')
-  let t: { fn: () => void; ms: number } | null = null
+test('9.30-d: owner door: 7 quick taps within 3 s open it; slow taps and single taps never do', async () => {
+  const D = await import('../src/game/ownerDoor.ts')
+  let t = 0
   let fired = 0
-  const lp = L.createLongPress({ ms: L.OWNER_LONG_PRESS_MS, onFire: () => fired++, setTimer: (fn, ms) => (t = { fn, ms }), clearTimer: () => (t = null) })
-  const at = (x: number, y = 0, button = 0) => ({ pointerId: 1, clientX: x, clientY: y, button, isPrimary: true })
-  lp.down(at(0))
-  assert.equal(t!.ms, 5000)
-  lp.up(at(0)) // a normal tap
-  assert.equal(t, null)
-  lp.down(at(0))
-  lp.move(at(30)) // a scroll / drag
-  assert.equal(t, null)
-  lp.down(at(0, 0, 2)) // right click
-  assert.equal(t, null)
-  lp.down(at(0))
-  lp.move(at(5, 5)) // a little finger wobble is fine
-  t!.fn()
+  const tc = D.createTapCounter({ count: D.OWNER_TAPS, windowMs: D.OWNER_TAP_WINDOW_MS, onFire: () => fired++, now: () => t })
+  assert.equal(tc.tap(), false) // a normal single tap
+  assert.equal(fired, 0)
+  t = 10_000
+  for (let i = 0; i < 6; i++) (tc.tap(), (t += 400)) // 6 taps: not yet
+  assert.equal(fired, 0)
+  t += 3000 // too slow: the window slides past the old taps
+  for (let i = 0; i < 6; i++) (tc.tap(), (t += 450))
+  assert.equal(fired, 0)
+  tc.tap() // 7th within 3 s
   assert.equal(fired, 1)
-  assert.equal(lp.holding, false)
-  assert.equal(L.OWNER_PATH, '/roman-owner')
+  assert.equal(tc.taps, 0, 'resets after opening')
+  t += 100
+  for (let i = 0; i < 7; i++) (tc.tap(), (t += 600)) // 7 taps spread over 3.6 s: no
+  assert.equal(fired, 1)
+  assert.equal(D.OWNER_PATH, '/roman-owner')
   const m = JSON.parse(readFileSync(new URL('../public/owner.webmanifest', import.meta.url), 'utf8'))
   assert.equal(m.start_url, '/roman-owner')
 })
