@@ -3499,3 +3499,1654 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
 .shell-celebrate .win-screen-card {
   margin-top: 2.6rem;
 }
+
+/* ——— Phone Undo hardening (build 9.26-c, kept in 9.26-d) ——— */
+/* The toolbar sits above the spark critter (z 25) and anything else on the play layer,
+   so a moving sprite can never take an Undo/Redo tap. Modal overlays (win, lose, wheel,
+   shortfall) stay above it on purpose; Undo is disabled while they are up. */
+.play-toolbar {
+  position: relative;
+  z-index: 30 !important;
+}
+.play-toolbar .btn,
+.tap-button {
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.play-toolbar .btn * {
+  pointer-events: none;
+}
+.toast,
+.confetti-layer,
+.hint-line,
+.build-tag {
+  pointer-events: none;
+}
+
+.build-tag {
+  margin: 0.2rem 0 0;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgba(244, 251, 255, 0.5);
+  text-align: center;
+  flex-shrink: 0;
+  line-height: 1.2;
+}
+.build-tag-foot {
+  display: inline;
+  margin-left: 0.4rem;
+  font-size: 0.7rem;
+}
+
+/* Board must fit the stage on every phone. WebKit sized the stage's implicit grid track
+   from the board's 520px cap (the % width resolved against that track), drawing a 520px
+   board in a 371px stage on iPhone 13. Pin the track to the stage and cap by viewport too. */
+.board-stage {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+.play-fixed .board {
+  width: min(100%, 520px, calc(100vw - 1.25rem), calc(var(--app-height, 100svh) - 9.5rem)) !important;
+  max-width: min(100%, calc(100vw - 1.25rem)) !important;
+  max-height: min(100%, calc(var(--app-height, 100svh) - 9.5rem), 520px) !important;
+  justify-self: center;
+  align-self: center;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+}
+
+/* ——— Compact win screen (build 9.26-d): one phone screen, no page scroll ———
+   Sized to the visible viewport (dvh, so Safari's toolbars are respected). Title, stats and
+   Roman's line sit in a body that only scrolls on its own if a tiny screen still can't fit it;
+   Next board / Share / Play again stay pinned at the bottom of the card. */
+.win-screen {
+  --win-pad-t: max(0.6rem, env(safe-area-inset-top, 0px));
+  --win-pad-b: max(0.6rem, env(safe-area-inset-bottom, 0px));
+  --win-gap-top: 0px;
+  --win-vh: var(--app-height, 100svh);
+  height: var(--win-vh);
+  padding: var(--win-pad-t) 0.75rem var(--win-pad-b);
+  overflow: hidden;
+}
+@supports (height: 100dvh) {
+  .win-screen {
+    --win-vh: 100dvh;
+  }
+}
+/* Room above the card for the toast (see "Toast placement" above) */
+.shell-celebrate .win-screen {
+  --win-gap-top: 2.4rem;
+}
+.shell-celebrate .win-screen-card,
+.win-screen-card {
+  margin-top: var(--win-gap-top);
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 400px);
+  max-height: calc(var(--win-vh) - var(--win-pad-t) - var(--win-pad-b) - var(--win-gap-top));
+  overflow: hidden;
+  padding: 0.85rem 0.9rem 0.8rem;
+  border-radius: 24px;
+}
+.win-screen-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+.win-screen-title {
+  margin: 0 0 0.15rem;
+  font-size: clamp(1.9rem, 8.5vw, 2.5rem);
+  text-shadow: 0 3px 0 #c48900, 0 8px 22px #ffd16655;
+}
+.win-screen-kicker {
+  margin: 0 0 0.5rem;
+  font-size: 0.66rem;
+}
+.win-screen-kicker .win-screen-board {
+  font-size: inherit;
+  color: var(--foam);
+}
+.win-roman-says {
+  margin: 0 0 0.45rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 12px;
+  font-size: clamp(0.82rem, 3.4vw, 0.92rem);
+  line-height: 1.3;
+}
+.win-perfect {
+  margin: 0 0 0.45rem;
+  font-size: 0.74rem;
+}
+.win-stats,
+.win-stats[aria-label] {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.3rem;
+  margin: 0 0 0.6rem;
+}
+.win-stat {
+  padding: 0.35rem 0.15rem;
+  border-radius: 10px;
+}
+.win-stat-label {
+  font-size: 0.54rem;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.1rem;
+}
+.win-stat-value {
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+.win-screen-actions {
+  flex-shrink: 0;
+  gap: 0.4rem;
+}
+.win-screen-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+.win-screen-actions .win-cta {
+  padding-top: 0.6rem;
+  padding-bottom: 0.6rem;
+  min-height: 44px;
+}
+.win-screen-row .win-cta {
+  padding-left: 0.4rem;
+  padding-right: 0.4rem;
+  font-size: 0.9rem;
+}
+.win-screen-secondary {
+  margin-top: 0;
+}
+.win-screen-secondary .btn {
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
+  min-height: 36px;
+}
+@media (max-width: 380px) {
+  .win-stats,
+  .win-stats[aria-label] {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .win-screen-card {
+    padding: 0.75rem 0.75rem 0.7rem;
+  }
+}
+@media (max-height: 600px) {
+  .win-screen-title {
+    font-size: clamp(1.6rem, 7.5vw, 2.1rem);
+  }
+  .win-roman-says {
+    font-size: 0.8rem;
+  }
+}
+/* An odd extra action (Spin prize, Head-to-head) takes the full row */
+.win-screen-row > .win-cta:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+/* ——— Still play screen on iPhone (build 9.26-e) ———
+   While a board is up the document itself cannot scroll, bounce or pinch-zoom: html/body are
+   pinned, overscroll is off, and the play layer takes no pan/zoom gestures. Taps still work.
+   The Victory card body and overlay sheets keep their own inner scrolling. */
+html.play-locked,
+html.play-locked body {
+  overflow: hidden;
+  overscroll-behavior: none;
+  height: 100%;
+}
+html.play-locked body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+}
+html.play-locked #root {
+  height: 100%;
+  overflow: hidden;
+}
+.shell-play,
+.shell-play .play-fixed {
+  overscroll-behavior: none;
+  touch-action: none;
+}
+.shell-play .play-toolbar .btn,
+.shell-play .tap-button,
+.shell-play .hud-back,
+.shell-play .spark-critter {
+  touch-action: none;
+}
+.shell-play .win-screen-body,
+.shell-play .result-overlay,
+.shell-play .shortfall-overlay {
+  touch-action: pan-y;
+}
+.shell-play .win-screen .btn,
+.shell-play .result-overlay .btn,
+.shell-play .shortfall-overlay .btn {
+  touch-action: manipulation;
+}
+/* Character lines / notices / hint text: fixed two-line slot above the board (no reflow, no overlap) */
+.play-caption {
+  flex-shrink: 0;
+  width: 100%;
+  max-width: 520px;
+  height: 2.6em;
+  margin: 0.1rem auto 0.3rem;
+  padding: 0 0.35rem;
+  font-size: clamp(0.72rem, 3.3vw, 0.82rem);
+  font-weight: 800;
+  line-height: 1.3;
+  text-align: center;
+  color: rgba(244, 251, 255, 0.85);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  pointer-events: none;
+  position: relative;
+  z-index: 2;
+}
+.play-caption.is-voice {
+  color: var(--sun);
+}
+.play-caption.is-empty {
+  visibility: hidden;
+}
+/* Board height budget includes the hint slot and build label */
+.play-fixed .board {
+  width: min(100%, 520px, calc(100vw - 1.25rem), calc(var(--app-height, 100svh) - 11.5rem)) !important;
+  max-height: min(100%, calc(var(--app-height, 100svh) - 11.5rem), 520px) !important;
+}
+/* Keep the board square even when the stage is height-bound (short Safari viewports) */
+@supports (width: 1cqw) {
+  .play-fixed .board-stage {
+    container-type: size;
+  }
+  .play-fixed .board {
+    width: min(100cqw, 100cqh, 520px) !important;
+    max-width: 100cqw !important;
+    max-height: min(100cqh, 520px) !important;
+  }
+}
+
+/* ---------- 9.27-a Buddy meter (win screen) ---------- */
+.buddy-meter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0 0 0.55rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 12px;
+  background: rgba(61, 255, 168, 0.08);
+  border: 1px solid rgba(61, 255, 168, 0.25);
+  font-size: 0.7rem;
+  line-height: 1.2;
+}
+.buddy-meter-label {
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.6rem;
+  color: var(--mint);
+}
+.buddy-meter-notches {
+  display: inline-flex;
+  gap: 0.28rem;
+}
+.buddy-meter-notches i {
+  width: 1.35rem;
+  height: 0.6rem;
+  border-radius: 999px;
+  background: rgba(244, 251, 255, 0.14);
+  border: 1px solid rgba(244, 251, 255, 0.25);
+}
+.buddy-meter-notches i.on {
+  background: linear-gradient(90deg, var(--mint), var(--sun));
+  border-color: transparent;
+  box-shadow: 0 0 8px rgba(61, 255, 168, 0.5);
+}
+.buddy-meter-notches i.new {
+  animation: meterNotch 0.7s 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes meterNotch {
+  from { transform: scaleX(0.2); opacity: 0.3; }
+  to { transform: none; opacity: 1; }
+}
+.buddy-meter-hint {
+  opacity: 0.8;
+  white-space: nowrap;
+}
+.buddy-meter.is-full {
+  background: rgba(255, 209, 102, 0.12);
+  border-color: rgba(255, 209, 102, 0.5);
+}
+.buddy-meter.is-full .buddy-meter-hint {
+  color: var(--sun);
+  font-weight: 800;
+  opacity: 1;
+}
+.win-cta.win-hunt {
+  background: linear-gradient(135deg, var(--mint), var(--sun));
+  color: var(--ink);
+  animation: huntPulse 1.6s ease-in-out infinite;
+}
+@keyframes huntPulse {
+  50% { box-shadow: 0 0 0 4px rgba(61, 255, 168, 0.25), 0 0 22px rgba(255, 209, 102, 0.45); }
+}
+
+/* ---------- 9.27-a Buddy Hunt round ---------- */
+.buddy-hunt {
+  --hunt-pad-t: max(0.6rem, env(safe-area-inset-top, 0px));
+  --hunt-pad-b: max(0.6rem, env(safe-area-inset-bottom, 0px));
+  --hunt-vh: var(--app-height, 100svh);
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 72;
+  height: var(--hunt-vh);
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  padding: var(--hunt-pad-t) 0.75rem var(--hunt-pad-b);
+  overflow: hidden;
+  touch-action: none;
+  overscroll-behavior: none;
+  background:
+    radial-gradient(ellipse 80% 55% at 50% 18%, #3dffa833, transparent 55%),
+    #030a1ef5;
+}
+@supports (height: 100dvh) {
+  .buddy-hunt { --hunt-vh: 100dvh; }
+}
+.buddy-hunt-card {
+  /* room above for the voice toast, like the win screen */
+  margin-top: 2.4rem;
+  width: min(100%, 380px);
+  max-height: calc(var(--hunt-vh) - var(--hunt-pad-t) - var(--hunt-pad-b) - 2.4rem);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: 24px;
+  text-align: center;
+  background: linear-gradient(165deg, #0d1f44f5 0%, #07122af7 55%, #0a1838f5 100%);
+  border: 1px solid #3dffa866;
+  box-shadow: 0 28px 60px #000000a6;
+  animation: 0.45s cubic-bezier(0.22, 1, 0.36, 1) both winCardIn;
+}
+.buddy-hunt-title {
+  margin: 0;
+  font-size: clamp(1.6rem, 7vw, 2.1rem);
+  line-height: 1.05;
+  color: var(--sun);
+  text-shadow: 0 3px 0 #c48900;
+}
+.buddy-hunt-sub {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+.buddy-hunt-status {
+  display: flex;
+  gap: 1.1rem;
+  margin: 0;
+  font-size: 0.82rem;
+}
+.buddy-hunt-status strong {
+  color: var(--mint);
+  font-size: 1rem;
+}
+.buddy-hunt-grid {
+  --hunt-grid: min(100%, 300px, calc(var(--hunt-vh) - var(--hunt-pad-t) - var(--hunt-pad-b) - 17rem));
+  width: var(--hunt-grid);
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(var(--hg, 4), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--hg, 4), minmax(0, 1fr));
+  gap: 6px;
+}
+.buddy-hunt-tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border-radius: 12px;
+  border: 1px solid rgba(244, 251, 255, 0.18);
+  background: rgba(244, 251, 255, 0.06);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.buddy-hunt-tile > * { pointer-events: none; }
+.buddy-hunt-tile:disabled { cursor: default; opacity: 1; }
+.buddy-hunt-back,
+.how-hunt-back {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  color: var(--sun);
+  background: linear-gradient(145deg, #1a6dff 0%, #5a3dff 100%);
+  border-radius: inherit;
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.25);
+}
+.buddy-hunt-tile .buddy { width: 68%; height: 68%; }
+.buddy-hunt-tile.is-buddy {
+  background: rgba(61, 255, 168, 0.2);
+  border-color: var(--mint);
+  animation: huntFlipIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.buddy-hunt-tile.is-empty {
+  background: rgba(244, 251, 255, 0.03);
+  border-style: dashed;
+  animation: huntFlipIn 0.3s ease both;
+}
+.buddy-hunt-tile.is-missed { opacity: 0.45; }
+@keyframes huntFlipIn {
+  from { transform: rotateY(80deg) scale(0.9); }
+  to { transform: none; }
+}
+.buddy-hunt-result {
+  margin: 0;
+  min-height: 2.5em;
+  max-height: 2.5em;
+  display: grid;
+  place-items: center;
+  font-size: 0.86rem;
+  line-height: 1.25;
+  font-weight: 800;
+  color: var(--sun);
+}
+.buddy-hunt-done {
+  width: 100%;
+  min-height: 2.9rem;
+  touch-action: manipulation;
+}
+.buddy-hunt-done:disabled { opacity: 0.5; }
+@media (max-height: 600px) {
+  .buddy-hunt-card { gap: 0.3rem; padding: 0.65rem 0.8rem; }
+  .buddy-hunt-grid { --hunt-grid: min(100%, 300px, calc(var(--hunt-vh) - var(--hunt-pad-t) - var(--hunt-pad-b) - 15.5rem)); }
+}
+
+/* ---------- 9.27-a How to play: Buddy Hunt demo ---------- */
+.how-demo-hunt {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.how-hunt-tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  border: 1px solid rgba(244, 251, 255, 0.18);
+  background: rgba(244, 251, 255, 0.05);
+  overflow: hidden;
+}
+.how-hunt-tile.is-buddy { background: rgba(61, 255, 168, 0.22); border-color: var(--mint); }
+.how-hunt-tile.is-empty { border-style: dashed; }
+.how-hunt-back { z-index: 3; }
+/* Animated: the tile only turns green / dashed as its cover flips away */
+.how-demo.is-animated .how-hunt-tile.is-buddy {
+  animation: howHuntFound 0.2s calc(var(--at, 0.5s) + 0.25s) linear both;
+}
+.how-demo.is-animated .how-hunt-tile.is-empty {
+  animation: howHuntMiss 0.2s calc(var(--at, 0.5s) + 0.25s) linear both;
+}
+@keyframes howHuntFound {
+  from { background: rgba(244, 251, 255, 0.05); border-color: rgba(244, 251, 255, 0.18); }
+  to { background: rgba(61, 255, 168, 0.22); border-color: var(--mint); }
+}
+@keyframes howHuntMiss {
+  from { border-style: solid; }
+  to { border-style: dashed; }
+}
+.how-hunt-tile .buddy { width: 66%; height: 66%; }
+/* Still frame (reduced motion): flipped tiles already show their face, so the demo is never blank */
+.how-hunt-tile.is-buddy .how-hunt-back,
+.how-hunt-tile.is-empty .how-hunt-back {
+  opacity: 0;
+}
+.how-demo.is-animated .how-hunt-tile.is-buddy .how-hunt-back,
+.how-demo.is-animated .how-hunt-tile.is-empty .how-hunt-back {
+  animation: howHuntFlip 0.45s var(--at, 0.5s) ease-in both;
+}
+.how-demo.is-animated .how-hunt-tile.is-buddy .buddy {
+  animation: howHuntPop 0.45s calc(var(--at, 0.5s) + 0.3s) cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes howHuntFlip {
+  from { opacity: 1; transform: none; }
+  60% { opacity: 1; transform: rotateY(90deg) scale(0.9); }
+  to { opacity: 0; transform: rotateY(90deg) scale(0.9); }
+}
+@keyframes howHuntPop {
+  from { transform: scale(0.2); }
+  to { transform: none; }
+}
+
+/* Short phones (SE with Safari bars): smaller demo so the longest tip stays above the footer */
+@media (max-height: 600px) {
+  .how-demo { width: min(100%, 200px); }
+  .how-panel .how-stage { gap: 0.5rem; padding: 0.6rem 0.75rem; }
+}
+
+/* ---------- 9.27-b: nothing wider than the screen ----------
+ * Rewards was clipped on the right on 320px-wide phones (Display Zoom): the coin shop's two
+ * cards had a ~331px minimum, the panel (a flex item) grew to fit it, and the shell's
+ * overflow-x: hidden cut it off instead of letting it wrap. Panels now never grow past the
+ * screen, grids can shrink, and the shop drops to one column on narrow screens. */
+.fixed-shell > main,
+.fixed-shell > .panel {
+  min-width: 0;
+  max-width: min(980px, 100%);
+  box-sizing: border-box;
+}
+.panel {
+  padding-left: max(1.25rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1.25rem, env(safe-area-inset-right, 0px));
+  overflow-wrap: anywhere;
+}
+.coin-shop {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.product-card { min-width: 0; }
+.product-card-foot { flex-wrap: wrap; }
+@media (max-width: 359px) {
+  .coin-shop { grid-template-columns: minmax(0, 1fr); }
+  .panel { padding-left: max(1rem, env(safe-area-inset-left, 0px)); padding-right: max(1rem, env(safe-area-inset-right, 0px)); }
+}
+
+/* ---------- 9.28-a: replay challenge (bests, ghost pace, stars, Trial, Daily) ---------- */
+.play-hud {
+  position: relative;
+}
+.hud-time {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  transition: background 0.25s ease, color 0.25s ease;
+}
+.hud-time.pace-ahead {
+  background: rgba(46, 204, 113, 0.22);
+  color: #7dffb0;
+}
+.hud-time.pace-behind {
+  background: rgba(255, 77, 77, 0.22);
+  color: #ff9c9c;
+}
+.hud-pace {
+  font-style: normal;
+  font-size: 0.62rem;
+  font-weight: 900;
+}
+.hud-countdown.is-low {
+  color: #ff8080;
+  animation: trialPulse 1s ease-in-out infinite;
+}
+@keyframes trialPulse {
+  50% { opacity: 0.55; }
+}
+/* thin ghost pace bar along the bottom edge of the HUD: takes no space, never moves the board */
+.ghost-bar {
+  position: absolute;
+  left: 2.2rem;
+  right: 0;
+  bottom: -0.2rem;
+  height: 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  pointer-events: none;
+}
+.ghost-bar i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 4px;
+  transition: width 0.25s linear;
+}
+.ghost-bar .ghost-fill {
+  background: rgba(255, 255, 255, 0.35);
+}
+.ghost-bar .me-fill {
+  height: 2px;
+  top: 1px;
+}
+.ghost-bar.ahead .me-fill {
+  background: #2ecc71;
+}
+.ghost-bar.behind .me-fill {
+  background: #ff5c5c;
+}
+
+/* level select */
+.lv-stars {
+  margin-left: 0.4rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.28);
+}
+.lv-stars.s1,
+.lv-stars.s2,
+.lv-stars.s3 {
+  color: var(--sun);
+}
+
+/* daily */
+.daily-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.75rem 0 1rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(255, 209, 102, 0.16), rgba(26, 109, 255, 0.14));
+  border: 1px solid rgba(255, 209, 102, 0.4);
+  min-width: 0;
+}
+.daily-text {
+  display: grid;
+  gap: 0.15rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.daily-text strong {
+  font-family: var(--font-display);
+  color: var(--sun);
+  font-size: 0.95rem;
+}
+.daily-text span {
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.daily-text .daily-status {
+  opacity: 0.7;
+  font-size: 0.72rem;
+}
+.daily-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* start sheet */
+.start-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: max(0.75rem, env(safe-area-inset-top)) 0.75rem max(0.75rem, env(safe-area-inset-bottom));
+}
+.start-sheet-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(3, 8, 20, 0.7);
+}
+.start-sheet-card {
+  position: relative;
+  width: min(100%, 380px);
+  max-height: 100%;
+  overflow-y: auto;
+  box-sizing: border-box;
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem 1.1rem;
+  border-radius: 20px;
+  background: #0d1f45;
+  border: 1px solid rgba(255, 209, 102, 0.4);
+  color: var(--foam);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.start-sheet-card h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  color: var(--sun);
+  font-size: 1.35rem;
+}
+.start-sheet-stars {
+  font-size: 1rem;
+  letter-spacing: 0.05em;
+}
+.start-sheet-meta {
+  margin: -0.35rem 0 0;
+  font-size: 0.75rem;
+  opacity: 0.7;
+  font-weight: 700;
+}
+.start-sheet-bests {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+.start-sheet-bests div {
+  display: grid;
+  padding: 0.45rem 0.6rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.start-sheet-bests span {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.7;
+  font-weight: 800;
+}
+.start-sheet-bests strong {
+  font-size: 1.15rem;
+}
+.start-sheet-goals {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.start-sheet-goals li {
+  opacity: 0.75;
+}
+.start-sheet-goals li.done {
+  opacity: 1;
+  color: var(--sun);
+}
+.start-sheet-tip,
+.start-sheet-locked {
+  margin: 0;
+  font-size: 0.72rem;
+  opacity: 0.7;
+  font-weight: 700;
+}
+.trial-btn {
+  display: grid;
+  gap: 0.1rem;
+  background: linear-gradient(135deg, #7a1f2b, #c0392b);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.trial-btn small {
+  font-size: 0.66rem;
+  opacity: 0.85;
+  font-weight: 700;
+}
+
+/* win screen extras */
+.win-replay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.6rem;
+  margin: 0 0 0.35rem;
+}
+.win-stars {
+  display: inline-flex;
+  gap: 0.1rem;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+.win-stars i {
+  font-style: normal;
+  color: rgba(255, 255, 255, 0.22);
+}
+.win-stars i.on {
+  color: var(--sun);
+  text-shadow: 0 0 10px rgba(255, 209, 102, 0.6);
+}
+.win-stars i.new {
+  animation: starPop 0.6s ease 0.4s both;
+}
+@keyframes starPop {
+  0% { transform: scale(0.2); opacity: 0; }
+  70% { transform: scale(1.35); opacity: 1; }
+  100% { transform: scale(1); }
+}
+.win-record {
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-weight: 900;
+  font-size: 0.78rem;
+  background: rgba(255, 255, 255, 0.1);
+}
+.win-record.is-record {
+  background: linear-gradient(135deg, #ffe9a8, var(--gold));
+  color: #3a2500;
+  animation: starPop 0.6s ease 0.2s both;
+}
+.win-record.is-near {
+  background: rgba(255, 140, 60, 0.25);
+  color: #ffc49a;
+}
+.win-record.is-trial {
+  background: linear-gradient(135deg, #7a1f2b, #c0392b);
+  color: #fff;
+}
+.win-record.is-daily {
+  background: rgba(46, 204, 113, 0.25);
+  color: #9dffc4;
+}
+.win-replay-detail {
+  margin: 0 0 0.45rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  opacity: 0.8;
+  color: var(--sun);
+}
+@media (max-width: 359px) {
+  .daily-card {
+    flex-wrap: wrap;
+  }
+  /* narrow phones: the pace delta wins over the spark counter */
+  .hud-stats.has-pace .hud-stash {
+    display: none;
+  }
+}
+.name-input,
+.name-setting input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 16px; /* no iOS zoom on focus */
+  padding: 0.6rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--foam);
+}
+.name-setting {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0 0 0.75rem;
+  font-weight: 700;
+}
+
+/* ===== 9.28-b: tile shape marks (color is never the only cue) ===== */
+.tile-mark {
+  position: absolute;
+  z-index: 1;
+  top: 7%;
+  left: 7%;
+  width: 22%;
+  height: 22%;
+  min-width: 7px;
+  min-height: 7px;
+  max-width: 14px;
+  max-height: 14px;
+  pointer-events: none;
+  opacity: 0.5;
+  transition: opacity 0.2s ease;
+}
+.tile-mark svg { display: block; }
+.tile-mark.ink-light { color: rgba(255, 250, 238, 0.95); }
+.tile-mark.ink-dark { color: rgba(10, 22, 44, 0.8); }
+.tile-mark path { fill: currentColor; }
+/* Quieter under a buddy / X so the piece stays the focus */
+.cell.stone .tile-mark,
+.cell.mark .tile-mark { opacity: 0.32; }
+.board.board-win .tile-mark { opacity: 0.2; }
+
+/* ===== 9.28-b: Victory screen always fits one screen =====
+   Height = the real visible area (dvh / visualViewport, whichever is smaller), inside the
+   safe-area insets. WinScreen steps data-fit 0→4 until nothing overflows; each step shrinks
+   or hides something less important. Short landscape screens get a two-column card. */
+.win-screen {
+  --win-vh: min(100dvh, var(--app-height, 100dvh));
+  --win-pad-t: max(0.5rem, env(safe-area-inset-top, 0px));
+  --win-pad-b: max(0.5rem, env(safe-area-inset-bottom, 0px));
+  padding-left: max(0.6rem, env(safe-area-inset-left, 0px));
+  padding-right: max(0.6rem, env(safe-area-inset-right, 0px));
+}
+@supports not (height: 100dvh) {
+  .win-screen { --win-vh: var(--app-height, 100svh); }
+}
+.win-screen .win-screen-card { transition: padding 0.1s; }
+
+/* 1: tighter spacing, smaller title / stars */
+.win-screen[data-fit='1'] .win-screen-card,
+.win-screen[data-fit='2'] .win-screen-card,
+.win-screen[data-fit='3'] .win-screen-card,
+.win-screen[data-fit='4'] .win-screen-card { padding: 0.6rem 0.7rem 0.6rem; }
+.win-screen[data-fit='1'] .win-screen-title,
+.win-screen[data-fit='2'] .win-screen-title { font-size: 1.8rem; }
+.win-screen[data-fit='1'] .win-roman-says,
+.win-screen[data-fit='2'] .win-roman-says { padding: 0.3rem 0.5rem; font-size: 0.8rem; margin-bottom: 0.35rem; }
+.win-screen:not([data-fit='0']) .win-stars { font-size: 1.1rem; }
+.win-screen:not([data-fit='0']) .win-stats { margin-bottom: 0.4rem; }
+.win-screen:not([data-fit='0']) .win-stat { padding: 0.25rem 0.1rem; }
+.win-screen:not([data-fit='0']) .buddy-meter { margin-bottom: 0.4rem; padding: 0.2rem 0.5rem; }
+.win-screen:not([data-fit='0']) .win-screen-actions { gap: 0.32rem; }
+.win-screen:not([data-fit='0']) .win-screen-actions .win-cta { min-height: 42px; padding-top: 0.45rem; padding-bottom: 0.45rem; }
+.win-screen:not([data-fit='0']) .win-screen-secondary .btn { min-height: 34px; padding-top: 0.25rem; padding-bottom: 0.25rem; }
+
+/* 2: Roman's line to 2 lines (it's also spoken), Sparks/Hints stats go, meter hint goes */
+.win-screen[data-fit='2'] .win-roman-says,
+.win-screen[data-fit='3'] .win-roman-says {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.win-screen[data-fit='2'] .win-stat-minor,
+.win-screen[data-fit='3'] .win-stat-minor,
+.win-screen[data-fit='4'] .win-stat-minor { display: none; }
+.win-screen[data-fit='2'] .win-stats,
+.win-screen[data-fit='3'] .win-stats,
+.win-screen[data-fit='4'] .win-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.win-screen[data-fit='2'] .buddy-meter-hint,
+.win-screen[data-fit='3'] .buddy-meter-hint,
+.win-screen[data-fit='4'] .buddy-meter-hint { display: none; }
+
+/* 3: smaller title, one-line detail, Roman's line one line, stats labels inline */
+.win-screen[data-fit='3'] .win-screen-title,
+.win-screen[data-fit='4'] .win-screen-title { font-size: 1.5rem; text-shadow: 0 2px 0 #c48900; }
+.win-screen[data-fit='3'] .win-screen-kicker,
+.win-screen[data-fit='4'] .win-screen-kicker { margin-bottom: 0.25rem; font-size: 0.6rem; }
+.win-screen[data-fit='3'] .win-roman-says { -webkit-line-clamp: 1; font-size: 0.76rem; padding: 0.2rem 0.45rem; margin-bottom: 0.25rem; }
+.win-screen[data-fit='3'] .win-replay-detail,
+.win-screen[data-fit='4'] .win-replay-detail { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 0.25rem; }
+.win-screen[data-fit='3'] .win-replay,
+.win-screen[data-fit='4'] .win-replay { margin-bottom: 0.2rem; }
+.win-screen[data-fit='3'] .win-stat-label,
+.win-screen[data-fit='4'] .win-stat-label { display: inline; margin: 0 0.25rem 0 0; }
+.win-screen[data-fit='3'] .win-stat-value,
+.win-screen[data-fit='4'] .win-stat-value { font-size: 0.85rem; }
+
+/* 4: Roman's line hidden (still spoken), buttons at minimum comfortable size, Levels/Home tighter */
+.win-screen[data-fit='4'] .win-roman-says { display: none; }
+.win-screen[data-fit='4'] .win-screen-actions .win-cta { min-height: 38px; padding-top: 0.3rem; padding-bottom: 0.3rem; font-size: 0.88rem; }
+.win-screen[data-fit='4'] .win-screen-secondary .btn { min-height: 30px; font-size: 0.8rem; }
+.win-screen[data-fit='4'] .buddy-meter { margin-bottom: 0.25rem; }
+
+/* Short landscape: text left, buttons right */
+@media (max-height: 520px) and (min-width: 560px) {
+  .shell-celebrate .win-screen,
+  .win-screen { --win-gap-top: 0px; }
+  .shell-celebrate .win-screen-card,
+  .win-screen-card {
+    width: min(100%, 720px);
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    gap: 0.4rem 0.8rem;
+    align-items: center;
+  }
+  .win-screen-body { overflow: hidden; }
+}
+
+/* ===== 9.28-b: How to play — replay feature cards ===== */
+.how-new-tag {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  font-size: 0.6rem;
+  font-weight: 900;
+  background: var(--sun);
+  color: #3a2500;
+  vertical-align: 1px;
+}
+.how-demo-grid { position: relative; }
+.how-demo.is-animated[data-demo='combo'] .demo-pop-mark .mark-x,
+.how-demo.is-animated[data-demo='pace'] .demo-pace-buddy .buddy {
+  animation: howPop 0.28s ease var(--at, 0.3s) both;
+}
+.how-demo.is-animated[data-demo='undo'] .demo-undo-mark .mark-x {
+  animation: howUndoMark 3.2s ease 0.3s both;
+}
+@keyframes howUndoMark {
+  0% { opacity: 0; transform: scale(0.35); }
+  10%, 42% { opacity: 1; transform: none; }
+  52%, 100% { opacity: 0; transform: scale(0.4) rotate(-40deg); }
+}
+.how-demo-combo {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 18%;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.how-demo-combo b {
+  grid-area: 1 / 1;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(4, 10, 28, 0.85);
+  color: var(--sun);
+  font-size: 0.85rem;
+  font-weight: 900;
+  opacity: 0;
+}
+.how-demo.is-animated .how-demo-combo .c1 { animation: howFloat 0.45s ease 0.3s both; }
+.how-demo.is-animated .how-demo-combo .c2 { animation: howFloat 0.45s ease 0.75s both; }
+.how-demo.is-animated .how-demo-combo .c3 { animation: howFloat 0.45s ease 1.2s both; }
+.how-demo.is-animated .how-demo-combo .c4 { animation: howFloat 0.45s ease 1.65s both; }
+.how-demo.is-animated .how-demo-combo .c5 { animation: howFloatStay 0.6s ease 2.1s both; color: #9dffc4; }
+@keyframes howFloat {
+  0% { opacity: 0; transform: translateY(8px); }
+  30% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translateY(-10px); }
+}
+@keyframes howFloatStay {
+  from { opacity: 0; transform: translateY(8px) scale(0.8); }
+  to { opacity: 1; transform: scale(1.12); }
+}
+.how-demo-undo-btn {
+  position: absolute;
+  right: 6%;
+  bottom: 6%;
+  padding: 0.25rem 0.55rem;
+  border-radius: 10px;
+  background: rgba(244, 251, 255, 0.14);
+  border: 1px solid rgba(244, 251, 255, 0.35);
+  color: var(--foam);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+.how-demo.is-animated .how-demo-undo-btn { animation: howPress 0.35s ease 1.55s both; }
+@keyframes howPress {
+  0%, 100% { transform: none; }
+  50% { transform: scale(0.88); background: rgba(255, 209, 102, 0.45); }
+}
+.how-demo-float {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 30%;
+  text-align: center;
+  font-weight: 900;
+  font-size: 1rem;
+  color: #ff9a8a;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  pointer-events: none;
+}
+.how-demo.is-animated .how-demo-float { animation: howFloatStay 0.5s ease 1.75s both; }
+.how-demo:not(.is-animated) .how-demo-float,
+.how-demo:not(.is-animated) .how-demo-combo .c5 { opacity: 1; }
+.how-demo-pace {
+  position: absolute;
+  top: -0.2rem;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  z-index: 5;
+}
+.how-demo-pace b {
+  grid-area: 1 / 1;
+  padding: 0.12rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.how-demo-pace .ahead { background: #1f8f4e; color: #eafff2; }
+.how-demo-pace .behind { background: #b23b3b; color: #fff0ee; opacity: 0; }
+.how-demo.is-animated .how-demo-pace .ahead { animation: howSwapOut 4.4s ease infinite; }
+.how-demo.is-animated .how-demo-pace .behind { animation: howSwapIn 4.4s ease infinite; }
+@keyframes howSwapOut { 0%, 45% { opacity: 1; } 55%, 100% { opacity: 0; } }
+@keyframes howSwapIn { 0%, 45% { opacity: 0; } 55%, 100% { opacity: 1; } }
+.how-demo-ghost {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  bottom: 3%;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(244, 251, 255, 0.15);
+}
+.how-demo-ghost i {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+}
+.how-demo-ghost .ghost { background: rgba(244, 251, 255, 0.55); left: 40%; }
+.how-demo-ghost .you { background: var(--mint); left: 55%; }
+.how-demo.is-animated .how-demo-ghost .ghost { animation: howGhost 4.4s linear infinite; }
+.how-demo.is-animated .how-demo-ghost .you { animation: howYou 4.4s linear infinite; }
+@keyframes howGhost { from { left: 5%; } to { left: 90%; } }
+@keyframes howYou { 0% { left: 5%; } 45% { left: 55%; } 60% { left: 55%; } 100% { left: 80%; } }
+
+/* card demos (stars / trial / daily) */
+.how-panel-demo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  text-align: center;
+  color: var(--foam);
+  font-weight: 800;
+}
+.demo-star-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+}
+.demo-star-icons i { font-style: normal; font-size: 1.35rem; color: rgba(255, 255, 255, 0.2); }
+.demo-star-icons i.on { color: var(--sun); text-shadow: 0 0 10px rgba(255, 209, 102, 0.6); }
+.demo-star-label { font-size: 0.74rem; opacity: 0.9; }
+.how-demo.is-animated .demo-star-row { animation: howPop 0.4s ease both; }
+.how-demo.is-animated .demo-star-row.r1 { animation-delay: 0.2s; }
+.how-demo.is-animated .demo-star-row.r2 { animation-delay: 1s; }
+.how-demo.is-animated .demo-star-row.r3 { animation-delay: 1.8s; }
+.demo-trial-title,
+.demo-daily-title { font-family: var(--font-display); font-size: 1.3rem; color: var(--sun); font-weight: 400; }
+.demo-trial-clock {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(192, 57, 43, 0.35);
+  font-size: 1.1rem;
+}
+.demo-stack { display: inline-grid; }
+.demo-stack b { grid-area: 1 / 1; opacity: 0; }
+.demo-stack .k3 { opacity: 1; }
+.how-demo.is-animated .demo-stack .k1 { animation: howStep1 3.6s steps(1, end) infinite; }
+.how-demo.is-animated .demo-stack .k2 { animation: howStep2 3.6s steps(1, end) infinite; }
+.how-demo.is-animated .demo-stack .k3 { animation: howStep3 3.6s steps(1, end) infinite; }
+@keyframes howStep1 { 0%, 33% { opacity: 1; } 33.01%, 100% { opacity: 0; } }
+@keyframes howStep2 { 0%, 33% { opacity: 0; } 33.01%, 66% { opacity: 1; } 66.01%, 100% { opacity: 0; } }
+@keyframes howStep3 { 0%, 66% { opacity: 0; } 66.01%, 100% { opacity: 1; } }
+.demo-stack .hot { color: #ff9a8a; }
+.demo-trial-hearts { display: flex; gap: 0.4rem; }
+.demo-trial-hearts .heart { width: 1.1rem; height: 1.1rem; }
+.demo-trial-rules,
+.demo-daily-rules { font-size: 0.72rem; opacity: 0.85; max-width: 16rem; }
+.demo-daily-cal {
+  display: grid;
+  place-items: center;
+  width: 4.2rem;
+  height: 4.2rem;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #c0392b 0 30%, #f4fbff 30%);
+  color: #2a1a10;
+  font-size: 1.1rem;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+.demo-daily-streak { font-size: 1rem; color: #ffc49a; }
+.how-demo-combo,
+.how-demo-float,
+.how-demo-undo-btn,
+.how-demo-ghost,
+.how-demo-pace { z-index: 6; }
+.how-demo-combo b { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); }
+.how-demo-undo-btn { background: rgba(10, 22, 44, 0.9); }
+.how-demo-ghost { background: rgba(4, 10, 28, 0.7); }
+
+/* =====================================================================================
+ * 9.29-a LAYOUTS PASS
+ * html[data-layout] is set from App (readLayout): 'upright' (phones, tablets in portrait,
+ * narrow windows), 'wide' (PC and tablets in landscape), 'phone-sideways' (a phone turned
+ * sideways: play shows the "turn upright" card and pauses). html[data-device] is
+ * phone | tablet | desktop.
+ * ===================================================================================== */
+
+/* Wide-only pieces stay out of the upright layouts */
+.play-side {
+  display: contents;
+}
+.buddy-spot,
+.hud-goal,
+.kbd {
+  display: none;
+}
+
+/* ---- Upright play: respect the notch / home bar / Safari toolbars ---- */
+.shell-play .play-fixed {
+  padding-top: max(0.25rem, env(safe-area-inset-top, 0px));
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+  padding-left: max(0.6rem, env(safe-area-inset-left, 0px));
+  padding-right: max(0.6rem, env(safe-area-inset-right, 0px));
+}
+
+/* ---- Tablet portrait (and tall desktop windows): the phone layout, scaled up ---- */
+html[data-layout='upright']:not([data-device='phone']) .fixed-shell > main.play-fixed {
+  max-width: min(820px, 100%);
+}
+html[data-layout='upright']:not([data-device='phone']) .play-fixed .play-hud,
+html[data-layout='upright']:not([data-device='phone']) .play-fixed .play-caption,
+html[data-layout='upright']:not([data-device='phone']) .play-fixed .play-toolbar {
+  max-width: 760px;
+  width: 100%;
+}
+html[data-layout='upright']:not([data-device='phone']) .play-fixed .board {
+  width: min(100cqw, 100cqh, 760px) !important;
+  max-width: 100cqw !important;
+  max-height: min(100cqh, 760px) !important;
+}
+html[data-layout='upright'][data-device='tablet'] .play-hud {
+  gap: 0.6rem;
+  padding: 0.4rem 0;
+}
+html[data-layout='upright'][data-device='tablet'] .hud-back {
+  width: 2.4rem;
+  height: 2.4rem;
+  font-size: 1.1rem;
+}
+html[data-layout='upright'][data-device='tablet'] .hud-title strong {
+  font-size: 1.3rem;
+}
+html[data-layout='upright'][data-device='tablet'] .hud-title span {
+  font-size: 0.78rem;
+}
+html[data-layout='upright'][data-device='tablet'] .hud-stats {
+  font-size: 0.95rem;
+  gap: 0.6rem;
+}
+html[data-layout='upright'][data-device='tablet'] .hud-time {
+  font-size: 1.05rem;
+}
+html[data-layout='upright'][data-device='tablet'] .play-caption {
+  font-size: 1rem;
+}
+html[data-layout='upright'][data-device='tablet'] .play-toolbar {
+  gap: 0.6rem;
+  margin-top: 0.6rem !important;
+}
+html[data-layout='upright'][data-device='tablet'] .play-toolbar .btn.tool {
+  min-height: 52px;
+  padding: 0.7rem 1.15rem;
+  font-size: 1.02rem;
+}
+
+/* ---- Wide play: HUD column | board | controls + buddy spot ---- */
+html[data-layout='wide'] .fixed-shell > main.play-fixed {
+  --side-col: clamp(200px, 17vw, 320px);
+  --col-gap: clamp(1rem, 2vw, 2rem);
+  --board-size: min(
+    calc(var(--app-height, 100svh) - 2.5rem),
+    calc(100vw - 2 * var(--side-col) - 2 * var(--col-gap) - 2rem),
+    1000px
+  );
+  max-width: none;
+  width: 100%;
+  display: grid;
+  grid-template-columns: var(--side-col) var(--board-size) var(--side-col);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'hud board side'
+    'cap board side'
+    'cap board tag';
+  justify-content: center;
+  align-content: center;
+  align-items: start;
+  column-gap: var(--col-gap);
+  row-gap: 0.75rem;
+  padding: max(1.25rem, env(safe-area-inset-top, 0px)) max(1rem, env(safe-area-inset-right, 0px))
+    max(1.25rem, env(safe-area-inset-bottom, 0px)) max(1rem, env(safe-area-inset-left, 0px));
+}
+html[data-layout='wide'] .play-fixed .board-stage {
+  grid-area: board;
+  width: var(--board-size);
+  height: var(--board-size);
+  align-self: center;
+}
+html[data-layout='wide'] .play-fixed .board {
+  width: min(100cqw, 100cqh) !important;
+  max-width: 100cqw !important;
+  max-height: 100cqh !important;
+}
+
+/* HUD becomes a tidy card on the left */
+html[data-layout='wide'] .play-fixed .play-hud {
+  grid-area: hud;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.7rem;
+  padding: 0.9rem 1rem 1rem;
+  border-radius: 18px;
+  background: rgba(5, 13, 31, 0.55);
+  border: 1px solid rgba(255, 214, 102, 0.22);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  box-sizing: border-box;
+}
+html[data-layout='wide'] .play-hud .hud-back {
+  align-self: flex-start;
+  width: 2.2rem;
+  height: 2.2rem;
+  font-size: 1rem;
+}
+html[data-layout='wide'] .play-hud .hud-title strong {
+  font-size: clamp(1.15rem, 1.6vw, 1.55rem);
+  white-space: normal;
+  line-height: 1.15;
+}
+html[data-layout='wide'] .play-hud .hud-title span {
+  font-size: 0.74rem;
+  white-space: normal;
+}
+html[data-layout='wide'] .play-hud .hud-stats {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.8rem;
+  font-size: 0.9rem;
+}
+html[data-layout='wide'] .play-hud .lives {
+  flex-basis: 100%;
+}
+html[data-layout='wide'] .play-hud .hud-time {
+  flex-basis: 100%;
+  font-size: clamp(1.7rem, 2.6vw, 2.3rem);
+  line-height: 1.05;
+  opacity: 1;
+  font-variant-numeric: tabular-nums;
+}
+html[data-layout='wide'] .play-hud .hud-pace {
+  font-size: 0.5em;
+  margin-left: 0.5rem;
+}
+html[data-layout='wide'] .play-hud .hud-stash,
+html[data-layout='wide'] .play-hud .hud-rival {
+  display: inline !important;
+}
+html[data-layout='wide'] .play-hud .ghost-bar {
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  width: 100%;
+  height: 8px;
+}
+html[data-layout='wide'] .play-hud .ghost-bar .me-fill {
+  height: 4px;
+  top: 2px;
+}
+html[data-layout='wide'] .hud-goal {
+  display: block;
+  padding-top: 0.6rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.hud-goal p {
+  margin: 0;
+}
+.hud-goal-stars {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.hud-goal-have {
+  color: var(--sun);
+  font-size: 1.25rem;
+  letter-spacing: 0.08em;
+}
+.hud-goal-stars small {
+  opacity: 0.7;
+}
+.hud-goal ul {
+  list-style: none;
+  margin: 0.4rem 0;
+  padding: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+.hud-goal li {
+  opacity: 0.6;
+}
+.hud-goal li.done {
+  opacity: 1;
+  color: var(--mint);
+}
+.hud-goal-best {
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Roman's lines / hints: a fixed slot under the HUD (fixed height, so nothing ever jumps) */
+html[data-layout='wide'] .play-fixed .play-caption {
+  grid-area: cap;
+  align-self: start;
+  width: 100%;
+  max-width: none;
+  height: 6.6em;
+  margin: 0;
+  padding: 0 0.25rem;
+  font-size: 0.95rem;
+  text-align: left;
+  -webkit-line-clamp: 5;
+}
+
+/* Controls + buddy spot on the right */
+html[data-layout='wide'] .play-side {
+  grid-area: side;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 0;
+  width: 100%;
+}
+html[data-layout='wide'] .play-fixed .play-toolbar {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.55rem;
+  width: 100%;
+  max-width: none;
+  margin: 0 !important;
+}
+html[data-layout='wide'] .play-toolbar .btn.tool {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 48px;
+  padding: 0.6rem 0.95rem;
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+html[data-layout='wide'] .play-toolbar .btn.tool {
+  flex-direction: row;
+  justify-content: flex-start;
+  text-align: left;
+}
+html[data-layout='wide'] .play-toolbar .btn.tool .tool-label {
+  order: 1;
+  font-size: 1rem;
+}
+html[data-layout='wide'] .play-toolbar .btn.tool .tool-cost {
+  order: 2;
+  margin-left: auto;
+  font-size: 0.8rem;
+}
+html[data-layout='wide'][data-device='desktop'] .kbd {
+  display: inline-block;
+  order: 3;
+  margin-left: 0.5rem;
+  min-width: 1.4em;
+  padding: 0.05rem 0.35rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.08);
+  font: 800 0.72rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-align: center;
+  opacity: 0.8;
+}
+html[data-layout='wide'][data-device='desktop'] .play-toolbar .btn.tool > .kbd:only-child {
+  margin-left: auto;
+}
+html[data-layout='wide'] .buddy-spot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.35rem;
+  padding: 1.1rem 0.9rem;
+  border-radius: 18px;
+  border: 2px dashed rgba(255, 214, 102, 0.35);
+  background: rgba(5, 13, 31, 0.4);
+  font-size: 0.8rem;
+}
+.buddy-spot strong {
+  font-family: var(--font-display);
+  color: var(--sun);
+  font-size: 1.05rem;
+}
+.buddy-spot small {
+  opacity: 0.7;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.buddy-spot-ring {
+  display: grid;
+  place-items: center;
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, rgba(255, 214, 102, 0.22), rgba(255, 214, 102, 0.04) 70%);
+  border: 2px solid rgba(255, 214, 102, 0.3);
+}
+.buddy-spot-face {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.15);
+  animation: buddySpotBob 3.2s ease-in-out infinite;
+}
+@keyframes buddySpotBob {
+  50% { transform: translateY(-4px); }
+}
+html[data-layout='wide'] .play-fixed > .build-tag {
+  grid-area: tag;
+  align-self: end;
+  text-align: right;
+  margin: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .buddy-spot-face { animation: none; }
+}
+
+/* ---- Phone turned sideways during play: "turn upright" card (game paused, state kept) ---- */
+.rotate-prompt {
+  display: none;
+}
+.rotate-prompt.is-on {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: grid;
+  place-items: center;
+  padding: max(0.75rem, env(safe-area-inset-top, 0px)) max(1rem, env(safe-area-inset-right, 0px))
+    max(0.75rem, env(safe-area-inset-bottom, 0px)) max(1rem, env(safe-area-inset-left, 0px));
+  background: radial-gradient(ellipse at 50% 30%, rgba(40, 28, 8, 0.96), rgba(5, 13, 31, 0.98) 70%);
+  touch-action: none;
+}
+.rotate-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    'icon title'
+    'icon line'
+    'icon note';
+  align-items: center;
+  column-gap: 1.4rem;
+  row-gap: 0.3rem;
+  max-width: 560px;
+  padding: 1.1rem 1.5rem;
+  border-radius: 20px;
+  border: 2px solid rgba(255, 214, 102, 0.55);
+  background: linear-gradient(180deg, rgba(255, 214, 102, 0.1), rgba(255, 214, 102, 0.02));
+  box-shadow: 0 0 0 6px rgba(255, 214, 102, 0.08), 0 18px 40px rgba(0, 0, 0, 0.45);
+  text-align: left;
+}
+.rotate-card h3 {
+  grid-area: title;
+  margin: 0;
+  font-family: var(--font-display);
+  color: var(--sun);
+  font-size: 1.35rem;
+  letter-spacing: 0.02em;
+}
+.rotate-card p {
+  grid-area: line;
+  margin: 0;
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+.rotate-card small {
+  grid-area: note;
+  opacity: 0.7;
+  font-weight: 700;
+}
+.rotate-phone {
+  grid-area: icon;
+  position: relative;
+  width: 44px;
+  height: 76px;
+  border-radius: 10px;
+  border: 3px solid var(--sun);
+  animation: rotateToUpright 2.4s ease-in-out infinite;
+}
+.rotate-phone-screen {
+  position: absolute;
+  inset: 6px 4px 10px;
+  border-radius: 4px;
+  background: rgba(255, 214, 102, 0.25);
+}
+@keyframes rotateToUpright {
+  0%, 20% { transform: rotate(-90deg); }
+  55%, 100% { transform: rotate(0deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rotate-phone { animation: none; }
+}
+
+/* ---- Menus on wide screens: centered, comfortable width, no stretched buttons ---- */
+html[data-layout='wide'] .how-panel .how-stage {
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 1.5rem;
+}
+html[data-layout='wide'] .how-panel .how-rules {
+  max-width: none;
+  columns: 2;
+  column-gap: 2.5rem;
+  line-height: 1.55;
+}
+html[data-layout='wide'] .how-panel .how-rules li {
+  margin-bottom: 0.35rem;
+}
+html[data-layout='wide'] .how-panel .how-rules li {
+  break-inside: avoid;
+}
+html[data-layout='wide'] .cta-row .btn {
+  max-width: 360px;
+}

@@ -201,6 +201,15 @@ const FALLBACK_TEXT: Partial<Record<VoiceLineId, string>> = {
   old_lose_popcorn: "Old-timer: And that's the ballgame. Rematch? I'll get my popcorn.",
   old_win_eventually: "Old-timer: You won. Eventually. I'll allow it.",
   old_win_ugly: "Old-timer: A win's a win. Even an ugly one.",
+  roman_record_best: "Roman says: new record! Somebody write that down!",
+  roman_record_faster: "Roman says: faster than ever. I've got goosebumps!",
+  roman_record_beat: "Roman says: you just beat your own best. Show-off!",
+  roman_nearmiss: "Roman says: so close! Roman felt that one.",
+  roman_trial_clear: "Roman says: you survived Roman's Trial! Double coins!",
+  roman_daily_done: "Roman says: daily challenge, done! See you tomorrow.",
+  old_record_head: "Old-timer: New record, huh. Don't let it go to your head.",
+  old_record_tea: "Old-timer: Faster than last time. I nearly spilled my tea.",
+  old_nearmiss: "Old-timer: Almost. Almost doesn't win a medal.",
   old_win_paint: 'Old-timer: That was like watching paint dry. But with a happy ending.',
   old_win_yesterday: 'Old-timer: Done already? Oh wait, you started yesterday. Nice.',
   old_win_gaveup: 'Old-timer: Well, look at that. The board gave up before you did.',
@@ -251,6 +260,60 @@ const FALLBACK_TEXT: Partial<Record<VoiceLineId, string>> = {
   spark_have_2: "You've got two sparkles toward the bonus.",
   spark_have_3: "You've got three sparkles toward the bonus.",
   spark_have_4: "You've got four sparkles. So close!",
+  // 9.27-a: more lines for the busiest categories
+  coach_hint_look: 'Take a look here.',
+  coach_hint_help: 'Here\'s a little help.',
+  coach_hint_glow: 'Follow the glow!',
+  coach_hint_clue: 'This square is your clue.',
+  coach_hint_peek: 'Peek at this one.',
+  coach_hint_step: 'One step closer!',
+  coach_hint_try: 'Try this spot.',
+  coach_lose_breathe: 'Deep breath. You\'ve got this.',
+  coach_lose_again: 'So close! Go again?',
+  coach_lose_next: 'That one was tricky. Next time!',
+  coach_prize_ooh: 'Ooh, a prize!',
+  coach_prize_see: 'Let\'s see what you got!',
+  coach_badge_earned: 'Badge earned. Well done!',
+  coach_badge_look: 'Look at that shiny badge!',
+  roman_hint_wink: 'Roman says: wink wink. That square.',
+  roman_hint_spy: 'Roman says: my spy eyes see a clue.',
+  roman_hint_treasure: 'Roman says: X marks the spot. Well, kinda.',
+  roman_lose_cape: 'Roman says: capes off. Try again!',
+  roman_lose_shake: 'Roman says: shake it off, puzzle pal. Next round!',
+  roman_lose_pillow: 'Roman says: I\'m screaming into a pillow. Rematch?',
+  old_wrong_toaster: 'Old-timer: I\'ve seen a toaster make smarter choices.',
+  old_wrong_bold: 'Old-timer: Bold. Wrong, but bold. Mostly wrong.',
+  old_wrong_hallway: 'Old-timer: You\'d get lost in a hallway, wouldn\'t you?',
+  old_wrong_history: 'Old-timer: That move\'s going in the history books. Under \'don\'t\'.',
+  old_wrong_spectacles: 'Old-timer: Put your glasses on. Oh, you don\'t wear any? There\'s your problem.',
+  old_good_clock: 'Old-timer: Even a broken clock is right twice a day.',
+  old_good_surprised: 'Old-timer: Well, would you look at that. I\'m surprised too.',
+  old_good_lucky: 'Old-timer: Lucky tap. Don\'t let it go to your head.',
+  old_good_clap: 'Old-timer: Don\'t expect me to clap. My hands are cold.',
+  old_hint_flashlight: 'Old-timer: A hint? Want a map and a flashlight too?',
+  old_hint_grandkid: 'Old-timer: My grandkid asks for hints. He\'s four.',
+  old_hint_cane: 'Old-timer: Lean on that hint. I lean on a cane. We all need something.',
+  old_hint_cheating: 'Old-timer: Back in my day we called that cheating.',
+  old_undo_face: 'Old-timer: Undo all you like. You can\'t undo that face you\'re making.',
+  old_undo_yoyo: 'Old-timer: Up, down, back, forth. You\'re a yo-yo.',
+  old_undo_regret: 'Old-timer: So much regret for one little square.',
+  old_undo_aging: 'Old-timer: Pick one! I\'m aging over here.',
+  old_undo_eraser: 'Old-timer: You\'d wear out an eraser in a day.',
+  old_win_squirrel: 'Old-timer: A blindfolded squirrel would\'ve been quicker. But fine, you won.',
+  old_win_frame: 'Old-timer: Frame it. It might not happen again.',
+  old_win_napped: 'Old-timer: Congratulations. I only napped twice.',
+  old_win_twothree: 'Old-timer: Messy. Slow. Victorious. I\'ll take one out of three.',
+  old_lose_called: 'Old-timer: Called it. I called it at the first square.',
+  old_lose_sandwich: 'Old-timer: Hearts gone. Go have a sandwich and think about what you did.',
+  old_lose_nephew: 'Old-timer: My nephew lost like that once. He\'s a lawyer now. Worked out fine.',
+  old_lose_deal: 'Old-timer: Fold \'em, kiddo. Deal again.',
+  old_idle_mail: 'Old-timer: The mail came faster than your next move.',
+  old_idle_beard: 'Old-timer: I grew a beard waiting for that. Look at it.',
+  old_idle_birthday: 'Old-timer: Hurry up. I\'d like to finish before my birthday.',
+  old_aside_humming: 'Old-timer: Is that my radio? No? Then who\'s humming?',
+  old_aside_pigeons: 'Old-timer: The pigeons out back are plotting something. I can feel it.',
+  old_rescue_lifeguard: 'Old-timer: Somebody call a lifeguard. You\'re drowning in squares.',
+  old_rescue_parachute: 'Old-timer: Nice parachute. Shame about the landing.',
 }
 
 export function voiceLineText(id: string): string | undefined {
@@ -258,8 +321,13 @@ export function voiceLineText(id: string): string | undefined {
 }
 
 function ac(): AudioContext {
-  if (!ctx) ctx = new AudioContext()
-  if (ctx.state === 'suspended') void ctx.resume()
+  if (!ctx) {
+    // Older iOS Safari only has the prefixed constructor.
+    const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (!Ctor) throw new Error('Web Audio unavailable')
+    ctx = new Ctor()
+  }
+  if (ctx.state !== 'running' && ctx.state !== 'closed') void ctx.resume().catch(() => {})
   return ctx
 }
 
@@ -267,7 +335,7 @@ function ac(): AudioContext {
 function ensureAudio() {
   try {
     const c = ac()
-    if (c.state === 'suspended') void c.resume()
+    if (c.state !== 'running' && c.state !== 'closed') void c.resume().catch(() => {})
   } catch {
     /* ignore */
   }
@@ -332,6 +400,16 @@ function stopVoice() {
   }
 }
 
+/**
+ * 9.29-a: a board just ended. Drop any line still waiting for the channel and cut a line that is
+ * playing below `minPriority`, so a stall/wrong/undo/old-timer line queued a moment earlier can't
+ * play over (or after) the win or lose line.
+ */
+export function cancelVoiceBelow(minPriority: number) {
+  if (waitingLine && (waitingLine.opts.priority ?? 1) < minPriority) waitingLine = null
+  if (currentLine && currentLine.priority < minPriority) stopVoice()
+}
+
 export function setMuted(m: boolean) {
   muted = m
   voiceFreeSince = 0
@@ -371,7 +449,7 @@ export function unlockAudio() {
   ensureAudio()
   try {
     const c = ac()
-    if (c.state === 'suspended') void c.resume()
+    if (c.state !== 'running' && c.state !== 'closed') void c.resume().catch(() => {})
     const osc = c.createOscillator()
     const g = c.createGain()
     g.gain.value = 0.00001
@@ -406,6 +484,15 @@ export function unlockAudio() {
 
 function noiseBurst(duration: number, gain = 0.08, when = 0) {
   if (muted) return
+  // A sound effect must never throw into a game action (Undo commits after its beep).
+  try {
+    noiseBurstUnsafe(duration, gain, when)
+  } catch {
+    /* ignore */
+  }
+}
+
+function noiseBurstUnsafe(duration: number, gain: number, when: number) {
   ensureAudio()
   const c = ac()
   const t0 = c.currentTime + when
@@ -439,6 +526,21 @@ function tone(
   slideTo?: number,
 ) {
   if (muted) return
+  try {
+    toneUnsafe(freq, duration, type, gain, when, slideTo)
+  } catch {
+    /* ignore */
+  }
+}
+
+function toneUnsafe(
+  freq: number,
+  duration: number,
+  type: OscillatorType,
+  gain: number,
+  when: number,
+  slideTo?: number,
+) {
   ensureAudio()
   const c = ac()
   const t0 = c.currentTime + when
@@ -582,6 +684,64 @@ export function sfxAchievement() {
   tone(1320, 0.2, 'sine', 0.08, 0.16)
 }
 
+/*
+ * Buddy Hunt tile sounds (9.27-b). Same Web Audio synth, gains and mute switch as the other
+ * effects, so they play on top of a voice line (voices use a separate audio element).
+ */
+export const HUNT_SFX = {
+  flip: 'sfxHuntFlip',
+  found: 'sfxHuntFound',
+  miss: 'sfxHuntMiss',
+  fanfare: 'sfxHuntFanfare',
+  none: 'sfxHuntNone',
+} as const
+
+/** Every press: a short card-flip click */
+export function sfxHuntFlip() {
+  markSfx(HUNT_SFX.flip)
+  noiseBurst(0.045, 0.07)
+  tone(950, 0.06, 'triangle', 0.1, 0, 520)
+}
+
+/** Found a buddy: bright pop-chime plus the buddy giggle */
+export function sfxHuntFound() {
+  markSfx(HUNT_SFX.found)
+  tone(660, 0.1, 'sine', 0.12, 0.05)
+  tone(990, 0.12, 'triangle', 0.1, 0.1)
+  tone(1320, 0.16, 'sine', 0.09, 0.15)
+  window.setTimeout(sfxGiggle, 180)
+}
+
+/** Empty tile: a soft low whomp */
+export function sfxHuntMiss() {
+  markSfx(HUNT_SFX.miss)
+  tone(210, 0.24, 'sine', 0.16, 0.05, 90)
+  tone(140, 0.2, 'triangle', 0.07, 0.08, 70)
+}
+
+/** All three found: a little fanfare */
+/** New personal best: quick rising sparkle + chord (Web Audio, same mute/volume as the rest) */
+export function sfxRecord() {
+  markSfx('sfxRecord')
+  ;[659, 784, 988, 1319].forEach((f, i) => tone(f, 0.12, 'triangle', 0.09, 0.15 + i * 0.08))
+  ;[988, 1319, 1976].forEach((f) => tone(f, 0.6, 'sine', 0.05, 0.5))
+  noiseBurst(0.15, 0.03, 0.5)
+}
+
+export function sfxHuntFanfare() {
+  markSfx(HUNT_SFX.fanfare)
+  ;[523, 659, 784].forEach((f, i) => tone(f, 0.14, 'triangle', 0.1, 0.45 + i * 0.11))
+  ;[1047, 1319, 1568].forEach((f) => tone(f, 0.5, 'sine', 0.07, 0.8))
+  noiseBurst(0.2, 0.04, 0.8)
+}
+
+/** No buddies found: a gentle down-tone */
+export function sfxHuntNone() {
+  markSfx(HUNT_SFX.none)
+  tone(440, 0.22, 'sine', 0.09, 0.4, 350)
+  tone(330, 0.34, 'sine', 0.08, 0.62, 220)
+}
+
 export interface PlayVoiceOpts {
   mood?: VoiceMood
   /** Channel priority. A new line interrupts only a lower-priority one; otherwise it is skipped. */
@@ -692,13 +852,17 @@ async function playClipQueue(el: HTMLAudioElement, queue: string[], gen: number,
       el.volume = volume
     }
     let ok = false
+    let refused = false
     try {
       await el.play()
       ok = !el.error
     } catch {
-      ok = false
+      // The browser refused to play (autoplay / interrupted). The next clip would be refused too:
+      // stop here instead of walking the pool in order (that made the first alts repeat a lot).
+      refused = true
     }
     if (gen !== voiceGeneration) return
+    if (refused) break
     if (ok) {
       const done = () => releaseVoice(gen)
       el.onended = done

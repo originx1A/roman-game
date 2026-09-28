@@ -1,5 +1,8 @@
+import { sanitizeTips } from './voiceTips'
+import { sanitizeMeter } from './buddyHunt'
 import type { Challenge, ClearRecord, Profile } from './types'
 import { DEFAULT_WALLET, type Wallet } from './rewards'
+import { migrateRecords, type ComboState, type RecordsBlob, type RunMode } from './replay'
 
 const KEYS = {
   profile: 'roman.profile.v1',
@@ -9,12 +12,32 @@ const KEYS = {
   boardDraft: 'roman.draft.v1',
   wallet: 'roman.wallet.v1',
   generated: 'roman.generated.v1',
+  buddyMeter: 'roman.buddymeter.v1',
+  records: 'roman.records.v1',
+  tips: 'roman.tips.v1',
 } as const
 
 export interface Settings {
   sound: boolean
   voice: boolean
   reduceMotion: boolean
+  /** Name on share cards/text (local only). Empty = "I scored…" */
+  playerName?: string
+  /** The one-time "what should we call you?" prompt was shown */
+  namePrompted?: boolean
+  /** How to play was shown once (it opens by itself before the first board) */
+  howSeen?: boolean
+  /** Voice tips (teaching lines). Undefined = on. */
+  voiceTips?: boolean
+}
+
+export const PLAYER_NAME_MAX = 16
+
+/** Trim, drop control characters, squash spaces, cap at 16 characters */
+export function cleanPlayerName(raw: unknown): string {
+  if (typeof raw !== 'string') return ''
+  const s = raw.replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim()
+  return Array.from(s).slice(0, PLAYER_NAME_MAX).join('').trim()
 }
 
 export interface ProgressBlob {
@@ -28,6 +51,19 @@ export interface BoardDraft {
   elapsedMs: number
   hintsUsed: number
   startedAt: string
+  /** Undo steps, oldest first. Older saves have none. */
+  past?: string[][]
+  /** Redo steps, next first. */
+  future?: string[][]
+  /** This attempt had a wrong buddy, a rescue or a revive (not a perfect win). */
+  flawed?: boolean
+  /** Replay challenge state for this attempt (older saves have none) */
+  mode?: RunMode
+  /** Daily Challenge date key when this attempt is today's first (scored) daily try */
+  daily?: string
+  combo?: ComboState
+  undos?: number
+  splits?: number[]
 }
 
 const defaultSettings: Settings = { sound: true, voice: true, reduceMotion: false }
@@ -130,6 +166,7 @@ export function recordClear(input: {
         clears: 1,
         hintsOnBest: input.hintsUsed,
         clearedAt: new Date().toISOString(),
+        lastClearedAt: new Date().toISOString(),
       },
     ]
   } else {
@@ -144,6 +181,7 @@ export function recordClear(input: {
             bestMs: better ? input.elapsedMs : c.bestMs,
             hintsOnBest: better ? input.hintsUsed : c.hintsOnBest,
             clearedAt: better ? new Date().toISOString() : c.clearedAt,
+            lastClearedAt: new Date().toISOString(),
           },
     )
   }
@@ -216,6 +254,31 @@ export function loadDraft(): BoardDraft | null {
   return read(KEYS.boardDraft, null)
 }
 
+/** Personal bests, stars, Trial and Daily state. Missing/broken data falls back safely. */
+export function loadRecords(boardInfo: (id: string) => { size: number; difficulty?: string } | undefined): RecordsBlob {
+  let raw: unknown = null
+  try {
+    raw = JSON.parse(localStorage.getItem(KEYS.records) || 'null')
+  } catch {
+    raw = null
+  }
+  let clears: ClearRecord[] = []
+  try {
+    clears = getProgress().clears ?? []
+  } catch {
+    clears = []
+  }
+  return migrateRecords(raw, clears, boardInfo)
+}
+
+export function saveRecords(blob: RecordsBlob) {
+  try {
+    write(KEYS.records, blob)
+  } catch {
+    /* storage full or blocked: keep playing */
+  }
+}
+
 export function exportSaveJson(): string {
   return JSON.stringify(
     {
@@ -226,6 +289,7 @@ export function exportSaveJson(): string {
       settings: loadSettings(),
       challenges: loadChallenges(),
       wallet: loadWallet(),
+      records: read(KEYS.records, null),
     },
     null,
     2,
@@ -240,6 +304,7 @@ export function importSaveJson(raw: string): boolean {
     if (data.settings) saveSettings(data.settings)
     if (data.challenges) saveChallenges(data.challenges)
     if (data.wallet) saveWallet({ ...DEFAULT_WALLET, ...data.wallet })
+    if (data.records && data.records.v === 1) write(KEYS.records, data.records)
     return true
   } catch {
     return false
@@ -265,4 +330,20 @@ export function rememberGeneratedPuzzle(puzzle: import('./types').Puzzle) {
 
 export function getGeneratedPuzzle(id: string): import('./types').Puzzle | undefined {
   return loadGeneratedPuzzles()[id]
+}
+
+export function loadBuddyMeter(): import('./buddyHunt').BuddyMeter {
+  return sanitizeMeter(read<unknown>(KEYS.buddyMeter, null))
+}
+
+export function saveBuddyMeter(meter: import('./buddyHunt').BuddyMeter) {
+  write(KEYS.buddyMeter, meter)
+}
+
+export function loadTips(): import('./voiceTips').TipState {
+  return sanitizeTips(read<unknown>(KEYS.tips, null))
+}
+
+export function saveTips(t: import('./voiceTips').TipState) {
+  write(KEYS.tips, t)
 }
