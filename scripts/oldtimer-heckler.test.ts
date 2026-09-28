@@ -36,14 +36,15 @@ const LINES: Record<string, string> = {
   old_good_day: "Back in my day that would've been a Tuesday. Still, not terrible.",
 }
 
-test('old-timer plays a little faster with pitch left alone', () => {
+test('old-timer plays a little faster with pitch left alone (9.30-e: 1.28, ~11% quicker than 1.15)', () => {
   const sound = read('src/game/sound.ts')
-  assert.match(sound, /const OLDTIMER_PLAYBACK_RATE = 1\.15/)
+  assert.match(sound, /const OLDTIMER_PLAYBACK_RATE = 1\.28/)
+  assert.match(sound, /media\.defaultPlaybackRate = OLDTIMER_PLAYBACK_RATE/)
   assert.match(sound, /media\.preservesPitch = true/)
   assert.match(sound, /media\.webkitPreservesPitch = true/)
   assert.match(sound, /media\.playbackRate = OLDTIMER_PLAYBACK_RATE/)
   const roman = sound.slice(sound.indexOf("if (role === 'roman')"), sound.indexOf("} else if (role === 'oldtimer')"))
-  const coach = sound.slice(sound.indexOf('} else {', sound.indexOf("role === 'oldtimer'")))
+  const coach = sound.slice(sound.indexOf('} else {', sound.indexOf("role === 'oldtimer'")), sound.indexOf('let ok = false'))
   assert.match(roman, /playbackRate = Math\.min\(0\.94, Math\.max\(0\.82, rate \* 0\.88\)\)/)
   assert.match(coach, /playbackRate = Math\.min\(1\.2, Math\.max\(0\.85, rate\)\)/)
   assert.equal(roman.includes('OLDTIMER_PLAYBACK_RATE'), false)

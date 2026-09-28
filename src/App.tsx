@@ -196,6 +196,7 @@ import {
   voiceQuietMs,
   warmVoices,
   cancelVoiceBelow,
+  dropWaitingVoice,
   petGiggle,
 } from './game/sound'
 import { COIN_PACKS, purchaseCoinPack, restorePurchases, isStoreBuild, subscribeStore, type CoinPackId } from './game/iap'
@@ -1073,6 +1074,7 @@ export default function App() {
       return
     }
     unlockAudio()
+    dropWaitingVoice()
     sfxWhoosh()
     resetPlayViewport()
     setStartSheet(null)
