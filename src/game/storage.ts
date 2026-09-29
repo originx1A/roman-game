@@ -36,6 +36,8 @@ export interface Settings {
   voiceTips?: boolean
   /** Buddy Parade between games (every 5-7 wins). Undefined = on. */
   parade?: boolean
+  /** Anonymous play counts (9.30-r). Undefined = on. */
+  analytics?: boolean
 }
 
 export const PLAYER_NAME_MAX = 16

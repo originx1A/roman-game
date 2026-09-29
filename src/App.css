@@ -5792,3 +5792,17 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 }
 
 .parade-closing { font-size: 0.9rem; color: rgba(255, 246, 207, 0.75); }
+/* 9.30-r: anonymous analytics: 👍/👎 chip and privacy note */
+.fb-chip, .fb-form, .fb-thanks { display: inline-flex; align-items: center; gap: 6px; margin-right: 8px; font-size: 0.8rem; }
+.fb-btn { min-width: 34px; min-height: 34px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.06); font-size: 1rem; color: inherit; opacity: 0.8; touch-action: manipulation; }
+.fb-form input { width: 9.5rem; max-width: 40vw; min-height: 34px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.08); color: inherit; padding: 0 8px; font-size: 16px; }
+.fb-send { min-height: 34px; padding: 0 12px; border-radius: 999px; border: 0; background: #ffd166; color: #07122a; font-weight: 800; }
+.privacy-note { margin: 10px 0; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,0.06); font-size: 0.85rem; }
+.privacy-note p { margin: 4px 0 8px; line-height: 1.4; opacity: 0.9; }
+.owner-stats { display: grid; gap: 10px; margin-top: 14px; }
+.owner-stats .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.owner-stats .stat-grid div { padding: 8px 10px; border-radius: 12px; background: rgba(244,251,255,0.07); }
+.owner-stats .stat-grid strong { display: block; font-size: 1.4rem; color: var(--sun); }
+.owner-stats ul { margin: 0; padding-left: 1.1rem; }
+.owner-stats .hours { display: flex; align-items: flex-end; gap: 2px; height: 70px; }
+.owner-stats .hours i { flex: 1; background: var(--sun); min-height: 2px; border-radius: 2px 2px 0 0; }

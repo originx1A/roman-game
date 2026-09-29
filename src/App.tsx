@@ -1,4 +1,5 @@
 import { useTapCount } from './components/useTapCount'
+import { loadAnon, openEvents, sendPing, PRIVACY_NOTE, ANON_KEY } from './game/analytics'
 import { OWNER_PATH, OWNER_TAP_WINDOW_MS, OWNER_TAPS } from './game/ownerDoor'
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
@@ -383,6 +384,21 @@ export default function App() {
   const [settings, setSettings] = useState<Settings>(() => loadSettings())
   const settingsRef = useRef(settings)
   settingsRef.current = settings
+
+  // 9.30-r: anonymous app_open / return_visit ping (silent if offline; off when the player switches it off or in the store apps)
+  useEffect(() => {
+    if (isStoreBuild() || settingsRef.current.analytics === false) return
+    const ls = safeLocalStorage()
+    const today = torontoDateKey()
+    const o = openEvents(loadAnon(ls), today)
+    try {
+      ls?.setItem(ANON_KEY, JSON.stringify(o.next))
+    } catch {
+      /* ignore */
+    }
+    for (const ev of o.events) sendPing({ id: o.next.id, ev })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Layout class on <html> (CSS picks upright / wide / sideways-phone from it)
   useEffect(() => {
@@ -1049,6 +1065,16 @@ export default function App() {
     }
   }
 
+  /** 9.30-r: anonymous level_clear ping */
+  function analyticsClear(size: number, ms: number) {
+    if (isStoreBuild() || settingsRef.current.analytics === false) return
+    sendPing({ id: loadAnon(safeLocalStorage()).id, ev: 'level_clear', size, ms: Math.round(ms) })
+  }
+  function sendFeedback(vote: 'up' | 'down', note: string) {
+    if (isStoreBuild() || settingsRef.current.analytics === false) return
+    sendPing({ id: loadAnon(safeLocalStorage()).id, ev: 'feedback', vote, note: note.slice(0, 200) })
+  }
+
   function saveSettingsPatch(patch: Partial<Settings>) {
     setSettings((cur) => {
       const next = { ...cur, ...patch }
@@ -1611,6 +1637,7 @@ export default function App() {
         }
         if (rec !== records) persistRecords(rec)
         if (endlessRef.current) setEndless(noteEndlessClear(puzzle.size))
+        analyticsClear(puzzle.size, elapsedMs)
       } catch {
         /* never block the win */
       }
@@ -3358,6 +3385,14 @@ export default function App() {
               />
               Buddy Parade (every 5-7 wins)
             </label>
+            <div className="privacy-note" data-testid="privacy-note">
+              <strong>What we count</strong>
+              <p>{PRIVACY_NOTE}</p>
+              <label className="toggle">
+                <input type="checkbox" data-testid="analytics-toggle" checked={settings.analytics !== false} onChange={(e) => saveSettingsPatch({ analytics: e.target.checked })} />
+                Share anonymous play counts
+              </label>
+            </div>
             <label className="toggle">
               <input
                 type="checkbox"
@@ -3603,6 +3638,7 @@ export default function App() {
           Roman's Game <span className="build-tag build-tag-foot">{BUILD_TAG}</span>
         </span>
         <span className="foot-links">
+          {!isStoreBuild() && settings.analytics !== false ? <FeedbackChip onSend={sendFeedback} /> : null}
           <a className="privacy-link" href="./privacy.html">
             Privacy
           </a>
@@ -3623,6 +3659,29 @@ export default function App() {
       {/* Keep clear of Netlify “Powered by” badge */}
       <div className="netlify-safe" aria-hidden />
     </div>
+  )
+}
+
+/** 9.30-r: small 👍/👎 in the footer; tapping one opens a one-line optional note */
+function FeedbackChip({ onSend }: { onSend: (vote: 'up' | 'down', note: string) => void }) {
+  const [vote, setVote] = useState<'up' | 'down' | null>(null)
+  const [note, setNote] = useState('')
+  const [sent, setSent] = useState(false)
+  if (sent) return <span className="fb-thanks" data-testid="fb-thanks">Thanks! 💛</span>
+  if (!vote)
+    return (
+      <span className="fb-chip" data-testid="fb-chip">
+        <button type="button" className="fb-btn" data-testid="fb-up" aria-label="Thumbs up: I like the game" onClick={() => setVote('up')}>👍</button>
+        <button type="button" className="fb-btn" data-testid="fb-down" aria-label="Thumbs down: something is wrong" onClick={() => setVote('down')}>👎</button>
+      </span>
+    )
+  return (
+    <span className="fb-form" data-testid="fb-form">
+      <span aria-hidden>{vote === 'up' ? '👍' : '👎'}</span>
+      <input value={note} maxLength={200} placeholder="Add a short note (optional)" aria-label="Optional note" data-testid="fb-note" onChange={(e) => setNote(e.target.value)} />
+      <button type="button" className="fb-send" data-testid="fb-send" onClick={() => { onSend(vote, note); setSent(true) }}>Send</button>
+      <button type="button" className="fb-btn" aria-label="Cancel" onClick={() => setVote(null)}>✕</button>
+    </span>
   )
 }
 

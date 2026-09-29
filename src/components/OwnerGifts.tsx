@@ -10,7 +10,16 @@ import { PetArt } from './PetArt'
  */
 type Kind = Gift['kind']
 
+type OwnerStats = {
+  days: number; opens: number; uniquePlayers: number; returningPlayers: number; levelsCleared: number
+  playsByDay: { day: string; plays: number }[]; playsByHour: number[]; topRegions: { place: string; players: number }[]
+  thumbsUp: number; thumbsDown: number; notes: { t: string; vote: 'up' | 'down'; note: string; place: string }[]
+}
+const toToronto = (iso: string) => new Date(iso).toLocaleString('en-CA', { timeZone: 'America/Toronto', dateStyle: 'medium', timeStyle: 'short' }) + ' ET'
+
 export function OwnerGifts() {
+  const [stats, setStats] = useState<{ s: OwnerStats; at: string } | null>(null)
+  const [statsErr, setStatsErr] = useState('')
   const [status, setStatus] = useState<'loading' | 'missing' | 'ready' | 'offline'>('loading')
   const [envName, setEnvName] = useState('ROMAN_OWNER_KEY')
   const [key, setKey] = useState('')
@@ -103,6 +112,21 @@ export function OwnerGifts() {
       setNote('')
     } catch {
       setErr('Could not reach the gift service.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const loadStats = async () => {
+    setStatsErr('')
+    setBusy(true)
+    try {
+      const r = await fetch('/api/analytics-stats', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key, days: 30 }) })
+      const j = (await r.json()) as { ok?: boolean; stats?: OwnerStats; generatedAt?: string; error?: string }
+      if (!j.ok || !j.stats) setStatsErr(j.error ?? 'Could not load the stats.')
+      else setStats({ s: j.stats, at: j.generatedAt ?? new Date().toISOString() })
+    } catch {
+      setStatsErr('Could not reach the stats service.')
     } finally {
       setBusy(false)
     }
@@ -270,6 +294,37 @@ export function OwnerGifts() {
                 </li>
               ))}
             </ul>
+          ) : null}
+        </div>
+      ) : null}
+      {status === 'ready' && unlocked ? (
+        <div className="owner-card owner-stats" data-testid="owner-stats">
+          <h2>Anonymous stats (last 30 days)</h2>
+          <button type="button" className="btn primary" data-testid="stats-load" disabled={busy} onClick={() => void loadStats()}>
+            {stats ? 'Refresh' : 'Show stats'}
+          </button>
+          {statsErr ? <p className="owner-warn">{statsErr}</p> : null}
+          {stats ? (
+            <>
+              <div className="stat-grid">
+                <div><strong>{stats.s.opens}</strong>opens</div>
+                <div><strong>{stats.s.uniquePlayers}</strong>unique players</div>
+                <div><strong>{stats.s.returningPlayers}</strong>returning players</div>
+                <div><strong>{stats.s.levelsCleared}</strong>levels cleared</div>
+                <div><strong>{stats.s.thumbsUp}</strong>👍</div>
+                <div><strong>{stats.s.thumbsDown}</strong>👎</div>
+              </div>
+              <h3>Plays by day (Toronto)</h3>
+              <ul>{stats.s.playsByDay.length ? stats.s.playsByDay.map((d) => <li key={d.day}>{d.day}: {d.plays}</li>) : <li>No plays yet</li>}</ul>
+              <h3>Plays by hour (Toronto, 0–23)</h3>
+              <div className="hours" aria-hidden>{stats.s.playsByHour.map((n, h) => <i key={h} title={`${h}:00 · ${n}`} style={{ height: `${Math.max(3, (n / Math.max(1, ...stats.s.playsByHour)) * 100)}%` }} />)}</div>
+              <p>{stats.s.playsByHour.map((n, h) => (n ? `${h}h:${n}` : '')).filter(Boolean).join('  ') || 'No plays yet'}</p>
+              <h3>Top regions</h3>
+              <ul>{stats.s.topRegions.length ? stats.s.topRegions.map((r) => <li key={r.place}>{r.place}: {r.players} player{r.players === 1 ? '' : 's'}</li>) : <li>None yet</li>}</ul>
+              <h3>Recent notes</h3>
+              <ul>{stats.s.notes.length ? stats.s.notes.map((n, i) => <li key={i}>{n.vote === 'up' ? '👍' : '👎'} “{n.note}” · {toToronto(n.t)} · {n.place}</li>) : <li>No notes yet</li>}</ul>
+              <small>Updated {toToronto(stats.at)}. Stored in UTC, shown in Toronto time. No IP addresses or names are kept.</small>
+            </>
           ) : null}
         </div>
       ) : null}
