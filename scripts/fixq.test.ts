@@ -17,7 +17,8 @@ test('9.30-q: the parade does not depend on click: first-touch events + coordina
 test('9.30-q: Grab all fallback after 6 s, buttons act on touch release (TapButton), march pauses under the finger', () => {
   assert.match(ov, /6000/)
   assert.match(ov, /data-testid="parade-grab-all"/)
-  assert.match(ov, /<TapButton[^>]*parade-continue/)
+  assert.match(ov, /<TapButton[^>]*parade-continue/, 'the card is tap-to-close')
+  assert.match(ov, /caughtIdx\.current\.has\(i\)\) return\s*\n\s*caughtIdx\.current\.add\(i\)\s*\n\s*let real: Treasure = t\s*\n\s*try \{\s*\n\s*real = onCatch\(t\)/, 'uncollected treasure is paid when the march ends')
   assert.match(ov, /<TapButton[^>]*parade-skip-btn/)
   assert.match(css, /\.parade\.is-holding[^{]*\{[^}]*animation-play-state: paused/)
 })
@@ -27,4 +28,9 @@ test('9.30-q: CSS: touch-action manipulation, no tap highlight, children never s
   assert.match(css, /-webkit-tap-highlight-color: transparent/)
   assert.match(css, /\.parade \.pet-art[^{]*\{ pointer-events: none/)
   assert.match(css, /\.parade-loot \{ min-width: 96px; min-height: 96px/)
+})
+
+test('9.30-q: a sound error can never stop a catch from showing', () => {
+  assert.match(ov, /real = onCatch\(t\)\s*\n\s*\} catch/)
+  assert.match(readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8'), /try \{\s*\n\s*sfxCoin\(\)/)
 })

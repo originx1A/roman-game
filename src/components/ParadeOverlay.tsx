@@ -29,7 +29,7 @@ export function treasureSummary(got: Treasure[]): { coins: number; hints: number
  * Buddies march across the screen and some carry treasure. TAP A BUDDY'S TREASURE to catch it: it pops
  * with a "+coins" text. Tapping empty space does NOTHING (it used to skip, which felt like the game just
  * went back). A Skip button sits in the top-right corner. When the march ends (or Skip is tapped) a
- * "You got: ..." summary shows with a Continue button; only Continue returns to the game.
+ * "You got: ..." card shows with a Continue button (tap to close). Treasure not tapped is paid automatically when the march ends or Skip is tapped.
  * With reduced motion the buddies stand still in a row.
  */
 export function ParadeOverlay({
@@ -74,7 +74,23 @@ export function ParadeOverlay({
   const total = treasure.filter(Boolean).length
   const caughtList = Object.values(got)
 
-  const toSummary = () => setPhase('summary')
+  /** March over (or Skip): anything not tapped is paid now, then the "You got..." card shows and closes itself */
+  const toSummary = () => {
+    if (doneRef.current) return
+    treasure.forEach((t, i) => {
+      if (!t || caughtIdx.current.has(i)) return
+      caughtIdx.current.add(i)
+      let real: Treasure = t
+      try {
+        real = onCatch(t)
+      } catch {
+        /* keep going */
+      }
+      setGot((g) => ({ ...g, [i]: real }))
+    })
+    setWallet(readWallet())
+    setPhase('summary')
+  }
   const finish = () => {
     if (doneRef.current) return
     doneRef.current = true
@@ -102,7 +118,12 @@ export function ParadeOverlay({
   const grab = (i: number, t: Treasure, el: HTMLElement) => {
     if (caughtIdx.current.has(i)) return
     caughtIdx.current.add(i)
-    const real = onCatch(t)
+    let real: Treasure = t
+    try {
+      real = onCatch(t)
+    } catch {
+      /* a sound / storage hiccup on a phone must never stop the catch from showing */
+    }
     setGot((s) => ({ ...s, [i]: real }))
     // the treasure flies from the buddy to the wallet chip in the corner
     const r = el.getBoundingClientRect()
@@ -160,6 +181,16 @@ export function ParadeOverlay({
     setHolding(true)
     if (holdTimer.current) window.clearTimeout(holdTimer.current)
     holdTimer.current = window.setTimeout(() => setHolding(false), 700)
+    // the buddy under the finger wins; otherwise the nearest one within reach
+    const under = (target as HTMLElement | null)?.closest?.<HTMLElement>('[data-parade-i]')
+    if (under) {
+      const i = Number(under.dataset.paradeI)
+      const t = treasure[i]
+      if (t && !caughtIdx.current.has(i)) {
+        grab(i, t, under)
+        return
+      }
+    }
     tapAt(x, y)
   }
   useEffect(() => {
@@ -206,7 +237,7 @@ export function ParadeOverlay({
             ) : (
               <>
                 <strong>You got: nothing this time</strong>
-                <span className="parade-got-list">{total ? 'Tap the glowing treasure on the buddies next time!' : 'Treasure rides in the first 3 parades of each day.'}</span>
+                <span className="parade-got-list">{total ? 'Tap the glowing buddies next time!' : 'Treasure rides in the first 3 parades of each day.'}</span>
               </>
             )}
           </div>
@@ -267,6 +298,9 @@ export function ParadeOverlay({
                     onClick={(e) => {
                       // keyboard / screen reader / mouse: the button itself
                       e.stopPropagation()
+                      // the same touch was already handled by the first-touch listener
+                      const last = lastTap.current
+                      if (last && Date.now() - last.at < 700) return
                       if (!caughtIdx.current.has(i)) grab(i, t, e.currentTarget)
                     }}
                   >
@@ -292,7 +326,7 @@ export function ParadeOverlay({
           )
         })}
       </div>
-      <div className="parade-skip">{caughtList.length ? `Caught so far: ${sum.text}` : 'Buddies march slowly. Tap Skip to stop early.'}</div>
+      <div className="parade-skip">{caughtList.length ? `Caught so far: ${sum.text}` : 'Tap the buddies to grab treasure. Or just watch: it is paid when the parade ends.'}</div>
       {grabAllOn && total > caughtList.length ? (
         <TapButton className="btn primary parade-grab-all" data-testid="parade-grab-all" onTap={grabAll}>
           ✋ Grab all treasure
