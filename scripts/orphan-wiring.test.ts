@@ -23,13 +23,16 @@ test('every wired pool holds only lines written for its moment', () => {
   // idle: stall tips + idle roasts only
   for (const id of pool('roman.idle')) assert.ok(id.startsWith('roman_idle_') || id.startsWith('tip_stall_roman_'), id)
   for (const id of pool('old.idle')) assert.ok(id.startsWith('old_idle_') || id.startsWith('old_jab_') || id.startsWith('tip_stall_old_'), id)
-  for (const id of pool('coach.idle')) assert.ok(id.startsWith('tip_stall_coach_'), id)
+  for (const id of pool('coach.idle')) assert.ok(id.startsWith('tip_stall_coach_') || id.startsWith('coach_idle_'), id)
   for (const id of pool('coach.undo')) assert.ok(id.startsWith('tip_undo_coach_'), id)
-  for (const id of pool('roman.undo')) assert.ok(id.startsWith('tip_undo_roman_'), id)
-  assert.deepEqual([...pool('coach.wrong')].sort(), ['nope', 'region_full', 'row_taken', 'too_close'])
+  for (const id of pool('roman.undo')) assert.ok(id.startsWith('tip_undo_roman_') || id.startsWith('roman_undo_'), id)
+  // 9.30-o: the original four + the approved kind-specific lines
+  for (const id of ['nope', 'region_full', 'row_taken', 'too_close']) assert.ok(pool('coach.wrong').has(id), id)
+  assert.equal(pool('coach.wrong').size, 10)
+  for (const id of pool('coach.wrong')) assert.ok(['nope', 'region_full', 'row_taken', 'too_close'].includes(id) || id.startsWith('coach_wrong_'), id)
   assert.deepEqual([...pool('coach.win')].sort(), ['board_complete', 'cleared'])
   assert.deepEqual([...pool('roman.nearMiss')], ['roman_almost'])
-  assert.deepEqual([...pool('old.nearMiss')], ['old_nearmiss'])
+  assert.deepEqual([...pool('old.nearMiss')], ['old_nearmiss', 'old_nearmiss_close']) // 9.30-o
   // the retired one stays retired
   for (const [name, ids] of Object.entries(c.VOICE_POOLS)) assert.ok(!(ids as readonly string[]).includes('roman_nearmiss'), name)
 })
@@ -54,9 +57,9 @@ test('wrong move: the coach line matches the kind of mistake, and the win event 
       if (b.clip && pool('coach.wrong').has(b.clip)) heard.add(b.clip)
       const g = c.banterFor('place-bad', 'touch')
       if (g.clip) c.noteVoicePlayed(g.clip)
-      if (g.clip && pool('coach.wrong').has(g.clip)) assert.ok(g.clip === 'too_close' || g.clip === 'nope')
+      if (g.clip && pool('coach.wrong').has(g.clip)) assert.ok(g.clip === 'too_close' || g.clip === 'coach_wrong_touch_gap' || g.clip === 'coach_wrong_touch_corner' || false)
     }
-    assert.ok(heard.has('region_full') && heard.has('nope'))
+    assert.ok(heard.has('region_full') && heard.has('coach_wrong_region_own'))
     const wins = new Set<string>()
     for (let i = 0; i < 400; i++) {
       const b = c.banterFor('win')
@@ -105,9 +108,9 @@ test('Trial / Daily start lines exist for all three voices', () => {
   }
 })
 
-test('heard summary: total matches the audit (382 reachable), per-voice split adds up', () => {
+test('heard summary: total matches the audit (529 reachable, 9.30-o), per-voice split adds up', () => {
   const s = c.heardSummary()
-  assert.equal(s.total, 382)
+  assert.equal(s.total, 529)
   assert.equal(s.voices.reduce((n: number, v: { total: number }) => n + v.total, 0), s.total)
   assert.deepEqual(s.voices.map((v: { name: string }) => v.name), ['Roman', 'Old-timer', 'Coach'])
   const before = s.heard

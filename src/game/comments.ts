@@ -358,6 +358,154 @@ export type VoiceClipId =
   | 'coach_record_faster'
   | 'coach_record_proud'
   | 'coach_record_practice'
+  // 9.30-o: approved lines (voice-lines-draft-3.md)
+  | 'roman_wrong_hiccup'
+  | 'roman_wrong_hat'
+  | 'roman_wrong_bounce'
+  | 'roman_wrong_cousin'
+  | 'roman_wrong_marble'
+  | 'roman_wrong_toast'
+  | 'roman_wrong_sneeze'
+  | 'roman_wrong_cape'
+  | 'roman_wrong_map'
+  | 'roman_wrong_nearly'
+  | 'roman_wrong_banana'
+  | 'roman_wrong_clown'
+  | 'roman_wrong_nap'
+  | 'roman_wrong_dance'
+  | 'roman_wrong_puddle'
+  | 'roman_wrong_hmm'
+  | 'roman_wrong_gremlin'
+  | 'roman_wrong_shelf'
+  | 'roman_wrong_chirp'
+  | 'roman_wrong_pancake'
+  | 'roman_wrong_noodle'
+  | 'roman_wrong_nice_try'
+  | 'roman_wrong_plot'
+  | 'roman_wrong_mirror'
+  | 'roman_wrong_hop'
+  | 'roman_wrong_wobble'
+  | 'roman_wrong_ticket'
+  | 'roman_wrong_gong'
+  | 'roman_wrong_sock'
+  | 'roman_wrong_detour'
+  | 'coach_wrong_touch_gap'
+  | 'coach_wrong_touch_corner'
+  | 'coach_wrong_row_one'
+  | 'coach_wrong_region_own'
+  | 'coach_wrong_any_close'
+  | 'coach_wrong_any_ok'
+  | 'old_good_stopped'
+  | 'old_good_carry'
+  | 'old_good_twice'
+  | 'old_good_mild'
+  | 'old_good_bones'
+  | 'old_good_newspaper'
+  | 'old_good_nod'
+  | 'old_good_soup'
+  | 'old_good_hat'
+  | 'old_good_decent'
+  | 'old_good_kid'
+  | 'old_good_bench'
+  | 'old_good_radio'
+  | 'old_good_cardigan'
+  | 'old_good_bingo'
+  | 'old_good_porch'
+  | 'old_good_gravy'
+  | 'old_good_whistle'
+  | 'old_good_rare'
+  | 'old_good_blink'
+  | 'old_good_weather'
+  | 'old_good_fair'
+  | 'old_aside_door'
+  | 'old_aside_slippers'
+  | 'old_aside_biscuit'
+  | 'old_aside_weather'
+  | 'old_aside_lawn'
+  | 'old_aside_crossword'
+  | 'old_aside_clock'
+  | 'old_aside_neighbour'
+  | 'old_aside_mail'
+  | 'old_aside_nap'
+  | 'old_aside_stairs'
+  | 'old_aside_phone'
+  | 'old_aside_lemon'
+  | 'old_aside_ache'
+  | 'old_aside_whistle'
+  | 'roman_prize_drumroll'
+  | 'roman_prize_jackpot'
+  | 'roman_prize_spin'
+  | 'roman_prize_wheel'
+  | 'roman_prize_goodies'
+  | 'roman_prize_shiny'
+  | 'roman_prize_fate'
+  | 'coach_prize_spin'
+  | 'coach_prize_lucky'
+  | 'coach_prize_reward'
+  | 'coach_prize_surprise'
+  | 'coach_prize_nice'
+  | 'coach_badge_nice'
+  | 'coach_badge_hard'
+  | 'coach_badge_proud'
+  | 'coach_badge_collect'
+  | 'roman_badge_trophy'
+  | 'roman_badge_brag'
+  | 'roman_badge_shelf'
+  | 'roman_badge_gold'
+  | 'coach_hint_light'
+  | 'coach_hint_start'
+  | 'coach_hint_safe'
+  | 'coach_hint_point'
+  | 'coach_hint_easy'
+  | 'roman_hint_shh'
+  | 'roman_hint_magic'
+  | 'roman_hint_map'
+  | 'roman_hint_owl'
+  | 'roman_hint_boop'
+  | 'old_hint_mapquest'
+  | 'old_hint_crutch'
+  | 'old_hint_giveup'
+  | 'coach_notbest_again'
+  | 'coach_notbest_steady'
+  | 'coach_notbest_learning'
+  | 'coach_notbest_nice_win'
+  | 'coach_notbest_almost'
+  | 'coach_notbest_fresh'
+  | 'coach_notbest_calm'
+  | 'coach_notbest_close2'
+  | 'coach_notbest_rhythm'
+  | 'coach_notbest_smile'
+  | 'coach_notbest_bank'
+  | 'roman_notbest_snail'
+  | 'roman_notbest_yawn'
+  | 'old_notbest_slow'
+  | 'old_notbest_sunday'
+  | 'old_notbest_snail'
+  | 'old_notbest_stroll'
+  | 'old_notbest_pension'
+  | 'old_notbest_crawl'
+  | 'roman_record_rocket'
+  | 'coach_record_fast'
+  | 'roman_idle_dust'
+  | 'roman_idle_tick'
+  | 'roman_idle_tea'
+  | 'roman_idle_cloud'
+  | 'roman_idle_stretch'
+  | 'coach_idle_take'
+  | 'old_undo_merry'
+  | 'old_undo_pendulum'
+  | 'old_undo_sweep'
+  | 'old_undo_dial'
+  | 'roman_undo_boomerang'
+  | 'old_wrong_aim'
+  | 'old_wrong_bird'
+  | 'old_wrong_sideways'
+  | 'old_wrong_seat'
+  | 'old_wrong_nope'
+  | 'old_wrong_cheese'
+  | 'old_wrong_map'
+  | 'old_wrong_cane'
+  | 'old_nearmiss_close'
   | 'roman_trial_shocked'
   | 'roman_trial_coins'
   | 'roman_trial_unfair'
@@ -500,6 +648,36 @@ export const ROMAN_WRONG_CLIPS = [
   'roman_wrong_wifi',
   'roman_wrong_drama',
   'roman_wrong_trophy',
+  'roman_wrong_hiccup',
+  'roman_wrong_hat',
+  'roman_wrong_bounce',
+  'roman_wrong_cousin',
+  'roman_wrong_marble',
+  'roman_wrong_toast',
+  'roman_wrong_sneeze',
+  'roman_wrong_cape',
+  'roman_wrong_map',
+  'roman_wrong_nearly',
+  'roman_wrong_banana',
+  'roman_wrong_clown',
+  'roman_wrong_nap',
+  'roman_wrong_dance',
+  'roman_wrong_puddle',
+  'roman_wrong_hmm',
+  'roman_wrong_gremlin',
+  'roman_wrong_shelf',
+  'roman_wrong_chirp',
+  'roman_wrong_pancake',
+  'roman_wrong_noodle',
+  'roman_wrong_nice_try',
+  'roman_wrong_plot',
+  'roman_wrong_mirror',
+  'roman_wrong_hop',
+  'roman_wrong_wobble',
+  'roman_wrong_ticket',
+  'roman_wrong_gong',
+  'roman_wrong_sock',
+  'roman_wrong_detour',
 ] as const satisfies readonly VoiceClipId[]
 
 /** Idle pokes while the player waits (Roman). */
@@ -516,9 +694,14 @@ export const ROMAN_IDLE_CLIPS = [
   'tip_stall_roman_clock',
   'tip_stall_roman_combo',
   'tip_stall_roman_beg',
+  'roman_idle_dust',
+  'roman_idle_tick',
+  'roman_idle_tea',
+  'roman_idle_cloud',
+  'roman_idle_stretch',
 ] as const satisfies readonly VoiceClipId[]
 /** 9.30-j: the coach's stall-tip lines (no moves for a while) */
-export const COACH_IDLE_CLIPS = ['tip_stall_coach_combo', 'tip_stall_coach_marks', 'tip_stall_coach_fewest'] as const satisfies readonly VoiceClipId[]
+export const COACH_IDLE_CLIPS = ['tip_stall_coach_combo', 'tip_stall_coach_marks', 'tip_stall_coach_fewest', 'coach_idle_take'] as const satisfies readonly VoiceClipId[]
 
 /** Out of hearts (Roman). */
 export const ROMAN_LOSE_CLIPS = [
@@ -557,6 +740,11 @@ export const ROMAN_HINT_CLIPS = [
   'roman_hint_wink',
   'roman_hint_spy',
   'roman_hint_treasure',
+  'roman_hint_shh',
+  'roman_hint_magic',
+  'roman_hint_map',
+  'roman_hint_owl',
+  'roman_hint_boop',
 ] as const satisfies readonly VoiceClipId[]
 
 /** Badge unlocked (Roman). */
@@ -565,6 +753,10 @@ export const ROMAN_BADGE_CLIPS = [
   'roman_badge_fridge',
   'roman_badge_wear',
   'roman_badge_impressed',
+  'roman_badge_trophy',
+  'roman_badge_brag',
+  'roman_badge_shelf',
+  'roman_badge_gold',
 ] as const satisfies readonly VoiceClipId[]
 
 /** Prize wheel result (Roman). */
@@ -573,6 +765,13 @@ export const ROMAN_PRIZE_CLIPS = [
   'roman_spin_spoken',
   'roman_spin_ooh',
   'roman_spin_lucky',
+  'roman_prize_drumroll',
+  'roman_prize_jackpot',
+  'roman_prize_spin',
+  'roman_prize_wheel',
+  'roman_prize_goodies',
+  'roman_prize_shiny',
+  'roman_prize_fate',
 ] as const satisfies readonly VoiceClipId[]
 
 /** Fifth spark critter — stash complete (Roman). */
@@ -615,6 +814,14 @@ export const OLDTIMER_WRONG_CLIPS = [
   'old_wrong_hallway',
   'old_wrong_history',
   'old_wrong_spectacles',
+  'old_wrong_aim',
+  'old_wrong_bird',
+  'old_wrong_sideways',
+  'old_wrong_seat',
+  'old_wrong_nope',
+  'old_wrong_cheese',
+  'old_wrong_map',
+  'old_wrong_cane',
 ] as const satisfies readonly VoiceClipId[]
 
 /** Old-timer grumbles when the player is slow. */
@@ -649,6 +856,9 @@ export const OLDTIMER_HINT_CLIPS = [
   'old_hint_grandkid',
   'old_hint_cane',
   'old_hint_cheating',
+  'old_hint_mapquest',
+  'old_hint_crutch',
+  'old_hint_giveup',
 ] as const satisfies readonly VoiceClipId[]
 
 /** Old-timer on undo/redo spam. */
@@ -666,9 +876,13 @@ export const OLDTIMER_UNDO_CLIPS = [
   'tip_undo_old_prices',
   'tip_undo_old_rent',
   'tip_undo_old_crying',
+  'old_undo_merry',
+  'old_undo_pendulum',
+  'old_undo_sweep',
+  'old_undo_dial',
 ] as const satisfies readonly VoiceClipId[]
 /** 9.30-j: Roman's and the coach's undo-tip lines, for undo after undo */
-export const ROMAN_UNDO_CLIPS = ['tip_undo_roman_count', 'tip_undo_roman_sock', 'tip_undo_roman_rules'] as const satisfies readonly VoiceClipId[]
+export const ROMAN_UNDO_CLIPS = ['tip_undo_roman_count', 'tip_undo_roman_sock', 'tip_undo_roman_rules', 'roman_undo_boomerang'] as const satisfies readonly VoiceClipId[]
 export const COACH_UNDO_CLIPS = ['tip_undo_coach_cost', 'tip_undo_coach_stars', 'tip_undo_coach_marks'] as const satisfies readonly VoiceClipId[]
 /** 9.30-j: starting a Trial / a Daily (the first-time tip lines, heard again after the tip retires) */
 export const ROMAN_TRIAL_START_CLIPS = ['tip_trial_roman_welcome', 'tip_trial_roman_coins'] as const satisfies readonly VoiceClipId[]
@@ -678,14 +892,25 @@ export const ROMAN_DAILY_START_CLIPS = ['tip_daily_roman_first', 'tip_daily_roma
 export const COACH_DAILY_START_CLIPS = ['tip_daily_coach_careful', 'tip_daily_coach_streak'] as const satisfies readonly VoiceClipId[]
 export const OLDTIMER_DAILY_START_CLIPS = ['tip_daily_old_parking', 'tip_daily_old_glasses'] as const satisfies readonly VoiceClipId[]
 /** 9.30-j: the coach's original wrong-move lines (recorded, never wired): one per kind of mistake + a general one */
-export const COACH_WRONG_CLIPS = ['nope', 'too_close', 'row_taken', 'region_full'] as const satisfies readonly VoiceClipId[]
+export const COACH_WRONG_CLIPS = ['nope', 'too_close', 'row_taken', 'region_full', 'coach_wrong_touch_gap', 'coach_wrong_touch_corner', 'coach_wrong_row_one', 'coach_wrong_region_own', 'coach_wrong_any_close', 'coach_wrong_any_ok'] as const satisfies readonly VoiceClipId[]
 let lastCoachWrong: VoiceClipId | null = null
-const COACH_WRONG_FOR: Record<ConflictKind, VoiceClipId> = { touch: 'too_close', row: 'row_taken', col: 'row_taken', region: 'region_full', generic: 'nope' }
+const COACH_WRONG_BY_KIND: Record<'touch' | 'row' | 'region' | 'generic', readonly VoiceClipId[]> = {
+  touch: ['too_close', 'coach_wrong_touch_gap', 'coach_wrong_touch_corner'],
+  row: ['row_taken', 'coach_wrong_row_one'],
+  region: ['region_full', 'coach_wrong_region_own'],
+  generic: ['nope', 'coach_wrong_any_close', 'coach_wrong_any_ok'],
+}
+const coachWrongBags = new Map<string, () => VoiceClipId>()
+function coachWrongBag(kind: string, pool: readonly VoiceClipId[]): () => VoiceClipId {
+  let b = coachWrongBags.get(kind)
+  if (!b) { b = voiceBags.bag(`coach.wrong.${kind}`, pool) as () => VoiceClipId; coachWrongBags.set(kind, b) }
+  return b
+}
 /** 9.30-j: the coach's original board-cleared lines (recorded, never wired) */
 export const COACH_WIN_CLIPS = ['board_complete', 'cleared'] as const satisfies readonly VoiceClipId[]
 /** 9.30-j: near-miss lines written for that moment (recorded, never wired). roman_nearmiss stays retired (it sounded like a loss). */
 export const ROMAN_NEAR_MISS_CLIPS = ['roman_almost'] as const satisfies readonly VoiceClipId[]
-export const OLDTIMER_NEAR_MISS_CLIPS = ['old_nearmiss'] as const satisfies readonly VoiceClipId[]
+export const OLDTIMER_NEAR_MISS_CLIPS = ['old_nearmiss', 'old_nearmiss_close'] as const satisfies readonly VoiceClipId[]
 
 /** Old-timer when the player runs out of hearts. */
 export const OLDTIMER_LOSE_CLIPS = [
@@ -736,6 +961,21 @@ export const OLDTIMER_ASIDE_CLIPS = [
   'old_aside_socks',
   'old_aside_humming',
   'old_aside_pigeons',
+  'old_aside_door',
+  'old_aside_slippers',
+  'old_aside_biscuit',
+  'old_aside_weather',
+  'old_aside_lawn',
+  'old_aside_crossword',
+  'old_aside_clock',
+  'old_aside_neighbour',
+  'old_aside_mail',
+  'old_aside_nap',
+  'old_aside_stairs',
+  'old_aside_phone',
+  'old_aside_lemon',
+  'old_aside_ache',
+  'old_aside_whistle',
 ] as const satisfies readonly VoiceClipId[]
 
 /** Grudging praise after a correct buddy. */
@@ -752,6 +992,28 @@ export const OLDTIMER_GOOD_CLIPS = [
   'old_good_surprised',
   'old_good_lucky',
   'old_good_clap',
+  'old_good_stopped',
+  'old_good_carry',
+  'old_good_twice',
+  'old_good_mild',
+  'old_good_bones',
+  'old_good_newspaper',
+  'old_good_nod',
+  'old_good_soup',
+  'old_good_hat',
+  'old_good_decent',
+  'old_good_kid',
+  'old_good_bench',
+  'old_good_radio',
+  'old_good_cardigan',
+  'old_good_bingo',
+  'old_good_porch',
+  'old_good_gravy',
+  'old_good_whistle',
+  'old_good_rare',
+  'old_good_blink',
+  'old_good_weather',
+  'old_good_fair',
 ] as const satisfies readonly VoiceClipId[]
 
 /**
@@ -833,8 +1095,8 @@ const OLDTIMER_HUNT_MISS_CLIPS = [
 ] as const satisfies readonly VoiceClipId[]
 const oldHuntMiss = bag('old.huntMiss', OLDTIMER_HUNT_MISS_CLIPS)
 /** New personal best / near miss (replay challenge) */
-export const ROMAN_RECORD_CLIPS = ['roman_record_best', 'roman_record_faster', 'roman_record_beat', 'roman_record_fireworks', 'roman_record_clock', 'roman_record_fridge', 'roman_record_zoom', 'roman_record_notes', 'roman_record_socks'] as const satisfies readonly VoiceClipId[]
-export const COACH_RECORD_CLIPS = ['coach_record_best', 'coach_record_faster', 'coach_record_proud', 'coach_record_practice'] as const satisfies readonly VoiceClipId[]
+export const ROMAN_RECORD_CLIPS = ['roman_record_best', 'roman_record_faster', 'roman_record_beat', 'roman_record_fireworks', 'roman_record_clock', 'roman_record_fridge', 'roman_record_zoom', 'roman_record_notes', 'roman_record_socks', 'roman_record_rocket'] as const satisfies readonly VoiceClipId[]
+export const COACH_RECORD_CLIPS = ['coach_record_best', 'coach_record_faster', 'coach_record_proud', 'coach_record_practice', 'coach_record_fast'] as const satisfies readonly VoiceClipId[]
 // 9.30-f: 'Frame it. It might not happen again.' fits a new best too (the pool had only two lines)
 export const OLDTIMER_RECORD_CLIPS = ['old_record_head', 'old_record_tea', 'old_win_frame', 'old_record_nap', 'old_record_teeth', 'old_record_luck', 'old_record_showoff', 'old_record_rocking', 'old_record_pencil'] as const satisfies readonly VoiceClipId[]
 /** 9.30-i: Trial clear and Daily done get lines in all three voices (were one Roman line each) */
@@ -855,7 +1117,7 @@ const oldRecord = bag('old.record', OLDTIMER_RECORD_CLIPS)
  * teasers (those stay in their own win/record/nice-try pools). Old-timer about 60%, Roman and the
  * coach take weighted turns for the rest.
  */
-export const ROMAN_NOT_BEST_CLIPS = ['roman_notbest_record', 'roman_notbest_again', 'roman_notbest_turtle'] as const satisfies readonly VoiceClipId[]
+export const ROMAN_NOT_BEST_CLIPS = ['roman_notbest_record', 'roman_notbest_again', 'roman_notbest_turtle', 'roman_notbest_snail', 'roman_notbest_yawn'] as const satisfies readonly VoiceClipId[]
 export const OLDTIMER_NOT_BEST_CLIPS = [
   'old_notbest_tsk',
   'old_notbest_yesterday',
@@ -866,8 +1128,14 @@ export const OLDTIMER_NOT_BEST_CLIPS = [
   'old_notbest_tea',
   'old_notbest_downhill',
   'old_notbest_slowpoke',
+  'old_notbest_slow',
+  'old_notbest_sunday',
+  'old_notbest_snail',
+  'old_notbest_stroll',
+  'old_notbest_pension',
+  'old_notbest_crawl',
 ] as const satisfies readonly VoiceClipId[]
-export const COACH_NOT_BEST_CLIPS = ['coach_notbest_clear', 'coach_notbest_close', 'coach_notbest_stands', 'coach_notbest_okay', 'coach_notbest_chase', 'coach_notbest_breath', 'coach_notbest_safe', 'coach_notbest_practice'] as const satisfies readonly VoiceClipId[]
+export const COACH_NOT_BEST_CLIPS = ['coach_notbest_clear', 'coach_notbest_close', 'coach_notbest_stands', 'coach_notbest_okay', 'coach_notbest_chase', 'coach_notbest_breath', 'coach_notbest_safe', 'coach_notbest_practice', 'coach_notbest_again', 'coach_notbest_steady', 'coach_notbest_learning', 'coach_notbest_nice_win', 'coach_notbest_almost', 'coach_notbest_fresh', 'coach_notbest_calm', 'coach_notbest_close2', 'coach_notbest_rhythm', 'coach_notbest_smile', 'coach_notbest_bank'] as const satisfies readonly VoiceClipId[]
 const oldNotBest = bag('old.notBest', OLDTIMER_NOT_BEST_CLIPS)
 
 /** Old-timer draw. The bag set already keeps a line from playing twice in a row across bags. */
@@ -877,9 +1145,9 @@ function pickOld(draw: () => { clip: VoiceClipId; pool: readonly VoiceClipId[] }
 
 /** Coach (female) lines for the moments she has always voiced */
 const COACH_LOSE_CLIPS = ['out_of_hearts', 'tough_board', 'coach_lose_breathe', 'coach_lose_again', 'coach_lose_next'] as const satisfies readonly VoiceClipId[]
-const COACH_HINT_CLIPS = ['nudge', 'coach_hint_look', 'coach_hint_help', 'coach_hint_glow', 'coach_hint_clue', 'coach_hint_peek', 'coach_hint_step', 'coach_hint_try'] as const satisfies readonly VoiceClipId[]
-const COACH_BADGE_CLIPS = ['new_badge', 'coach_badge_earned', 'coach_badge_look'] as const satisfies readonly VoiceClipId[]
-const COACH_PRIZE_CLIPS = ['prize_time', 'coach_prize_ooh', 'coach_prize_see'] as const satisfies readonly VoiceClipId[]
+const COACH_HINT_CLIPS = ['nudge', 'coach_hint_look', 'coach_hint_help', 'coach_hint_glow', 'coach_hint_clue', 'coach_hint_peek', 'coach_hint_step', 'coach_hint_try', 'coach_hint_light', 'coach_hint_start', 'coach_hint_safe', 'coach_hint_point', 'coach_hint_easy'] as const satisfies readonly VoiceClipId[]
+const COACH_BADGE_CLIPS = ['new_badge', 'coach_badge_earned', 'coach_badge_look', 'coach_badge_nice', 'coach_badge_hard', 'coach_badge_proud', 'coach_badge_collect'] as const satisfies readonly VoiceClipId[]
+const COACH_PRIZE_CLIPS = ['prize_time', 'coach_prize_ooh', 'coach_prize_see', 'coach_prize_spin', 'coach_prize_lucky', 'coach_prize_reward', 'coach_prize_surprise', 'coach_prize_nice'] as const satisfies readonly VoiceClipId[]
 const COACH_STASH_CLIPS = ['spark_unlocked', 'coach_stash_five', 'coach_stash_complete', 'coach_stash_bonus', 'coach_stash_sparkle'] as const satisfies readonly VoiceClipId[]
 
 /** Quick coach praise (critter catch, Buddy Hunt finds) */
@@ -1046,9 +1314,10 @@ export function banterFor(
     if (oldtimerTurn(OLDTIMER_SHARE, OLDTIMER_WRONG_CLIPS, [ROMAN_WRONG_CLIPS, COACH_WRONG_CLIPS])) return voiced(pickOld(oldWrong), 'bad', 'neutral', VOICE_PRIORITY.wrong)
     if (coachWrongTurn()) {
       // the line names the kind of mistake (or is her general one); never the same clip twice running
-      const own = COACH_WRONG_FOR[_conflict ?? 'generic']
-      let clip: VoiceClipId = own !== 'nope' && turnBags.bag(`coach.wrong.${own}`, ['own#0', 'nope#0'])().startsWith('nope') ? 'nope' : own
-      if (clip === lastCoachWrong) clip = clip === 'nope' ? own : 'nope'
+      // 9.30-o: each kind of mistake has its own lines (plus the original one); the least-heard line goes first
+      const kindKey = _conflict === 'col' ? 'row' : (_conflict ?? 'generic')
+      const own = COACH_WRONG_BY_KIND[kindKey === 'generic' ? 'generic' : kindKey]
+      const clip = coachWrongBag(kindKey, own)()
       if (clip !== lastCoachWrong) {
         lastCoachWrong = clip
         return voiced({ clip, pool: COACH_WRONG_CLIPS }, 'bad', 'soft', VOICE_PRIORITY.wrong)
