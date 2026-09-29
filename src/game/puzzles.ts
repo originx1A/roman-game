@@ -1,6 +1,6 @@
 import type { Puzzle, Difficulty } from './types'
 import { generateRandomPuzzle } from './generatePuzzle'
-import { getGeneratedPuzzle, getRemixBoard, rememberGeneratedPuzzle } from './storage'
+import { getGeneratedPuzzle, getRemixBoard, getSharedPuzzle, rememberGeneratedPuzzle } from './storage'
 
 export const PUZZLES: Puzzle[] = [
   {
@@ -166,7 +166,9 @@ export const PUZZLES: Puzzle[] = [
 ]
 
 export function getPuzzle(id: string): Puzzle | undefined {
-  return PUZZLES.find((p) => p.id === id) ?? getRemixBoard(id) ?? getGeneratedPuzzle(id)
+  // 9.30-n: a board that came with a shared link (or was made earlier) wins over the live Remix cache, so an old
+  // challenge always opens the exact board the sender played, even after the Remix set has rotated
+  return PUZZLES.find((p) => p.id === id) ?? getSharedPuzzle(id) ?? getGeneratedPuzzle(id) ?? getRemixBoard(id)
 }
 
 export function puzzlesByDifficulty(): Record<Difficulty, Puzzle[]> {

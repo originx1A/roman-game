@@ -29,6 +29,10 @@ export type WinScreenProps = {
   spins: number
   perfect: boolean
   onNext: () => void
+  /** 9.30-n: what the big button says ("Next Endless board" in Endless mode) */
+  nextLabel?: string
+  /** 9.30-n: a small note under the title ("Endless mode · 3 cleared", "Past Remix board") */
+  modeNote?: string
   onReplay: () => void
   onLevels: () => void
   onHome: () => void
@@ -55,6 +59,8 @@ export function WinScreen({
   spins,
   perfect,
   onNext,
+  nextLabel,
+  modeNote,
   onReplay,
   onLevels,
   onHome,
@@ -121,6 +127,7 @@ export function WinScreen({
         {/* Scrolls on its own only if a very short screen can't fit it; the buttons stay pinned below. */}
         <div className="win-screen-body">
           <h2 className="win-screen-title">Victory!</h2>
+          {modeNote ? <p className="win-mode-note" data-testid="win-mode-note">{modeNote}</p> : null}
           <p className="win-screen-kicker">
             <span className="win-screen-board">{puzzleName}</span> · {difficultyLabel} · {themeLabel}
           </p>
@@ -211,7 +218,7 @@ export function WinScreen({
             </button>
           ) : null}
           <button type="button" className={`btn ${buddyMeter?.pending && onBuddyHunt ? 'ghost' : 'primary'} win-cta`} onClick={onNext}>
-            Next board
+            {nextLabel ?? 'Next board'}
           </button>
           <div className="win-screen-row">
             {onShare ? (

@@ -26,6 +26,18 @@ export function targetsFor(p: { size: number; difficulty?: string }): Targets {
   return { timeMs, score3: Math.round(score3 / 10) * 10 }
 }
 
+/**
+ * 9.30-n sanity floor: no human clears a board faster than this (about 0.3 s per buddy, a bit more on bigger boards).
+ * A "best" under it is a timer glitch, not a record, so it is never saved and old ones are dropped on load.
+ */
+const FLOOR_SEC: Record<number, number> = { 5: 1.5, 6: 2.5, 7: 3.5, 8: 5 }
+export function timeFloorMs(size: number): number {
+  return Math.round((FLOOR_SEC[size] ?? Math.max(3, size * 1.1)) * 1000)
+}
+export function tooFast(size: number, ms: number): boolean {
+  return ms < timeFloorMs(size)
+}
+
 /** Trial countdown: a little over the target time */
 export function trialTimeLimitMs(t: Targets): number {
   return Math.round((t.timeMs * 1.2) / 1000) * 1000
@@ -156,6 +168,8 @@ export interface BestSet {
   clears: number
   /** Buddy on the best run (future feature). null = solo */
   buddy?: string | null
+  /** 9.30-n: the best time was set with a hint or Rescue. The first clean (no-help) clear replaces it, even if slower. */
+  assisted?: boolean
 }
 
 export interface LevelRecord extends BestSet {
@@ -195,13 +209,27 @@ export function emptyRecords(): RecordsBlob {
 const num = (n: unknown): number | undefined => (typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : undefined)
 function cleanBest(b: Partial<BestSet> | undefined): BestSet {
   const splits = Array.isArray(b?.splits) && b!.splits.every((n) => typeof n === 'number') ? b!.splits : undefined
-  return { bestMs: num(b?.bestMs), bestScore: num(b?.bestScore), splits, clears: num(b?.clears) ?? 0, buddy: typeof b?.buddy === 'string' ? b.buddy : null }
+  return { bestMs: num(b?.bestMs), bestScore: num(b?.bestScore), splits, clears: num(b?.clears) ?? 0, buddy: typeof b?.buddy === 'string' ? b.buddy : null, ...(b?.assisted === true ? { assisted: true } : {}) }
 }
 
 /**
  * Parse the saved blob; anything missing or broken falls back safely. With no blob yet, seed it
  * from the older clear list (best time/score per board), so earlier progress still counts.
  */
+/** Board size from a saved id: the catalog knows its boards, Remix ids carry it (rmx-<set>-<size>), generated boards are unknown */
+function sizeOfBoardId(id: string, boardInfo: (id: string) => { size: number } | undefined): number | undefined {
+  const info = boardInfo(id)
+  if (info) return info.size
+  const m = /^rmx-(?:-?\d+)-([5-8])$/.exec(id)
+  return m ? Number(m[1]) : undefined
+}
+/** Drop a saved best that is under the sanity floor (keeps the clear count) */
+function dropTooFast(b: BestSet, size: number | undefined): BestSet {
+  if (size == null || b.bestMs == null || !tooFast(size, b.bestMs)) return b
+  return { ...b, bestMs: undefined, bestScore: undefined, splits: undefined, buddy: null }
+}
+export const BAD_BEST_KEY = 'roman.badbests.v1'
+
 export function migrateRecords(
   raw: unknown,
   legacyClears: { puzzleId: string; bestMs: number; bestScore: number; clears: number }[],
@@ -212,12 +240,13 @@ export function migrateRecords(
   if (r && typeof r === 'object' && r.v === 1) {
     for (const [id, lv] of Object.entries(r.levels ?? {})) {
       if (!lv || typeof lv !== 'object') continue
-      const base = cleanBest(lv)
+      const size = sizeOfBoardId(id, boardInfo)
+      const base = dropTooFast(cleanBest(lv), size)
       out.levels[id] = {
         ...base,
         stars: Math.min(3, Math.max(0, Math.floor(num(lv.stars) ?? 0))),
         plays: num(lv.plays) ?? base.clears,
-        trial: lv.trial ? cleanBest(lv.trial) : undefined,
+        trial: lv.trial ? dropTooFast(cleanBest(lv.trial), size) : undefined,
       }
     }
     const d = r.daily
@@ -234,7 +263,7 @@ export function migrateRecords(
   for (const c of legacyClears ?? []) {
     if (!c || out.levels[c.puzzleId]) continue
     const info = boardInfo(c.puzzleId)
-    if (!info || !num(c.bestMs)) continue
+    if (!info || !num(c.bestMs) || tooFast(info.size, c.bestMs)) continue
     const t = targetsFor(info)
     out.levels[c.puzzleId] = {
       bestMs: c.bestMs,
@@ -260,12 +289,23 @@ export interface RunResult {
   trialUnlockedNow: boolean
   /** ms slower than the best time, when close but not a record */
   nearMissMs?: number
+  /** 9.30-n: under the sanity floor, so the time was not saved as a best and no stars above 1 */
+  tooFast?: boolean
 }
 
 export function hasBest(blob: RecordsBlob, id: string, mode: RunMode): BestSet | undefined {
   const lv = blob.levels[id]
   const b = mode === 'trial' ? lv?.trial : lv
   return b && b.bestMs != null ? b : undefined
+}
+
+/** 9.30-n: forget the best time (and ghost) for one board; stars, clears and the top score stay */
+export function resetBestTime(blob: RecordsBlob, id: string, mode: RunMode = 'normal'): RecordsBlob {
+  const lv = blob.levels[id]
+  if (!lv) return blob
+  const clean = (b: BestSet): BestSet => ({ clears: b.clears, bestScore: b.bestScore, buddy: null })
+  const next: LevelRecord = mode === 'trial' ? { ...lv, trial: lv.trial ? clean(lv.trial) : undefined } : { ...lv, ...clean(lv), bestMs: undefined, splits: undefined, assisted: undefined }
+  return { ...blob, levels: { ...blob.levels, [id]: next } }
 }
 
 export function trialUnlocked(blob: RecordsBlob, id: string): boolean {
@@ -279,12 +319,24 @@ export function notePlay(blob: RecordsBlob, id: string): RecordsBlob {
 
 export function recordRun(
   blob: RecordsBlob,
-  run: { puzzleId: string; mode: RunMode; ms: number; score: number; undos: number; splits: number[]; targets: Targets; buddy?: string | null },
+  run: { puzzleId: string; mode: RunMode; ms: number; score: number; undos: number; splits: number[]; targets: Targets; buddy?: string | null; size?: number; assisted?: boolean },
 ): { blob: RecordsBlob; result: RunResult } {
   const lv: LevelRecord = blob.levels[run.puzzleId] ?? { stars: 0, plays: 1, clears: 0 }
   const cur: BestSet = run.mode === 'trial' ? lv.trial ?? { clears: 0 } : lv
+  // 9.30-n: a time under the sanity floor is a glitch. Count the clear, but never save it as a best or award more than 1 star.
+  if (run.size != null && tooFast(run.size, run.ms)) {
+    const counted: BestSet = { ...cur, clears: cur.clears + 1 }
+    const next: LevelRecord = run.mode === 'trial' ? { ...lv, trial: counted } : { ...lv, ...counted, stars: Math.max(lv.stars, 1) }
+    return {
+      blob: { ...blob, levels: { ...blob.levels, [run.puzzleId]: next } },
+      result: { firstClear: false, newBestTime: false, newBestScore: false, prevBestMs: cur.bestMs, prevBestScore: cur.bestScore, starsBefore: lv.stars, starsAfter: next.stars, runStars: run.mode === 'normal' ? 1 : 0, trialUnlockedNow: false, tooFast: true },
+    }
+  }
   const firstClear = cur.bestMs == null
-  const newBestTime = !firstClear && run.ms < cur.bestMs!
+  // 9.30-n: a run that used a hint or Rescue can't set a record time over a clean one. A clean run replaces an assisted best.
+  const helped = run.assisted === true
+  const eligible = firstClear || !helped || cur.assisted === true
+  const newBestTime = !firstClear && eligible && (run.ms < cur.bestMs! || (cur.assisted === true && !helped))
   const newBestScore = !firstClear && cur.bestScore != null && run.score > cur.bestScore
   const fastest = firstClear || newBestTime
   const updated: BestSet = {
@@ -293,6 +345,7 @@ export function recordRun(
     splits: fastest ? run.splits : cur.splits,
     clears: cur.clears + 1,
     buddy: fastest ? run.buddy ?? null : cur.buddy ?? null,
+    assisted: (fastest ? helped : cur.assisted === true) ? true : undefined,
   }
   const runStars = run.mode === 'normal' ? starsFor(run, run.targets) : 0
   const starsBefore = lv.stars

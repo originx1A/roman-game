@@ -121,6 +121,7 @@ import {
   notePlay,
   paceDelta,
   recordRun,
+  resetBestTime,
   replayCoins,
   NEW_BEST_COINS,
   scoreRunV2,
@@ -142,6 +143,7 @@ import type { CellState, Challenge, Difficulty, DuelResult, Profile, Puzzle, Scr
 import { DIFFICULTY_LABEL } from './game/types'
 import {
   boardLabel,
+  boardKindNote,
   challengeShareText,
   createChallenge,
   createDuelResult,
@@ -213,6 +215,7 @@ import {
   loadRemixBoards,
   noteEndlessClear,
   rememberGeneratedPuzzle,
+  rememberSharedPuzzle,
   saveRemixBoard,
   type EndlessStats,
   loadTips,
@@ -820,7 +823,16 @@ export default function App() {
       if (tickRef.current) window.clearInterval(tickRef.current)
       return
     }
-    tickRef.current = window.setInterval(() => setElapsedMs((e) => e + 250), 250)
+    // 9.30-n: count the REAL time between ticks (a busy phone delays ticks; adding a fixed 250 ms
+    // per tick made clocks run slow and saved times far too low). One tick never counts more than
+    // 1 s, so a tab sent to the background pauses the clock instead of adding minutes.
+    let last = performance.now()
+    tickRef.current = window.setInterval(() => {
+      const now = performance.now()
+      const dt = Math.min(1000, Math.max(0, now - last))
+      last = now
+      setElapsedMs((e) => e + dt)
+    }, 250)
     return () => {
       if (tickRef.current) window.clearInterval(tickRef.current)
     }
@@ -1278,9 +1290,10 @@ export default function App() {
   }
 
   /** A parade treasure was tapped: coins, a free hint, or a spin token into the wallet */
-  function catchTreasure(t: Treasure) {
+  function catchTreasure(t: Treasure): Treasure {
     const cur = loadWallet()
     const next = { ...cur }
+    let real: Treasure = t
     if (t.kind === 'coins') next.coins += t.amount
     else if (t.kind === 'hint') next.freeHints += 1
     else {
@@ -1290,11 +1303,13 @@ export default function App() {
         commitLedger({ ...led, spins: led.spins + 1 })
       } else {
         next.coins += SPIN_CAPPED_COINS
+        real = { kind: 'coins', amount: SPIN_CAPPED_COINS }
         showToast(`Spin limit for today: +${SPIN_CAPPED_COINS} coins instead`)
       }
     }
     persistWallet(next)
     sfxCoin()
+    return real
   }
 
   function startPuzzle(p: Puzzle, resume = false, opts: { mode?: RunMode; daily?: boolean; endless?: boolean } = {}) {
@@ -1575,7 +1590,7 @@ export default function App() {
         const fullSplits = [...splitsRef.current]
         while (fullSplits.length < puzzle.size) fullSplits.push(elapsedMs)
         if (hasRecords(puzzle.id)) {
-          const out = recordRun(rec, { puzzleId: puzzle.id, mode: runMode, ms: elapsedMs, score, undos: undosRef.current, splits: fullSplits.slice(0, puzzle.size), targets, buddy: runPetRef.current })
+          const out = recordRun(rec, { puzzleId: puzzle.id, mode: runMode, ms: elapsedMs, score, undos: undosRef.current, splits: fullSplits.slice(0, puzzle.size), targets, buddy: runPetRef.current, size: puzzle.size, assisted: hintsUsed > 0 || rescuesUsed > 0 })
           rec = out.blob
           replay = out.result
         }
@@ -1741,6 +1756,8 @@ export default function App() {
         const c = comboRef.current
         const bits = [`combo ×${c.bestMult}`, `${undosRef.current} undo${undosRef.current === 1 ? '' : 's'}`]
         if (perfect) bits.unshift('perfect')
+        if (replay?.tooFast) bits.push('that time looked too fast to be real, so it was not saved as a best')
+        else if (hintsUsed > 0 || rescuesUsed > 0) bits.push('help used: a clean run can replace this time')
         const banner: WinReplay['banner'] = isRecord && replay
           ? { kind: 'record', text: replay.newBestTime ? `New best! ${formatMs(elapsedMs)} (was ${formatMs(replay.prevBestMs ?? 0)})` : `New best score! ${score} pts` }
           : runMode === 'trial'
@@ -2412,6 +2429,21 @@ export default function App() {
                 ) : (
                   <p className="start-sheet-locked">⚔ Roman's Trial unlocks at 3 stars</p>
                 )}
+                {sheetRec?.bestMs != null ? (
+                  <button
+                    type="button"
+                    className="btn tool"
+                    data-testid="reset-best"
+                    onClick={() => {
+                      if (window.confirm(`Reset your best time on ${startSheet.name}? Your stars and top score stay.`)) {
+                        persistRecords(resetBestTime(records, startSheet.id))
+                        showToast('Best time reset. Set a new one!')
+                      }
+                    }}
+                  >
+                    Reset best time
+                  </button>
+                ) : null}
                 <button type="button" className="btn ghost" onClick={() => setStartSheet(null)}>
                   Cancel
                 </button>
@@ -2573,8 +2605,10 @@ export default function App() {
                   type="button"
                   className="btn primary"
                   onClick={() => {
+                    // 9.30-n: once every level is cleared, Play opens the Levels list (it used to make endless random boards)
                     const uncleared = PUZZLES.find((p) => !done.has(p.id))
-                    startPuzzle(uncleared ?? createFreshPuzzle('easy'))
+                    if (uncleared) startPuzzle(uncleared)
+                    else setScreen('levels')
                   }}
                 >
                   Play
@@ -2670,11 +2704,15 @@ export default function App() {
                 <button
                   type="button"
                   className="btn ghost random-btn"
-                  data-endless-level={diff}
-                  disabled={endlessBusy != null}
-                  onClick={() => startEndless(diff)}
+                  data-random-level={diff}
+                  title="One fresh random board. Then Next goes to the next level, as usual."
+                  onClick={() => {
+                    showToast('Shuffling one fresh board…')
+                    // Defer so the toast paints before the (heavy on expert) generate
+                    window.setTimeout(() => startPuzzle(createFreshPuzzle(diff)), 30)
+                  }}
                 >
-                  {endlessBusy === diff ? 'Making…' : 'Endless'}
+                  Random
                 </button>
               </div>
               <div className="level-grid">
@@ -2745,6 +2783,11 @@ export default function App() {
                 {mode === 'trial' ? `⏳${formatMs(trialLeftMs)}` : formatMs(elapsedMs)}
                 {pace ? <em className="hud-pace">{formatDelta(pace.delta)}</em> : null}
               </span>
+              {endlessRef.current ? (
+                <span className="hud-mode" data-testid="hud-endless" title="Endless mode: the board list never ends. Leave any time with Back.">♾ Endless</span>
+              ) : parseRemixId(puzzle.id) ? (
+                <span className="hud-mode" data-testid="hud-remix" title="Remix board">{boardKindNote(puzzle.id)}</span>
+              ) : null}
               {dayPerk && !celebrate ? (
                 <span className="hud-day" data-testid="hud-day" title={`Buddy of the day: ${dayPerk.pet ? petById(dayPerk.pet)?.name : 'Guest'} · board ${dayPerk.board} of 3`}>
                   ⭐ {dayShort(dayPerk.kind)} {dayPerk.board}/3
@@ -2929,6 +2972,8 @@ export default function App() {
               spins={wallet.spins}
               perfect={hintsUsed === 0}
               replay={winReplay ?? undefined}
+              nextLabel={endlessRef.current ? 'Next Endless board' : parseRemixId(puzzle.id) ? 'Next Remix board' : 'Next board'}
+              modeNote={endlessRef.current ? `Endless mode · ${endless.cleared} cleared. Levels list and Home are below.` : parseRemixId(puzzle.id) ? boardKindNote(puzzle.id) : undefined}
               onNext={() => maybeParade(() => {
                 // 9.30-i: Remix → the next uncleared board of the live set; Endless → another fresh board
                 const rm = parseRemixId(puzzle.id)
@@ -3395,6 +3440,22 @@ export default function App() {
                 onClick={() => {
                   const p = getPuzzle(incoming.puzzleId)
                   if (!p) {
+                    // 9.30-n: an older Remix link with no board inside is rebuilt from its set + size (the same board for everyone)
+                    const rm = parseRemixId(incoming.puzzleId)
+                    if (rm) {
+                      showToast('Rebuilding that Remix board…')
+                      void buildRemixInBackground(rm.set, rm.size).then((b) => {
+                        if (!b) {
+                          setLinkBoardError(MISSING_BOARD)
+                          return
+                        }
+                        rememberSharedPuzzle(b)
+                        setLinkBoardError('')
+                        setActiveChallenge(incoming)
+                        startPuzzleRef.current(b)
+                      })
+                      return
+                    }
                     setLinkBoardError(MISSING_BOARD)
                     showToast(MISSING_BOARD)
                     return
