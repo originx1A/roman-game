@@ -50,13 +50,29 @@ export function petById(id: unknown): PetDef | undefined {
   return PETS.find((p) => p.id === id)
 }
 
-// ---------- levels ----------
-export const MAX_PET_LEVEL = 10
-/** XP to go from level L to L+1 */
+// ---------- levels (9.30-m: 30 levels + prestige stars) ----------
+export const MAX_PET_LEVEL = 30
+export const MAX_STARS = 5
+/** XP to go from level L to L+1. Levels 1-9 are the old curve (saves keep their level); after that each level costs a bit more. */
 export function xpToNext(level: number): number {
-  return 30 + 15 * (level - 1)
+  return level < 10 ? 30 + 15 * (level - 1) : 100 + 12 * (level - 10)
 }
-export function levelInfo(xp: number): { level: number; into: number; need: number; max: boolean } {
+/** XP for each prestige star after level 30 */
+export function starNeed(star: number): number {
+  return 1000 + 300 * Math.max(0, star)
+}
+export interface LevelInfo {
+  level: number
+  into: number
+  need: number
+  max: boolean
+  /** prestige stars earned after level 30 (0-5) */
+  stars: number
+  /** XP into the next star / the XP it needs (0 until level 30; 0 need at 5 stars) */
+  starInto: number
+  starNeedXp: number
+}
+export function levelInfo(xp: number): LevelInfo {
   let level = 1
   let left = Math.max(0, Math.floor(xp || 0))
   while (level < MAX_PET_LEVEL && left >= xpToNext(level)) {
@@ -64,11 +80,88 @@ export function levelInfo(xp: number): { level: number; into: number; need: numb
     level += 1
   }
   const max = level >= MAX_PET_LEVEL
-  return { level, into: max ? 0 : left, need: max ? 0 : xpToNext(level), max }
+  let stars = 0
+  let starInto = 0
+  if (max) {
+    starInto = left
+    while (stars < MAX_STARS && starInto >= starNeed(stars)) {
+      starInto -= starNeed(stars)
+      stars += 1
+    }
+    if (stars >= MAX_STARS) starInto = 0
+  }
+  return {
+    level,
+    into: max ? 0 : left,
+    need: max ? 0 : xpToNext(level),
+    max,
+    stars,
+    starInto: max ? starInto : 0,
+    starNeedXp: max && stars < MAX_STARS ? starNeed(stars) : 0,
+  }
+}
+/** Total XP to reach a level (for the sim and the docs) */
+export function xpForLevel(level: number): number {
+  let t = 0
+  for (let l = 1; l < Math.min(MAX_PET_LEVEL, level); l++) t += xpToNext(l)
+  return t
 }
 /** XP for a win with the buddy active */
 export function winXp(o: { perfect: boolean; record: boolean }): number {
   return 10 + (o.perfect ? 5 : 0) + (o.record ? 5 : 0)
+}
+
+// ---------- milestones ----------
+export interface Milestone {
+  level: number
+  /** what it unlocks, in plain words */
+  text: string
+  /** short badge name shown on the card */
+  badge?: string
+}
+export const MILESTONES: readonly Milestone[] = [
+  { level: 5, text: 'Friend badge', badge: 'Friend' },
+  { level: 10, text: 'Laurel hat + Rising Star badge', badge: 'Rising Star' },
+  { level: 15, text: 'Sway animation + a stronger perk', badge: 'Trusted' },
+  { level: 20, text: 'Legion helmet + Veteran badge', badge: 'Veteran' },
+  { level: 25, text: 'Flip animation + a stronger perk', badge: 'Hero' },
+  { level: 30, text: 'Golden crown + Champion badge, prestige stars open', badge: 'Champion' },
+]
+export function nextMilestone(level: number): Milestone | null {
+  return MILESTONES.find((m) => m.level > level) ?? null
+}
+export function milestonesReached(level: number): Milestone[] {
+  return MILESTONES.filter((m) => m.level <= level)
+}
+/** The milestone a level-up just crossed (if any) */
+export function milestoneAt(level: number): Milestone | null {
+  return MILESTONES.find((m) => m.level === level) ?? null
+}
+/** Cosmetics a level has earned: hat (10 laurel, 20 helmet, 30 crown), idle animation (15), tap animation (25) */
+export function cosmeticsFor(level: number, stars = 0): { hat: 'none' | 'laurel' | 'helmet' | 'crown'; idle: boolean; flip: boolean; stars: number } {
+  return { hat: level >= 30 ? 'crown' : level >= 20 ? 'helmet' : level >= 10 ? 'laurel' : 'none', idle: level >= 15, flip: level >= 25, stars }
+}
+
+// ---------- mood (never punishing: it has a floor, and a sad buddy still gives its full base perk) ----------
+export const MOOD_START = 50
+export const MOOD_FLOOR = 20
+export const MOOD_MAX = 100
+export const MOOD_DECAY_PER_HOUR = 2
+export const HAPPY_AT = 60
+/** a win with your buddy cheers it up a little */
+export const WIN_MOOD = 6
+/** a happy buddy adds this many coins to each win (tapered on busy days like all win coins) */
+export const HAPPY_COINS = 4
+export type MoodKind = 'happy' | 'okay' | 'hungry'
+export function moodNow(o: { mood?: number; moodAt?: number } | undefined, now: number): number {
+  if (!o) return MOOD_START
+  const m = typeof o.mood === 'number' ? o.mood : MOOD_START
+  const at = typeof o.moodAt === 'number' && o.moodAt > 0 ? o.moodAt : now
+  const hours = Math.max(0, now - at) / 3_600_000
+  return Math.max(MOOD_FLOOR, Math.min(MOOD_MAX, Math.round(m - hours * MOOD_DECAY_PER_HOUR)))
+}
+export function moodKind(mood: number): MoodKind {
+  return mood >= HAPPY_AT ? 'happy' : mood >= 35 ? 'okay' : 'hungry'
 }
 
 // ---------- perks ----------
@@ -89,29 +182,42 @@ export interface Perk {
   next?: string
 }
 
-export function perkFor(id: PetId, level: number): Perk {
+/** Most a perk's coins can ever add to one win (flat) and in percent, with stars and a happy mood. Tested against the economy. */
+export const PERK_COINS_CAP = 32
+export const PERK_PCT_CAP = 22
+
+export function perkFor(id: PetId, level: number, stars = 0): Perk {
   const L = Math.min(MAX_PET_LEVEL, Math.max(1, Math.floor(level)))
+  const st = Math.min(MAX_STARS, Math.max(0, Math.floor(stars)))
   const base: Perk = { coins: 0, coinPct: 0, hints: 0, hearts: 0, rescues: 0, label: '' }
+  const starTxt = st ? ` (+${st} from stars)` : ''
   switch (id) {
     case 'lupa': {
-      const coins = 5 + L
-      return { ...base, coins, label: `+${coins} coins every win`, next: L < MAX_PET_LEVEL ? `+1 coin per level (max +${5 + MAX_PET_LEVEL})` : undefined }
+      const coins = 5 + Math.min(L, 10) + (L >= 15 ? 3 : 0) + (L >= 25 ? 3 : 0) + st
+      return { ...base, coins, label: `+${coins} coins every win${st ? starTxt : ''}`, next: L < 10 ? `+1 coin per level (to +15 at Lv10)` : L < 15 ? 'Level 15: +3 coins' : L < 25 ? 'Level 25: +3 coins' : undefined }
     }
     case 'aquila': {
-      const hints = L >= 6 ? 2 : 1
-      return { ...base, hints, label: `${hints} free hint${hints > 1 ? 's' : ''} every board`, next: L < 6 ? 'Level 6: 2 free hints' : undefined }
+      const hints = L >= 15 ? 3 : L >= 6 ? 2 : 1
+      const coins = (L >= 25 ? 4 : 0) + st
+      const txt = `${hints} free hint${hints > 1 ? 's' : ''} every board`
+      return { ...base, hints, coins, label: coins ? `${txt}, +${coins} coins a win` : txt, next: L < 6 ? 'Level 6: 2 free hints' : L < 15 ? 'Level 15: 3 free hints' : L < 25 ? 'Level 25: also +4 coins a win' : undefined }
     }
     case 'leo': {
-      const coins = L >= 5 ? L - 2 : 0
-      return { ...base, hearts: 1, coins, label: coins ? `+1 heart every board, +${coins} coins a win` : '+1 heart every board', next: L < 5 ? 'Level 5: also +3 coins a win' : L < MAX_PET_LEVEL ? '+1 coin per level' : undefined }
+      const hearts = L >= 25 ? 2 : 1
+      const coins = (L >= 5 ? Math.min(L, 10) - 2 : 0) + (L >= 15 ? 3 : 0) + st
+      const txt = `+${hearts} heart${hearts > 1 ? 's' : ''} every board`
+      return { ...base, hearts, coins, label: coins ? `${txt}, +${coins} coins a win` : txt, next: L < 5 ? 'Level 5: also +3 coins a win' : L < 10 ? '+1 coin per level (to +8 at Lv10)' : L < 15 ? 'Level 15: +3 coins' : L < 25 ? 'Level 25: a 2nd bonus heart' : undefined }
     }
     case 'invictus': {
-      const coinPct = 9 + L
-      return { ...base, coinPct, label: `+${coinPct}% coins every win`, next: L < MAX_PET_LEVEL ? `+1% per level (max +${9 + MAX_PET_LEVEL}%)` : undefined }
+      const coinPct = 9 + Math.min(L, 10) + (L >= 15 ? 1 : 0) + (L >= 25 ? 1 : 0)
+      const coins = st
+      return { ...base, coinPct, coins, label: `+${coinPct}% coins every win${st ? `, +${st} coins from stars` : ''}`, next: L < 10 ? `+1% per level (to +19% at Lv10)` : L < 15 ? 'Level 15: +1%' : L < 25 ? 'Level 25: +1%' : undefined }
     }
     case 'nox': {
-      const rescues = L >= 6 ? 2 : 1
-      return { ...base, rescues, label: `${rescues} free Rescue${rescues > 1 ? 's' : ''} every board`, next: L < 6 ? 'Level 6: 2 free Rescues' : undefined }
+      const rescues = L >= 25 ? 3 : L >= 6 ? 2 : 1
+      const coins = (L >= 15 ? 4 : 0) + st
+      const txt = `${rescues} free Rescue${rescues > 1 ? 's' : ''} every board`
+      return { ...base, rescues, coins, label: coins ? `${txt}, +${coins} coins a win` : txt, next: L < 6 ? 'Level 6: 2 free Rescues' : L < 15 ? 'Level 15: also +4 coins a win' : L < 25 ? 'Level 25: 3 free Rescues' : undefined }
     }
   }
 }
@@ -119,7 +225,7 @@ export function perkFor(id: PetId, level: number): Perk {
 /** Win coins with the active buddy's coin perks (applied after badge bonuses) */
 export function petWinCoins(paid: number, perk: Perk | null): number {
   if (!perk) return 0
-  return perk.coins + Math.floor((paid * perk.coinPct) / 100)
+  return Math.min(PERK_COINS_CAP, perk.coins) + Math.floor((paid * Math.min(PERK_PCT_CAP, perk.coinPct)) / 100)
 }
 
 // ---------- dates / limited buddies ----------
@@ -143,6 +249,14 @@ export interface OwnedPet {
   xp: number
   /** Owner gift code. Shown as 'Gift from Roman' (GIFT_TAG); a flag, so older gifts show the new tag too */
   gift?: boolean
+  /** 9.30-m care: mood 0-100 at `moodAt` (it drifts down slowly with time, never below the floor) */
+  mood?: number
+  moodAt?: number
+  /** Toronto date of the last free daily pet, and of the last treats */
+  careDay?: string
+  feedDay?: string
+  /** treats eaten on feedDay (max 3 a day) */
+  fedToday?: number
 }
 export type CouponSource = 'streak' | 'trial-clear' | 'trial-end' | 'gift'
 export interface Coupon {
@@ -164,6 +278,8 @@ export interface PetState {
   redeemed: string[]
   /** Last daily streak that paid a coupon */
   streakCouponAt: number
+  /** 9.30-m: free Snacks and Feasts earned by playing (Daily, Buddy Hunt, streaks) */
+  treats: { snack: number; feast: number }
 }
 
 export const PETS_KEY = 'roman.pets.v1'
@@ -171,12 +287,13 @@ export const DAY_MS = 86_400_000
 export const TRIAL_MS = DAY_MS
 export const COUPON_DAYS = 7
 export const MAX_COUPONS = 4
+export const MAX_FEEDS_PER_DAY = 3
 export const STREAK_COUPON_PCT = 20
 export const TRIAL_CLEAR_COUPON_PCT = 30
 export const TRIAL_END_COUPON_PCT = 25
 
 export function emptyPets(): PetState {
-  return { v: 1, owned: {}, active: null, trial: null, coupons: [], redeemed: [], streakCouponAt: 0 }
+  return { v: 1, owned: {}, active: null, trial: null, coupons: [], redeemed: [], streakCouponAt: 0, treats: { snack: 0, feast: 0 } }
 }
 
 const num = (x: unknown, d = 0) => (typeof x === 'number' && Number.isFinite(x) ? x : d)
@@ -188,7 +305,20 @@ export function sanitizePets(raw: unknown): PetState {
   const owned = (r.owned && typeof r.owned === 'object' ? r.owned : {}) as Record<string, unknown>
   for (const p of PETS) {
     const o = owned[p.id] as Record<string, unknown> | undefined
-    if (o && typeof o === 'object') out.owned[p.id] = { at: num(o.at), xp: Math.max(0, num(o.xp)), ...(o.gift === true ? { gift: true } : {}) }
+    if (o && typeof o === 'object') {
+      const pet: OwnedPet = { at: num(o.at), xp: Math.max(0, Math.min(1_000_000, num(o.xp))), ...(o.gift === true ? { gift: true } : {}) }
+      if (typeof o.mood === 'number' && Number.isFinite(o.mood)) {
+        pet.mood = Math.max(MOOD_FLOOR, Math.min(MOOD_MAX, Math.round(o.mood)))
+        pet.moodAt = Math.max(0, num(o.moodAt))
+      }
+      const dayRe = /^\d{4}-\d{2}-\d{2}$/
+      if (typeof o.careDay === 'string' && dayRe.test(o.careDay)) pet.careDay = o.careDay
+      if (typeof o.feedDay === 'string' && dayRe.test(o.feedDay)) {
+        pet.feedDay = o.feedDay
+        pet.fedToday = Math.max(0, Math.min(MAX_FEEDS_PER_DAY, Math.floor(num(o.fedToday))))
+      }
+      out.owned[p.id] = pet
+    }
   }
   const t = r.trial as Record<string, unknown> | null
   if (t && petById(t.id) && !out.owned[t.id as PetId]) out.trial = { id: t.id as PetId, until: num(t.until), xp: Math.max(0, num(t.xp)) }
@@ -205,6 +335,8 @@ export function sanitizePets(raw: unknown): PetState {
   }
   out.redeemed = Array.isArray(r.redeemed) ? (r.redeemed as unknown[]).filter((x): x is string => typeof x === 'string').slice(-50) : []
   out.streakCouponAt = Math.max(0, num(r.streakCouponAt))
+  const tr = (r.treats && typeof r.treats === 'object' ? r.treats : {}) as Record<string, unknown>
+  out.treats = { snack: Math.max(0, Math.min(99, Math.floor(num(tr.snack)))), feast: Math.max(0, Math.min(99, Math.floor(num(tr.feast)))) }
   const a = r.active
   out.active = a && (out.owned[a as PetId] || out.trial?.id === a) ? (a as PetId) : null
   return out
@@ -225,7 +357,14 @@ export function petXp(s: PetState, id: PetId): number {
 
 export function activePerk(s: PetState, now: number): Perk | null {
   const id = activePet(s, now)
-  return id ? perkFor(id, levelInfo(petXp(s, id)).level) : null
+  if (!id) return null
+  const lv = levelInfo(petXp(s, id))
+  const perk = perkFor(id, lv.level, lv.stars)
+  // 9.30-m: a happy owned buddy adds a few coins to each win (a hungry one just gives its normal perk)
+  if (s.owned[id] && moodKind(moodNow(s.owned[id], now)) === 'happy') {
+    return { ...perk, coins: perk.coins + HAPPY_COINS, label: `${perk.label} · happy +${HAPPY_COINS}` }
+  }
+  return perk
 }
 
 export function equip(s: PetState, id: PetId | null, now: number): PetState {
@@ -379,15 +518,111 @@ export function buyBundle(s: PetState, coins: number, id: BundleId, now: number)
 }
 
 /** Win with a buddy: it grows. */
-export function addPetXp(s: PetState, id: PetId | null, xp: number, now: number): { state: PetState; levelUp: number | null } {
-  if (!id || xp <= 0) return { state: s, levelUp: null }
-  const before = levelInfo(petXp(s, id)).level
+export function addPetXp(s: PetState, id: PetId | null, xp: number, now: number): { state: PetState; levelUp: number | null; starUp: number | null } {
+  if (!id || xp <= 0) return { state: s, levelUp: null, starUp: null }
+  const before = levelInfo(petXp(s, id))
   let state = s
-  if (s.owned[id]) state = { ...s, owned: { ...s.owned, [id]: { ...s.owned[id]!, xp: s.owned[id]!.xp + xp } } }
+  if (s.owned[id]) state = { ...s, owned: { ...s.owned, [id]: { ...withMood(s.owned[id]!, WIN_MOOD, now), xp: s.owned[id]!.xp + xp } } }
   else if (s.trial?.id === id && s.trial.until > now) state = { ...s, trial: { ...s.trial, xp: s.trial.xp + xp } }
-  else return { state: s, levelUp: null }
-  const after = levelInfo(petXp(state, id)).level
-  return { state, levelUp: after > before ? after : null }
+  else return { state: s, levelUp: null, starUp: null }
+  const after = levelInfo(petXp(state, id))
+  return { state, levelUp: after.level > before.level ? after.level : null, starUp: after.stars > before.stars ? after.stars : null }
+}
+
+// ---------- care: pet, feed, mood (9.30-m) ----------
+export type TreatId = 'snack' | 'feast'
+export interface TreatDef {
+  id: TreatId
+  name: string
+  cost: number
+  xp: number
+  mood: number
+}
+/** Treats are the coin sink for growth: a snack is 1 XP per coin, a feast about 1.3. Max 3 a day per buddy. */
+export const TREATS: readonly TreatDef[] = [
+  { id: 'snack', name: 'Snack', cost: 30, xp: 30, mood: 20 },
+  { id: 'feast', name: 'Feast', cost: 90, xp: 120, mood: 45 },
+]
+export const CARE_XP = 15
+export const CARE_MOOD = 25
+export const MAX_TREAT_STOCK = 9
+export function treatById(id: unknown): TreatDef | undefined {
+  return TREATS.find((t) => t.id === id)
+}
+
+export interface CareInfo {
+  mood: number
+  kind: MoodKind
+  /** the free daily pet is still available */
+  canPet: boolean
+  feedsLeft: number
+  /** fully grown (level 30 and every star): treats would do nothing */
+  maxed: boolean
+}
+export function careInfo(s: PetState, id: PetId, now: number, today: string): CareInfo {
+  const o = s.owned[id]
+  const mood = moodNow(o, now)
+  const fed = o?.feedDay === today ? o.fedToday ?? 0 : 0
+  const lv = levelInfo(o?.xp ?? 0)
+  return { mood, kind: moodKind(mood), canPet: !!o && o.careDay !== today, feedsLeft: o ? Math.max(0, MAX_FEEDS_PER_DAY - fed) : 0, maxed: lv.max && lv.stars >= MAX_STARS }
+}
+
+function withMood(o: OwnedPet, add: number, now: number): OwnedPet {
+  return { ...o, mood: Math.min(MOOD_MAX, moodNow(o, now) + add), moodAt: now }
+}
+
+export type CareResult =
+  | { ok: true; state: PetState; xp: number; levelUp: number | null; starUp: number | null }
+  | { ok: false; reason: string }
+
+/** The free daily pet: a little XP and a happier buddy. Once a day per buddy. */
+export function petCare(s: PetState, id: PetId, now: number, today: string): CareResult {
+  const o = s.owned[id]
+  if (!o) return { ok: false, reason: 'Adopt this buddy first' }
+  if (o.careDay === today) return { ok: false, reason: 'Already cared for today. Come back tomorrow!' }
+  const before = levelInfo(o.xp)
+  const xp = before.max && before.stars >= MAX_STARS ? 0 : CARE_XP
+  const next: OwnedPet = { ...withMood(o, CARE_MOOD, now), xp: o.xp + xp, careDay: today }
+  const state = { ...s, owned: { ...s.owned, [id]: next } }
+  const after = levelInfo(next.xp)
+  return { ok: true, state, xp, levelUp: after.level > before.level ? after.level : null, starUp: after.stars > before.stars ? after.stars : null }
+}
+
+export type FeedResult =
+  | { ok: true; state: PetState; coins: number; spent: number; usedStock: boolean; xp: number; levelUp: number | null; starUp: number | null }
+  | { ok: false; reason: string }
+
+/** Feed a treat: from your earned stock first, otherwise for coins. Max 3 a day per buddy. */
+export function feedPet(s: PetState, coins: number, id: PetId, treat: TreatId, now: number, today: string): FeedResult {
+  const o = s.owned[id]
+  const t = treatById(treat)
+  if (!o || !t) return { ok: false, reason: 'Adopt this buddy first' }
+  const info = careInfo(s, id, now, today)
+  if (info.maxed) return { ok: false, reason: 'Fully grown! Nothing left to feed' }
+  if (info.feedsLeft <= 0) return { ok: false, reason: 'Full for today. Treats again tomorrow' }
+  const useStock = (s.treats[treat] ?? 0) > 0
+  if (!useStock && coins < t.cost) return { ok: false, reason: `Need ${t.cost - coins} more coins` }
+  const before = levelInfo(o.xp)
+  const fed = o.feedDay === today ? o.fedToday ?? 0 : 0
+  const next: OwnedPet = { ...withMood(o, t.mood, now), xp: o.xp + t.xp, feedDay: today, fedToday: fed + 1 }
+  const treats = useStock ? { ...s.treats, [treat]: s.treats[treat] - 1 } : s.treats
+  const state: PetState = { ...s, treats, owned: { ...s.owned, [id]: next } }
+  const after = levelInfo(next.xp)
+  return {
+    ok: true,
+    state,
+    coins: useStock ? coins : coins - t.cost,
+    spent: useStock ? 0 : t.cost,
+    usedStock: useStock,
+    xp: t.xp,
+    levelUp: after.level > before.level ? after.level : null,
+    starUp: after.stars > before.stars ? after.stars : null,
+  }
+}
+
+/** Free treats from play (Daily, Buddy Hunt, streaks). The stock is capped so it can't pile up forever. */
+export function grantTreat(s: PetState, treat: TreatId, n = 1): PetState {
+  return { ...s, treats: { ...s.treats, [treat]: Math.min(MAX_TREAT_STOCK, (s.treats[treat] ?? 0) + Math.max(0, n)) } }
 }
 
 // ---------- gifts (owner codes) ----------

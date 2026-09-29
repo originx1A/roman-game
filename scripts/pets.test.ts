@@ -38,10 +38,11 @@ test('perks: one small perk each, growing modestly with level', () => {
   for (const p of P.PETS) for (let l = 1; l <= 10; l++) assert.ok(P.perkFor(p.id, l).label.length > 5)
 })
 
-test('levels: growth bar, max level 10', () => {
-  assert.deepEqual(P.levelInfo(0), { level: 1, into: 0, need: 30, max: false })
+test('levels: growth bar, max level 30', () => {
+  assert.deepEqual(P.levelInfo(0), { level: 1, into: 0, need: 30, max: false, stars: 0, starInto: 0, starNeedXp: 0 })
   assert.equal(P.levelInfo(30).level, 2)
-  assert.equal(P.levelInfo(10_000).level, 10)
+  assert.equal(P.levelInfo(810).level, 10, 'old saves keep their level 10')
+  assert.equal(P.levelInfo(10_000).level, 30)
   assert.equal(P.levelInfo(10_000).max, true)
   let s = P.emptyPets()
   const b = P.buyPet(s, 5000, 'lupa', NOW)
