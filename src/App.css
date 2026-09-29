@@ -5790,3 +5790,5 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
   min-width: 240px; min-height: 64px; font-size: 1.3rem; font-weight: 900; border-radius: 999px;
   box-shadow: 0 0 26px 8px rgba(255, 209, 102, 0.8); animation: parade-nudge 1s ease-in-out infinite;
 }
+
+.parade-closing { font-size: 0.9rem; color: rgba(255, 246, 207, 0.75); }

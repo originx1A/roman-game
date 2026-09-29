@@ -1313,7 +1313,11 @@ export default function App() {
     paradeCountedRef.current = true
     commitLedger(led)
     persistWallet(next)
-    sfxCoin()
+    try {
+      sfxCoin()
+    } catch {
+      /* iOS audio not unlocked: the coins are already paid */
+    }
     return real
   }
 
