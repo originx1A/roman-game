@@ -64,6 +64,7 @@ test('9.30-f: game voices: bags only move on when a line is heard (banterFor + n
     if (!b.clip) continue
     if (k % 3 === 1) continue // skipped
     C.noteVoicePlayed(b.clip)
+    C.noteVoiceHeard(b.clip) // 9.30-k: the heard count only moves when the clip finished
     heard.push(b.clip)
   }
   const roman = heard.filter((x) => (C.ROMAN_WRONG_CLIPS as readonly string[]).includes(x))

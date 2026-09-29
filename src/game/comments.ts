@@ -1,7 +1,8 @@
 import { browserBagStore, createBagSet } from './lineBag'
-import { setVoiceStartListener, voiceLineText } from './sound'
-import { isPlayableVoiceClip } from './voiceLines'
-import { playableTipLines, type TipId, type TipReason, type TipVoice } from './voiceTips'
+import { createHeardLog } from './heardLog'
+import { setVoiceHeardListener, setVoiceStartListener, voiceLineText } from './sound'
+import { isPlayableVoiceClip, roleForClip } from './voiceLines'
+import { NEW_TIP_LINES, OLD_SNARK_TIP_LINES, RECORDED_TIP_LINES, SNARK_TIPS, playableTipLines, type TipId, type TipReason, type TipVoice } from './voiceTips'
 
 export type CommentMood = 'good' | 'bad' | 'hype' | 'neutral'
 
@@ -762,10 +763,20 @@ export const OLDTIMER_SHARE = 0.36
 export const OLDTIMER_COOLDOWN_MS = 6500
 let oldtimerLastAt = Number.NEGATIVE_INFINITY
 
-function oldtimerTurn(share = OLDTIMER_SHARE): boolean {
+function oldtimerTurn(share = OLDTIMER_SHARE, oldPool?: readonly VoiceClipId[], others: readonly (readonly VoiceClipId[])[] = []): boolean {
   const now = Date.now()
   if (now - oldtimerLastAt < OLDTIMER_COOLDOWN_MS) return false
-  if (Math.random() >= share) return false
+  // 9.30-k: when he still has lines nobody has heard (fewer plays than the others' best), he goes
+  // more often; when the others have unheard lines and he doesn't, less often. Level = the usual share.
+  let p = share
+  if (oldPool && others.length) {
+    const minOf = (pool: readonly VoiceClipId[]) => Math.min(...pool.map((x) => heardLog.count(x)))
+    const o = minOf(oldPool)
+    const r = Math.min(...others.map(minOf))
+    if (o < r) p = 0.97
+    else if (o > r) p = share * 0.35
+  }
+  if (Math.random() >= p) return false
   oldtimerLastAt = now
   return true
 }
@@ -777,7 +788,10 @@ function oldtimerTurn(share = OLDTIMER_SHARE): boolean {
  * reload doesn't bring the same lines back first.
  */
 // 9.30-f: a line only counts as played once it is actually heard (skipped / stale lines stay next)
-const voiceBags = createBagSet({ store: browserBagStore(), commitOnPlay: true })
+// 9.30-k: a saved heard count per clip (roman.heard.v1, not tied to the build). Each moment offers its
+// LEAST-heard lines first (random among ties), so an unheard line always comes before a repeat.
+export const heardLog = createHeardLog({ store: browserBagStore() })
+const voiceBags = createBagSet({ store: browserBagStore(), commitOnPlay: true, heard: heardLog })
 /** The voice channel started this clip: its bag moves on (and it counts for no-back-to-back) */
 export function noteVoicePlayed(clip: string) {
   voiceBags.markPlayed(clip)
@@ -785,6 +799,11 @@ export function noteVoicePlayed(clip: string) {
   pendingTurns.delete(clip)
 }
 setVoiceStartListener(noteVoicePlayed)
+/** 9.30-k: only a clip that finished (or played 70%) adds to the heard count */
+export function noteVoiceHeard(clip: string) {
+  heardLog.record(clip)
+}
+setVoiceHeardListener(noteVoiceHeard)
 /** Speaker / turn bags (not lines): they move on when drawn, and never count as a spoken line */
 const turnBags = createBagSet({ store: browserBagStore(), key: 'roman.voiceturns.v1' })
 
@@ -877,18 +896,18 @@ const nextCoachCheer = bag('coach.cheer', COACH_CHEER_CLIPS)
 function takeTurns(name: string, roman: readonly VoiceClipId[], coach: readonly VoiceClipId[]) {
   const nextRoman = voiceBags.bag(`roman.${name}`, roman)
   const nextCoach = voiceBags.bag(`coach.${name}`, coach)
-  // 9.30-f: turns are weighted by how many lines each voice has (a saved bag of turn slots), so a
-  // voice with one or two lines isn't heard every other time. The turn only moves on when the
-  // line is actually heard.
-  const slots = [...roman.map((_, i) => `roman#${i}`), ...coach.map((_, i) => `coach#${i}`)]
-  const nextTurn = turnBags.bag(`speaker.${name}`, slots)
-  let turn: string | null = null
+  // 9.30-k: within this moment, the voice that holds the least-heard lines goes next. When both
+  // are level, the turn is weighted by how many lines each has. Skipped or stale lines change nothing
+  // (only a line heard to 70% adds to its count), so the same turn comes round again.
   return (): { clip: VoiceClipId; pool: readonly VoiceClipId[] } => {
-    turn ??= nextTurn()
-    const coachTurn = turn.startsWith('coach')
-    const pick = coachTurn ? { clip: nextCoach(), pool: coach } : { clip: nextRoman(), pool: roman }
-    pendingTurns.set(pick.clip, () => (turn = null))
-    return pick
+    const low = (pool: readonly VoiceClipId[]) => {
+      const min = Math.min(...pool.map((x) => heardLog.count(x)))
+      return { min, n: pool.filter((x) => heardLog.count(x) === min).length }
+    }
+    const r = low(roman)
+    const c = low(coach)
+    const coachTurn = c.min !== r.min ? c.min < r.min : Math.random() * (r.n + c.n) < c.n
+    return coachTurn ? { clip: nextCoach(), pool: coach } : { clip: nextRoman(), pool: roman }
   }
 }
 /** clip → "this speaker turn is used up" (runs when that clip is heard) */
@@ -1014,7 +1033,7 @@ export function banterFor(
 ): Banter {
   const silent: Banter = { text: '', mood: 'neutral', voiceMood: 'neutral', speak: false, silent: true }
   if (event === 'idle') {
-    if (oldtimerTurn()) return voiced(pickOld(oldIdle), 'bad', 'neutral', VOICE_PRIORITY.idle)
+    if (oldtimerTurn(OLDTIMER_SHARE, OLDTIMER_IDLE_CLIPS, [ROMAN_IDLE_CLIPS, COACH_IDLE_CLIPS])) return voiced(pickOld(oldIdle), 'bad', 'neutral', VOICE_PRIORITY.idle)
     return voiced(nextIdle(), 'bad', 'disappointed', VOICE_PRIORITY.idle)
   }
   if (event === 'mark') return { text: '', mood: 'neutral', voiceMood: 'neutral', speak: false, silent: true }
@@ -1024,7 +1043,7 @@ export function banterFor(
     return { text: '', mood: 'good', voiceMood: 'happy', speak: false, giggle: true, silent: true }
   }
   if (event === 'place-bad') {
-    if (oldtimerTurn()) return voiced(pickOld(oldWrong), 'bad', 'neutral', VOICE_PRIORITY.wrong)
+    if (oldtimerTurn(OLDTIMER_SHARE, OLDTIMER_WRONG_CLIPS, [ROMAN_WRONG_CLIPS, COACH_WRONG_CLIPS])) return voiced(pickOld(oldWrong), 'bad', 'neutral', VOICE_PRIORITY.wrong)
     if (coachWrongTurn()) {
       // the line names the kind of mistake (or is her general one); never the same clip twice running
       const own = COACH_WRONG_FOR[_conflict ?? 'generic']
@@ -1042,25 +1061,25 @@ export function banterFor(
     return voiced(roman(nextCheer(), ROMAN_CHEER_CLIPS), 'hype', 'excited', VOICE_PRIORITY.win)
   }
   if (event === 'hint') {
-    if (oldtimerTurn()) return voiced(pickOld(oldHint), 'neutral', 'neutral', VOICE_PRIORITY.hint)
+    if (oldtimerTurn(OLDTIMER_SHARE, OLDTIMER_HINT_CLIPS, [ROMAN_HINT_CLIPS, COACH_HINT_CLIPS])) return voiced(pickOld(oldHint), 'neutral', 'neutral', VOICE_PRIORITY.hint)
     return voiced(nextHint(), 'neutral', 'happy', VOICE_PRIORITY.hint)
   }
   if (event === 'rescue') {
-    if (oldtimerTurn(0.5)) return voiced(pickOld(oldRescue), 'neutral', 'neutral', VOICE_PRIORITY.hint)
+    if (oldtimerTurn(0.5, OLDTIMER_RESCUE_CLIPS, [ROMAN_HINT_CLIPS, COACH_HINT_CLIPS])) return voiced(pickOld(oldRescue), 'neutral', 'neutral', VOICE_PRIORITY.hint)
     return voiced(nextHint(), 'neutral', 'happy', VOICE_PRIORITY.hint)
   }
   // Undo/redo spam: only the old-timer comments, and only now and then
   if (event === 'undo-spam') {
-    if (oldtimerTurn(0.6)) return voiced(pickOld(oldUndo), 'bad', 'neutral', VOICE_PRIORITY.chatter)
+    if (oldtimerTurn(0.6, OLDTIMER_UNDO_CLIPS, [ROMAN_UNDO_CLIPS, COACH_UNDO_CLIPS])) return voiced(pickOld(oldUndo), 'bad', 'neutral', VOICE_PRIORITY.chatter)
     // 9.30-j: Roman / the coach sometimes take it (their undo-tip lines); otherwise stay quiet
     return Math.random() < 0.4 ? voiced(nextUndo(), 'bad', 'soft', VOICE_PRIORITY.chatter) : silent
   }
   if (event === 'trial-start') {
-    if (oldtimerTurn(0.34)) return voiced(pickOld(oldTrialStart), 'neutral', 'neutral', VOICE_PRIORITY.chatter)
+    if (oldtimerTurn(0.34, OLDTIMER_TRIAL_START_CLIPS, [ROMAN_TRIAL_START_CLIPS, COACH_TRIAL_START_CLIPS])) return voiced(pickOld(oldTrialStart), 'neutral', 'neutral', VOICE_PRIORITY.chatter)
     return voiced(nextTrialStart(), 'neutral', 'happy', VOICE_PRIORITY.chatter)
   }
   if (event === 'daily-start') {
-    if (oldtimerTurn(0.34)) return voiced(pickOld(oldDailyStart), 'neutral', 'neutral', VOICE_PRIORITY.chatter)
+    if (oldtimerTurn(0.34, OLDTIMER_DAILY_START_CLIPS, [ROMAN_DAILY_START_CLIPS, COACH_DAILY_START_CLIPS])) return voiced(pickOld(oldDailyStart), 'neutral', 'neutral', VOICE_PRIORITY.chatter)
     return voiced(nextDailyStart(), 'neutral', 'happy', VOICE_PRIORITY.chatter)
   }
   // After a slow/sloppy win: sometimes a backhanded compliment, once Roman's cheer has finished
@@ -1072,7 +1091,7 @@ export function banterFor(
     return oldtimerTurn(1) ? voiced(pickOld(oldAside), 'neutral', 'neutral', VOICE_PRIORITY.idle) : silent
   }
   if (event === 'lose') {
-    if (oldtimerTurn()) return voiced(pickOld(oldLose), 'bad', 'neutral', VOICE_PRIORITY.lose)
+    if (oldtimerTurn(OLDTIMER_SHARE, OLDTIMER_LOSE_CLIPS, [ROMAN_LOSE_CLIPS, COACH_LOSE_CLIPS])) return voiced(pickOld(oldLose), 'bad', 'neutral', VOICE_PRIORITY.lose)
     return voiced(nextLose(), 'bad', 'disappointed', VOICE_PRIORITY.lose)
   }
   // Buddy Hunt bonus round: existing clips only, same one-voice-at-a-time channel
@@ -1089,14 +1108,14 @@ export function banterFor(
   }
   // Roman's Trial clock ran out (hearts left): lose lines that don't talk about hearts
   if (event === 'time-up') {
-    if (oldtimerTurn()) return voiced(pickOld(oldTimeUp), 'bad', 'neutral', VOICE_PRIORITY.lose)
+    if (oldtimerTurn(OLDTIMER_SHARE, OLDTIMER_TIMEUP_CLIPS, [ROMAN_TIMEUP_CLIPS, COACH_TIMEUP_CLIPS])) return voiced(pickOld(oldTimeUp), 'bad', 'neutral', VOICE_PRIORITY.lose)
     return voiced(nextTimeUp(), 'bad', 'disappointed', VOICE_PRIORITY.lose)
   }
   if (event === 'prize') return voiced(nextPrize(), 'hype', 'excited', VOICE_PRIORITY.prize)
   // Replay challenge: these replace the win cheer (never on top of it)
   if (event === 'record') {
     // 9.30-i: 22 lines of its own now, so no more turns with the plain win cheer
-    if (oldtimerTurn(0.35)) return voiced(pickOld(oldRecord), 'hype', 'neutral', VOICE_PRIORITY.win)
+    if (oldtimerTurn(0.35, OLDTIMER_RECORD_CLIPS, [ROMAN_RECORD_CLIPS, COACH_RECORD_CLIPS])) return voiced(pickOld(oldRecord), 'hype', 'neutral', VOICE_PRIORITY.win)
     return voiced(nextRecord(), 'hype', 'excited', VOICE_PRIORITY.win)
   }
   // A near miss on a first/untimed win keeps the cheer; a replayed board that misses the best uses
@@ -1110,15 +1129,15 @@ export function banterFor(
   }
   // 9.30-a: the ONLY line for a win that doesn't beat your best (no cheer before it): it's the win line
   if (event === 'not-best') {
-    if (oldtimerTurn(0.6)) return voiced(pickOld(oldNotBest), 'hype', 'neutral', VOICE_PRIORITY.win)
+    if (oldtimerTurn(0.6, OLDTIMER_NOT_BEST_CLIPS, [ROMAN_NOT_BEST_CLIPS, COACH_NOT_BEST_CLIPS])) return voiced(pickOld(oldNotBest), 'hype', 'neutral', VOICE_PRIORITY.win)
     return voiced(nextNotBest(), 'hype', 'happy', VOICE_PRIORITY.win)
   }
   if (event === 'trial-clear') {
-    if (oldtimerTurn(0.25)) return voiced(pickOld(oldTrialClear), 'hype', 'neutral', VOICE_PRIORITY.win)
+    if (oldtimerTurn(0.25, OLDTIMER_TRIAL_CLEAR_CLIPS, [ROMAN_TRIAL_CLEAR_CLIPS, COACH_TRIAL_CLEAR_CLIPS])) return voiced(pickOld(oldTrialClear), 'hype', 'neutral', VOICE_PRIORITY.win)
     return voiced(nextTrialClear(), 'hype', 'excited', VOICE_PRIORITY.win)
   }
   if (event === 'daily-done') {
-    if (oldtimerTurn(0.25)) return voiced(pickOld(oldDailyDone), 'hype', 'neutral', VOICE_PRIORITY.win)
+    if (oldtimerTurn(0.25, OLDTIMER_DAILY_DONE_CLIPS, [ROMAN_DAILY_DONE_CLIPS, COACH_DAILY_DONE_CLIPS])) return voiced(pickOld(oldDailyDone), 'hype', 'neutral', VOICE_PRIORITY.win)
     return voiced(nextDailyDone(), 'hype', 'excited', VOICE_PRIORITY.win)
   }
   // Badges pop a few seconds after a win: wait for Roman's win line to finish instead of cutting it
@@ -1288,6 +1307,42 @@ export const WIN_POOLS = ['roman.cheer', 'coach.win', 'roman.nearMiss', 'old.nea
 
 /** Events that belong to a live board / a won board / a lost board; the rest can play anywhere. */
 export const PLAY_EVENTS: readonly BanterEvent[] = ['place-good', 'place-bad', 'mark', 'hint', 'rescue', 'idle', 'undo-spam', 'aside']
+/** 9.30-k: every clip a player can actually hear (a fired moment's pool, a tip line, a spark count) */
+export function reachableClips(): string[] {
+  const ids = new Set<string>()
+  for (const p of new Set(Object.values(EVENT_POOLS).flat())) for (const id of VOICE_POOLS[p] ?? []) ids.add(id)
+  for (const lines of Object.values(RECORDED_TIP_LINES)) for (const l of lines) ids.add(l.id)
+  for (const lines of Object.values(NEW_TIP_LINES)) for (const l of lines) ids.add(l.id)
+  if (SNARK_TIPS.length) for (const id of OLD_SNARK_TIP_LINES) ids.add(id)
+  for (let n = 1; n <= 4; n++) (ids.add(`spark_${n}`), ids.add(`spark_have_${n}`))
+  return [...ids].filter(isPlayableVoiceClip)
+}
+
+/** 9.30-k: "Voice lines heard: X of Y", with a per-voice breakdown for Settings */
+export function heardSummary(): { heard: number; total: number; plays: number; voices: { name: string; heard: number; total: number }[] } {
+  const all = reachableClips()
+  const groups: Record<string, string[]> = { Roman: [], 'Old-timer': [], Coach: [] }
+  for (const id of all) {
+    const r = roleForClip(id)
+    groups[r === 'roman' ? 'Roman' : r === 'oldtimer' ? 'Old-timer' : 'Coach'].push(id)
+  }
+  return {
+    heard: heardLog.heardOf(all),
+    total: all.length,
+    plays: heardLog.totalPlays(),
+    voices: Object.entries(groups).map(([name, ids]) => ({ name, heard: heardLog.heardOf(ids), total: ids.length })),
+  }
+}
+
+/** 9.30-k: share (0..1) of a moment's lines that have never been heard (drives how easily a busy moment speaks) */
+export function unheardShare(event: BanterEvent): number {
+  const pools = EVENT_POOLS[event]
+  if (!pools) return 0
+  const ids = [...new Set(pools.flatMap((p) => [...(VOICE_POOLS[p] ?? [])]))]
+  if (!ids.length) return 0
+  return ids.filter((id) => heardLog.count(id) === 0).length / ids.length
+}
+
 export const WIN_EVENTS: readonly BanterEvent[] = ['win', 'record', 'near-miss', 'not-best', 'trial-clear', 'daily-done', 'win-heckle', 'hunt-miss', 'hunt-some', 'hunt-all', 'hunt-none']
 export const LOSE_EVENTS: readonly BanterEvent[] = ['lose', 'time-up']
 

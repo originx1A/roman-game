@@ -70,6 +70,27 @@ interface SavedBags {
 /** How many recently spoken lines (across every category) a bag steps around when it can. */
 export const RECENT_AVOID = 8
 
+import type { HeardLog } from './heardLog'
+
+/**
+ * The least-heard lines of `pool`: strictly the lowest heard count (never a repeat while an unheard
+ * line is left). `hard` (the line just spoken) sits out unless it is the only line. Among the
+ * lowest-count ties, lines heard lately (`soft`) wait while a not-so-recent tie is left.
+ */
+export function leastHeard<T extends string>(
+  pool: readonly T[],
+  count: (id: string) => number,
+  soft: ReadonlySet<string> = new Set(),
+  hard: ReadonlySet<string> = new Set(),
+): T[] {
+  let cands = pool.filter((x) => !hard.has(x))
+  if (!cands.length) cands = [...pool]
+  const min = Math.min(...cands.map(count))
+  const ties = cands.filter((x) => count(x) === min)
+  const fresh = ties.filter((x) => !soft.has(x))
+  return fresh.length ? fresh : ties
+}
+
 export interface BagSet {
   /**
    * A picker for one category. `name` must be stable: it is the save key for this bag.
@@ -79,6 +100,8 @@ export interface BagSet {
   bag<T extends string>(name: string, items: readonly T[]): () => T
   /** 9.30-f: this line started playing: advance the bag(s) that offered it */
   markPlayed(item: string): void
+  /** 9.30-k: this line was heard (finished, or played 70%): its saved heard count goes up */
+  markHeard(item: string): void
   /** Last line handed out by any bag in this set. */
   last(): string | null
 }
@@ -103,7 +126,7 @@ export function memoryBagStore(): BagStore & { data: Map<string, string> } {
 }
 
 export function createBagSet(
-  opts: { store?: BagStore | null; rng?: () => number; key?: string; commitOnPlay?: boolean } = {},
+  opts: { store?: BagStore | null; rng?: () => number; key?: string; commitOnPlay?: boolean; heard?: HeardLog } = {},
 ): BagSet {
   const commitOnPlay = !!opts.commitOnPlay
   /** bag name → the line it last offered that hasn't been heard yet */
@@ -178,6 +201,17 @@ export function createBagSet(
   function bag<T extends string>(name: string, pool: readonly T[]): () => T {
     const items = [...new Set(pool)] as string[]
     if (items.length === 0) throw new Error(`empty voice pool ${name}`)
+    if (opts.heard) {
+      // 9.30-k: least-heard first. Lines with the lowest saved heard count are the only candidates
+      // (random among ties), so a never-heard line always comes before any repeat, in any session.
+      const heard = opts.heard
+      return () => {
+        const s = load()
+        const soft = new Set<string>([...(s.recent ?? []), ...(s.last ? [s.last] : [])])
+        const ties = leastHeard(items, (x) => heard.count(x), soft, new Set(s.last ? [s.last] : []))
+        return ties[Math.floor(rng() * ties.length)] as T
+      }
+    }
     return () => {
       const s = load()
       let b = reconcile(s.bags[name], items) ?? newCycle(items, [s.last])
@@ -243,5 +277,9 @@ export function createBagSet(
     }
   }
 
-  return { bag, markPlayed, last: () => load().last }
+  function markHeard(item: string) {
+    opts.heard?.record(item)
+  }
+
+  return { bag, markPlayed, markHeard, last: () => load().last }
 }

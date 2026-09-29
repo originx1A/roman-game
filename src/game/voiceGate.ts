@@ -18,16 +18,28 @@ export const VOICE_GATES: Readonly<Record<string, GateRule>> = {
   'undo-spam': { gapMs: 25000, chance: 1 },
 }
 
+/**
+ * 9.30-k: the more of a moment's lines nobody has heard yet, the more easily it speaks: the gap
+ * shrinks (down to 40%) and the chance climbs toward 90%. Once every line has been heard the plain
+ * rule applies again, so a worn-out moment stays quiet. `unheard` is the share (0..1) of that
+ * moment's lines with a heard count of 0.
+ */
+export const UNHEARD_MAX_CHANCE = 0.9
+export const UNHEARD_MIN_GAP_SCALE = 0.4
+
 export function createVoiceGate(rules: Readonly<Record<string, GateRule>> = VOICE_GATES, rand: () => number = Math.random) {
   const last = new Map<string, number>()
   return {
     /** true = let this moment speak (and remember when) */
-    allow(event: string, now: number): boolean {
+    allow(event: string, now: number, unheard = 0): boolean {
       const rule = rules[event]
       if (!rule) return true
+      const f = Math.min(1, Math.max(0, unheard))
+      const gap = rule.gapMs * (1 - (1 - UNHEARD_MIN_GAP_SCALE) * f)
+      const chance = rule.chance + Math.max(0, UNHEARD_MAX_CHANCE - rule.chance) * f
       const prev = last.get(event)
-      if (prev != null && now - prev < rule.gapMs) return false
-      if (rand() >= rule.chance) return false
+      if (prev != null && now - prev < gap) return false
+      if (rand() >= chance) return false
       last.set(event, now)
       return true
     },
