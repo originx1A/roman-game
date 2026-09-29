@@ -38,6 +38,7 @@ export function ParadeOverlay({
   featured,
   featuredKind,
   capped = false,
+  readPotPct,
   durationMs,
   reduce,
   onCatch,
@@ -52,6 +53,8 @@ export function ParadeOverlay({
   featuredKind: DayPerkKind
   /** the 3 treasure parades of today are used: buddies still give small coins */
   capped?: boolean
+  /** 9.30-t: percent of today's treasure pot still left (live) */
+  readPotPct?: () => number
   durationMs: number
   reduce: boolean
   /** returns what was really paid (a spin over the daily limit turns into coins) */
@@ -61,10 +64,11 @@ export function ParadeOverlay({
   onDone: () => void
 }) {
   // 9.30-s: EVERY marching buddy can be tapped for something (a buddy with no drop gives a few small coins), never a silent nothing
-  const treasure: Treasure[] = buddies.map((_, i) => treasureIn[i] ?? { kind: 'coins', amount: CAPPED_TAP_COINS })
+  const treasure: Treasure[] = buddies.map((_, i) => treasureIn[i] ?? { kind: 'coins', amount: CAPPED_TAP_COINS, fallback: true })
   const [got, setGot] = useState<Record<number, Treasure>>({})
   const [phase, setPhase] = useState<'march' | 'summary'>('march')
   const [wallet, setWallet] = useState(() => readWallet())
+  const [potPct, setPotPct] = useState(() => (readPotPct ? readPotPct() : 0))
   const [flies, setFlies] = useState<{ id: number; x0: number; y0: number; dx: number; dy: number; icon: string }[]>([])
   const chipRef = useRef<HTMLDivElement | null>(null)
   const flyId = useRef(0)
@@ -139,6 +143,7 @@ export function ParadeOverlay({
     if (c) setFlies((f) => [...f, { id, x0, y0, dx: c.left + c.width / 2 - x0, dy: c.top + c.height / 2 - y0, icon: treasureIcon(real) }])
     window.setTimeout(() => {
       setWallet(readWallet())
+      if (readPotPct) setPotPct(readPotPct())
       setFlies((f) => f.filter((x) => x.id !== id))
     }, 850)
   }
@@ -242,12 +247,13 @@ export function ParadeOverlay({
             {caughtList.length ? (
               <>
                 <strong>You got {sum.text}</strong>
-                {capped ? <span className="parade-got-list" data-testid="parade-capped-note">Big treasure is used up for today (it rides in 3 parades a day). Each buddy gave a few coins.</span> : null}
+                {capped ? <span className="parade-got-list" data-testid="parade-capped-note">Today's treasure is all used up (it is shared by the day's first 3 parades). Each buddy gave a few coins.</span> : null}
               </>
             ) : (
               <strong>No buddies marched this time.</strong>
             )}
           </div>
+          {readPotPct ? <div className="parade-pot-left" data-testid="parade-pot-left">Today's treasure left: <b>{readPotPct()}%</b></div> : null}
           <div className="parade-wallet" data-testid="parade-wallet">
             Wallet now: <b>{now.coins}</b> coins · <b>{now.hints}</b> free hints · <b>{now.spins}</b> spins
             {caughtList.length ? <small>(added {[gain.coins ? `+${gain.coins} coins` : '', gain.hints ? `+${gain.hints} hint` : '', gain.spins ? `+${gain.spins} spin` : ''].filter(Boolean).join(', ')})</small> : null}
@@ -283,9 +289,15 @@ export function ParadeOverlay({
       <div className="parade-title">Buddy Parade!</div>
       <div className="parade-prompt" data-testid="parade-prompt">
         {capped
-          ? `Big treasure is used up for today. Tap each buddy for +${CAPPED_TAP_COINS} coins! (${caughtList.length}/${total})`
+          ? `Today's treasure is all used up. Tap each buddy for +${CAPPED_TAP_COINS} coins! (${caughtList.length}/${total})`
           : `👆 Tap the buddies to grab treasure! (${caughtList.length}/${total})`}
       </div>
+      {readPotPct ? (
+        <div className="parade-pot" data-testid="parade-pot">
+          Today's treasure left: <b>{potPct}%</b>
+          <span className="parade-pot-bar" aria-hidden="true"><i style={{ width: `${potPct}%` }} /></span>
+        </div>
+      ) : null}
       <div className="parade-day" data-testid="parade-day">
         Buddy of the day: <strong>{featuredName ?? 'a guest buddy'}</strong>
         <small>{dayLabel(featuredKind)} for your next 3 boards</small>

@@ -6,7 +6,7 @@
  *  - Win coins taper by how many wins were paid today (full, then 70%, 40%, 15%, then a closed till).
  *  - Replaying a board you already cleared today pays less unless it's a new best.
  *  - Spark critters: 8 full catches a day, then only a few coins. At most 2 wheel spins a day (all sources).
- *  - Parade treasure: 3 parades a day. Buddy Hunt: 3 full prizes a day. Roman's Trial pays 2x three times a day.
+ *  - Parade treasure: 3 parades a day, sharing one daily pot (9.30-t: each takes at most 1/3 of what is left). Buddy Hunt: 3 full prizes a day. Roman's Trial pays 2x three times a day.
  * Stars, new bests, the Daily and buddy XP are never tapered. Pure state in, state out; App saves it.
  */
 export const ECON_KEY = 'roman.econ.v1'
@@ -24,6 +24,12 @@ export const SPARK_FULL_CATCHES = 8
 export const SPIN_CAP_PER_DAY = 1
 export const SPIN_CAPPED_COINS = 20
 export const TREASURE_PARADES_PER_DAY = 3
+/** 9.30-t: one daily treasure pot (in coin-worth: a hint counts 15, a spin 38). Each treasure parade may take at most 1/3 of what is LEFT,
+ *  so parade 1 = 50, parade 2 = 33, parade 3 = 22 (105 of the 150 in all, the rest is never paid). */
+export const TREASURE_POT = 150
+export const TREASURE_SHARE = 3
+/** below this a parade cannot fill 5 buddies with real (3+ coin) prizes: the pot counts as empty */
+export const TREASURE_MIN_BUDGET = 15
 export const HUNTS_PER_DAY = 3
 export const HUNT_EXTRA_PCT = 25
 export const TRIAL_DOUBLE_PER_DAY = 3
@@ -53,6 +59,8 @@ export interface Ledger {
   paradeCoins: number
   paradeHints: number
   paradeSpins: number
+  /** 9.30-t: coin-worth of treasure taken from today's pot */
+  potUsed: number
   hunts: number
   bests: number
   trialClears: number
@@ -61,7 +69,7 @@ export interface Ledger {
 }
 
 export function emptyLedger(day: string): Ledger {
-  return { day, wins: 0, winCoins: 0, sparks: 0, spins: 0, treasureParades: 0, paradeCoins: 0, paradeHints: 0, paradeSpins: 0, hunts: 0, bests: 0, trialClears: 0, boards: {} }
+  return { day, wins: 0, winCoins: 0, sparks: 0, spins: 0, treasureParades: 0, paradeCoins: 0, paradeHints: 0, paradeSpins: 0, potUsed: 0, hunts: 0, bests: 0, trialClears: 0, boards: {} }
 }
 
 const int = (x: unknown, max = 100000) => (typeof x === 'number' && Number.isFinite(x) ? Math.max(0, Math.min(max, Math.floor(x))) : 0)
@@ -84,6 +92,7 @@ export function sanitizeLedger(raw: unknown, today: string): Ledger {
     paradeCoins: int(r.paradeCoins, 99999),
     paradeHints: int(r.paradeHints, 99),
     paradeSpins: int(r.paradeSpins, 99),
+    potUsed: int(r.potUsed, 99999),
     hunts: int(r.hunts, 99),
     bests: int(r.bests, 99),
     trialClears: int(r.trialClears, 99),
@@ -164,8 +173,21 @@ export function sparksOpen(l: Ledger): boolean {
 export function canEarnSpin(l: Ledger): boolean {
   return l.spins < SPIN_CAP_PER_DAY
 }
+/** Coin-worth still in today's pot (0 once the 3 treasure parades are done: the rest of the pot closes) */
+export function treasureLeft(l: Ledger): number {
+  return l.treasureParades >= TREASURE_PARADES_PER_DAY ? 0 : Math.max(0, TREASURE_POT - l.potUsed)
+}
+/** What the next parade may hold: 1/3 of the pot that is left (0 = pot empty, buddies give the small +2 coins) */
+export function treasureBudget(l: Ledger): number {
+  const b = Math.floor(treasureLeft(l) / TREASURE_SHARE)
+  return b >= TREASURE_MIN_BUDGET ? b : 0
+}
 export function canTreasure(l: Ledger): boolean {
-  return l.treasureParades < TREASURE_PARADES_PER_DAY
+  return treasureBudget(l) > 0
+}
+/** "Today's treasure left" as a whole percent of the pot */
+export function treasureLeftPct(l: Ledger): number {
+  return Math.round((100 * treasureLeft(l)) / TREASURE_POT)
 }
 /** Roman's Trial pays 2x for the first three clears of the day, 1x after */
 export function trialMultiplier(l: Ledger): number {
@@ -191,9 +213,10 @@ export function ledgerSummary(l: Ledger): { winsFull: number; winsFullMax: numbe
 }
 
 /** 9.30-p: a treasure was really paid: count it (and the parade, once) in today's ledger */
-export function noteParadeGain(l: Ledger, g: { coins?: number; hints?: number; spins?: number }, firstOfParade: boolean): Ledger {
+export function noteParadeGain(l: Ledger, g: { coins?: number; hints?: number; spins?: number; pot?: number }, firstOfParade: boolean): Ledger {
   return {
     ...l,
+    potUsed: l.potUsed + Math.max(0, g.pot ?? 0),
     treasureParades: l.treasureParades + (firstOfParade ? 1 : 0),
     paradeCoins: l.paradeCoins + Math.max(0, g.coins ?? 0),
     paradeHints: l.paradeHints + Math.max(0, g.hints ?? 0),
