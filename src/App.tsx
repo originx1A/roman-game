@@ -74,12 +74,13 @@ import {
   startHunt,
 } from './game/buddyHunt'
 import { createVoiceGate } from './game/voiceGate'
-import { loadParade, paradeDone, paradeLengthMs, paradeWin, saveParade, type ParadeState } from './game/parade'
+import { loadParade, paradeDone, paradeHint, paradeLengthMs, paradeReady, paradeWin, saveParade, type ParadeState } from './game/parade'
 import { ParadeOverlay, type ParadeBuddy } from './components/ParadeOverlay'
 import { makeCappedTreasure, makeTreasure, type Treasure } from './game/paradeTreasure'
 import {
   canEarnSpin,
-  canTreasure,
+  treasureBudget,
+  treasureLeftPct,
   hintPrice,
   huntPct,
   ledgerSummary,
@@ -1283,7 +1284,7 @@ export default function App() {
 
   /** Buddy Parade: if one is owed (and switched on), show it, then run `go`. Otherwise just run `go`. */
   function maybeParade(go: () => void) {
-    if (!paradeRef.current.due) return go()
+    if (!paradeReady(paradeRef.current)) return go()
     paradeRef.current = paradeDone(paradeRef.current)
     saveParade(safeLocalStorage(), paradeRef.current)
     if (settingsRef.current.parade === false) return go()
@@ -1302,13 +1303,14 @@ export default function App() {
     saveDay(safeLocalStorage(), day)
     // 9.30-m: treasure rides in 3 parades a day
     const ledP = ledgerNow()
-    const treasureOk = canTreasure(ledP)
+    const budget = treasureBudget(ledP)
+    const treasureOk = budget > 0
     paradeCountedRef.current = !treasureOk // a capped parade never uses up another treasure parade
     setParade({
       buddies,
       ms: paradeLengthMs(),
       go,
-      treasure: treasureOk ? makeTreasure(buddies.length) : makeCappedTreasure(buddies.length),
+      treasure: treasureOk ? makeTreasure(buddies.length, Math.random, budget, canEarnSpin(ledP)) : makeCappedTreasure(buddies.length),
       capped: !treasureOk,
       featured: day.pet,
       featuredKind: day.kind,
@@ -1337,7 +1339,8 @@ export default function App() {
       showToast(`Spin limit for today: +${SPIN_CAPPED_COINS} coins instead`)
     }
     // 9.30-p: the parade counts against the 3-a-day limit once something is really caught, and the Rewards card lists it
-    led = noteParadeGain(led, { coins: real.kind === 'coins' ? real.amount : 0, hints: real.kind === 'hint' ? 1 : 0, spins: real.kind === 'spin' ? 1 : 0 }, !paradeCountedRef.current)
+    const potWorth = real.fallback ? 0 : real.kind === 'coins' ? real.amount : real.kind === 'hint' ? 15 : 38 // the small +2 tap prize is not taken from the pot
+    led = noteParadeGain(led, { coins: real.kind === 'coins' ? real.amount : 0, hints: real.kind === 'hint' ? 1 : 0, spins: real.kind === 'spin' ? 1 : 0, pot: potWorth }, !paradeCountedRef.current)
     paradeCountedRef.current = true
     commitLedger(led)
     persistWallet(next)
@@ -3011,6 +3014,7 @@ export default function App() {
               perfect={hintsUsed === 0}
               replay={winReplay ?? undefined}
               nextLabel={endlessRef.current ? 'Next Endless board' : parseRemixId(puzzle.id) ? 'Next Remix board' : 'Next board'}
+              paradeHint={settings.parade === false ? undefined : paradeHint(paradeRef.current).text}
               modeNote={endlessRef.current ? `Endless mode · ${endless.cleared} cleared. Levels list and Home are below.` : parseRemixId(puzzle.id) ? boardKindNote(puzzle.id) : undefined}
               onNext={() => maybeParade(() => {
                 // 9.30-i: Remix → the next uncleared board of the live set; Endless → another fresh board
@@ -3054,6 +3058,7 @@ export default function App() {
               featured={parade.featured}
               featuredKind={parade.featuredKind}
               capped={parade.capped}
+              readPotPct={() => treasureLeftPct(ledgerNow())}
               onCatch={catchTreasure}
               readWallet={() => { const w = loadWallet(); return { coins: w.coins, hints: w.freeHints, spins: w.spins } }}
               durationMs={parade.ms}
@@ -3173,7 +3178,7 @@ export default function App() {
                     Today: full-pay wins <b>{t.winsFull}/{t.winsFullMax}</b> · sparks <b>{t.sparks}/{t.sparksMax}</b> · wheel spins earned <b>{t.spins}/{t.spinsMax}</b>
                   </span>
                   <span data-testid="parade-rewards-today">
-                    Parade rewards today: <b>{pr.text}</b> · parades with treasure <b>{pr.parades}/{pr.max}</b>
+                    Parade rewards today: <b>{pr.text}</b> · parades with treasure <b>{pr.parades}/{pr.max}</b> · treasure left <b>{treasureLeftPct(rollLedger(econ, todayKey))}%</b>
                   </span>
                   <small>{t.winsToday >= t.winsFullMax ? 'Busy day: wins pay a bit less now, and it all resets tomorrow (stars, records and buddy XP always count).' : 'Wins pay in full until 5 a day, then a bit less. It resets every midnight (Toronto).'}</small>
                 </>

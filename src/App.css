@@ -5806,3 +5806,11 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 .owner-stats ul { margin: 0; padding-left: 1.1rem; }
 .owner-stats .hours { display: flex; align-items: flex-end; gap: 2px; height: 70px; }
 .owner-stats .hours i { flex: 1; background: var(--sun); min-height: 2px; border-radius: 2px 2px 0 0; }
+
+/* Today's treasure left (9.30-t) */
+.parade-pot { font-size: 0.95rem; color: #fff6cf; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.parade-pot b { color: #ffd166; }
+.parade-pot-bar { display: inline-block; width: 120px; height: 10px; border-radius: 999px; background: rgba(255, 246, 207, 0.25); overflow: hidden; }
+.parade-pot-bar i { display: block; height: 100%; background: #ffd166; transition: width 0.4s; }
+.parade-pot-left { font-size: 0.9rem; opacity: 0.9; margin: 4px 0; }
+.next-parade-hint { margin: 4px 0; font-size: 0.85rem; color: #cfe0ff; text-align: center; }

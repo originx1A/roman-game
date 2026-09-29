@@ -19,31 +19,32 @@ const {
   EMPTY_DAY,
 } = await import('../src/game/buddyDay.ts')
 
-test('treasure: up to 4 drops, one per marching buddy, at most one hint and one spin', () => {
-  for (let i = 0; i < 2000; i++) {
+test('treasure: 3-5 drops, one per marching buddy, at most one hint and one spin, coins at least 3', () => {
+  for (let i = 0; i < 3000; i++) {
     const slots = 1 + (i % 6)
-    const t = makeTreasure(slots)
+    const t = makeTreasure(slots, Math.random, 20 + (i % 60))
     assert.equal(t.length, Math.min(TREASURE_DROPS, slots))
     assert.ok(t.filter((x) => x.kind === 'hint').length <= 1)
     assert.ok(t.filter((x) => x.kind === 'spin').length <= 1)
-    for (const x of t) if (x.kind === 'coins') assert.ok(x.amount >= 6 && x.amount <= 15)
+    for (const x of t) if (x.kind === 'coins') assert.ok(x.amount >= 3)
   }
+  assert.equal(TREASURE_DROPS, 5)
   assert.deepEqual(makeTreasure(0), [])
 })
 
-test('treasure is small: about 4% of a 1,160-coin day per parade, spins rare', () => {
-  let value = 0
-  let spins = 0
-  const N = 20000
+test('treasure never costs more than its budget, and is mostly coins', () => {
+  let coinsOnly = 0
+  const N = 5000
   for (let i = 0; i < N; i++) {
-    const t = makeTreasure(4)
-    value += t.reduce((a, x) => a + treasureValue(x), 0)
-    if (t.some((x) => x.kind === 'spin')) spins++
+    const budget = 15 + (i % 40)
+    const t = makeTreasure(3 + (i % 3), Math.random, budget)
+    const v = t.reduce((a, x) => a + treasureValue(x), 0)
+    assert.ok(v <= Math.max(budget, t.length * 3), `value ${v} over budget ${budget}`)
+    if (t.every((x) => x.kind === 'coins')) coinsOnly++
   }
-  const avg = value / N
-  assert.ok(avg > 25 && avg < 70, `avg ${avg}`)
-  const spinRate = spins / N
-  assert.ok(spinRate > 0.05 && spinRate < 0.2, `spin rate ${spinRate}`)
+  assert.ok(coinsOnly / N > 0.6, 'hints and spins are the rare items')
+  // no spin when the day's spin is taken
+  for (let i = 0; i < 2000; i++) assert.ok(makeTreasure(4, Math.random, 60, false).every((x) => x.kind !== 'spin'))
 })
 
 test('buddy of the day rotates through owned buddies, wraps, and handles none / one', () => {

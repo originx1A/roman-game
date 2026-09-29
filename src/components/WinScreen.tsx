@@ -33,6 +33,8 @@ export type WinScreenProps = {
   nextLabel?: string
   /** 9.30-n: a small note under the title ("Endless mode · 3 cleared", "Past Remix board") */
   modeNote?: string
+  /** 9.30-t: "Next parade: 3 more wins" */
+  paradeHint?: string
   onReplay: () => void
   onLevels: () => void
   onHome: () => void
@@ -61,6 +63,7 @@ export function WinScreen({
   onNext,
   nextLabel,
   modeNote,
+  paradeHint,
   onReplay,
   onLevels,
   onHome,
@@ -128,6 +131,7 @@ export function WinScreen({
         <div className="win-screen-body">
           <h2 className="win-screen-title">Victory!</h2>
           {modeNote ? <p className="win-mode-note" data-testid="win-mode-note">{modeNote}</p> : null}
+          {paradeHint ? <p className="next-parade-hint" data-testid="next-parade-hint">{paradeHint}</p> : null}
           <p className="win-screen-kicker">
             <span className="win-screen-board">{puzzleName}</span> · {difficultyLabel} · {themeLabel}
           </p>
