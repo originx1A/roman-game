@@ -50,3 +50,10 @@ export function makeTreasure(slots: number, rand: () => number = Math.random): T
 export function treasureValue(t: Treasure): number {
   return t.kind === 'coins' ? t.amount : t.kind === 'hint' ? 15 : 38
 }
+
+/** 9.30-s: once the 3 treasure parades of the day are used, every buddy still pays this many coins per tap (small, but never nothing) */
+export const CAPPED_TAP_COINS = 2
+export function makeCappedTreasure(slots: number): Treasure[] {
+  const n = Math.max(0, Math.min(TREASURE_DROPS, Math.floor(slots)))
+  return Array.from({ length: n }, () => ({ kind: 'coins' as const, amount: CAPPED_TAP_COINS }))
+}
