@@ -41,17 +41,41 @@
     "text": "You cleared it!",
     "source": "commit 6c62fd58 / 0960e489"
   },
+  "coach_badge_collect": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Another one for your collection."
+  },
   "coach_badge_earned": {
     "voice": "en-US-JennyNeural",
     "rate": "+10%",
     "pitch": "+6Hz",
     "text": "Badge earned. Well done!"
   },
+  "coach_badge_hard": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "That badge took real effort."
+  },
   "coach_badge_look": {
     "voice": "en-US-JennyNeural",
     "rate": "+10%",
     "pitch": "+6Hz",
     "text": "Look at that shiny badge!"
+  },
+  "coach_badge_nice": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "You earned a new badge. Great job!"
+  },
+  "coach_badge_proud": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "A shiny new badge. Be proud!"
   },
   "coach_daily_done": {
     "voice": "en-US-JennyNeural",
@@ -77,6 +101,12 @@
     "pitch": "+6Hz",
     "text": "This square is your clue."
   },
+  "coach_hint_easy": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Take this square. It's a good one."
+  },
   "coach_hint_glow": {
     "voice": "en-US-JennyNeural",
     "rate": "+10%",
@@ -88,6 +118,12 @@
     "rate": "+10%",
     "pitch": "+6Hz",
     "text": "Here's a little help."
+  },
+  "coach_hint_light": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "This square is lit for you."
   },
   "coach_hint_look": {
     "voice": "en-US-JennyNeural",
@@ -101,6 +137,24 @@
     "pitch": "+6Hz",
     "text": "Peek at this one."
   },
+  "coach_hint_point": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Here's where I'd look."
+  },
+  "coach_hint_safe": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "This spot is a safe bet."
+  },
+  "coach_hint_start": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Start with this one."
+  },
   "coach_hint_step": {
     "voice": "en-US-JennyNeural",
     "rate": "+10%",
@@ -112,6 +166,12 @@
     "rate": "+10%",
     "pitch": "+6Hz",
     "text": "Try this spot."
+  },
+  "coach_idle_take": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Take your time. Whenever you're ready, tap a square."
   },
   "coach_lose_again": {
     "voice": "en-US-JennyNeural",
@@ -131,11 +191,35 @@
     "pitch": "+6Hz",
     "text": "That one was tricky. Next time!"
   },
+  "coach_notbest_again": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Good clear. Try again and go a bit faster."
+  },
+  "coach_notbest_almost": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "A win is a win. Chase that best next."
+  },
+  "coach_notbest_bank": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Bank that win. The record is next."
+  },
   "coach_notbest_breath": {
     "voice": "en-US-JennyNeural",
     "rate": "+10%",
     "pitch": "+6Hz",
     "text": "Board done! Not quite your best. Take a breath and go again."
+  },
+  "coach_notbest_calm": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Calm and steady wins boards. Speed comes next."
   },
   "coach_notbest_chase": {
     "voice": "en-US-JennyNeural",
@@ -155,6 +239,30 @@
     "pitch": "+6Hz",
     "text": "Nice finish. Not a new best this time, but the next one could be."
   },
+  "coach_notbest_close2": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Not your fastest, but a strong finish."
+  },
+  "coach_notbest_fresh": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Cleared! One more go could be your fastest."
+  },
+  "coach_notbest_learning": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "You're learning this board. Keep going."
+  },
+  "coach_notbest_nice_win": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Nice win! You'll beat your time soon."
+  },
   "coach_notbest_okay": {
     "voice": "en-US-JennyNeural",
     "rate": "+10%",
@@ -167,11 +275,23 @@
     "pitch": "+6Hz",
     "text": "Cleared it. Slower than your best, but every run is practice."
   },
+  "coach_notbest_rhythm": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "You're finding your rhythm. Go again!"
+  },
   "coach_notbest_safe": {
     "voice": "en-US-JennyNeural",
     "rate": "+10%",
     "pitch": "+6Hz",
     "text": "Good win. Your record's safe for now. You'll get it."
+  },
+  "coach_notbest_smile": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Board cleared. Smile, you're improving."
   },
   "coach_notbest_stands": {
     "voice": "en-US-JennyNeural",
@@ -179,11 +299,35 @@
     "pitch": "+6Hz",
     "text": "Board cleared! Your best time still stands. Try again?"
   },
+  "coach_notbest_steady": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Steady win. Your best is still within reach."
+  },
+  "coach_prize_lucky": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Feeling lucky? Let's find out."
+  },
+  "coach_prize_nice": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "A prize for you. Nicely done!"
+  },
   "coach_prize_ooh": {
     "voice": "en-US-JennyNeural",
     "rate": "+10%",
     "pitch": "+6Hz",
     "text": "Ooh, a prize!"
+  },
+  "coach_prize_reward": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "You earned this reward."
   },
   "coach_prize_see": {
     "voice": "en-US-JennyNeural",
@@ -191,11 +335,29 @@
     "pitch": "+6Hz",
     "text": "Let's see what you got!"
   },
+  "coach_prize_spin": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Give the wheel a spin!"
+  },
+  "coach_prize_surprise": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Here comes a surprise!"
+  },
   "coach_record_best": {
     "voice": "en-US-JennyNeural",
     "rate": "+10%",
     "pitch": "+6Hz",
     "text": "New best time. Amazing work!"
+  },
+  "coach_record_fast": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "New best time. Look how quick you got!"
   },
   "coach_record_faster": {
     "voice": "en-US-JennyNeural",
@@ -256,6 +418,42 @@
     "rate": "+10%",
     "pitch": "+6Hz",
     "text": "Trial complete. Nice and steady under pressure."
+  },
+  "coach_wrong_any_close": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Not quite. Look for a spot that's safe."
+  },
+  "coach_wrong_any_ok": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "That's okay. Take another look."
+  },
+  "coach_wrong_region_own": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Each colour gets just one buddy, and this one has its buddy."
+  },
+  "coach_wrong_row_one": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "One buddy per row and column. This one already has one."
+  },
+  "coach_wrong_touch_corner": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Careful, buddies can't touch, even at the corners."
+  },
+  "coach_wrong_touch_gap": {
+    "voice": "en-US-JennyNeural",
+    "rate": "+10%",
+    "pitch": "+6Hz",
+    "text": "Give your buddies a little room. Try a square with a gap."
   },
   "cosmic": {
     "voice": "en-US-JennyNeural",
@@ -327,12 +525,47 @@
     "text": "Ocean deep. Abyss glow.",
     "source": "commit 6c62fd58 / 0960e489"
   },
+  "old_aside_ache": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "My elbow says something's coming. Could be lunch."
+  },
+  "old_aside_biscuit": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "I could go for a biscuit. Hard ones. Like life."
+  },
   "old_aside_cat": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "The cat's on the board again. Mentally. She's very judgmental."
+  },
+  "old_aside_clock": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "That clock's been slow since Thursday."
+  },
+  "old_aside_crossword": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Seven letters, starts with S. Squares."
+  },
+  "old_aside_door": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Did somebody knock? No? Must be the door thinking again."
   },
   "old_aside_glasses": {
     "voice": "en-AU-WilliamMultilingualNeural",
@@ -362,6 +595,48 @@
     "post": "rasp-v1",
     "text": "My knees just predicted rain. They're never wrong."
   },
+  "old_aside_lawn": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Kids on my lawn again. Mentally."
+  },
+  "old_aside_lemon": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Smells like lemon in here. Or is it me?"
+  },
+  "old_aside_mail": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Did the mail come? I'm expecting nothing, as usual."
+  },
+  "old_aside_nap": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "I was resting my eyes. Not sleeping. Resting."
+  },
+  "old_aside_neighbour": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "The neighbour's dog is judging me."
+  },
+  "old_aside_phone": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Phone's ringing. Nope, that's my ears."
+  },
   "old_aside_pigeons": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
@@ -376,6 +651,13 @@
     "post": "rasp-v1",
     "text": "Where'd I put the remote? Don't you move, I'm still talking."
   },
+  "old_aside_slippers": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Where did my slippers go? They were just here."
+  },
   "old_aside_smell": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
@@ -389,6 +671,13 @@
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "One sock's missing. I blame the squares."
+  },
+  "old_aside_stairs": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Stairs got longer overnight, I swear."
   },
   "old_aside_stove": {
     "voice": "en-AU-WilliamMultilingualNeural",
@@ -410,6 +699,20 @@
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "Is it Tuesday? Feels like a Tuesday."
+  },
+  "old_aside_weather": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Radio says rain. Radio also says a lot of things."
+  },
+  "old_aside_whistle": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Somebody's whistling. Is it me? It's me."
   },
   "old_daily_everyday": {
     "voice": "en-AU-WilliamMultilingualNeural",
@@ -439,6 +742,48 @@
     "post": "rasp-v1",
     "text": "A correct buddy. I'll assume it was an accident."
   },
+  "old_good_bench": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "I'll save you a spot on the bench for that one."
+  },
+  "old_good_bingo": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "I haven't seen a move like that since bingo night."
+  },
+  "old_good_blink": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Blink and I'd have missed it. Then I did."
+  },
+  "old_good_bones": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "My bones felt that one. In a good way."
+  },
+  "old_good_cardigan": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "That deserves a warm cardigan."
+  },
+  "old_good_carry": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Fine. I'll carry your bags. Just this once."
+  },
   "old_good_clap": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
@@ -460,6 +805,20 @@
     "post": "rasp-v1",
     "text": "Back in my day that would've been a Tuesday. Still, not terrible."
   },
+  "old_good_decent": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Decent. Very decent. I said decent."
+  },
+  "old_good_fair": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Fair enough. Fair enough."
+  },
   "old_good_fine": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
@@ -467,12 +826,33 @@
     "post": "rasp-v1",
     "text": "Fine. That one was fine. Don't get excited."
   },
+  "old_good_gravy": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "That's gravy. Thin gravy, but gravy."
+  },
   "old_good_grumble": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "Hmm. Adequate. That's the nicest word I've got."
+  },
+  "old_good_hat": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "I'd tip my hat, but I can't find my hat."
+  },
+  "old_good_kid": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Not bad, kid. Don't tell your mother I said so."
   },
   "old_good_knees": {
     "voice": "en-AU-WilliamMultilingualNeural",
@@ -488,6 +868,27 @@
     "post": "rasp-v1",
     "text": "Lucky tap. Don't let it go to your head."
   },
+  "old_good_mild": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "That was mildly acceptable."
+  },
+  "old_good_newspaper": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "That belongs in the newspaper. The small print."
+  },
+  "old_good_nod": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "You get a nod. Don't spend it all at once."
+  },
   "old_good_once": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
@@ -495,12 +896,47 @@
     "post": "rasp-v1",
     "text": "You got one right. Write it down, it might not happen again."
   },
+  "old_good_porch": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Sit on the porch with that one. You've earned it."
+  },
+  "old_good_radio": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "That was smoother than my radio."
+  },
+  "old_good_rare": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "A right answer. Rarer than a quiet pigeon."
+  },
+  "old_good_soup": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Not bad. Almost like my soup."
+  },
   "old_good_square": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "That square can stay. The rest of them are still nervous."
+  },
+  "old_good_stopped": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Even a stopped clock, and so on. Go on."
   },
   "old_good_surprised": {
     "voice": "en-AU-WilliamMultilingualNeural",
@@ -516,6 +952,27 @@
     "post": "rasp-v1",
     "text": "Not bad. I'll allow a sip of tea."
   },
+  "old_good_twice": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Do that twice and I'll believe it."
+  },
+  "old_good_weather": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Good. Weather's clearing up."
+  },
+  "old_good_whistle": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "I'd whistle, but my teeth are in the other room."
+  },
   "old_hint_cane": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
@@ -530,6 +987,13 @@
     "post": "rasp-v1",
     "text": "Back in my day we called that cheating."
   },
+  "old_hint_crutch": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "That hint's a crutch. Lean on it, sure."
+  },
   "old_hint_flashlight": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
@@ -537,12 +1001,26 @@
     "post": "rasp-v1",
     "text": "A hint? Want a map and a flashlight too?"
   },
+  "old_hint_giveup": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Hints already? I've waited longer for a bus."
+  },
   "old_hint_grandkid": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "My grandkid asks for hints. He's four."
+  },
+  "old_hint_mapquest": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Fine, here's a hint. Don't get used to being led around."
   },
   "old_hint_push": {
     "voice": "en-AU-WilliamMultilingualNeural",
@@ -782,12 +1260,26 @@
     "post": "rasp-v1",
     "text": "Almost. Almost doesn't win a medal."
   },
+  "old_nearmiss_close": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Close. A closer look next time."
+  },
   "old_notbest_calendar": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "Nice clear. Your best time is over there, waving. From far away."
+  },
+  "old_notbest_crawl": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Won it. Your best time is still out in front. Way out."
   },
   "old_notbest_downhill": {
     "voice": "en-AU-WilliamMultilingualNeural",
@@ -810,6 +1302,13 @@
     "post": "rasp-v1",
     "text": "Cleared it. Slower than before, and I know slow. Ask my knees."
   },
+  "old_notbest_pension": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "A win at a pensioner's pace. I approve, sort of."
+  },
   "old_notbest_rerun": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
@@ -817,12 +1316,40 @@
     "post": "rasp-v1",
     "text": "Same board, slower time. Like a rerun, but longer."
   },
+  "old_notbest_slow": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Won it. Slower than your best. Fine. Slow is my speed."
+  },
   "old_notbest_slowpoke": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "Board's done. Your record's safe. From you, mostly."
+  },
+  "old_notbest_snail": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "You won. A snail sent a postcard while you thought."
+  },
+  "old_notbest_stroll": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Cleared. You took the scenic route."
+  },
+  "old_notbest_sunday": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Nice win. Took a nice Sunday stroll, did you?"
   },
   "old_notbest_tea": {
     "voice": "en-AU-WilliamMultilingualNeural",
@@ -971,6 +1498,13 @@
     "post": "rasp-v1",
     "text": "Pick one! I'm aging over here."
   },
+  "old_undo_dial": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Turning that undo like a radio dial. Find a station!"
+  },
   "old_undo_dizzy": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
@@ -999,6 +1533,20 @@
     "post": "rasp-v1",
     "text": "Undo, redo, undo. You're doing the hokey pokey."
   },
+  "old_undo_merry": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Round and round like a merry-go-round."
+  },
+  "old_undo_pendulum": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "You swing like a pendulum. Pick a side."
+  },
   "old_undo_regret": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
@@ -1012,6 +1560,13 @@
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "Back and forth, back and forth. Are you solving, or rocking in a chair?"
+  },
+  "old_undo_sweep": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Sweeping it away and putting it back. Quite the housekeeper."
   },
   "old_undo_vacation": {
     "voice": "en-AU-WilliamMultilingualNeural",
@@ -1097,6 +1652,20 @@
     "post": "rasp-v1",
     "text": "Ha! Classic. Do it again, I missed it."
   },
+  "old_wrong_aim": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Your aim's worse than mine, and I've got cataracts."
+  },
+  "old_wrong_bird": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "A pigeon would have picked better."
+  },
   "old_wrong_bold": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
@@ -1104,12 +1673,26 @@
     "post": "rasp-v1",
     "text": "Bold. Wrong, but bold. Mostly wrong."
   },
+  "old_wrong_cane": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "I'd poke that move with my cane."
+  },
   "old_wrong_chaos": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "Oh sure, put it there. Why not. Chaos is free."
+  },
+  "old_wrong_cheese": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "That's the wrong cheese, kid."
   },
   "old_wrong_choice": {
     "voice": "en-AU-WilliamMultilingualNeural",
@@ -1160,6 +1743,13 @@
     "post": "rasp-v1",
     "text": "Nope. And I say that with all the love I have left."
   },
+  "old_wrong_map": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "You're lost. Want directions?"
+  },
   "old_wrong_money": {
     "voice": "en-AU-WilliamMultilingualNeural",
     "rate": "-20%",
@@ -1173,6 +1763,13 @@
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "In my day a wrong move cost you a nickel. You'd be broke by now."
+  },
+  "old_wrong_nope": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "Nope. Nope. And nope again."
   },
   "old_wrong_personal": {
     "voice": "en-AU-WilliamMultilingualNeural",
@@ -1194,6 +1791,20 @@
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "That buddy wants a refund."
+  },
+  "old_wrong_seat": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "That square's already got a seat."
+  },
+  "old_wrong_sideways": {
+    "voice": "en-AU-WilliamMultilingualNeural",
+    "rate": "-20%",
+    "pitch": "-16Hz",
+    "post": "rasp-v1",
+    "text": "You went sideways. Squares don't go sideways."
   },
   "old_wrong_spectacles": {
     "voice": "en-AU-WilliamMultilingualNeural",
@@ -1263,11 +1874,23 @@
     "pitch": "-6Hz",
     "text": "Roman says: you are awesome!"
   },
+  "roman_badge_brag": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: new badge. You may brag for ten seconds."
+  },
   "roman_badge_fridge": {
     "voice": "en-US-BrianNeural",
     "rate": "-8%",
     "pitch": "-6Hz",
     "text": "Roman says: badge unlocked. Put it on the fridge!"
+  },
+  "roman_badge_gold": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: badge earned. Roman calls it gold."
   },
   "roman_badge_impressed": {
     "voice": "en-US-BrianNeural",
@@ -1275,11 +1898,23 @@
     "pitch": "-6Hz",
     "text": "Roman says: badge get! Roman is impressed."
   },
+  "roman_badge_shelf": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: badge get! Clear a spot on the shelf."
+  },
   "roman_badge_shiny": {
     "voice": "en-US-BrianNeural",
     "rate": "-8%",
     "pitch": "-6Hz",
     "text": "Roman says: new badge! So shiny!"
+  },
+  "roman_badge_trophy": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: badge time! Roman is clapping. Loudly."
   },
   "roman_badge_wear": {
     "voice": "en-US-BrianNeural",
@@ -1516,11 +2151,35 @@
     "pitch": "-6Hz",
     "text": "Roman whispers: try over there."
   },
+  "roman_hint_boop": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: boop! Tap that one."
+  },
   "roman_hint_clue": {
     "voice": "en-US-BrianNeural",
     "rate": "-8%",
     "pitch": "-6Hz",
     "text": "Roman says: tiny clue. Big brain."
+  },
+  "roman_hint_magic": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: a little magic for you. That square."
+  },
+  "roman_hint_map": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: the treasure map says, right here."
+  },
+  "roman_hint_owl": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: a wise owl told me. That square."
   },
   "roman_hint_psst": {
     "voice": "en-US-BrianNeural",
@@ -1533,6 +2192,12 @@
     "rate": "-8%",
     "pitch": "-6Hz",
     "text": "Roman says: I didn't tell you this, but try that square."
+  },
+  "roman_hint_shh": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: shh, look at the glowing square."
   },
   "roman_hint_spy": {
     "voice": "en-US-BrianNeural",
@@ -1573,6 +2238,18 @@
     "text": "Roman says: any century now.",
     "source": "commit 0960e489"
   },
+  "roman_idle_cloud": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: that cloud looks like a good move."
+  },
+  "roman_idle_dust": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: I see dust on that square."
+  },
   "roman_idle_hello": {
     "voice": "en-US-BrianNeural",
     "rate": "-8%",
@@ -1607,6 +2284,24 @@
     "pitch": "-6Hz",
     "text": "Roman says: the sphinx is less patient than me.",
     "source": "commit 0960e489"
+  },
+  "roman_idle_stretch": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: time for a stretch. Then a tap."
+  },
+  "roman_idle_tea": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: I'll make some tea while you think."
+  },
+  "roman_idle_tick": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: tick tock, tick tock."
   },
   "roman_itchy": {
     "voice": "en-US-BrianNeural",
@@ -1718,11 +2413,23 @@
     "pitch": "-6Hz",
     "text": "Roman says: board cleared! Your record just yawned, though."
   },
+  "roman_notbest_snail": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: you won! A snail passed you on the way, but you won."
+  },
   "roman_notbest_turtle": {
     "voice": "en-US-BrianNeural",
     "rate": "-8%",
     "pitch": "-6Hz",
     "text": "Roman says: you did it, turtle-style! Your best time says hi."
+  },
+  "roman_notbest_yawn": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: cleared it! Your best time did a big yawn."
   },
   "roman_nudge": {
     "voice": "en-US-BrianNeural",
@@ -1786,6 +2493,48 @@
     "pitch": "-6Hz",
     "text": "Roman says: prize time, baby!"
   },
+  "roman_prize_drumroll": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: drumroll, please! Or just tap the wheel."
+  },
+  "roman_prize_fate": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: let fate wiggle the wheel!"
+  },
+  "roman_prize_goodies": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: goodies incoming!"
+  },
+  "roman_prize_jackpot": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: is it jackpot time? Roman feels jackpot."
+  },
+  "roman_prize_shiny": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: ooh, shiny things ahead."
+  },
+  "roman_prize_spin": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: spin it, champ!"
+  },
+  "roman_prize_wheel": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: the wheel loves you today."
+  },
   "roman_proud": {
     "voice": "en-US-BrianNeural",
     "rate": "-8%",
@@ -1839,6 +2588,12 @@
     "rate": "-8%",
     "pitch": "-6Hz",
     "text": "Roman says: record smashed. Roman is taking notes."
+  },
+  "roman_record_rocket": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: new record! Was that a rocket?"
   },
   "roman_record_socks": {
     "voice": "en-US-BrianNeural",
@@ -2046,6 +2801,12 @@
     "text": "Roman says: superhero underpants. Cape not included!",
     "source": "commit 0960e489"
   },
+  "roman_undo_boomerang": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: your move is a boomerang. Back it comes."
+  },
   "roman_unicorn": {
     "voice": "en-US-BrianNeural",
     "rate": "-8%",
@@ -2078,12 +2839,42 @@
     "text": "Roman says: even the worm is doing a happy wiggle!",
     "source": "commit 0960e489"
   },
+  "roman_wrong_banana": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: you slipped on a banana. Roman saw it all."
+  },
   "roman_wrong_bold": {
     "voice": "en-US-BrianNeural",
     "rate": "-8%",
     "pitch": "-6Hz",
     "text": "Roman says: bold move. Wrong square.",
     "source": "commit 0960e489"
+  },
+  "roman_wrong_bounce": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: boing! That one bounced right off."
+  },
+  "roman_wrong_cape": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: Roman's cape twitched. Wrong square."
+  },
+  "roman_wrong_chirp": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: the birds are chirping about that tap."
+  },
+  "roman_wrong_clown": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: the wrong square did a little clown honk."
   },
   "roman_wrong_complaint": {
     "voice": "en-US-BrianNeural",
@@ -2092,12 +2883,36 @@
     "text": "Roman says: I filed a tiny complaint about that tap.",
     "source": "commit 0960e489"
   },
+  "roman_wrong_cousin": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: that square is a cousin. Not the one you want."
+  },
+  "roman_wrong_dance": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: nice dance move. Wrong spot, though!"
+  },
+  "roman_wrong_detour": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: scenic detour. Now come back."
+  },
   "roman_wrong_drama": {
     "voice": "en-US-BrianNeural",
     "rate": "-8%",
     "pitch": "-6Hz",
     "text": "Roman says: the drama. The miss. The heart.",
     "source": "commit 0960e489"
+  },
+  "roman_wrong_gong": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: gong! Wrong."
   },
   "roman_wrong_grandma": {
     "voice": "en-US-BrianNeural",
@@ -2106,6 +2921,78 @@
     "text": "Roman says: even my grandma would skip that square.",
     "source": "commit 0960e489"
   },
+  "roman_wrong_gremlin": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: a gremlin moved your finger. Blame him."
+  },
+  "roman_wrong_hat": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: that square is wearing the wrong hat."
+  },
+  "roman_wrong_hiccup": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: tiny hiccup. Tap again!"
+  },
+  "roman_wrong_hmm": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: hmm. Roman's eyebrow went up."
+  },
+  "roman_wrong_hop": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: hop over to another square."
+  },
+  "roman_wrong_map": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: you are holding the map upside down."
+  },
+  "roman_wrong_marble": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: Roman lost a marble. It was that tap."
+  },
+  "roman_wrong_mirror": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: even the mirror said no."
+  },
+  "roman_wrong_nap": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: that square is napping. Do not wake it."
+  },
+  "roman_wrong_nearly": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: nearly! Nearly is not a square, though."
+  },
+  "roman_wrong_nice_try": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: nice try, champion. Different square!"
+  },
+  "roman_wrong_noodle": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: your finger went full noodle."
+  },
   "roman_wrong_oof": {
     "voice": "en-US-BrianNeural",
     "rate": "-8%",
@@ -2113,12 +3000,60 @@
     "text": "Roman says: oof. That one bounced off.",
     "source": "commit 0960e489"
   },
+  "roman_wrong_pancake": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: flat as a pancake. Flip it and try again."
+  },
+  "roman_wrong_plot": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: Roman had a plan. That was not the plan."
+  },
   "roman_wrong_politely": {
     "voice": "en-US-BrianNeural",
     "rate": "-8%",
     "pitch": "-6Hz",
     "text": "Roman says: politely, that spot is a no.",
     "source": "commit 0960e489"
+  },
+  "roman_wrong_puddle": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: splash! Wrong puddle."
+  },
+  "roman_wrong_shelf": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: that one goes on a different shelf."
+  },
+  "roman_wrong_sneeze": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: was that a sneeze? Bless you. Try again!"
+  },
+  "roman_wrong_sock": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: that tap is a mismatched sock."
+  },
+  "roman_wrong_ticket": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: that square wants to see a ticket."
+  },
+  "roman_wrong_toast": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: that move is burnt toast. Make a new slice."
   },
   "roman_wrong_trophy": {
     "voice": "en-US-BrianNeural",
@@ -2133,6 +3068,12 @@
     "pitch": "-6Hz",
     "text": "Roman says: that move has no signal.",
     "source": "commit 0960e489"
+  },
+  "roman_wrong_wobble": {
+    "voice": "en-US-BrianNeural",
+    "rate": "-8%",
+    "pitch": "-6Hz",
+    "text": "Roman says: wobbly tap! Steady now."
   },
   "row_taken": {
     "voice": "en-US-JennyNeural",
