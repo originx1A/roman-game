@@ -65,8 +65,11 @@ test('saved meter is sanitized', () => {
   assert.deepEqual(sanitizeMeter({ notches: 1.7 }), { notches: 1, pending: false })
 })
 
-test('buddy hunt overrides the spin prize button', () => {
-  assert.equal(showSpinPrize(2, true), false)
+test('spin prize hides only on the win that just earned the hunt', () => {
+  assert.equal(showSpinPrize(2, true, true), false)
+  // a pending hunt from an earlier win no longer hides the wheel
+  assert.equal(showSpinPrize(2, true, false), true)
+  assert.equal(showSpinPrize(2, true), true)
   assert.equal(showSpinPrize(2, false), true)
   assert.equal(showSpinPrize(0, false), false)
 })

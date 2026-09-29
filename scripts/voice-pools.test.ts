@@ -83,7 +83,7 @@ test('not-best (won, slower than the best) is ONE combined win line, not a cheer
   // App: the not-best event replaces the cheer; no second, delayed not-best line
   assert.match(src, /notBest\s*\n?\s*\? 'not-best'/)
   assert.doesNotMatch(src, /setTimeout\(\(\) => pushBanter\('not-best'\)/)
-  assert.deepEqual([...c.EVENT_POOLS['near-miss']], ['roman.cheer'])
+  assert.deepEqual([...c.EVENT_POOLS['near-miss']], ['roman.cheer', 'roman.nearMiss', 'old.nearMiss']) // 9.30-j
   // 9.30-g: the 14 approved combined lines are recorded and ARE the not-best pools (all three voices)
   const nb = [...c.OLDTIMER_NOT_BEST_CLIPS, ...c.ROMAN_NOT_BEST_CLIPS, ...c.COACH_NOT_BEST_CLIPS]
   assert.equal(nb.length, 20) // 9.30-i: +6 coach lines

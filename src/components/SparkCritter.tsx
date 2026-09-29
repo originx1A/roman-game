@@ -1,5 +1,19 @@
 import { useEffect, useRef } from 'react'
 import { sfxSpark } from '../game/sound'
+import {
+  CRITTER_TICK_CAP_MS,
+  loadCritterClock,
+  saveCritterClock,
+  tickCritterClock,
+} from '../game/critterClock'
+
+function safeStore(): Storage | null {
+  try {
+    return window.localStorage
+  } catch {
+    return null
+  }
+}
 
 export const CRITTER_STASH_GOAL = 5
 
@@ -60,16 +74,6 @@ export function SparkCritter({ active, onCatch }: Props) {
       el.removeAttribute('aria-hidden')
     }
 
-    const schedule = () => {
-      // Rare visitor — ~45–90s between appearances
-      const delay = 45000 + Math.random() * 45000
-      spawnTimer.current = window.setTimeout(() => {
-        if (cancelled) return
-        startRun()
-        schedule()
-      }, delay)
-    }
-
     const startRun = () => {
       caughtRef.current = false
       busyRef.current = false
@@ -106,15 +110,27 @@ export function SparkCritter({ active, onCatch }: Props) {
     }
 
     hide()
-    // First appearance delayed so it doesn't spam early game (~35–70s)
-    spawnTimer.current = window.setTimeout(() => {
-      if (cancelled) return
-      startRun()
-      schedule()
-    }, 35000 + Math.random() * 35000)
+    // 9.30-j: visits follow total play time across boards (saved), not a per-board timer
+    let clock = loadCritterClock(safeStore())
+    let boardMs = 0
+    let last = performance.now()
+    const clockTimer = window.setInterval(() => {
+      const now = performance.now()
+      const dt = now - last
+      last = now
+      if (cancelled || document.hidden) return
+      boardMs += Math.min(dt, CRITTER_TICK_CAP_MS)
+      // a visit already on screen: keep counting but don't stack another
+      const onScreen = pathRef.current != null && !caughtRef.current && el.style.opacity === '1'
+      const r = tickCritterClock(clock, dt, onScreen ? 0 : boardMs)
+      clock = r.clock
+      saveCritterClock(safeStore(), clock)
+      if (r.spawn) startRun()
+    }, 1000)
 
     return () => {
       cancelled = true
+      window.clearInterval(clockTimer)
       window.clearTimeout(spawnTimer.current)
       cancelAnimationFrame(rafRef.current)
     }

@@ -47,6 +47,8 @@ import {
   levelInfo,
   normalizeGiftCode,
   petById,
+  PETS,
+  hasPet,
   petLabel,
   petWinCoins,
   petXp,
@@ -64,6 +66,9 @@ import {
   showSpinPrize,
   startHunt,
 } from './game/buddyHunt'
+import { createVoiceGate } from './game/voiceGate'
+import { loadParade, paradeDone, paradeLengthMs, paradeWin, saveParade, type ParadeState } from './game/parade'
+import { ParadeOverlay, type ParadeBuddy } from './components/ParadeOverlay'
 import { BUILD_TAG } from './buildTag'
 import { amendMove, createHistory, pushMove, redoMove, restoreHistory, stepsToSave, undoMove } from './game/history'
 import {
@@ -313,9 +318,17 @@ function formatMs(ms: number) {
   return `${m}:${rem.toString().padStart(2, '0')}`
 }
 
-function burstConfetti(root: HTMLElement) {
+function safeLocalStorage(): Storage | null {
+  try {
+    return window.localStorage
+  } catch {
+    return null
+  }
+}
+
+function burstConfetti(root: HTMLElement, above = false) {
   const layer = document.createElement('div')
-  layer.className = 'confetti-layer'
+  layer.className = above ? 'confetti-layer over-parade' : 'confetti-layer'
   root.appendChild(layer)
   const colors = ['#ffd166', '#3dffa8', '#1a6dff', '#ff6b6b', '#fff6cf']
   for (let i = 0; i < 56; i++) {
@@ -414,6 +427,10 @@ export default function App() {
   const [linkBoardError, setLinkBoardError] = useState('')
   const [showWheel, setShowWheel] = useState(false)
   const [buddyMeter, setBuddyMeter] = useState(loadBuddyMeter)
+  const [huntJustEarned, setHuntJustEarned] = useState(false)
+  // Buddy Parade (9.30-j): a counter of wins; every 5-7 wins the next "Next board" tap shows the parade first
+  const paradeRef = useRef<ParadeState>(loadParade(typeof window === 'undefined' ? null : safeLocalStorage()))
+  const [parade, setParade] = useState<{ buddies: ParadeBuddy[]; ms: number; go: () => void } | null>(null)
   const [winPerfect, setWinPerfect] = useState(false)
   const [showHunt, setShowHunt] = useState(false)
   /** This attempt had a wrong buddy (even shield-blocked), a hint, a rescue or a revive. */
@@ -897,12 +914,15 @@ export default function App() {
   }
 
   /** Toast + one voice at a time (coach / Roman). Buddy giggle is separate via Board. */
+  const voiceGateRef = useRef(createVoiceGate())
   function pushBanter(
     event: Parameters<typeof banterFor>[0],
     conflict?: BanterConflictKind,
   ) {
     // Wrong spot guard: once the board is won only win lines play, once lost only lose lines
     if (!eventAllowed(event, boardOverRef.current)) return { text: '', mood: 'neutral', voiceMood: 'neutral', speak: false, silent: true } as ReturnType<typeof banterFor>
+    // 9.30-j: busy moments (wrong moves, idle, hints, undo) speak less often; a skipped moment draws no line
+    if (!voiceGateRef.current.allow(event, Date.now())) return { text: '', mood: 'neutral', voiceMood: 'neutral', speak: false, silent: true } as ReturnType<typeof banterFor>
     const line = banterFor(event, conflict)
     if (line.silent && !line.giggle) return line
     if (line.text) showToast(line.text)
@@ -1131,6 +1151,25 @@ export default function App() {
     })
   }
 
+  /** Buddy Parade: if one is owed (and switched on), show it, then run `go`. Otherwise just run `go`. */
+  function maybeParade(go: () => void) {
+    if (!paradeRef.current.due) return go()
+    paradeRef.current = paradeDone(paradeRef.current)
+    saveParade(safeLocalStorage(), paradeRef.current)
+    if (settingsRef.current.parade === false) return go()
+    const now = Date.now()
+    const owned = PETS.filter((pp) => hasPet(loadPets(), pp.id, now)).map((pp) => ({ id: pp.id, locked: false }))
+    const buddies: ParadeBuddy[] = owned.length
+      ? owned
+      : (['lupa', 'aquila', 'leo', 'invictus'] as const).map((id) => ({ id, locked: true }))
+    setParade({ buddies, ms: paradeLengthMs(), go })
+    sfxAchievement()
+    if (shellRef.current) burstConfetti(shellRef.current, true)
+    window.setTimeout(() => {
+      if (shellRef.current) burstConfetti(shellRef.current, true)
+    }, 2600)
+  }
+
   function startPuzzle(p: Puzzle, resume = false, opts: { mode?: RunMode; daily?: boolean; endless?: boolean } = {}) {
     // First board ever: How to play opens first (returning players start at the new cards)
     if (!resume && !settingsRef.current.howSeen) {
@@ -1173,8 +1212,9 @@ export default function App() {
     wrongTimesRef.current = []
     lastMoveRef.current = Date.now()
     lastProgressRef.current = Date.now()
-    if (runMode === 'trial') window.setTimeout(() => fireTip('first-trial', undefined, { needQuiet: false }), 1800)
-    else if (dailyKey) window.setTimeout(() => fireTip('first-daily', undefined, { needQuiet: false }), 1800)
+    // 9.30-j: once the first-time tip is done, a Trial / Daily start sometimes gets its own line (same moment)
+    if (runMode === 'trial') window.setTimeout(() => fireTip('first-trial', undefined, { needQuiet: false }) || (Math.random() < 0.38 && pushBanter('trial-start')), 1800)
+    else if (dailyKey) window.setTimeout(() => fireTip('first-daily', undefined, { needQuiet: false }) || (Math.random() < 0.38 && pushBanter('daily-start')), 1800)
     comboRef.current = resuming ? resumeDraft!.combo ?? newCombo() : newCombo()
     undosRef.current = resuming ? resumeDraft!.undos ?? 0 : 0
     splitsRef.current = resuming ? resumeDraft!.splits ?? [] : []
@@ -1374,6 +1414,9 @@ export default function App() {
       saveBuddyMeter(metered.meter)
       setBuddyMeter(metered.meter)
       setWinPerfect(flawless)
+      setHuntJustEarned(metered.filledNow)
+      paradeRef.current = paradeWin(paradeRef.current)
+      saveParade(safeLocalStorage(), paradeRef.current)
       if (metered.filledNow) window.setTimeout(() => showToast('Buddy meter full — Buddy Hunt unlocked!'), 1200)
       const targets = targetsFor(puzzle)
       const runMode = modeRef.current
@@ -2695,7 +2738,7 @@ export default function App() {
               spins={wallet.spins}
               perfect={hintsUsed === 0}
               replay={winReplay ?? undefined}
-              onNext={() => {
+              onNext={() => maybeParade(() => {
                 // 9.30-i: Remix → the next uncleared board of the live set; Endless → another fresh board
                 const rm = parseRemixId(puzzle.id)
                 if (rm) {
@@ -2713,11 +2756,11 @@ export default function App() {
                   return
                 }
                 startPuzzle(pickNextBoard(puzzle, PUZZLES, getProgress().clears))
-              }}
+              })}
               onReplay={resetBoard}
               onLevels={() => setScreen('levels')}
               onHome={() => setScreen('home')}
-              onSpin={showSpinPrize(wallet.spins, buddyMeter.pending) ? openPrizeWheel : undefined}
+              onSpin={showSpinPrize(wallet.spins, buddyMeter.pending, huntJustEarned) ? openPrizeWheel : undefined}
               buddyMeter={{
                 notches: buddyMeter.notches,
                 goal: BUDDY_HUNT_PERFECT_WINS,
@@ -2727,6 +2770,19 @@ export default function App() {
               onBuddyHunt={openBuddyHunt}
               onShare={() => shareWinAsChallenge()}
               onDuel={duel && activeChallenge?.puzzleId === puzzle.id ? openDuelShare : undefined}
+            />
+          )}
+
+          {parade && (
+            <ParadeOverlay
+              buddies={parade.buddies}
+              durationMs={parade.ms}
+              reduce={settings.reduceMotion}
+              onDone={() => {
+                const go = parade.go
+                setParade(null)
+                go()
+              }}
             />
           )}
 
@@ -2996,6 +3052,14 @@ export default function App() {
                 onChange={(e) => saveSettingsPatch({ voiceTips: e.target.checked })}
               />
               Voice tips
+            </label>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={settings.parade !== false}
+                onChange={(e) => saveSettingsPatch({ parade: e.target.checked })}
+              />
+              Buddy Parade (every 5-7 wins)
             </label>
             <label className="toggle">
               <input

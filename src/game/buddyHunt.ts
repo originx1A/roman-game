@@ -60,9 +60,13 @@ export function startHunt(meter: BuddyMeter): BuddyMeter {
   return { ...meter, pending: false }
 }
 
-/** Spin prize waits while Buddy Hunt is on offer; the spin stays in the wallet for a later win. */
-export function showSpinPrize(spins: number, huntPending: boolean): boolean {
-  return spins > 0 && !huntPending
+/**
+ * Spin prize. 9.30-j: it used to hide on every win while a hunt was pending, so a player who kept
+ * tapping Next never saw the wheel again. Now it hides only on the win that just earned the hunt
+ * (that win shows the big Buddy Hunt button); every other win with a spin in the wallet shows both.
+ */
+export function showSpinPrize(spins: number, _huntPending: boolean, huntJustEarned = false): boolean {
+  return spins > 0 && !huntJustEarned
 }
 
 /** Pick the hidden buddy tiles. */
