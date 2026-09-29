@@ -76,7 +76,7 @@ import {
 import { createVoiceGate } from './game/voiceGate'
 import { loadParade, paradeDone, paradeLengthMs, paradeWin, saveParade, type ParadeState } from './game/parade'
 import { ParadeOverlay, type ParadeBuddy } from './components/ParadeOverlay'
-import { makeTreasure, type Treasure } from './game/paradeTreasure'
+import { makeCappedTreasure, makeTreasure, type Treasure } from './game/paradeTreasure'
 import {
   canEarnSpin,
   canTreasure,
@@ -491,6 +491,7 @@ export default function App() {
     treasure: (Treasure | undefined)[]
     featured: PetId | null
     featuredKind: DayPerkKind
+    capped?: boolean
   } | null>(null)
   // Buddy of the day (9.30-l): the featured buddy's perk for 3 boards after a parade
   const dayRef = useRef<BuddyDay>(loadDay(typeof window === 'undefined' ? null : safeLocalStorage()))
@@ -1302,12 +1303,13 @@ export default function App() {
     // 9.30-m: treasure rides in 3 parades a day
     const ledP = ledgerNow()
     const treasureOk = canTreasure(ledP)
-    paradeCountedRef.current = false
+    paradeCountedRef.current = !treasureOk // a capped parade never uses up another treasure parade
     setParade({
       buddies,
       ms: paradeLengthMs(),
       go,
-      treasure: treasureOk ? makeTreasure(buddies.length) : [],
+      treasure: treasureOk ? makeTreasure(buddies.length) : makeCappedTreasure(buddies.length),
+      capped: !treasureOk,
       featured: day.pet,
       featuredKind: day.kind,
     })
@@ -3051,6 +3053,7 @@ export default function App() {
               treasure={parade.treasure}
               featured={parade.featured}
               featuredKind={parade.featuredKind}
+              capped={parade.capped}
               onCatch={catchTreasure}
               readWallet={() => { const w = loadWallet(); return { coins: w.coins, hints: w.freeHints, spins: w.spins } }}
               durationMs={parade.ms}

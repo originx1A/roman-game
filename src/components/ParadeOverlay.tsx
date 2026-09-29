@@ -3,7 +3,7 @@ import { TapButton } from './TapButton'
 import { PetArt } from './PetArt'
 import type { PetId } from '../game/pets'
 import { petById } from '../game/pets'
-import { treasureIcon, treasureLabel, type Treasure } from '../game/paradeTreasure'
+import { CAPPED_TAP_COINS, treasureIcon, treasureLabel, type Treasure } from '../game/paradeTreasure'
 import { dayLabel, type DayPerkKind } from '../game/buddyDay'
 
 export interface ParadeBuddy {
@@ -34,9 +34,10 @@ export function treasureSummary(got: Treasure[]): { coins: number; hints: number
  */
 export function ParadeOverlay({
   buddies,
-  treasure,
+  treasure: treasureIn,
   featured,
   featuredKind,
+  capped = false,
   durationMs,
   reduce,
   onCatch,
@@ -49,6 +50,8 @@ export function ParadeOverlay({
   /** the buddy of the day (null = a guest silhouette) */
   featured: PetId | null
   featuredKind: DayPerkKind
+  /** the 3 treasure parades of today are used: buddies still give small coins */
+  capped?: boolean
   durationMs: number
   reduce: boolean
   /** returns what was really paid (a spin over the daily limit turns into coins) */
@@ -57,6 +60,8 @@ export function ParadeOverlay({
   readWallet: () => { coins: number; hints: number; spins: number }
   onDone: () => void
 }) {
+  // 9.30-s: EVERY marching buddy can be tapped for something (a buddy with no drop gives a few small coins), never a silent nothing
+  const treasure: Treasure[] = buddies.map((_, i) => treasureIn[i] ?? { kind: 'coins', amount: CAPPED_TAP_COINS })
   const [got, setGot] = useState<Record<number, Treasure>>({})
   const [phase, setPhase] = useState<'march' | 'summary'>('march')
   const [wallet, setWallet] = useState(() => readWallet())
@@ -237,12 +242,10 @@ export function ParadeOverlay({
             {caughtList.length ? (
               <>
                 <strong>You got {sum.text}</strong>
+                {capped ? <span className="parade-got-list" data-testid="parade-capped-note">Big treasure is used up for today (it rides in 3 parades a day). Each buddy gave a few coins.</span> : null}
               </>
             ) : (
-              <>
-                <strong>You got: nothing this time</strong>
-                <span className="parade-got-list">{total ? 'Tap the glowing buddies next time!' : 'Treasure rides in the first 3 parades of each day.'}</span>
-              </>
+              <strong>No buddies marched this time.</strong>
             )}
           </div>
           <div className="parade-wallet" data-testid="parade-wallet">
@@ -279,7 +282,9 @@ export function ParadeOverlay({
       </div>
       <div className="parade-title">Buddy Parade!</div>
       <div className="parade-prompt" data-testid="parade-prompt">
-        {total ? `👆 Tap the buddies to grab treasure! (${caughtList.length}/${total})` : 'Enjoy the parade! (Treasure rides in the first 3 parades a day)'}
+        {capped
+          ? `Big treasure is used up for today. Tap each buddy for +${CAPPED_TAP_COINS} coins! (${caughtList.length}/${total})`
+          : `👆 Tap the buddies to grab treasure! (${caughtList.length}/${total})`}
       </div>
       <div className="parade-day" data-testid="parade-day">
         Buddy of the day: <strong>{featuredName ?? 'a guest buddy'}</strong>
@@ -330,7 +335,7 @@ export function ParadeOverlay({
           )
         })}
       </div>
-      <div className="parade-skip">{caughtList.length ? `Caught so far: ${sum.text}` : 'Tap the buddies to grab treasure. Or just watch: it is paid when the parade ends.'}</div>
+      <div className="parade-skip">{caughtList.length ? `Caught so far: ${sum.text}` : 'Tap the buddies to grab their coins. Or just watch: it is paid when the parade ends.'}</div>
       {grabAllOn && total > caughtList.length ? (
         <TapButton className="btn primary parade-grab-all" data-testid="parade-grab-all" onTap={grabAll}>
           ✋ Grab all treasure
