@@ -82,6 +82,8 @@ import {
   hintPrice,
   huntPct,
   ledgerSummary,
+  noteParadeGain,
+  paradeRewardsLine,
   loadLedger,
   payWin,
   rescuePrice,
@@ -464,6 +466,7 @@ export default function App() {
   // 9.30-k: refresh the "voice lines heard" counter whenever Save & settings opens or is reset
   const [heardTick, setHeardTick] = useState(0)
   // Buddy Parade (9.30-j): a counter of wins; every 5-7 wins the next "Next board" tap shows the parade first
+  const paradeCountedRef = useRef(false)
   const paradeRef = useRef<ParadeState>(loadParade(typeof window === 'undefined' ? null : safeLocalStorage()))
   const [parade, setParade] = useState<{
     buddies: ParadeBuddy[]
@@ -1273,7 +1276,7 @@ export default function App() {
     // 9.30-m: treasure rides in 3 parades a day
     const ledP = ledgerNow()
     const treasureOk = canTreasure(ledP)
-    if (treasureOk) commitLedger({ ...ledP, treasureParades: ledP.treasureParades + 1 })
+    paradeCountedRef.current = false
     setParade({
       buddies,
       ms: paradeLengthMs(),
@@ -1294,19 +1297,21 @@ export default function App() {
     const cur = loadWallet()
     const next = { ...cur }
     let real: Treasure = t
+    let led = ledgerNow()
     if (t.kind === 'coins') next.coins += t.amount
     else if (t.kind === 'hint') next.freeHints += 1
-    else {
-      const led = ledgerNow()
-      if (canEarnSpin(led)) {
-        next.spins += 1
-        commitLedger({ ...led, spins: led.spins + 1 })
-      } else {
-        next.coins += SPIN_CAPPED_COINS
-        real = { kind: 'coins', amount: SPIN_CAPPED_COINS }
-        showToast(`Spin limit for today: +${SPIN_CAPPED_COINS} coins instead`)
-      }
+    else if (canEarnSpin(led)) {
+      next.spins += 1
+      led = { ...led, spins: led.spins + 1 }
+    } else {
+      next.coins += SPIN_CAPPED_COINS
+      real = { kind: 'coins', amount: SPIN_CAPPED_COINS }
+      showToast(`Spin limit for today: +${SPIN_CAPPED_COINS} coins instead`)
     }
+    // 9.30-p: the parade counts against the 3-a-day limit once something is really caught, and the Rewards card lists it
+    led = noteParadeGain(led, { coins: real.kind === 'coins' ? real.amount : 0, hints: real.kind === 'hint' ? 1 : 0, spins: real.kind === 'spin' ? 1 : 0 }, !paradeCountedRef.current)
+    paradeCountedRef.current = true
+    commitLedger(led)
     persistWallet(next)
     sfxCoin()
     return real
@@ -3016,6 +3021,7 @@ export default function App() {
               featured={parade.featured}
               featuredKind={parade.featuredKind}
               onCatch={catchTreasure}
+              readWallet={() => { const w = loadWallet(); return { coins: w.coins, hints: w.freeHints, spins: w.spins } }}
               durationMs={parade.ms}
               reduce={settings.reduceMotion}
               onDone={() => {
@@ -3126,10 +3132,14 @@ export default function App() {
           <div className="econ-card" data-testid="econ-card">
             {(() => {
               const t = ledgerSummary(rollLedger(econ, todayKey))
+              const pr = paradeRewardsLine(rollLedger(econ, todayKey))
               return (
                 <>
                   <span>
                     Today: full-pay wins <b>{t.winsFull}/{t.winsFullMax}</b> · sparks <b>{t.sparks}/{t.sparksMax}</b> · wheel spins earned <b>{t.spins}/{t.spinsMax}</b>
+                  </span>
+                  <span data-testid="parade-rewards-today">
+                    Parade rewards today: <b>{pr.text}</b> · parades with treasure <b>{pr.parades}/{pr.max}</b>
                   </span>
                   <small>{t.winsToday >= t.winsFullMax ? 'Busy day: wins pay a bit less now, and it all resets tomorrow (stars, records and buddy XP always count).' : 'Wins pay in full until 5 a day, then a bit less. It resets every midnight (Toronto).'}</small>
                 </>

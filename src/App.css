@@ -5742,3 +5742,37 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 
 .hud-mode { display: inline-flex; align-items: center; font-size: 0.72rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: rgba(120, 170, 255, 0.18); border: 1px solid rgba(150, 190, 255, 0.6); color: #cfe0ff; }
 .win-mode-note { margin: 2px 0 6px; font-size: 0.85rem; color: #cfe0ff; text-align: center; }
+
+/* Parade rewards made unmistakable (9.30-p) */
+.parade-lane { height: 210px; }
+.parade-loot {
+  flex-direction: column; gap: 0; min-width: 84px; min-height: 84px; padding: 6px 12px; border-radius: 26px;
+  border: 3px solid #ffd166; background: radial-gradient(circle at 50% 30%, #fff3b0, #ffb703 70%);
+  color: #07122a; box-shadow: 0 0 22px 6px rgba(255, 209, 102, 0.85); touch-action: manipulation;
+}
+.parade-loot .parade-loot-icon { font-size: 2.6rem; line-height: 1.05; filter: drop-shadow(0 2px 0 rgba(7, 18, 42, 0.5)); }
+.parade-loot b { font-size: 1.05rem; color: #07122a; }
+.parade-loot.is-live { animation: parade-bob 0.8s ease-in-out infinite, parade-glow2 1s ease-in-out infinite; }
+@keyframes parade-bob { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-8px) scale(1.08); } }
+@keyframes parade-glow2 { 0%, 100% { box-shadow: 0 0 16px 4px rgba(255, 209, 102, 0.8); } 50% { box-shadow: 0 0 34px 12px rgba(255, 236, 160, 1); } }
+.parade-loot.is-got { opacity: 0.55; transform: scale(0.8); background: #3dffa8; border-color: #b6ffe0; box-shadow: none; animation: none; }
+.parade-prompt { font-size: 1.25rem; padding: 10px 18px; }
+.parade-wallet-chip {
+  position: absolute; top: max(10px, env(safe-area-inset-top)); left: 12px; z-index: 3; min-height: 44px; display: inline-flex; align-items: center;
+  padding: 6px 14px; border-radius: 999px; background: rgba(7, 18, 42, 0.85); border: 2px solid #ffd166; color: #fff6cf; font-size: 1rem;
+}
+.parade-wallet-chip b { color: #ffd166; }
+.parade-fly {
+  position: fixed; z-index: 95; font-size: 2.2rem; pointer-events: none; transform: translate(-50%, -50%);
+  animation: parade-fly 0.85s cubic-bezier(0.5, 0, 0.9, 0.4) both;
+}
+@keyframes parade-fly { 0% { transform: translate(-50%, -50%) scale(1.4); opacity: 1; } 100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.6); opacity: 0.9; } }
+.parade-card {
+  display: grid; gap: 10px; padding: 16px 18px; border-radius: 20px; max-width: 92vw;
+  background: rgba(255, 246, 207, 0.1); border: 3px solid #ffd166; box-shadow: 0 0 26px rgba(255, 209, 102, 0.5);
+}
+.parade-card .parade-got strong { font-size: 1.55rem; color: #3dffa8; }
+.parade-wallet { font-size: 1rem; color: #fff6cf; display: grid; gap: 2px; }
+.parade-wallet small { color: #ffd166; }
+.parade-buddy [data-testid=parade-buddy-body] { cursor: pointer; touch-action: manipulation; }
+@media (prefers-reduced-motion: reduce) { .parade-loot.is-live, .parade-fly { animation: none !important; } .parade-fly { display: none; } }

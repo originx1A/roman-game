@@ -5,8 +5,8 @@
  */
 export const PARADE_MIN_WINS = 5
 export const PARADE_MAX_WINS = 7
-export const PARADE_MIN_MS = 5000
-export const PARADE_MAX_MS = 10000
+export const PARADE_MIN_MS = 12000
+export const PARADE_MAX_MS = 16000
 export const PARADE_KEY = 'roman.parade.v1'
 
 export interface ParadeState {
@@ -47,7 +47,7 @@ export function paradeDone(_s: ParadeState, rand: () => number = Math.random): P
   return newParade(rand)
 }
 
-/** 5-10 s */
+/** 12-16 s: slow enough to tap a buddy on a phone (9.30-p; it was 5-10 s) */
 export function paradeLengthMs(rand: () => number = Math.random): number {
   return Math.round(PARADE_MIN_MS + rand() * (PARADE_MAX_MS - PARADE_MIN_MS))
 }

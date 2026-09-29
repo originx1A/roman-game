@@ -53,12 +53,12 @@ test('long run: parades are 5-7 wins apart, never back to back', () => {
   assert.ok(gaps.every((g) => g >= 5 && g <= 7))
 })
 
-test('length is 5-10 s', () => {
-  assert.equal(paradeLengthMs(() => 0), 5000)
-  assert.equal(paradeLengthMs(() => 1), 10000)
+test('length is 12-16 s', () => {
+  assert.equal(paradeLengthMs(() => 0), 12000)
+  assert.equal(paradeLengthMs(() => 1), 16000)
   for (let i = 0; i < 100; i++) {
     const ms = paradeLengthMs()
-    assert.ok(ms >= 5000 && ms <= 10000)
+    assert.ok(ms >= 12000 && ms <= 16000)
   }
 })
 
