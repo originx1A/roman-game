@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { TapButton } from './TapButton'
 import { PetArt } from './PetArt'
 import type { PetId } from '../game/pets'
 import { petById } from '../game/pets'
@@ -65,6 +66,11 @@ export function ParadeOverlay({
   const doneRef = useRef(false)
   const startWallet = useRef(readWallet())
   const caughtIdx = useRef(new Set<number>())
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const [grabAllOn, setGrabAllOn] = useState(false)
+  const [holding, setHolding] = useState(false)
+  const holdTimer = useRef<number | null>(null)
+  const lastTap = useRef<{ at: number; x: number; y: number } | null>(null)
   const total = treasure.filter(Boolean).length
   const caughtList = Object.values(got)
 
@@ -79,6 +85,13 @@ export function ParadeOverlay({
     return () => window.clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // "Grab all" appears after 6 seconds so a phone can never fail to collect
+  useEffect(() => {
+    if (phase !== 'march' || !total) return
+    const t = window.setTimeout(() => setGrabAllOn(true), reduce ? 2500 : 6000)
+    return () => window.clearTimeout(t)
+  }, [phase, total, reduce])
 
   const featuredName = featured ? petById(featured)?.name : null
   const sum = treasureSummary(caughtList)
@@ -102,6 +115,82 @@ export function ParadeOverlay({
       setWallet(readWallet())
       setFlies((f) => f.filter((x) => x.id !== id))
     }, 850)
+  }
+
+  /**
+   * iOS Safari can hand a tap on a moving (CSS-animated) element to the wrong node, drop the click after a finger
+   * wobble, or never send it at all. So the whole overlay listens for the FIRST touch event (pointerdown / touchstart /
+   * mousedown) and finds the buddy by COORDINATES: the nearest buddy whose (enlarged, at least 96 px) box is within
+   * ~70 px of the finger. Click is only a backup. Each treasure can be caught once.
+   */
+  const HIT_MIN = 96
+  const HIT_NEAR = 70
+  const tapAt = (x: number, y: number): boolean => {
+    const root = rootRef.current
+    if (!root) return false
+    let best: { i: number; d: number; t: Treasure; el: HTMLElement } | null = null
+    root.querySelectorAll<HTMLElement>('[data-parade-i]').forEach((el) => {
+      const i = Number(el.dataset.paradeI)
+      const t = treasure[i]
+      if (!t || caughtIdx.current.has(i)) return
+      const r = el.getBoundingClientRect()
+      if (r.width === 0 && r.height === 0) return
+      const cx = r.left + r.width / 2
+      const cy = r.top + r.height / 2
+      const hw = Math.max(r.width, HIT_MIN) / 2
+      const hh = Math.max(r.height, HIT_MIN) / 2
+      const dx = Math.max(0, Math.abs(x - cx) - hw)
+      const dy = Math.max(0, Math.abs(y - cy) - hh)
+      const d = Math.hypot(dx, dy)
+      if (d <= HIT_NEAR && (!best || d < best.d)) best = { i, d, t, el }
+    })
+    if (!best) return false
+    const b = best as { i: number; d: number; t: Treasure; el: HTMLElement }
+    grab(b.i, b.t, b.el)
+    return true
+  }
+  const onTouchDown = (x: number, y: number, target: EventTarget | null) => {
+    if ((target as HTMLElement | null)?.closest?.('.parade-skip-btn, .parade-grab-all, .parade-continue')) return
+    // one touch fires pointerdown + touchstart + mousedown + click: act on the first one only
+    const at = Date.now()
+    const last = lastTap.current
+    if (last && at - last.at < 700 && Math.hypot(x - last.x, y - last.y) < 40) return
+    lastTap.current = { at, x, y }
+    // hold the march still for a moment under the finger
+    setHolding(true)
+    if (holdTimer.current) window.clearTimeout(holdTimer.current)
+    holdTimer.current = window.setTimeout(() => setHolding(false), 700)
+    tapAt(x, y)
+  }
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root || phase !== 'march') return
+    const pd = (e: PointerEvent) => onTouchDown(e.clientX, e.clientY, e.target)
+    const ts = (e: TouchEvent) => {
+      const t = e.changedTouches[0]
+      if (t) onTouchDown(t.clientX, t.clientY, e.target)
+    }
+    const tm = (e: MouseEvent) => onTouchDown(e.clientX, e.clientY, e.target)
+    root.addEventListener('pointerdown', pd)
+    root.addEventListener('touchstart', ts, { passive: true })
+    root.addEventListener('mousedown', tm)
+    root.addEventListener('click', tm)
+    return () => {
+      root.removeEventListener('pointerdown', pd)
+      root.removeEventListener('touchstart', ts)
+      root.removeEventListener('mousedown', tm)
+      root.removeEventListener('click', tm)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase])
+  const grabAll = () => {
+    const root = rootRef.current
+    if (!root) return
+    root.querySelectorAll<HTMLElement>('[data-parade-i]').forEach((el) => {
+      const i = Number(el.dataset.paradeI)
+      const t = treasure[i]
+      if (t && !caughtIdx.current.has(i)) grab(i, t, el)
+    })
   }
 
   if (phase === 'summary') {
@@ -130,25 +219,26 @@ export function ParadeOverlay({
           Buddy of the day: <strong>{featuredName ?? 'a guest buddy'}</strong>
           <small>{dayLabel(featuredKind)} for your next 3 boards</small>
         </div>
-        <button type="button" className="btn primary parade-continue" data-testid="parade-continue" onClick={finish}>
+        <TapButton className="btn primary parade-continue" data-testid="parade-continue" onTap={finish}>
           Continue
-        </button>
+        </TapButton>
       </div>
     )
   }
 
   return (
     <div
-      className={`parade ${reduce ? 'is-still' : ''}`}
+      ref={rootRef}
+      className={`parade ${reduce ? 'is-still' : ''} ${holding ? 'is-holding' : ''}`}
       role="dialog"
       aria-label="Buddy parade. Tap the buddies to grab their treasure."
       data-testid="parade"
       data-phase="march"
       style={{ ['--parade-ms' as string]: `${reduce ? 0 : durationMs}ms` }}
     >
-      <button type="button" className="parade-skip-btn" data-testid="parade-skip" onClick={toSummary}>
+      <TapButton className="parade-skip-btn" data-testid="parade-skip" onTap={toSummary}>
         Skip ›
-      </button>
+      </TapButton>
       <div className="parade-wallet-chip" data-testid="parade-wallet-chip" ref={chipRef}>
         🪙 <b>{wallet.coins}</b> · 💡 <b>{wallet.hints}</b>{wallet.spins ? <> · 🎡 <b>{wallet.spins}</b></> : null}
       </div>
@@ -166,7 +256,7 @@ export function ParadeOverlay({
           const mine = got[i]
           return (
             <div key={b.id} className="parade-buddy" style={{ ['--i' as string]: i, ['--n' as string]: buddies.length }}>
-              <div className="parade-hop">
+              <div className="parade-hop" data-parade-i={t ? i : undefined}>
                 {t ? (
                   <button
                     type="button"
@@ -175,8 +265,9 @@ export function ParadeOverlay({
                     aria-label={mine ? `Caught ${treasureLabel(mine)}` : `Grab ${treasureLabel(t)}`}
                     disabled={!!mine}
                     onClick={(e) => {
+                      // keyboard / screen reader / mouse: the button itself
                       e.stopPropagation()
-                      grab(i, t, e.currentTarget)
+                      if (!caughtIdx.current.has(i)) grab(i, t, e.currentTarget)
                     }}
                   >
                     <span className="parade-loot-icon" aria-hidden>{mine ? '✔' : treasureIcon(t)}</span>
@@ -193,9 +284,6 @@ export function ParadeOverlay({
                 <div
                   className={b.id === featured ? 'parade-star' : undefined}
                   data-testid="parade-buddy-body"
-                  onClick={(e) => {
-                    if (t && !mine) grab(i, t, e.currentTarget as HTMLElement)
-                  }}
                 >
                   <PetArt id={b.id} size={b.id === featured ? 104 : 88} locked={b.locked} />
                 </div>
@@ -205,6 +293,11 @@ export function ParadeOverlay({
         })}
       </div>
       <div className="parade-skip">{caughtList.length ? `Caught so far: ${sum.text}` : 'Buddies march slowly. Tap Skip to stop early.'}</div>
+      {grabAllOn && total > caughtList.length ? (
+        <TapButton className="btn primary parade-grab-all" data-testid="parade-grab-all" onTap={grabAll}>
+          ✋ Grab all treasure
+        </TapButton>
+      ) : null}
       {flies.map((f) => (
         <span key={f.id} className="parade-fly" data-testid="parade-fly" style={{ left: f.x0, top: f.y0, ['--dx' as string]: `${f.dx}px`, ['--dy' as string]: `${f.dy}px` }} aria-hidden="true">
           {f.icon}
