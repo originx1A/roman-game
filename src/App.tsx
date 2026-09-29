@@ -69,6 +69,8 @@ import {
 import { createVoiceGate } from './game/voiceGate'
 import { loadParade, paradeDone, paradeLengthMs, paradeWin, saveParade, type ParadeState } from './game/parade'
 import { ParadeOverlay, type ParadeBuddy } from './components/ParadeOverlay'
+import { makeTreasure, type Treasure } from './game/paradeTreasure'
+import { dayCoins, dayShort, loadDay, saveDay, startBuddyDay, useDayBoard, type BuddyDay, type DayPerkKind } from './game/buddyDay'
 import { BUILD_TAG } from './buildTag'
 import { amendMove, createHistory, pushMove, redoMove, restoreHistory, stepsToSave, undoMove } from './game/history'
 import {
@@ -435,7 +437,19 @@ export default function App() {
   const [heardTick, setHeardTick] = useState(0)
   // Buddy Parade (9.30-j): a counter of wins; every 5-7 wins the next "Next board" tap shows the parade first
   const paradeRef = useRef<ParadeState>(loadParade(typeof window === 'undefined' ? null : safeLocalStorage()))
-  const [parade, setParade] = useState<{ buddies: ParadeBuddy[]; ms: number; go: () => void } | null>(null)
+  const [parade, setParade] = useState<{
+    buddies: ParadeBuddy[]
+    ms: number
+    go: () => void
+    treasure: (Treasure | undefined)[]
+    featured: PetId | null
+    featuredKind: DayPerkKind
+  } | null>(null)
+  // Buddy of the day (9.30-l): the featured buddy's perk for 3 boards after a parade
+  const dayRef = useRef<BuddyDay>(loadDay(typeof window === 'undefined' ? null : safeLocalStorage()))
+  const [dayPerk, setDayPerk] = useState<{ pet: PetId | null; kind: DayPerkKind; board: number } | null>(null)
+  const dayPerkRef = useRef(dayPerk)
+  dayPerkRef.current = dayPerk
   const [winPerfect, setWinPerfect] = useState(false)
   const [showHunt, setShowHunt] = useState(false)
   /** This attempt had a wrong buddy (even shield-blocked), a hint, a rescue or a revive. */
@@ -1164,16 +1178,42 @@ export default function App() {
     saveParade(safeLocalStorage(), paradeRef.current)
     if (settingsRef.current.parade === false) return go()
     const now = Date.now()
-    const owned = PETS.filter((pp) => hasPet(loadPets(), pp.id, now)).map((pp) => ({ id: pp.id, locked: false }))
-    const buddies: ParadeBuddy[] = owned.length
-      ? owned
-      : (['lupa', 'aquila', 'leo', 'invictus'] as const).map((id) => ({ id, locked: true }))
-    setParade({ buddies, ms: paradeLengthMs(), go })
+    const petsNow = loadPets()
+    const owned: ParadeBuddy[] = PETS.filter((pp) => hasPet(petsNow, pp.id, now)).map((pp) => ({ id: pp.id, locked: false }))
+    // at least 3 marchers, so there is always something to catch: the rest are silhouettes of buddies not owned yet
+    const buddies: ParadeBuddy[] = [...owned]
+    for (const pp of PETS) {
+      if (buddies.length >= 3) break
+      if (!buddies.some((x) => x.id === pp.id)) buddies.push({ id: pp.id, locked: true })
+    }
+    // Buddy of the day: rotates through the buddies you own (a guest silhouette if none)
+    const day = startBuddyDay(dayRef.current, owned.map((x) => x.id))
+    dayRef.current = day
+    saveDay(safeLocalStorage(), day)
+    setParade({
+      buddies,
+      ms: paradeLengthMs(),
+      go,
+      treasure: makeTreasure(buddies.length),
+      featured: day.pet,
+      featuredKind: day.kind,
+    })
     sfxAchievement()
     if (shellRef.current) burstConfetti(shellRef.current, true)
     window.setTimeout(() => {
       if (shellRef.current) burstConfetti(shellRef.current, true)
     }, 2600)
+  }
+
+  /** A parade treasure was tapped: coins, a free hint, or a spin token into the wallet */
+  function catchTreasure(t: Treasure) {
+    const cur = loadWallet()
+    const next = { ...cur }
+    if (t.kind === 'coins') next.coins += t.amount
+    else if (t.kind === 'hint') next.freeHints += 1
+    else next.spins += 1
+    persistWallet(next)
+    sfxCoin()
   }
 
   function startPuzzle(p: Puzzle, resume = false, opts: { mode?: RunMode; daily?: boolean; endless?: boolean } = {}) {
@@ -1239,7 +1279,17 @@ export default function App() {
     const ridePerk = activePerk(petsNow, Date.now())
     runPetRef.current = ridePet
     const trialRun = runMode === 'trial'
-    setPetFree({ hints: !trialRun && ridePerk ? ridePerk.hints : 0, rescues: !trialRun && ridePerk ? ridePerk.rescues : 0 })
+    // 9.30-l: buddy of the day. A NEW board (not a resume) uses one of its 3 boards; the hint perk is off in Roman's Trial
+    let dayNow: { pet: PetId | null; kind: DayPerkKind; board: number } | null = dayPerkRef.current
+    if (!resume) {
+      const u = useDayBoard(dayRef.current)
+      dayRef.current = u.day
+      saveDay(safeLocalStorage(), u.day)
+      dayNow = u.perk
+      setDayPerk(u.perk)
+    }
+    const dayHint = !trialRun && dayNow?.kind === 'hint' ? 1 : 0
+    setPetFree({ hints: (!trialRun && ridePerk ? ridePerk.hints : 0) + dayHint, rescues: !trialRun && ridePerk ? ridePerk.rescues : 0 })
     const petHeart = !trialRun && ridePerk ? ridePerk.hearts : 0
     if (runMode !== 'trial' && (saved.bonusHearts ?? 0) > 0) {
       const left = saved.bonusHearts - 1
@@ -1547,7 +1597,9 @@ export default function App() {
       // 9.30-a: buddy perk coins, growth, coupons and a cheer
       const ridePet = runPetRef.current
       const ridePerk = ridePet ? activePerk({ ...loadPets(), active: ridePet }, Date.now()) : null
-      const petCoins = petWinCoins(paid.gained, ridePerk)
+      // 9.30-l: buddy of the day, double coins: adds the win's coins once more (capped)
+      const dayBonus = dayPerkRef.current?.kind === 'coins' ? dayCoins(paid.gained) : 0
+      const petCoins = petWinCoins(paid.gained, ridePerk) + dayBonus
       let petCheer: WinReplay['pet'] = undefined
       try {
         let ps = loadPets()
@@ -1581,7 +1633,8 @@ export default function App() {
       {
         const parts = [...extra.parts]
         if (dailyBonus) parts.push(`+${dailyBonus} daily`)
-        if (petCoins > 0 && ridePet) parts.push(`+${petCoins}\u00a0${petById(ridePet)?.name}`)
+        if (petCoins - dayBonus > 0 && ridePet) parts.push(`+${petCoins - dayBonus}\u00a0${petById(ridePet)?.name}`)
+        if (dayBonus > 0) parts.push(`+${dayBonus}\u00a0${dayPerkRef.current?.pet ? petById(dayPerkRef.current.pet)?.name : 'Guest'} of the day`)
         if (runMode === 'trial') parts.unshift('2× coins')
         const c = comboRef.current
         const bits = [`combo ×${c.bestMult}`, `${undosRef.current} undo${undosRef.current === 1 ? '' : 's'}`]
@@ -2565,6 +2618,11 @@ export default function App() {
                 {mode === 'trial' ? `⏳${formatMs(trialLeftMs)}` : formatMs(elapsedMs)}
                 {pace ? <em className="hud-pace">{formatDelta(pace.delta)}</em> : null}
               </span>
+              {dayPerk && !celebrate ? (
+                <span className="hud-day" data-testid="hud-day" title={`Buddy of the day: ${dayPerk.pet ? petById(dayPerk.pet)?.name : 'Guest'} · board ${dayPerk.board} of 3`}>
+                  ⭐ {dayShort(dayPerk.kind)} {dayPerk.board}/3
+                </span>
+              ) : null}
               <span className="hud-stash" title="Catch 5 sparks across games for a prize">
                 ✨{(wallet.critterStash ?? 0)}/{CRITTER_STASH_GOAL}
               </span>
@@ -2782,6 +2840,10 @@ export default function App() {
           {parade && (
             <ParadeOverlay
               buddies={parade.buddies}
+              treasure={parade.treasure}
+              featured={parade.featured}
+              featuredKind={parade.featuredKind}
+              onCatch={catchTreasure}
               durationMs={parade.ms}
               reduce={settings.reduceMotion}
               onDone={() => {
