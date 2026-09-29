@@ -170,12 +170,15 @@ export function ParadeOverlay({
     grab(b.i, b.t, b.el)
     return true
   }
-  const onTouchDown = (x: number, y: number, target: EventTarget | null) => {
+  const onTouchDown = (x: number, y: number, target: EventTarget | null, kind: 'down' | 'click' = 'down') => {
     if ((target as HTMLElement | null)?.closest?.('.parade-skip-btn, .parade-grab-all, .parade-continue')) return
-    // one touch fires pointerdown + touchstart + mousedown + click: act on the first one only
+    // One touch fires pointerdown + touchstart + mousedown within a few ms, then a click after release.
+    // Act on the first; ignore the rest of THAT touch (but a genuinely new tap always counts).
     const at = Date.now()
     const last = lastTap.current
-    if (last && at - last.at < 700 && Math.hypot(x - last.x, y - last.y) < 40) return
+    if (kind === 'click') {
+      if (last && at - last.at < 2500) return
+    } else if (last && at - last.at < 150) return
     lastTap.current = { at, x, y }
     // hold the march still for a moment under the finger
     setHolding(true)
@@ -202,15 +205,16 @@ export function ParadeOverlay({
       if (t) onTouchDown(t.clientX, t.clientY, e.target)
     }
     const tm = (e: MouseEvent) => onTouchDown(e.clientX, e.clientY, e.target)
+    const tc = (e: MouseEvent) => onTouchDown(e.clientX, e.clientY, e.target, 'click')
     root.addEventListener('pointerdown', pd)
     root.addEventListener('touchstart', ts, { passive: true })
     root.addEventListener('mousedown', tm)
-    root.addEventListener('click', tm)
+    root.addEventListener('click', tc)
     return () => {
       root.removeEventListener('pointerdown', pd)
       root.removeEventListener('touchstart', ts)
       root.removeEventListener('mousedown', tm)
-      root.removeEventListener('click', tm)
+      root.removeEventListener('click', tc)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase])
@@ -300,7 +304,7 @@ export function ParadeOverlay({
                       e.stopPropagation()
                       // the same touch was already handled by the first-touch listener
                       const last = lastTap.current
-                      if (last && Date.now() - last.at < 700) return
+                      if (last && Date.now() - last.at < 2500) return
                       if (!caughtIdx.current.has(i)) grab(i, t, e.currentTarget)
                     }}
                   >
