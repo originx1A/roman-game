@@ -11,12 +11,25 @@ export interface ParadeBuddy {
   locked: boolean
 }
 
+/** "You got: 🪙 +26 coins · 💡 1 free hint" from what was caught */
+export function treasureSummary(got: Treasure[]): { coins: number; hints: number; spins: number; text: string } {
+  const coins = got.filter((t) => t.kind === 'coins').reduce((a, t) => a + t.amount, 0)
+  const hints = got.filter((t) => t.kind === 'hint').length
+  const spins = got.filter((t) => t.kind === 'spin').length
+  const bits: string[] = []
+  if (coins) bits.push(`🪙 +${coins} coins`)
+  if (hints) bits.push(`💡 ${hints} free hint${hints > 1 ? 's' : ''}`)
+  if (spins) bits.push(`🎡 ${spins} spin${spins > 1 ? 's' : ''}`)
+  return { coins, hints, spins, text: bits.join(' · ') }
+}
+
 /**
- * Buddy Parade (9.30-j, treasure + buddy of the day 9.30-l): a short march of buddies across the
- * screen between games. Each marching buddy may carry a small drop: tap the BUDDY to catch it.
- * Tapping anywhere else skips the parade and forfeits what was not caught. One buddy is the
- * buddy of the day (its perk rides for the next 3 boards). Light on purpose: a handful of SVGs
- * moved with CSS transforms. With reduced motion the buddies stand in a row for a moment.
+ * Buddy Parade (9.30-j; treasure + buddy of the day 9.30-l; clearer controls 9.30-n).
+ * Buddies march across the screen and some carry treasure. TAP A BUDDY'S TREASURE to catch it: it pops
+ * with a "+coins" text. Tapping empty space does NOTHING (it used to skip, which felt like the game just
+ * went back). A Skip button sits in the top-right corner. When the march ends (or Skip is tapped) a
+ * "You got: ..." summary shows with a Continue button; only Continue returns to the game.
+ * With reduced motion the buddies stand still in a row.
  */
 export function ParadeOverlay({
   buddies,
@@ -36,37 +49,75 @@ export function ParadeOverlay({
   featuredKind: DayPerkKind
   durationMs: number
   reduce: boolean
-  onCatch: (t: Treasure) => void
+  /** returns what was really paid (a spin over the daily limit turns into coins) */
+  onCatch: (t: Treasure) => Treasure
   onDone: () => void
 }) {
-  const [caught, setCaught] = useState<Set<number>>(() => new Set())
+  const [got, setGot] = useState<Record<number, Treasure>>({})
+  const [phase, setPhase] = useState<'march' | 'summary'>('march')
   const doneRef = useRef(false)
+  const total = treasure.filter(Boolean).length
+  const caughtList = Object.values(got)
+
+  const toSummary = () => setPhase('summary')
   const finish = () => {
     if (doneRef.current) return
     doneRef.current = true
     onDone()
   }
   useEffect(() => {
-    const t = window.setTimeout(finish, reduce ? Math.min(durationMs, 6000) : durationMs)
+    const t = window.setTimeout(toSummary, reduce ? Math.min(durationMs, 6000) : durationMs)
     return () => window.clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  const total = treasure.filter(Boolean).length
+
   const featuredName = featured ? petById(featured)?.name : null
+  const sum = treasureSummary(caughtList)
+
+  if (phase === 'summary') {
+    return (
+      <div className="parade parade-summary" role="dialog" aria-label="Parade treasure" data-testid="parade" data-phase="summary">
+        <div className="parade-title">Parade over!</div>
+        <div className="parade-got" data-testid="parade-got">
+          {caughtList.length ? (
+            <>
+              <strong>You got:</strong>
+              <span className="parade-got-list">{sum.text}</span>
+            </>
+          ) : (
+            <>
+              <strong>You got: nothing this time</strong>
+              <span className="parade-got-list">{total ? 'Tap the treasure on the buddies next time!' : 'Treasure rides in the first 3 parades of each day.'}</span>
+            </>
+          )}
+        </div>
+        <div className="parade-day" data-testid="parade-day">
+          Buddy of the day: <strong>{featuredName ?? 'a guest buddy'}</strong>
+          <small>{dayLabel(featuredKind)} for your next 3 boards</small>
+        </div>
+        <button type="button" className="btn primary parade-continue" data-testid="parade-continue" onClick={finish}>
+          Continue
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div
       className={`parade ${reduce ? 'is-still' : ''}`}
-      role="button"
-      tabIndex={0}
-      aria-label="Buddy parade. Tap a buddy to catch its treasure. Tap anywhere else to skip."
+      role="dialog"
+      aria-label="Buddy parade. Tap the treasure on the buddies to catch it."
       data-testid="parade"
+      data-phase="march"
       style={{ ['--parade-ms' as string]: `${reduce ? 0 : durationMs}ms` }}
-      onClick={finish}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') finish()
-      }}
     >
+      <button type="button" className="parade-skip-btn" data-testid="parade-skip" onClick={toSummary}>
+        Skip ›
+      </button>
       <div className="parade-title">Buddy Parade!</div>
+      <div className="parade-prompt" data-testid="parade-prompt">
+        {total ? `👆 Tap the buddies! Catch their treasure (${caughtList.length}/${total})` : 'Enjoy the parade! (Treasure rides in the first 3 parades a day)'}
+      </div>
       <div className="parade-day" data-testid="parade-day">
         Buddy of the day: <strong>{featuredName ?? 'a guest buddy'}</strong>
         <small>{dayLabel(featuredKind)} for your next 3 boards</small>
@@ -74,27 +125,33 @@ export function ParadeOverlay({
       <div className="parade-lane">
         {buddies.map((b, i) => {
           const t = treasure[i]
-          const got = caught.has(i)
+          const mine = got[i]
           return (
             <div key={b.id} className="parade-buddy" style={{ ['--i' as string]: i, ['--n' as string]: buddies.length }}>
               <div className="parade-hop">
                 {t ? (
                   <button
                     type="button"
-                    className={`parade-loot ${got ? 'is-got' : ''}`}
+                    className={`parade-loot ${mine ? 'is-got' : 'is-live'}`}
                     data-testid="parade-loot"
-                    aria-label={got ? `Caught ${treasureLabel(t)}` : `Catch ${treasureLabel(t)}`}
-                    disabled={got}
+                    aria-label={mine ? `Caught ${treasureLabel(mine)}` : `Catch ${treasureLabel(t)}`}
+                    disabled={!!mine}
                     onClick={(e) => {
                       e.stopPropagation()
-                      if (got) return
-                      setCaught((s) => new Set(s).add(i))
-                      onCatch(t)
+                      if (mine) return
+                      const real = onCatch(t)
+                      setGot((s) => ({ ...s, [i]: real }))
                     }}
                   >
                     <span aria-hidden>{treasureIcon(t)}</span>
-                    <b>{treasureLabel(t)}</b>
+                    <b>{mine ? 'Got it!' : treasureLabel(t)}</b>
                   </button>
+                ) : null}
+                {mine ? (
+                  <span className="parade-pop" data-testid="parade-pop" aria-hidden="true">
+                    {treasureIcon(mine)} {treasureLabel(mine)}
+                    {mine.kind === 'coins' ? ' coins' : ''}
+                  </span>
                 ) : null}
                 <div className={b.id === featured ? 'parade-star' : undefined}>
                   <PetArt id={b.id} size={b.id === featured ? 88 : 72} locked={b.locked} />
@@ -104,9 +161,7 @@ export function ParadeOverlay({
           )
         })}
       </div>
-      <div className="parade-skip">
-        {total ? `Tap a buddy to catch its treasure (${caught.size}/${total}) · tap elsewhere to skip` : 'Tap to skip'}
-      </div>
+      <div className="parade-skip">{caughtList.length ? `Caught so far: ${sum.text}` : 'Buddies keep marching. Tap Skip to stop early.'}</div>
     </div>
   )
 }

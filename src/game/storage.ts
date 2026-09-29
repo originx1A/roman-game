@@ -15,6 +15,7 @@ const KEYS = {
   generated: 'roman.generated.v1',
   remix: 'roman.remix.v1',
   endless: 'roman.endless.v1',
+  shared: 'roman.sharedboards.v1',
   buddyMeter: 'roman.buddymeter.v1',
   records: 'roman.records.v1',
   tips: 'roman.tips.v1',
@@ -334,6 +335,21 @@ export function rememberGeneratedPuzzle(puzzle: import('./types').Puzzle) {
     for (const id of ids.slice(0, ids.length - GENERATED_MAX)) delete all[id]
   }
   write(KEYS.generated, all)
+}
+
+/** 9.30-n: boards that arrived in challenge / duel links. Kept apart from the rolling cache, so playing lots of Endless
+ * boards can never push a friend's board out before you open the link. Keeps the newest 60. */
+const SHARED_MAX = 60
+export function rememberSharedPuzzle(puzzle: import('./types').Puzzle) {
+  const all = read<Record<string, import('./types').Puzzle>>(KEYS.shared, {})
+  delete all[puzzle.id]
+  all[puzzle.id] = puzzle
+  const ids = Object.keys(all)
+  if (ids.length > SHARED_MAX) for (const id of ids.slice(0, ids.length - SHARED_MAX)) delete all[id]
+  write(KEYS.shared, all)
+}
+export function getSharedPuzzle(id: string): import('./types').Puzzle | undefined {
+  return read<Record<string, import('./types').Puzzle>>(KEYS.shared, {})[id]
 }
 
 export function getGeneratedPuzzle(id: string): import('./types').Puzzle | undefined {

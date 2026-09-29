@@ -1,7 +1,9 @@
 import type { Challenge, Difficulty, DuelResult, Puzzle } from './types'
 import { publicLinkWithHash } from './publicUrl'
 import { PUZZLES } from './puzzles'
-import { rememberGeneratedPuzzle } from './storage'
+import { rememberSharedPuzzle } from './storage'
+import { isSolved } from './logic'
+import { parseRemixId, remixSetNow } from './remix'
 
 const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard', 'expert']
 
@@ -64,7 +66,10 @@ export function registerSharedBoard(
       solution,
       difficulty,
     }
-    rememberGeneratedPuzzle(puzzle)
+    // 9.30-n: only accept a layout that really is a valid solved board (one per row, column and region, none touching)
+    const cellsState = Array.from({ length: cells }, (_, i) => (seen.has(i) ? 'stone' : 'empty')) as import('./types').CellState[]
+    if (!isSolved(puzzle, cellsState)) return null
+    rememberSharedPuzzle(puzzle)
     return puzzle
   } catch {
     return null
@@ -103,10 +108,18 @@ function fromB64Url(raw: string): unknown {
   return JSON.parse(decodeURIComponent(escape(atob(pad))))
 }
 
-export function boardLabel(c: { puzzleName?: string; difficulty?: string; puzzleId: string }): string {
-  if (c.puzzleName && c.difficulty) return `${c.puzzleName} (${c.difficulty})`
-  if (c.puzzleName) return c.puzzleName
-  return c.puzzleId
+/** 9.30-n: what kind of board a link points to, in plain words ("" for a catalog level) */
+export function boardKindNote(puzzleId: string, now: Date = new Date()): string {
+  const rm = parseRemixId(puzzleId)
+  if (rm) return rm.set === remixSetNow(now) ? 'Remix board' : 'Past Remix board'
+  if (/^gen-|^shuffle-/.test(puzzleId)) return 'Endless / random board'
+  return ''
+}
+
+export function boardLabel(c: { puzzleName?: string; difficulty?: string; puzzleId: string }, withNote = true): string {
+  const note = withNote ? boardKindNote(c.puzzleId) : ''
+  const base = c.puzzleName && c.difficulty ? `${c.puzzleName} (${c.difficulty})` : c.puzzleName ? c.puzzleName : c.puzzleId
+  return note ? `${base} · ${note}` : base
 }
 
 export function rankLabel(badgePower?: number, bonusPct?: number): string {
@@ -134,7 +147,7 @@ export function createChallenge(input: {
     puzzleId: input.puzzleId,
     puzzleName: input.puzzleName,
     difficulty: input.difficulty,
-  })
+  }, false)
   const rank = rankLabel(input.badgePower, input.bonusPct)
   return {
     code: alphabetCode(6),
