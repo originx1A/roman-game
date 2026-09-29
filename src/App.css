@@ -5776,3 +5776,17 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 .parade-wallet small { color: #ffd166; }
 .parade-buddy [data-testid=parade-buddy-body] { cursor: pointer; touch-action: manipulation; }
 @media (prefers-reduced-motion: reduce) { .parade-loot.is-live, .parade-fly { animation: none !important; } .parade-fly { display: none; } }
+
+/* 9.30-q: a phone can never fail to collect: touch-action, big hit areas, pause under the finger, Grab all */
+.parade { touch-action: manipulation; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.parade * { -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+.parade .pet-art, .parade .parade-star, .parade [data-testid=parade-buddy-body] { pointer-events: none; }
+.parade [data-testid=parade-buddy-body] { min-width: 96px; min-height: 96px; }
+.parade-hop[data-parade-i]::after { content: ''; position: absolute; left: 50%; top: 50%; width: 112px; height: 150px; transform: translate(-50%, -50%); }
+.parade-loot { min-width: 96px; min-height: 96px; }
+.parade.is-holding .parade-buddy, .parade.is-holding .parade-hop { animation-play-state: paused; }
+.parade-grab-all {
+  position: absolute; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 4;
+  min-width: 240px; min-height: 64px; font-size: 1.3rem; font-weight: 900; border-radius: 999px;
+  box-shadow: 0 0 26px 8px rgba(255, 209, 102, 0.8); animation: parade-nudge 1s ease-in-out infinite;
+}
