@@ -33,6 +33,8 @@ export interface Settings {
   howSeen?: boolean
   /** Voice tips (teaching lines). Undefined = on. */
   voiceTips?: boolean
+  /** Buddy Parade between games (every 5-7 wins). Undefined = on. */
+  parade?: boolean
 }
 
 export const PLAYER_NAME_MAX = 16

@@ -434,6 +434,11 @@ export type VoiceMood = 'excited' | 'happy' | 'neutral' | 'soft' | 'disappointed
 export type VoiceRole = 'coach' | 'roman' | 'oldtimer' | 'buddy'
 
 export function roleForClip(id: string): VoiceRole {
+  // 9.30-j fix: tip lines are tip_<tip>_<voice>_<name>; they used to all play as the coach
+  if (id.startsWith('tip_')) {
+    const v = id.split('_')[2]
+    return v === 'roman' ? 'roman' : v === 'old' ? 'oldtimer' : 'coach'
+  }
   if (id.startsWith('roman_')) return 'roman'
   if (id.startsWith('old_')) return 'oldtimer'
   if (id.startsWith('buddy_')) return 'buddy'

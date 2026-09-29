@@ -78,12 +78,16 @@ if (missing.length) {
   throw new Error(`voice clips missing or not mp3: ${missing.join(' ')}`)
 }
 
+// 9.30-j: tip lines are tip_<tip>_<voice>_<name>; the voice is the third part
+const isRomanId = (id: string) => id.startsWith('roman_') || id.startsWith('tip_') && id.split('_')[2] === 'roman'
+const isOldId = (id: string) => id.startsWith('old_') || id.startsWith('tip_') && id.split('_')[2] === 'old'
+
 const known = new Set(voiceIds)
 for (const [name, ids] of Object.entries(coachPools)) {
   for (const id of ids) {
     if (!known.has(id)) throw new Error(`${name} pool uses unknown clip ${id}`)
     if (!fallbackIds.has(id)) throw new Error(`${name} pool clip ${id} has no fallback text`)
-    if (id.startsWith('roman_') || id.startsWith('old_')) throw new Error(`${name} coach pool has ${id}`)
+    if (isRomanId(id) || isOldId(id)) throw new Error(`${name} coach pool has ${id}`)
   }
 }
 for (const [name, ids] of Object.entries({ ...pools, ...oldPools })) {
@@ -104,12 +108,12 @@ const notOld: string[] = []
 for (const id of voiceIds) {
   const entry = manifest[id]
   if (!entry) throw new Error(`voice clip ${id} is missing from scripts/voice-manifest.json`)
-  if (id.startsWith('roman_') && (entry.voice !== 'en-US-BrianNeural' || entry.rate !== '-8%' || entry.pitch !== '-6Hz')) {
+  if (isRomanId(id) && (entry.voice !== 'en-US-BrianNeural' || entry.rate !== '-8%' || entry.pitch !== '-6Hz')) {
     notBrian.push(`${id} (${entry.voice} ${entry.rate} ${entry.pitch})`)
   }
   // Old-timer heckler: William, slower + lower, with the rasp post-process
   if (
-    id.startsWith('old_') &&
+    isOldId(id) &&
     (entry.voice !== 'en-AU-WilliamMultilingualNeural' || entry.rate !== '-20%' || entry.pitch !== '-16Hz' || entry.post !== 'rasp-v1')
   ) {
     notOld.push(`${id} (${entry.voice} ${entry.rate} ${entry.pitch} ${entry.post ?? 'no post'})`)
@@ -118,11 +122,11 @@ for (const id of voiceIds) {
 if (notBrian.length) throw new Error(`Roman clips not in the deeper Brian voice: ${notBrian.join(', ')}`)
 if (notOld.length) throw new Error(`Old-timer clips not in the old-timer voice: ${notOld.join(', ')}`)
 for (const [name, ids] of Object.entries(oldPools)) {
-  const stray = ids.filter((id) => !id.startsWith('old_'))
+  const stray = ids.filter((id) => !isOldId(id))
   if (stray.length) throw new Error(`${name} old-timer pool has other clips: ${stray.join(' ')}`)
 }
 for (const [name, ids] of Object.entries(pools)) {
-  const stray = ids.filter((id) => !id.startsWith('roman_'))
+  const stray = ids.filter((id) => !isRomanId(id))
   if (stray.length) throw new Error(`${name} Roman pool has non-Roman clips: ${stray.join(' ')}`)
 }
 
