@@ -49,6 +49,10 @@ export interface Ledger {
   sparks: number
   spins: number
   treasureParades: number
+  /** 9.30-p: what parade treasure really paid today (for the Rewards card) */
+  paradeCoins: number
+  paradeHints: number
+  paradeSpins: number
   hunts: number
   bests: number
   trialClears: number
@@ -57,7 +61,7 @@ export interface Ledger {
 }
 
 export function emptyLedger(day: string): Ledger {
-  return { day, wins: 0, winCoins: 0, sparks: 0, spins: 0, treasureParades: 0, hunts: 0, bests: 0, trialClears: 0, boards: {} }
+  return { day, wins: 0, winCoins: 0, sparks: 0, spins: 0, treasureParades: 0, paradeCoins: 0, paradeHints: 0, paradeSpins: 0, hunts: 0, bests: 0, trialClears: 0, boards: {} }
 }
 
 const int = (x: unknown, max = 100000) => (typeof x === 'number' && Number.isFinite(x) ? Math.max(0, Math.min(max, Math.floor(x))) : 0)
@@ -77,6 +81,9 @@ export function sanitizeLedger(raw: unknown, today: string): Ledger {
     sparks: int(r.sparks, 9999),
     spins: int(r.spins, 99),
     treasureParades: int(r.treasureParades, 99),
+    paradeCoins: int(r.paradeCoins, 99999),
+    paradeHints: int(r.paradeHints, 99),
+    paradeSpins: int(r.paradeSpins, 99),
     hunts: int(r.hunts, 99),
     bests: int(r.bests, 99),
     trialClears: int(r.trialClears, 99),
@@ -181,4 +188,25 @@ export function ledgerSummary(l: Ledger): { winsFull: number; winsFullMax: numbe
     spins: Math.min(l.spins, SPIN_CAP_PER_DAY),
     spinsMax: SPIN_CAP_PER_DAY,
   }
+}
+
+/** 9.30-p: a treasure was really paid: count it (and the parade, once) in today's ledger */
+export function noteParadeGain(l: Ledger, g: { coins?: number; hints?: number; spins?: number }, firstOfParade: boolean): Ledger {
+  return {
+    ...l,
+    treasureParades: l.treasureParades + (firstOfParade ? 1 : 0),
+    paradeCoins: l.paradeCoins + Math.max(0, g.coins ?? 0),
+    paradeHints: l.paradeHints + Math.max(0, g.hints ?? 0),
+    paradeSpins: l.paradeSpins + Math.max(0, g.spins ?? 0),
+  }
+}
+
+/** 9.30-p: the "Parade rewards" line of the Rewards card, in plain words */
+export function paradeRewardsLine(l: Ledger): { parades: number; max: number; coins: number; hints: number; spins: number; text: string } {
+  const bits: string[] = []
+  if (l.paradeCoins) bits.push(`🪙 +${l.paradeCoins} coins`)
+  if (l.paradeHints) bits.push(`💡 ${l.paradeHints} free hint${l.paradeHints > 1 ? 's' : ''}`)
+  if (l.paradeSpins) bits.push(`🎡 ${l.paradeSpins} spin${l.paradeSpins > 1 ? 's' : ''}`)
+  const text = bits.length ? bits.join(' · ') : 'nothing yet (a parade comes every 5-7 wins)'
+  return { parades: l.treasureParades, max: TREASURE_PARADES_PER_DAY, coins: l.paradeCoins, hints: l.paradeHints, spins: l.paradeSpins, text }
 }

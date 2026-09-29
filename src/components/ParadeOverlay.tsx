@@ -39,6 +39,7 @@ export function ParadeOverlay({
   durationMs,
   reduce,
   onCatch,
+  readWallet,
   onDone,
 }: {
   buddies: ParadeBuddy[]
@@ -51,11 +52,19 @@ export function ParadeOverlay({
   reduce: boolean
   /** returns what was really paid (a spin over the daily limit turns into coins) */
   onCatch: (t: Treasure) => Treasure
+  /** the saved wallet right now (shown in the corner chip and on the summary) */
+  readWallet: () => { coins: number; hints: number; spins: number }
   onDone: () => void
 }) {
   const [got, setGot] = useState<Record<number, Treasure>>({})
   const [phase, setPhase] = useState<'march' | 'summary'>('march')
+  const [wallet, setWallet] = useState(() => readWallet())
+  const [flies, setFlies] = useState<{ id: number; x0: number; y0: number; dx: number; dy: number; icon: string }[]>([])
+  const chipRef = useRef<HTMLDivElement | null>(null)
+  const flyId = useRef(0)
   const doneRef = useRef(false)
+  const startWallet = useRef(readWallet())
+  const caughtIdx = useRef(new Set<number>())
   const total = treasure.filter(Boolean).length
   const caughtList = Object.values(got)
 
@@ -66,7 +75,7 @@ export function ParadeOverlay({
     onDone()
   }
   useEffect(() => {
-    const t = window.setTimeout(toSummary, reduce ? Math.min(durationMs, 6000) : durationMs)
+    const t = window.setTimeout(toSummary, reduce ? Math.min(durationMs, 12000) : durationMs)
     return () => window.clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -74,22 +83,48 @@ export function ParadeOverlay({
   const featuredName = featured ? petById(featured)?.name : null
   const sum = treasureSummary(caughtList)
 
+  const now = readWallet()
+  const gain = { coins: now.coins - startWallet.current.coins, hints: now.hints - startWallet.current.hints, spins: now.spins - startWallet.current.spins }
+
+  const grab = (i: number, t: Treasure, el: HTMLElement) => {
+    if (caughtIdx.current.has(i)) return
+    caughtIdx.current.add(i)
+    const real = onCatch(t)
+    setGot((s) => ({ ...s, [i]: real }))
+    // the treasure flies from the buddy to the wallet chip in the corner
+    const r = el.getBoundingClientRect()
+    const c = chipRef.current?.getBoundingClientRect()
+    const x0 = r.left + r.width / 2
+    const y0 = r.top + r.height / 2
+    const id = ++flyId.current
+    if (c) setFlies((f) => [...f, { id, x0, y0, dx: c.left + c.width / 2 - x0, dy: c.top + c.height / 2 - y0, icon: treasureIcon(real) }])
+    window.setTimeout(() => {
+      setWallet(readWallet())
+      setFlies((f) => f.filter((x) => x.id !== id))
+    }, 850)
+  }
+
   if (phase === 'summary') {
     return (
-      <div className="parade parade-summary" role="dialog" aria-label="Parade treasure" data-testid="parade" data-phase="summary">
+      <div className="parade parade-summary" role="dialog" aria-label="Parade rewards" data-testid="parade" data-phase="summary">
         <div className="parade-title">Parade over!</div>
-        <div className="parade-got" data-testid="parade-got">
-          {caughtList.length ? (
-            <>
-              <strong>You got:</strong>
-              <span className="parade-got-list">{sum.text}</span>
-            </>
-          ) : (
-            <>
-              <strong>You got: nothing this time</strong>
-              <span className="parade-got-list">{total ? 'Tap the treasure on the buddies next time!' : 'Treasure rides in the first 3 parades of each day.'}</span>
-            </>
-          )}
+        <div className="parade-card" data-testid="parade-card">
+          <div className="parade-got" data-testid="parade-got">
+            {caughtList.length ? (
+              <>
+                <strong>You got {sum.text}</strong>
+              </>
+            ) : (
+              <>
+                <strong>You got: nothing this time</strong>
+                <span className="parade-got-list">{total ? 'Tap the glowing treasure on the buddies next time!' : 'Treasure rides in the first 3 parades of each day.'}</span>
+              </>
+            )}
+          </div>
+          <div className="parade-wallet" data-testid="parade-wallet">
+            Wallet now: <b>{now.coins}</b> coins · <b>{now.hints}</b> free hints · <b>{now.spins}</b> spins
+            {caughtList.length ? <small>(added {[gain.coins ? `+${gain.coins} coins` : '', gain.hints ? `+${gain.hints} hint` : '', gain.spins ? `+${gain.spins} spin` : ''].filter(Boolean).join(', ')})</small> : null}
+          </div>
         </div>
         <div className="parade-day" data-testid="parade-day">
           Buddy of the day: <strong>{featuredName ?? 'a guest buddy'}</strong>
@@ -106,7 +141,7 @@ export function ParadeOverlay({
     <div
       className={`parade ${reduce ? 'is-still' : ''}`}
       role="dialog"
-      aria-label="Buddy parade. Tap the treasure on the buddies to catch it."
+      aria-label="Buddy parade. Tap the buddies to grab their treasure."
       data-testid="parade"
       data-phase="march"
       style={{ ['--parade-ms' as string]: `${reduce ? 0 : durationMs}ms` }}
@@ -114,9 +149,12 @@ export function ParadeOverlay({
       <button type="button" className="parade-skip-btn" data-testid="parade-skip" onClick={toSummary}>
         Skip ›
       </button>
+      <div className="parade-wallet-chip" data-testid="parade-wallet-chip" ref={chipRef}>
+        🪙 <b>{wallet.coins}</b> · 💡 <b>{wallet.hints}</b>{wallet.spins ? <> · 🎡 <b>{wallet.spins}</b></> : null}
+      </div>
       <div className="parade-title">Buddy Parade!</div>
       <div className="parade-prompt" data-testid="parade-prompt">
-        {total ? `👆 Tap the buddies! Catch their treasure (${caughtList.length}/${total})` : 'Enjoy the parade! (Treasure rides in the first 3 parades a day)'}
+        {total ? `👆 Tap the buddies to grab treasure! (${caughtList.length}/${total})` : 'Enjoy the parade! (Treasure rides in the first 3 parades a day)'}
       </div>
       <div className="parade-day" data-testid="parade-day">
         Buddy of the day: <strong>{featuredName ?? 'a guest buddy'}</strong>
@@ -134,16 +172,14 @@ export function ParadeOverlay({
                     type="button"
                     className={`parade-loot ${mine ? 'is-got' : 'is-live'}`}
                     data-testid="parade-loot"
-                    aria-label={mine ? `Caught ${treasureLabel(mine)}` : `Catch ${treasureLabel(t)}`}
+                    aria-label={mine ? `Caught ${treasureLabel(mine)}` : `Grab ${treasureLabel(t)}`}
                     disabled={!!mine}
                     onClick={(e) => {
                       e.stopPropagation()
-                      if (mine) return
-                      const real = onCatch(t)
-                      setGot((s) => ({ ...s, [i]: real }))
+                      grab(i, t, e.currentTarget)
                     }}
                   >
-                    <span aria-hidden>{treasureIcon(t)}</span>
+                    <span className="parade-loot-icon" aria-hidden>{mine ? '✔' : treasureIcon(t)}</span>
                     <b>{mine ? 'Got it!' : treasureLabel(t)}</b>
                   </button>
                 ) : null}
@@ -153,15 +189,27 @@ export function ParadeOverlay({
                     {mine.kind === 'coins' ? ' coins' : ''}
                   </span>
                 ) : null}
-                <div className={b.id === featured ? 'parade-star' : undefined}>
-                  <PetArt id={b.id} size={b.id === featured ? 88 : 72} locked={b.locked} />
+                {/* tapping the buddy itself grabs its treasure too */}
+                <div
+                  className={b.id === featured ? 'parade-star' : undefined}
+                  data-testid="parade-buddy-body"
+                  onClick={(e) => {
+                    if (t && !mine) grab(i, t, e.currentTarget as HTMLElement)
+                  }}
+                >
+                  <PetArt id={b.id} size={b.id === featured ? 104 : 88} locked={b.locked} />
                 </div>
               </div>
             </div>
           )
         })}
       </div>
-      <div className="parade-skip">{caughtList.length ? `Caught so far: ${sum.text}` : 'Buddies keep marching. Tap Skip to stop early.'}</div>
+      <div className="parade-skip">{caughtList.length ? `Caught so far: ${sum.text}` : 'Buddies march slowly. Tap Skip to stop early.'}</div>
+      {flies.map((f) => (
+        <span key={f.id} className="parade-fly" data-testid="parade-fly" style={{ left: f.x0, top: f.y0, ['--dx' as string]: `${f.dx}px`, ['--dy' as string]: `${f.dy}px` }} aria-hidden="true">
+          {f.icon}
+        </span>
+      ))}
     </div>
   )
 }
