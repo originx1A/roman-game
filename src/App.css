@@ -5688,3 +5688,27 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
   display: inline-flex; align-items: center; gap: 3px; font-size: 0.72rem; font-weight: 700;
   padding: 1px 7px; border-radius: 999px; background: rgba(255, 214, 102, 0.16); border: 1px solid rgba(255, 214, 102, 0.6); color: #ffe08a;
 }
+
+/* Buddy growth, care and mood (9.30-m) */
+.pet-art.has-sway .pet-body { transform-origin: 50% 92%; animation: petSway 4.2s ease-in-out infinite; }
+@keyframes petSway { 0%, 100% { transform: rotate(-2.5deg); } 50% { transform: rotate(2.5deg); } }
+.home-pet-body.is-flip { animation: petFlip 0.75s ease-in-out 1; }
+@keyframes petFlip { 0% { transform: translateY(0) rotate(0); } 45% { transform: translateY(-26px) rotate(180deg); } 100% { transform: translateY(0) rotate(360deg); } }
+.stable-care { display: grid; gap: 6px; margin: 6px 0; }
+.stable-mood { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; }
+.stable-mood .stable-bar { flex: 1; }
+.stable-mood.is-happy .stable-bar i { background: linear-gradient(90deg, #3dffa8, #ffd166); }
+.stable-mood.is-hungry .stable-bar i { background: #8ea2c9; }
+.care-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.care-btn { flex: 1 1 auto; min-height: 40px; font-size: 0.8rem; padding: 6px 8px; }
+.care-btn small { opacity: 0.8; }
+.stable-badges { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0; }
+.stable-badge { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; background: rgba(255, 214, 102, 0.16); border: 1px solid rgba(255, 214, 102, 0.55); color: #ffe08a; }
+.stable-stars { color: #ffd166; letter-spacing: 1px; }
+.stable-treats { font-size: 0.75rem; opacity: 0.85; }
+.home-pet-mood { font-size: 0.72rem; opacity: 0.9; }
+.home-pet-dot { position: absolute; top: 2px; right: 2px; width: 12px; height: 12px; border-radius: 50%; background: #ff5d73; border: 2px solid #07122a; }
+.home-pet-tap { position: relative; }
+.econ-card { margin: 10px 0; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,0.06); font-size: 0.85rem; display: grid; gap: 4px; }
+.econ-card b { color: #ffe08a; }
+@media (prefers-reduced-motion: reduce) { .pet-art.has-sway .pet-body, .home-pet-body.is-flip { animation: none !important; } }

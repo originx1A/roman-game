@@ -7,8 +7,15 @@ import {
   GIFT_TAG,
   giftLabel,
   type Gift,
+  careInfo,
+  CARE_XP,
   hasPet,
   levelInfo,
+  milestonesReached,
+  moodKind,
+  nextMilestone,
+  TREATS,
+  type TreatId,
   onSale,
   perkFor,
   petXp,
@@ -45,6 +52,11 @@ export type StableProps = {
   onBuy: (id: PetId) => void
   /** 9.30-b coin bundles */
   onBuyBundle: (id: BundleId) => void
+  /** 9.30-m: the free daily pet, and feeding a treat */
+  onCare: (id: PetId) => void
+  onFeed: (id: PetId, treat: TreatId) => void
+  /** Toronto date, for the once-a-day care */
+  today: string
   onEquip: (id: PetId | null) => void
   /** Look up a gift code without using it (the preview card) */
   onPeek: (code: string) => Promise<{ ok: boolean; message: string; gift?: Gift; note?: string; code?: string }>
@@ -58,7 +70,7 @@ export type StableProps = {
   giftsOnline: boolean
 }
 
-export function Stable({ pets, coins, now, onBuy, onBuyBundle, onEquip, onPeek, onRedeem, onShop, onBack, giftCode, giftsOnline }: StableProps) {
+export function Stable({ pets, coins, now, onBuy, onBuyBundle, onCare, onFeed, today, onEquip, onPeek, onRedeem, onShop, onBack, giftCode, giftsOnline }: StableProps) {
   const [code, setCode] = useState(giftCode ?? '')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -152,7 +164,8 @@ export function Stable({ pets, coins, now, onBuy, onBuyBundle, onEquip, onPeek, 
           const trial = !owned && pets.trial?.id === p.id && pets.trial.until > now
           const have = !!owned || trial
           const lv = levelInfo(petXp(pets, p.id))
-          const perk = perkFor(p.id, have ? lv.level : 1)
+          const perk = perkFor(p.id, have ? lv.level : 1, have ? lv.stars : 0)
+          const care = owned ? careInfo(pets, p.id, now, today) : null
           const sale = onSale(p, now)
           const coupon = !owned && sale ? couponFor(pets, p.id, now) : null
           const cost = priceWith(p.price, coupon)
@@ -170,7 +183,7 @@ export function Stable({ pets, coins, now, onBuy, onBuyBundle, onEquip, onPeek, 
                 {trial ? <span className="stable-gift is-trial">Trial · {leftLabel(pets.trial!.until - now)}</span> : null}
               </div>
               <div className="stable-art">
-                <PetArt id={p.id} size={92} locked={!have} title={have ? p.name : `${p.name} (locked)`} />
+                <PetArt id={p.id} size={92} locked={!have} level={lv.level} stars={lv.stars} title={have ? p.name : `${p.name} (locked)`} />
                 {coupon ? (
                   <span className="stable-coupon" data-coupon={coupon.pct} title={`${COUPON_FROM[coupon.source]} coupon`}>
                     {coupon.pct}% off
@@ -184,14 +197,53 @@ export function Stable({ pets, coins, now, onBuy, onBuyBundle, onEquip, onPeek, 
               <p className="stable-perk">{perk.label}</p>
               {have ? (
                 <>
-                  <div className="stable-level" aria-label={`Level ${lv.level}`}>
+                  <div className="stable-level" aria-label={`Level ${lv.level}`} data-testid="pet-level">
                     <span>Lv {lv.level}</span>
                     <span className="stable-bar">
-                      <i style={{ width: lv.max ? '100%' : `${Math.round((lv.into / lv.need) * 100)}%` }} />
+                      <i style={{ width: lv.max ? (lv.starNeedXp ? `${Math.round((lv.starInto / lv.starNeedXp) * 100)}%` : '100%') : `${Math.round((lv.into / lv.need) * 100)}%` }} />
                     </span>
-                    <small>{lv.max ? 'Max' : `${lv.into}/${lv.need}`}</small>
+                    <small>{lv.max ? (lv.starNeedXp ? `★ ${lv.starInto}/${lv.starNeedXp}` : 'All stars!') : `${lv.into}/${lv.need}`}</small>
                   </div>
+                  {lv.stars > 0 ? <p className="stable-stars" aria-label={`${lv.stars} prestige stars`}>{'★'.repeat(lv.stars)}</p> : null}
+                  {milestonesReached(lv.level).length ? (
+                    <div className="stable-badges">
+                      {milestonesReached(lv.level).filter((m) => m.badge).map((m) => (
+                        <span key={m.level} className="stable-badge" title={m.text}>{m.badge}</span>
+                      ))}
+                    </div>
+                  ) : null}
                   {perk.next ? <p className="stable-next">{perk.next}</p> : <p className="stable-next">{p.blurb}</p>}
+                  {nextMilestone(lv.level) ? (
+                    <p className="stable-next" data-testid="next-milestone">Lv {nextMilestone(lv.level)!.level}: {nextMilestone(lv.level)!.text}</p>
+                  ) : lv.stars < 5 ? (
+                    <p className="stable-next">Prestige: earn ★ stars with care and wins</p>
+                  ) : null}
+                  {care ? (
+                    <div className="stable-care" data-testid="care">
+                      <div className={`stable-mood is-${care.kind}`} title="A happy buddy adds a few coins to each win. A hungry one still gives its normal perk.">
+                        <span>{care.kind === 'happy' ? '😊 Happy' : care.kind === 'okay' ? '🙂 Okay' : '🥺 Hungry'}</span>
+                        <span className="stable-bar"><i style={{ width: `${care.mood}%` }} /></span>
+                      </div>
+                      <div className="care-row">
+                        <button type="button" className="btn tool care-btn" data-testid="care-pet" onClick={() => onCare(p.id)} disabled={!care.canPet}>
+                          {care.canPet ? `Pet · free +${CARE_XP} XP` : 'Petted today ✓'}
+                        </button>
+                        {TREATS.map((t) => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            className="btn tool care-btn"
+                            data-testid={`feed-${t.id}`}
+                            onClick={() => onFeed(p.id, t.id)}
+                            disabled={care.feedsLeft <= 0 || care.maxed || (pets.treats[t.id] <= 0 && coins < t.cost)}
+                          >
+                            {t.name} <small>{pets.treats[t.id] > 0 ? `free ×${pets.treats[t.id]}` : `${t.cost} 🪙`} · +{t.xp} XP</small>
+                          </button>
+                        ))}
+                      </div>
+                      <small className="stable-treats">{care.maxed ? 'Fully grown!' : `${care.feedsLeft} of 3 treats left today${moodKind(care.mood) === 'happy' ? ' · happy: +coins on wins' : ''}`}</small>
+                    </div>
+                  ) : null}
                   <button type="button" className={`btn ${isActive ? 'ghost' : 'primary'} stable-btn`} onClick={() => onEquip(p.id)} disabled={isActive}>
                     {isActive ? 'Riding ✓' : 'Ride with'}
                   </button>

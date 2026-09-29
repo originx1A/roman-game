@@ -43,6 +43,12 @@ import {
   type BundleId,
   equip as equipPet,
   expireTrial,
+  feedPet,
+  grantTreat,
+  petCare,
+  milestoneAt,
+  careInfo,
+  type TreatId,
   grantTrial,
   levelInfo,
   normalizeGiftCode,
@@ -70,6 +76,22 @@ import { createVoiceGate } from './game/voiceGate'
 import { loadParade, paradeDone, paradeLengthMs, paradeWin, saveParade, type ParadeState } from './game/parade'
 import { ParadeOverlay, type ParadeBuddy } from './components/ParadeOverlay'
 import { makeTreasure, type Treasure } from './game/paradeTreasure'
+import {
+  canEarnSpin,
+  canTreasure,
+  hintPrice,
+  huntPct,
+  ledgerSummary,
+  loadLedger,
+  payWin,
+  rescuePrice,
+  rollLedger,
+  saveLedger,
+  sparksOpen,
+  trialMultiplier,
+  SPIN_CAPPED_COINS,
+  type Ledger,
+} from './game/dailyEconomy'
 import { dayCoins, dayShort, loadDay, saveDay, startBuddyDay, useDayBoard, type BuddyDay, type DayPerkKind } from './game/buddyDay'
 import { BUILD_TAG } from './buildTag'
 import { amendMove, createHistory, pushMove, redoMove, restoreHistory, stepsToSave, undoMove } from './game/history'
@@ -100,6 +122,7 @@ import {
   paceDelta,
   recordRun,
   replayCoins,
+  NEW_BEST_COINS,
   scoreRunV2,
   scoreShareText,
   startDaily,
@@ -151,11 +174,9 @@ import { THEMES, themeForPuzzle } from './game/themes'
 import {
   ACHIEVEMENTS,
   BADGES,
-  HINT_COST,
   MAX_LIVES,
   MAX_BONUS_HEARTS,
   HEART_PRIZE_FALLBACK_COINS,
-  RESCUE_COST,
   REVIVE_COST,
   BUDDY_TRIAL_FALLBACK_COINS,
   applyPrize,
@@ -393,6 +414,10 @@ export default function App() {
   const runPetRef = useRef<PetId | null>(null)
   /** Buddy freebies left on this board (free hints / free rescues) */
   const [petFree, setPetFree] = useState({ hints: 0, rescues: 0 })
+  /** 9.30-m: hints and Rescues used on this board (each extra one costs a little more) */
+  const [rescuesUsed, setRescuesUsed] = useState(0)
+  /** 9.30-m: today's earn counters (wins paid, sparks, spins, hunts). Resets at midnight Toronto. */
+  const [econ, setEconState] = useState<Ledger>(() => loadLedger(typeof window === 'undefined' ? null : safeLocalStorage(), torontoDateKey()))
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null)
   const [cells, setCells] = useState<CellState[]>([])
   const [history, setHistory] = useState<CellState[][]>([])
@@ -1049,6 +1074,15 @@ export default function App() {
     saveWallet(next)
   }
 
+  /** 9.30-m: today's ledger (a new day starts fresh), read from storage so two tabs can't double-count */
+  function ledgerNow(): Ledger {
+    return rollLedger(loadLedger(safeLocalStorage(), torontoDateKey()), torontoDateKey())
+  }
+  function commitLedger(l: Ledger) {
+    saveLedger(safeLocalStorage(), l)
+    setEconState(l)
+  }
+
   function persistPets(next: PetState) {
     setPets(next)
     savePets(next)
@@ -1089,6 +1123,40 @@ export default function App() {
     petGiggle()
     const names = r.got.map((p) => petById(p)!.name)
     showToast(`${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} joined your Stable!`)
+  }
+
+  /** 9.30-m: the free daily pet */
+  function onCarePet(id: PetId) {
+    const r = petCare(loadPets(), id, Date.now(), torontoDateKey())
+    if (!r.ok) {
+      showToast(r.reason)
+      return
+    }
+    persistPets(r.state)
+    sfxCoin()
+    petGiggle()
+    const name = petById(id)!.name
+    showToast(`${name} loved that! +${r.xp} XP`)
+    if (r.levelUp) window.setTimeout(() => showToast(`${name} is Level ${r.levelUp}!${milestoneAt(r.levelUp!) ? ` New: ${milestoneAt(r.levelUp!)!.text}` : ''}`), 1800)
+    if (r.starUp) window.setTimeout(() => showToast(`${name} earned prestige star ${'★'.repeat(r.starUp!)}`), 1800)
+  }
+
+  /** 9.30-m: feed a treat (from your earned stock first, otherwise for coins) */
+  function onFeedPet(id: PetId, treat: TreatId) {
+    const w = loadWallet()
+    const r = feedPet(loadPets(), w.coins, id, treat, Date.now(), torontoDateKey())
+    if (!r.ok) {
+      showToast(r.reason)
+      return
+    }
+    if (r.spent > 0) persistWallet({ ...w, coins: r.coins })
+    persistPets(r.state)
+    sfxCoin()
+    petGiggle()
+    const name = petById(id)!.name
+    showToast(`${name} enjoyed it! +${r.xp} XP${r.spent ? ` (−${r.spent} coins)` : ' (free treat)'}`)
+    if (r.levelUp) window.setTimeout(() => showToast(`${name} is Level ${r.levelUp}!${milestoneAt(r.levelUp!) ? ` New: ${milestoneAt(r.levelUp!)!.text}` : ''}`), 1800)
+    if (r.starUp) window.setTimeout(() => showToast(`${name} earned prestige star ${'★'.repeat(r.starUp!)}`), 1800)
   }
 
   function onEquipPet(id: PetId | null) {
@@ -1190,11 +1258,15 @@ export default function App() {
     const day = startBuddyDay(dayRef.current, owned.map((x) => x.id))
     dayRef.current = day
     saveDay(safeLocalStorage(), day)
+    // 9.30-m: treasure rides in 3 parades a day
+    const ledP = ledgerNow()
+    const treasureOk = canTreasure(ledP)
+    if (treasureOk) commitLedger({ ...ledP, treasureParades: ledP.treasureParades + 1 })
     setParade({
       buddies,
       ms: paradeLengthMs(),
       go,
-      treasure: makeTreasure(buddies.length),
+      treasure: treasureOk ? makeTreasure(buddies.length) : [],
       featured: day.pet,
       featuredKind: day.kind,
     })
@@ -1211,7 +1283,16 @@ export default function App() {
     const next = { ...cur }
     if (t.kind === 'coins') next.coins += t.amount
     else if (t.kind === 'hint') next.freeHints += 1
-    else next.spins += 1
+    else {
+      const led = ledgerNow()
+      if (canEarnSpin(led)) {
+        next.spins += 1
+        commitLedger({ ...led, spins: led.spins + 1 })
+      } else {
+        next.coins += SPIN_CAPPED_COINS
+        showToast(`Spin limit for today: +${SPIN_CAPPED_COINS} coins instead`)
+      }
+    }
     persistWallet(next)
     sfxCoin()
   }
@@ -1342,6 +1423,7 @@ export default function App() {
     adoptBoard(board)
     setElapsedMs(0)
     setHintsUsed(0)
+    setRescuesUsed(0)
     setRunning(true)
     setScreen('play')
     saveDraft({
@@ -1590,16 +1672,26 @@ export default function App() {
         setShareText(duelShareText(result))
       }
 
-      const baseCoins = Math.max(20, Math.floor(score / 8)) * (runMode === 'trial' ? 2 : 1)
+      // 9.30-m: daily limits. Full pay for the first 5 wins of the day, then it tapers; repeats of the same board pay less
+      const led0 = ledgerNow()
+      const trialMult = runMode === 'trial' ? trialMultiplier(led0) : 1
+      const baseCoins = Math.max(20, Math.floor(score / 8)) * trialMult
       const paid = grantWinCoins(wallet, baseCoins)
-      const extra = replay ? replayCoins(replay, runMode) : { coins: 0, parts: [] as string[] }
+      const pay = payWin(led0, paid.gained, { boardId: puzzle.id, newBest: isRecord, daily: dailyStreak != null })
+      commitLedger(runMode === 'trial' ? { ...pay.ledger, trialClears: led0.trialClears + 1 } : pay.ledger)
+      const extra0 = replay ? replayCoins(replay, runMode) : { coins: 0, parts: [] as string[] }
+      const dropBest = isRecord && !pay.bestPays
+      const extra = dropBest
+        ? { coins: Math.max(0, extra0.coins - NEW_BEST_COINS), parts: extra0.parts.filter((x) => !/new best/.test(x)) }
+        : extra0
       const dailyBonus = dailyStreak != null ? dailyCoins(dailyStreak) : 0
       // 9.30-a: buddy perk coins, growth, coupons and a cheer
       const ridePet = runPetRef.current
       const ridePerk = ridePet ? activePerk({ ...loadPets(), active: ridePet }, Date.now()) : null
       // 9.30-l: buddy of the day, double coins: adds the win's coins once more (capped)
-      const dayBonus = dayPerkRef.current?.kind === 'coins' ? dayCoins(paid.gained) : 0
-      const petCoins = petWinCoins(paid.gained, ridePerk) + dayBonus
+      const dayBonus = dayPerkRef.current?.kind === 'coins' ? dayCoins(pay.coins) : 0
+      // buddy coins taper with the day like the win itself
+      const petCoins = Math.floor((petWinCoins(paid.gained, ridePerk) * pay.pct) / 100) + dayBonus
       let petCheer: WinReplay['pet'] = undefined
       try {
         let ps = loadPets()
@@ -1611,8 +1703,11 @@ export default function App() {
           if (c.coupon) window.setTimeout(() => showToast(`Trial clear prize: ${c.coupon!.pct}% off ${petById(c.coupon!.pet)?.name ?? 'a buddy'} in The Stable`), 4200)
         }
         if (dailyStreak != null) {
+          ps = grantTreat(ps, 'snack')
+          window.setTimeout(() => showToast('Daily prize: a free Snack for your buddy'), 3600)
           const c = awardStreakCoupon(ps, dailyStreak, Date.now())
           ps = c.state
+          if (c.coupon) ps = grantTreat(ps, 'feast')
           if (c.coupon) window.setTimeout(() => showToast(`${dailyStreak}-day streak prize: ${c.coupon!.pct}% off ${petById(c.coupon!.pet)?.name ?? 'a buddy'} in The Stable`), 4400)
         }
         persistPets(ps)
@@ -1621,11 +1716,16 @@ export default function App() {
           petCheer = {
             id: ridePet,
             name: p.name,
-            text: isRecord ? 'New best!' : grown.levelUp ? `Level ${grown.levelUp}!` : runMode === 'trial' ? 'Victory!' : 'Ave!',
+            text: isRecord ? 'New best!' : grown.levelUp ? `Level ${grown.levelUp}!` : grown.starUp ? 'New star!' : runMode === 'trial' ? 'Victory!' : 'Ave!',
             cheer: isRecord || !!grown.levelUp,
           }
           // A little giggle for a record, only when Roman isn't talking
           if (isRecord) window.setTimeout(() => petGiggle({ quietOnly: true }), 3200)
+          if (grown.levelUp) {
+            const m = milestoneAt(grown.levelUp)
+            window.setTimeout(() => showToast(`${p.name} is Level ${grown.levelUp}!${m ? ` New: ${m.text}` : ''}`), 5200)
+          }
+          if (grown.starUp) window.setTimeout(() => showToast(`${p.name} earned prestige star ${'★'.repeat(grown.starUp!)}`), 5200)
         }
       } catch {
         /* buddies are extras; never block the win */
@@ -1633,9 +1733,11 @@ export default function App() {
       {
         const parts = [...extra.parts]
         if (dailyBonus) parts.push(`+${dailyBonus} daily`)
+        if (pay.note) parts.push(pay.note)
         if (petCoins - dayBonus > 0 && ridePet) parts.push(`+${petCoins - dayBonus}\u00a0${petById(ridePet)?.name}`)
         if (dayBonus > 0) parts.push(`+${dayBonus}\u00a0${dayPerkRef.current?.pet ? petById(dayPerkRef.current.pet)?.name : 'Guest'} of the day`)
-        if (runMode === 'trial') parts.unshift('2× coins')
+        if (runMode === 'trial' && trialMult === 2) parts.unshift('2× coins')
+        else if (runMode === 'trial') parts.unshift('Trial 2× is used up for today')
         const c = comboRef.current
         const bits = [`combo ×${c.bestMult}`, `${undosRef.current} undo${undosRef.current === 1 ? '' : 's'}`]
         if (perfect) bits.unshift('perfect')
@@ -1663,7 +1765,7 @@ export default function App() {
       }
       let w: Wallet = {
         ...paid.wallet,
-        coins: paid.wallet.coins + extra.coins + dailyBonus + petCoins,
+        coins: paid.wallet.coins - paid.gained + pay.coins + extra.coins + dailyBonus + petCoins,
         totalWins: wallet.totalWins + 1,
         perfectWins: wallet.perfectWins + (perfect ? 1 : 0),
       }
@@ -1771,11 +1873,11 @@ export default function App() {
       showToast(`Free hint from ${petById(runPetRef.current)?.name ?? 'your buddy'}`)
     } else if (w.freeHints > 0) {
       w = { ...w, freeHints: w.freeHints - 1 }
-    } else if (w.coins >= HINT_COST) {
-      w = { ...w, coins: w.coins - HINT_COST }
-      showToast(`−${HINT_COST} coins`)
+    } else if (w.coins >= hintPrice(hintsUsed)) {
+      w = { ...w, coins: w.coins - hintPrice(hintsUsed) }
+      showToast(`−${hintPrice(hintsUsed)} coins`)
     } else {
-      setShortfall({ action: 'hint', need: HINT_COST })
+      setShortfall({ action: 'hint', need: hintPrice(hintsUsed) })
       return
     }
     persistWallet(w)
@@ -1807,12 +1909,13 @@ export default function App() {
     }
     if (petFree.rescues > 0) {
       setPetFree((f) => ({ ...f, rescues: f.rescues - 1 }))
-    } else if (wallet.coins < RESCUE_COST) {
-      setShortfall({ action: 'rescue', need: RESCUE_COST })
+    } else if (wallet.coins < rescuePrice(rescuesUsed)) {
+      setShortfall({ action: 'rescue', need: rescuePrice(rescuesUsed) })
       return
     } else {
-      persistWallet({ ...wallet, coins: wallet.coins - RESCUE_COST })
+      persistWallet({ ...wallet, coins: wallet.coins - rescuePrice(rescuesUsed) })
     }
+    setRescuesUsed((n) => n + 1)
     flawedRef.current = true
     sfxHint()
     pushBanter('rescue')
@@ -1843,6 +1946,7 @@ export default function App() {
     saveBoardDraft(fresh, { elapsedMs: 0, hintsUsed: 0 })
     setElapsedMs(0)
     setHintsUsed(0)
+    setRescuesUsed(0)
     setCelebrate(false)
     setDefeated(false)
     setWinLine('')
@@ -1891,7 +1995,17 @@ export default function App() {
   /** Round over: pay out right away (saved even if the app closes) and return the prize line. */
   function finishBuddyHunt(found: number): string {
     const before = loadWallet()
-    const prize = huntPrize(found, before, MAX_BONUS_HEARTS)
+    const raw = huntPrize(found, before, MAX_BONUS_HEARTS)
+    // 9.30-m: three full hunts a day, then a quarter of the coins
+    const ledH = ledgerNow()
+    const hp = huntPct(ledH)
+    const scaled = hp < 100 ? Math.round((raw.coins * hp) / 100) : raw.coins
+    const prize = hp < 100 ? { ...raw, coins: scaled, label: raw.label.replace(`+${raw.coins} coins`, `+${scaled} coins`) } : raw
+    commitLedger({ ...ledH, hunts: ledH.hunts + 1 })
+    if (found >= 3 && ledH.hunts === 0) {
+      persistPets(grantTreat(loadPets(), 'snack'))
+      window.setTimeout(() => showToast('Buddy Hunt prize: a free Snack for your buddy'), 1800)
+    }
     persistWallet(applyHuntPrize(before, prize))
     pushBanter(found >= 3 ? 'hunt-all' : found > 0 ? 'hunt-some' : 'hunt-none')
     // All three get the Buddy Hunt fanfare instead
@@ -1988,16 +2102,21 @@ export default function App() {
   function handleCritterCatch(reward: CritterReward) {
     const current = loadWallet()
     const have = (current.critterStash ?? 0) + 1
+    // 9.30-m: 8 sparks a day, then the critter rests; one spin a day (a 2nd is paid as coins)
+    const led = ledgerNow()
+    if (!sparksOpen(led)) return
+    const spinOk = canEarnSpin(led)
+    commitLedger({ ...led, sparks: led.sparks + 1, spins: led.spins + (have >= CRITTER_STASH_GOAL && spinOk ? 1 : 0) })
 
     // 5th catch across games: earn ONE spin. Do not auto-open the reel.
     if (have >= CRITTER_STASH_GOAL) {
       let w: Wallet = {
         ...current,
         critterStash: 0,
-        coins: current.coins + (reward.type === 'coins' ? reward.amount : 25),
+        coins: current.coins + (reward.type === 'coins' ? reward.amount : 25) + (spinOk ? 0 : SPIN_CAPPED_COINS),
         freeHints: current.freeHints + (reward.type === 'hint' ? 1 : 0) + 1,
         shields: current.shields + 1,
-        spins: current.spins + 1,
+        spins: current.spins + (spinOk ? 1 : 0),
       }
       w = unlockIf(w, 'stash')
       w = unlockIf(w, 'critter')
@@ -2011,7 +2130,7 @@ export default function App() {
       })
       setLives(runMaxLives)
       pushBanter('critter-stash')
-      showToast('Sparkle mode unlocked! +1 spin — open Rewards to spin')
+      showToast(spinOk ? 'Sparkle mode unlocked! +1 spin — open Rewards to spin' : `Sparkle mode unlocked! Spin limit for today, so +${SPIN_CAPPED_COINS} coins instead`)
       return
     }
 
@@ -2473,6 +2592,14 @@ export default function App() {
                 const a = activePet(pets, petNow)
                 return a ? petXp(pets, a) : 0
               })()}
+              mood={(() => {
+                const a = activePet(pets, petNow)
+                return a && pets.owned[a] ? careInfo(pets, a, petNow, todayKey).kind : undefined
+              })()}
+              canPet={(() => {
+                const a = activePet(pets, petNow)
+                return !!a && !!pets.owned[a] && careInfo(pets, a, petNow, todayKey).canPet
+              })()}
               onTap={() => petGiggle()}
               onStable={() => setScreen('stable')}
             />
@@ -2712,7 +2839,7 @@ export default function App() {
             <button type="button" className="btn tool" onClick={onHint} disabled={celebrate || defeated}>
               <span className="tool-label">Hint</span>
               <span className="tool-cost">
-                {petFree.hints + wallet.freeHints > 0 ? `${petFree.hints + wallet.freeHints} free` : String(HINT_COST)}
+                {petFree.hints + wallet.freeHints > 0 ? `${petFree.hints + wallet.freeHints} free` : String(hintPrice(hintsUsed))}
               </span>
               <kbd className="kbd" aria-hidden="true">H</kbd>
             </button>
@@ -2721,10 +2848,10 @@ export default function App() {
               className="btn tool"
               onClick={onRescue}
               disabled={celebrate || defeated}
-              title={`Clear a misplaced buddy · ${RESCUE_COST} coins`}
+              title={`Clear a misplaced buddy · ${rescuePrice(rescuesUsed)} coins`}
             >
               <span className="tool-label">Rescue</span>
-              <span className="tool-cost">{petFree.rescues > 0 ? `${petFree.rescues} free` : RESCUE_COST}</span>
+              <span className="tool-cost">{petFree.rescues > 0 ? `${petFree.rescues} free` : rescuePrice(rescuesUsed)}</span>
             </button>
             <button type="button" className="btn tool" onClick={resetBoard}>
               Reset
@@ -2773,7 +2900,7 @@ export default function App() {
           </div>
 
           <SparkCritter
-            active={!celebrate && !defeated && !showWheel && !rotatePaused}
+            active={!celebrate && !defeated && !showWheel && !rotatePaused && sparksOpen(rollLedger(econ, torontoDateKey()))}
             stashCount={wallet.critterStash ?? 0}
             onCatch={handleCritterCatch}
           />
@@ -2911,6 +3038,9 @@ export default function App() {
           now={petNow}
           onBuy={onAdoptPet}
           onBuyBundle={onBuyBundle}
+          onCare={onCarePet}
+          onFeed={onFeedPet}
+          today={todayKey}
           onEquip={onEquipPet}
           onPeek={onPeekGift}
           onRedeem={onRedeemGift}
@@ -2948,13 +3078,26 @@ export default function App() {
             <div><strong>{totalBadgePower(wallet)}</strong><span>power</span></div>
             <div><strong>+{formatBonusPercent(totalCoinBonusPercent(wallet))}</strong><span>win bonus</span></div>
           </div>
+          <div className="econ-card" data-testid="econ-card">
+            {(() => {
+              const t = ledgerSummary(rollLedger(econ, todayKey))
+              return (
+                <>
+                  <span>
+                    Today: full-pay wins <b>{t.winsFull}/{t.winsFullMax}</b> · sparks <b>{t.sparks}/{t.sparksMax}</b> · wheel spins earned <b>{t.spins}/{t.spinsMax}</b>
+                  </span>
+                  <small>{t.winsToday >= t.winsFullMax ? 'Busy day: wins pay a bit less now, and it all resets tomorrow (stars, records and buddy XP always count).' : 'Wins pay in full until 5 a day, then a bit less. It resets every midnight (Toronto).'}</small>
+                </>
+              )
+            })()}
+          </div>
           <button
             type="button"
             className="btn primary"
             disabled={wallet.spins <= 0}
             onClick={openPrizeWheel}
           >
-            {wallet.spins > 0 ? `Use a spin (${wallet.spins})` : 'Catch 5 sparks to earn a spin'}
+            {wallet.spins > 0 ? `Use a spin (${wallet.spins})` : 'Catch 5 sparks for a spin (1 a day)'}
           </button>
 
           <h3 className="ach-title">Coin shop</h3>

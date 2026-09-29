@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import type { PetId } from '../game/pets'
+import { cosmeticsFor, type PetId } from '../game/pets'
 
 /*
  * 9.30-a buddy art: chunky, round, cartoon pets with the game's navy outline and gold/red Roman
@@ -143,33 +143,86 @@ function Owl() {
 
 const ART: Record<PetId, () => ReactElement> = { lupa: Wolf, aquila: Eagle, leo: Lion, invictus: Horse, nox: Owl }
 
+/** Where each buddy's head top sits (x, y, scale) so a hat lands on it */
+const HEAD: Record<PetId, { x: number; y: number; k: number }> = {
+  lupa: { x: 50, y: 22, k: 0.95 },
+  aquila: { x: 50, y: 17, k: 0.9 },
+  leo: { x: 50, y: 19, k: 0.95 },
+  invictus: { x: 50, y: 8, k: 0.85 },
+  nox: { x: 50, y: 3, k: 0.7 },
+}
+
+/** 9.30-m milestone hats: laurel (Lv10), legion helmet (Lv20), golden crown (Lv30) */
+function Hat({ id, hat }: { id: PetId; hat: 'laurel' | 'helmet' | 'crown' }) {
+  const h = HEAD[id]
+  return (
+    <g className={`pet-hat hat-${hat}`} transform={`translate(${h.x} ${h.y}) scale(${h.k})`}>
+      {hat === 'laurel' ? (
+        <>
+          {[-22, -14, -6, 6, 14, 22].map((x, i) => (
+            <ellipse key={i} cx={x} cy={Math.abs(x) * 0.18} rx="6" ry="3.2" fill="#3fbf6f" stroke={INK} strokeWidth={1.8} transform={`rotate(${x * 1.6} ${x} ${Math.abs(x) * 0.18})`} />
+          ))}
+          <circle cx="0" cy="-1" r="3" fill="#e63946" stroke={INK} strokeWidth={1.6} />
+        </>
+      ) : hat === 'helmet' ? (
+        <>
+          <path d="M-20 4 Q-20 -16 0 -16 Q20 -16 20 4 Z" fill="#c8d3e6" {...S} strokeWidth={2.5} />
+          <rect x="-22" y="1" width="44" height="6" rx="2" fill="#ffd166" {...S} strokeWidth={2} />
+          <path d="M-3 -16 Q0 -30 10 -24 Q4 -20 3 -16 Z" fill="#e63946" {...S} strokeWidth={2} />
+        </>
+      ) : (
+        <>
+          <path d="M-18 4 L-20 -12 L-9 -5 L0 -17 L9 -5 L20 -12 L18 4 Z" fill="#ffd166" {...S} strokeWidth={2.5} />
+          <circle cx="0" cy="-2" r="3" fill="#e63946" stroke={INK} strokeWidth={1.5} />
+          <circle cx="-10" cy="-1" r="2" fill="#4ad6ff" stroke={INK} strokeWidth={1.2} />
+          <circle cx="10" cy="-1" r="2" fill="#4ad6ff" stroke={INK} strokeWidth={1.2} />
+        </>
+      )}
+    </g>
+  )
+}
+
 export function PetArt({
   id,
   size = 96,
   locked = false,
   className = '',
   title,
+  level = 1,
+  stars = 0,
 }: {
   id: PetId
   size?: number
   locked?: boolean
   className?: string
   title?: string
+  /** 9.30-m: the buddy's level (hat at 10 / 20 / 30, a gentle sway from 15) */
+  level?: number
+  /** prestige stars after level 30 */
+  stars?: number
 }) {
   const Draw = ART[id]
+  const cos = locked ? cosmeticsFor(1, 0) : cosmeticsFor(level, stars)
   return (
     <svg
-      className={`pet-art pet-${id} ${locked ? 'is-locked' : ''} ${className}`}
+      className={`pet-art pet-${id} ${locked ? 'is-locked' : ''} ${cos.idle ? 'has-sway' : ''} ${className}`}
       width={size}
       height={size}
       viewBox="0 0 100 100"
       role="img"
       aria-label={title ?? (locked ? 'Locked buddy' : `${id} buddy`)}
       data-pet={id}
+      data-hat={cos.hat}
     >
       <g className="pet-body">
         <Draw />
+        {cos.hat !== 'none' ? <Hat id={id} hat={cos.hat} /> : null}
       </g>
+      {cos.stars > 0 ? (
+        <text x="50" y="99" textAnchor="middle" fontSize="11" fill="#ffd166" stroke={INK} strokeWidth={0.6} className="pet-stars">
+          {'★'.repeat(cos.stars)}
+        </text>
+      ) : null}
     </svg>
   )
 }
