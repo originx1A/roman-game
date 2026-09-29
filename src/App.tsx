@@ -133,6 +133,9 @@ import {
 import { publicLinkWithHash, publicPlayUrl } from './game/publicUrl'
 import {
   banterFor,
+  unheardShare,
+  heardSummary,
+  heardLog,
   eventAllowed,
   sparkProgressBanter,
   tipBanter,
@@ -428,6 +431,8 @@ export default function App() {
   const [showWheel, setShowWheel] = useState(false)
   const [buddyMeter, setBuddyMeter] = useState(loadBuddyMeter)
   const [huntJustEarned, setHuntJustEarned] = useState(false)
+  // 9.30-k: refresh the "voice lines heard" counter whenever Save & settings opens or is reset
+  const [heardTick, setHeardTick] = useState(0)
   // Buddy Parade (9.30-j): a counter of wins; every 5-7 wins the next "Next board" tap shows the parade first
   const paradeRef = useRef<ParadeState>(loadParade(typeof window === 'undefined' ? null : safeLocalStorage()))
   const [parade, setParade] = useState<{ buddies: ParadeBuddy[]; ms: number; go: () => void } | null>(null)
@@ -915,6 +920,7 @@ export default function App() {
 
   /** Toast + one voice at a time (coach / Roman). Buddy giggle is separate via Board. */
   const voiceGateRef = useRef(createVoiceGate())
+  const heardInfo = useMemo(() => heardSummary(), [heardTick, screen]) // eslint-disable-line react-hooks/exhaustive-deps
   function pushBanter(
     event: Parameters<typeof banterFor>[0],
     conflict?: BanterConflictKind,
@@ -922,7 +928,7 @@ export default function App() {
     // Wrong spot guard: once the board is won only win lines play, once lost only lose lines
     if (!eventAllowed(event, boardOverRef.current)) return { text: '', mood: 'neutral', voiceMood: 'neutral', speak: false, silent: true } as ReturnType<typeof banterFor>
     // 9.30-j: busy moments (wrong moves, idle, hints, undo) speak less often; a skipped moment draws no line
-    if (!voiceGateRef.current.allow(event, Date.now())) return { text: '', mood: 'neutral', voiceMood: 'neutral', speak: false, silent: true } as ReturnType<typeof banterFor>
+    if (!voiceGateRef.current.allow(event, Date.now(), unheardShare(event))) return { text: '', mood: 'neutral', voiceMood: 'neutral', speak: false, silent: true } as ReturnType<typeof banterFor>
     const line = banterFor(event, conflict)
     if (line.silent && !line.giggle) return line
     if (line.text) showToast(line.text)
@@ -3053,6 +3059,33 @@ export default function App() {
               />
               Voice tips
             </label>
+            <div className="heard-card" data-testid="heard-card">
+              <div className="heard-head">
+                Voice lines heard: <strong data-testid="heard-count">{heardInfo.heard} of {heardInfo.total}</strong>
+              </div>
+              <div className="heard-bar" aria-hidden>
+                <span style={{ width: `${heardInfo.total ? Math.round((heardInfo.heard / heardInfo.total) * 100) : 0}%` }} />
+              </div>
+              <ul className="heard-voices">
+                {heardInfo.voices.map((v) => (
+                  <li key={v.name}>
+                    {v.name}: {v.heard} of {v.total}
+                  </li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                className="btn ghost heard-reset"
+                onClick={() => {
+                  if (window.confirm('Reset the voice lines heard counter? Every line counts as new again.')) {
+                    heardLog.reset()
+                    setHeardTick((n) => n + 1)
+                  }
+                }}
+              >
+                Reset heard lines
+              </button>
+            </div>
             <label className="toggle">
               <input
                 type="checkbox"

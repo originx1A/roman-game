@@ -5,6 +5,7 @@
  * if a clip can't play, the line stays silent.
  */
 
+import { heardEnough } from './heardLog'
 import {
   WARM_COACH_CLIPS,
   isPlayableVoiceClip,
@@ -490,6 +491,15 @@ export function setVoiceStartListener(fn: ((clip: string) => void) | null) {
   voiceStartListener = fn
 }
 
+/**
+ * 9.30-k: told when a clip counts as HEARD: it finished, or it has played 70% of its length.
+ * (A line that was only requested, dropped as stale, skipped, or cut off early never counts.)
+ */
+let voiceHeardListener: ((clip: string) => void) | null = null
+export function setVoiceHeardListener(fn: ((clip: string) => void) | null) {
+  voiceHeardListener = fn
+}
+
 /** Stop whatever is on the voice channel right now */
 function stopVoice() {
   voiceGeneration += 1
@@ -502,6 +512,7 @@ function stopVoice() {
   el.onerror = null
   el.onpause = null
   el.onloadedmetadata = null
+  el.ontimeupdate = null
   try {
     el.pause()
   } catch {
@@ -1047,13 +1058,41 @@ async function playClipQueue(el: HTMLAudioElement, queue: string[], gen: number,
       markPlaying()
       el.onloadedmetadata = markPlaying
       const done = () => releaseVoice(gen)
-      el.onended = done
+      // 9.30-k: heard = finished or 70% played; counted once per play
+      let counted = false
+      const countHeard = () => {
+        if (counted) return
+        counted = true
+        el.ontimeupdate = null
+        try {
+          voiceHeardListener?.(clipId)
+        } catch {
+          /* the heard log never breaks playback */
+        }
+      }
+      el.ontimeupdate = () => {
+        if (gen !== voiceGeneration) {
+          el.ontimeupdate = null
+          return
+        }
+        if (heardEnough(el.currentTime, el.duration)) countHeard()
+      }
+      el.onended = () => {
+        countHeard()
+        done()
+      }
       el.onerror = done
       // Paused by the OS/browser (call, tab hidden…) — free the channel
       el.onpause = () => {
-        if (gen === voiceGeneration && el.paused) done()
+        if (gen === voiceGeneration && el.paused && !el.ended) {
+          if (heardEnough(el.currentTime, el.duration)) countHeard()
+          done()
+        }
       }
-      if (el.ended) done()
+      if (el.ended) {
+        countHeard()
+        done()
+      }
       return
     }
   }

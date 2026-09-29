@@ -104,3 +104,15 @@ test('Trial / Daily start lines exist for all three voices', () => {
     assert.deepEqual([...heard].sort(), ['coach', 'old', 'roman'])
   }
 })
+
+test('heard summary: total matches the audit (382 reachable), per-voice split adds up', () => {
+  const s = c.heardSummary()
+  assert.equal(s.total, 382)
+  assert.equal(s.voices.reduce((n: number, v: { total: number }) => n + v.total, 0), s.total)
+  assert.deepEqual(s.voices.map((v: { name: string }) => v.name), ['Roman', 'Old-timer', 'Coach'])
+  const before = s.heard
+  c.heardLog.record('roman_idle_hello')
+  assert.equal(c.heardSummary().heard, before + (c.heardLog.count('roman_idle_hello') === 1 ? 1 : 0))
+  c.heardLog.reset()
+  assert.equal(c.heardSummary().heard, 0)
+})
