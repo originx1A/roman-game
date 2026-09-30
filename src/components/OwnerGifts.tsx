@@ -15,11 +15,19 @@ type OwnerStats = {
   playsByDay: { day: string; plays: number }[]; playsByHour: number[]; topRegions: { place: string; players: number }[]
   thumbsUp: number; thumbsDown: number; notes: { t: string; vote: 'up' | 'down'; note: string; place: string }[]
 }
+type OwnerPurchases = {
+  days: number
+  live: { orders: number; cents: number }; test: { orders: number; cents: number }; unknown: { orders: number; cents: number }
+  rows: { at: string; item: string; coins: number; amountCents: number; currency: string; status: string; live: boolean | null; ref: string }[]
+}
+const money = (cents: number, cur = 'usd') => `${cur.toUpperCase() === 'USD' ? 'US$' : cur.toUpperCase() + ' '}${(cents / 100).toFixed(2)}`
 const toToronto = (iso: string) => new Date(iso).toLocaleString('en-CA', { timeZone: 'America/Toronto', dateStyle: 'medium', timeStyle: 'short' }) + ' ET'
 
 export function OwnerGifts() {
   const [stats, setStats] = useState<{ s: OwnerStats; at: string } | null>(null)
   const [statsErr, setStatsErr] = useState('')
+  const [buys, setBuys] = useState<{ p: OwnerPurchases; at: string } | null>(null)
+  const [buysErr, setBuysErr] = useState('')
   const [status, setStatus] = useState<'loading' | 'missing' | 'ready' | 'offline'>('loading')
   const [envName, setEnvName] = useState('ROMAN_OWNER_KEY')
   const [key, setKey] = useState('')
@@ -131,6 +139,23 @@ export function OwnerGifts() {
       setBusy(false)
     }
   }
+
+  const loadBuys = async () => {
+    setBuysErr('')
+    try {
+      const r = await fetch('/api/owner-purchases', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key, days: 30 }) })
+      const j = (await r.json()) as { ok?: boolean; purchases?: OwnerPurchases; generatedAt?: string; error?: string }
+      if (!j.ok || !j.purchases) setBuysErr(j.error ?? 'Could not load the purchases.')
+      else setBuys({ p: j.purchases, at: j.generatedAt ?? new Date().toISOString() })
+    } catch {
+      setBuysErr('Could not reach the purchases service.')
+    }
+  }
+  // the purchases list opens by itself once the owner page is unlocked
+  useEffect(() => {
+    if (status === 'ready' && unlocked) void loadBuys()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, unlocked])
 
   const copy = (t: string, what: string) => {
     void navigator.clipboard?.writeText(t).then(() => setCopied(what)).catch(() => {})
@@ -295,6 +320,37 @@ export function OwnerGifts() {
               ))}
             </ul>
           ) : null}
+        </div>
+      ) : null}
+      {status === 'ready' && unlocked ? (
+        <div className="owner-card owner-purchases" data-testid="owner-purchases">
+          <h2>Purchases (last 30 days)</h2>
+          {buysErr ? <p className="owner-warn">{buysErr}</p> : null}
+          {!buys && !buysErr ? <p>Loading…</p> : null}
+          {buys && buys.p.rows.length === 0 ? <p data-testid="no-purchases"><strong>No purchases yet.</strong> When someone buys coins, the order shows up here.</p> : null}
+          {buys && buys.p.rows.length > 0 ? (
+            <>
+              <div className="stat-grid">
+                <div><strong>{buys.p.live.orders}</strong>paid orders</div>
+                <div><strong>{money(buys.p.live.cents)}</strong>paid total</div>
+                {buys.p.test.orders ? <div><strong>{buys.p.test.orders}</strong>test orders ({money(buys.p.test.cents)}, not real money)</div> : null}
+                {buys.p.unknown.orders ? <div><strong>{buys.p.unknown.orders}</strong>older orders ({money(buys.p.unknown.cents)})</div> : null}
+              </div>
+              <ul data-testid="purchase-list">
+                {buys.p.rows.map((r) => (
+                  <li key={r.ref + r.at}>
+                    {toToronto(r.at)} · {r.item} · <b>{money(r.amountCents, r.currency)}</b> · {r.status}{r.live === false ? ' · TEST' : ''} · ref …{r.ref}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+          <button type="button" className="btn ghost" data-testid="purchases-refresh" onClick={() => void loadBuys()}>Refresh purchases</button>
+          <small>
+            Orders are written when a buyer's coins are handed out (no card details, names or emails are kept), shown in Toronto time.
+            If a buyer pays and never returns to the game, that order only appears in your Stripe dashboard (dashboard.stripe.com → Payments), which is always the full record.
+            {buys ? ` Updated ${toToronto(buys.at)}.` : ''}
+          </small>
         </div>
       ) : null}
       {status === 'ready' && unlocked ? (

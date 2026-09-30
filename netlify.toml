@@ -9,6 +9,21 @@
 # `netlify dev` serves dist plus these functions. Run `npm run build` first.
 # Plain `npm run dev` has no functions; the shop then says purchases are unavailable.
 
+# Owner page and API answers are never indexed (no listing of the owner path in robots.txt or the sitemap)
+[[headers]]
+  for = "/roman-owner"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow, noarchive"
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+[[headers]]
+  for = "/llms.txt"
+  [headers.values]
+    Content-Type = "text/plain; charset=utf-8"
+    Cache-Control = "public, max-age=3600"
+
 # Payment API before the single-page fallback. Static hosts ignore this file.
 [[redirects]]
   from = "/api/*"
