@@ -5814,3 +5814,7 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 .parade-pot-bar i { display: block; height: 100%; background: #ffd166; transition: width 0.4s; }
 .parade-pot-left { font-size: 0.9rem; opacity: 0.9; margin: 4px 0; }
 .next-parade-hint { margin: 4px 0; font-size: 0.85rem; color: #cfe0ff; text-align: center; }
+
+/* Small "A JRNY project" credit in the footer (9.30-v) */
+.jrny-link { opacity: 0.75; font-size: 0.85em; }
+.jrny-link:hover, .jrny-link:focus-visible { opacity: 1; }

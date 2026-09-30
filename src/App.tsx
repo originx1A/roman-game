@@ -3650,6 +3650,9 @@ export default function App() {
           <a className="privacy-link" href="./privacy.html">
             Privacy
           </a>
+          <a className="privacy-link jrny-link" data-testid="jrny-link" href="https://jrny.fun" target="_blank">
+            A JRNY project
+          </a>
           <button
             type="button"
             className="mute"

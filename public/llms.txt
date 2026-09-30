@@ -22,12 +22,14 @@ Play it: https://romans-game.netlify.app/
 - Buddies: collect and care for animal buddies (Lupa the wolf pup, Aquila the eagle, Leo the lion cub, Invictus the war horse, Nox the owl). A short Buddy Parade shows up between boards.
 
 ## Good to know
+- Made by JRNY (https://jrny.fun).
 - Free to play. Progress is saved on your own device; there are no accounts.
 - Kid-friendly: no chat, no ads, no public profiles.
 - Only anonymous play counts are collected (no names, emails or IP addresses). See https://romans-game.netlify.app/privacy.html
 - Works on iPhone, iPad, Android and desktop browsers; it can be added to the Home Screen.
 
 ## Links
+- Made by JRNY: https://jrny.fun
 - Game: https://romans-game.netlify.app/
 - Privacy policy: https://romans-game.netlify.app/privacy.html
 - Sitemap: https://romans-game.netlify.app/sitemap.xml
