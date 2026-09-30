@@ -1,0 +1,33 @@
+# Roman's Game
+
+> Roman's Game is a free, kid-friendly logic puzzle game that runs in the browser (phone, tablet or computer). No account, no sign-up and no download are needed: open the link and play. Place one cute buddy in every colored region, row and column, and never let two buddies touch, not even diagonally.
+
+Play it: https://romans-game.netlify.app/
+
+## How to play
+- The board is a square grid (5x5 up to 8x8) split into colored regions.
+- Put exactly one buddy in every colored region, every row and every column.
+- Buddies may not touch each other, not even at the corners (diagonally).
+- Swipe to paint quiet x marks on squares that cannot hold a buddy; tap a mark to place a buddy.
+- Three mistakes cost a heart. Hints are available (coins or free hints). Undo is always there but costs score points.
+- Every board has exactly one solution, so it is pure logic, no guessing.
+
+## Ways to play
+- Levels: 20 handcrafted boards, easy to expert, with 1 to 3 stars each (finish, beat the target time, then a high score with no undos).
+- Daily Challenge: one new board every day; the first try counts for your streak.
+- Remix boards: a set of four new boards (5x5, 6x6, 7x7, 8x8) every 3 days at midnight Toronto time. The same boards for everyone, so friends can compare times.
+- Endless mode and Random boards: unlimited freshly generated boards at any size.
+- Roman's Trial: unlocked with 3 stars on a board; race the clock with 2 hearts and no undo.
+- Challenge links: share a board and a time with a friend to beat.
+- Buddies: collect and care for animal buddies (Lupa the wolf pup, Aquila the eagle, Leo the lion cub, Invictus the war horse, Nox the owl). A short Buddy Parade shows up between boards.
+
+## Good to know
+- Free to play. Progress is saved on your own device; there are no accounts.
+- Kid-friendly: no chat, no ads, no public profiles.
+- Only anonymous play counts are collected (no names, emails or IP addresses). See https://romans-game.netlify.app/privacy.html
+- Works on iPhone, iPad, Android and desktop browsers; it can be added to the Home Screen.
+
+## Links
+- Game: https://romans-game.netlify.app/
+- Privacy policy: https://romans-game.netlify.app/privacy.html
+- Sitemap: https://romans-game.netlify.app/sitemap.xml

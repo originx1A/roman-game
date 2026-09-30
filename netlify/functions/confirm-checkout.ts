@@ -1,9 +1,9 @@
 import { getStore } from '@netlify/blobs'
 import { webPackById } from '../lib/coinPacks.ts'
 import { json, PURCHASES_UNAVAILABLE } from '../lib/http.ts'
+import { buildPurchaseRecord, PURCHASE_STORE } from '../lib/purchases.ts'
 import { isCheckoutSessionId, readStripeKey, stripeClient } from '../lib/stripeServer.ts'
 
-const STORE = 'roman-stripe-redeemed'
 
 /**
  * Looks up the Checkout Session at Stripe. Coins are returned only when Stripe
@@ -41,10 +41,10 @@ export default async function confirmCheckout(req: Request): Promise<Response> {
       return json({ ok: false, reason: 'Payment did not match this pack. No coins were added.' })
     }
 
-    const store = getStore({ name: STORE, consistency: 'strong' })
+    const store = getStore({ name: PURCHASE_STORE, consistency: 'strong' })
     const { modified } = await store.setJSON(
       session.id,
-      { packId: pack.id, coins: pack.coins, at: new Date().toISOString() },
+      buildPurchaseRecord(session, pack),
       { onlyIfNew: true },
     )
     if (!modified) {
