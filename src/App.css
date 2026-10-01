@@ -5818,3 +5818,21 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 /* Small "A JRNY project" credit in the footer (9.30-v) */
 .jrny-link { opacity: 0.75; font-size: 0.85em; }
 .jrny-link:hover, .jrny-link:focus-visible { opacity: 1; }
+
+/* Footer must never clip on a narrow phone: the "Sound on/off" button was cut off at the right edge. */
+.foot {
+  flex-wrap: wrap;
+  box-sizing: border-box;
+  width: 100%;
+  row-gap: 0.25rem;
+}
+.foot-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem 0.85rem;
+  min-width: 0;
+  margin-left: auto;
+}
+.foot-links > * { white-space: nowrap; }
