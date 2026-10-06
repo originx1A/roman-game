@@ -2819,7 +2819,7 @@ export default function App() {
               </button>
             </div>
           </section>
-          {/* 10.06: treat defense — the vulnerable field pile. Claim moves treats to the safe stash. */}
+          {/* 10.06: treat defense — the vulnerable field pile. Claim only on the board screen. */}
           <section className="treat-pile-widget" aria-label="Field treat pile">
             <span aria-hidden="true">🍖</span>
             <span>
@@ -2827,12 +2827,9 @@ export default function App() {
               {Object.keys(pets.owned).length === 0 ? (
                 <small>⚠️ no defenders — your treats are in danger! <button type="button" className="linklike" onClick={() => setScreen('stable')}>Claim your FREE pet</button> to protect them</small>
               ) : (
-                <small>wild buddies want them — claim to keep them safe</small>
+                <small>wild buddies want them — play a board to claim them safe</small>
               )}
             </span>
-            <button type="button" className="btn tool" onClick={handleClaimTreats}>
-              Claim
-            </button>
           </section>
           <section className="home-pet-row" aria-label="Your buddy">
             <HomePet
