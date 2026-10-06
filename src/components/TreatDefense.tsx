@@ -378,7 +378,7 @@ export function TreatDefense({ active, defenders, allOwned, levels, fieldTreats,
         aria-label="Wild buddy — tap to scare it off"
         aria-hidden="true"
       >
-        <span style={wildMystery ? { filter: 'brightness(0)', opacity: 0.85 } : undefined} title={wildMystery ? 'Mystery attacker!' : undefined}>
+        <span className={wildMystery ? 'td-invader-mystery' : undefined} title={wildMystery ? 'Mystery attacker!' : undefined}>
           <PetArt id={wildId} size={48} />
         </span>
       </button>

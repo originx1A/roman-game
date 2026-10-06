@@ -6200,6 +6200,14 @@ html[data-motion='reduce'] .td-invader {
   animation: none;
 }
 
+/* 10.06: mystery attacker — dark silhouette body, but the bulging eyes stay white */
+.td-invader-mystery {
+  opacity: 0.9;
+}
+.td-invader-mystery svg :not(.pet-eye):not(.pet-eye *) {
+  fill: #16162a !important;
+}
+
 /* 10.06: home-screen field treat pile widget */
 .treat-pile-widget {
   display: flex;
