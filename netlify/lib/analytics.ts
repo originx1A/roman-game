@@ -22,6 +22,10 @@ export interface StoredEvent {
   city?: string
   region?: string
   country?: string
+  /** owner-archived feedback: hidden from the owner panel, kept in storage */
+  archived?: boolean
+  /** blob key — attached by loadEvents at read time, never stored */
+  key?: string
 }
 
 export interface EventStore {
@@ -74,15 +78,23 @@ export async function recordEvent(store: EventStore, ev: StoredEvent, rand: () =
   await store.setJSON(`e/${dayKeyUtc(new Date(ev.t))}/${ev.t}-${rand()}`, ev)
 }
 
-/** Events of the last `days` UTC days (bounded: at most `cap` events are read). */
+/** Events of the last `days` UTC days (bounded: at most `cap` events are read).
+ * Each returned event has its blob `key` attached for owner management. */
 export async function loadEvents(store: EventStore, days: number, now: Date = new Date(), cap = 20000): Promise<StoredEvent[]> {
   const out: StoredEvent[] = []
   for (let i = 0; i < days && out.length < cap; i++) {
     const d = new Date(now.getTime() - i * 86_400_000)
     const { blobs } = await store.list({ prefix: `e/${dayKeyUtc(d)}/` })
     for (let j = 0; j < blobs.length && out.length < cap; j += 40) {
-      const got = await Promise.all(blobs.slice(j, j + 40).map((x) => store.get(x.key, { type: 'json' }).catch(() => null)))
-      for (const g of got) if (g && typeof g === 'object' && (g as StoredEvent).id) out.push(g as StoredEvent)
+      const batch = blobs.slice(j, j + 40)
+      const got = await Promise.all(batch.map((x) => store.get(x.key, { type: 'json' }).catch(() => null)))
+      for (let k = 0; k < got.length; k++) {
+        const g = got[k] as StoredEvent | null
+        if (g && typeof g === 'object' && g.id) {
+          g.key = batch[k].key
+          out.push(g)
+        }
+      }
     }
   }
   return out
@@ -93,6 +105,15 @@ const fmtDay = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric',
 const fmtHour = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', hourCycle: 'h23' })
 export const torontoDay = (iso: string) => fmtDay.format(new Date(iso))
 export const torontoHour = (iso: string) => Number(fmtHour.format(new Date(iso)))
+
+export interface OwnerNote {
+  /** blob key — stable identifier for owner management */
+  id: string
+  t: string
+  vote: 'up' | 'down'
+  note: string
+  place: string
+}
 
 export interface Stats {
   days: number
@@ -107,8 +128,10 @@ export interface Stats {
   topRegions: { place: string; players: number }[]
   thumbsUp: number
   thumbsDown: number
-  /** newest first; times are UTC ISO (the page shows Toronto time) */
-  notes: { t: string; vote: 'up' | 'down'; note: string; place: string }[]
+  /** newest first; times are UTC ISO (the page shows Toronto time); archived notes excluded */
+  notes: OwnerNote[]
+  /** owner-archived feedback, newest first */
+  archivedNotes: OwnerNote[]
 }
 
 const placeOf = (e: StoredEvent) => [e.city, e.region, e.country].filter(Boolean).join(', ') || 'Unknown'
@@ -124,7 +147,8 @@ export function aggregate(events: StoredEvent[], days = 30): Stats {
   let cleared = 0
   let up = 0
   let down = 0
-  const notes: Stats['notes'] = []
+  const notes: OwnerNote[] = []
+  const archivedNotes: OwnerNote[] = []
   for (const e of events) {
     players.add(e.id)
     const place = placeOf(e)
@@ -141,13 +165,19 @@ export function aggregate(events: StoredEvent[], days = 30): Stats {
       byDay.set(torontoDay(e.t), (byDay.get(torontoDay(e.t)) ?? 0) + 1)
       byHour[torontoHour(e.t)]++
     } else if (e.ev === 'feedback' && e.vote) {
-      if (e.vote === 'up') up++
-      else down++
-      if (e.note) notes.push({ t: e.t, vote: e.vote, note: e.note, place })
+      const item: OwnerNote = { id: e.key ?? `${e.t}:${e.id}`, t: e.t, vote: e.vote, note: e.note ?? '', place }
+      if (e.archived) {
+        if (e.note) archivedNotes.push(item)
+      } else {
+        if (e.vote === 'up') up++
+        else down++
+        if (e.note) notes.push(item)
+      }
     }
   }
   for (const [id, set] of openDays) if (set.size >= 2) returned.add(id)
   notes.sort((a, b) => (a.t < b.t ? 1 : -1))
+  archivedNotes.sort((a, b) => (a.t < b.t ? 1 : -1))
   return {
     days,
     opens,
@@ -160,6 +190,7 @@ export function aggregate(events: StoredEvent[], days = 30): Stats {
     thumbsUp: up,
     thumbsDown: down,
     notes: notes.slice(0, 20),
+    archivedNotes: archivedNotes.slice(0, 50),
   }
 }
 
