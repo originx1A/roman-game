@@ -284,6 +284,8 @@ export interface PetState {
   treats: { snack: number; feast: number }
   /** 10.06: treat defense — earned treats sitting in the vulnerable outdoor pile (wild pets can steal these; claimed/bought treats can't) */
   fieldTreats: number
+  /** 10.06: consecutive successful defenses (catches/scares) without a steal — bonus treats scale with streak */
+  defenseStreak: number
 }
 
 export const PETS_KEY = 'roman.pets.v1'
@@ -291,13 +293,13 @@ export const DAY_MS = 86_400_000
 export const TRIAL_MS = DAY_MS
 export const COUPON_DAYS = 7
 export const MAX_COUPONS = 4
-export const MAX_FEEDS_PER_DAY = 3
+export const MAX_FEEDS_PER_DAY = 2
 export const STREAK_COUPON_PCT = 20
 export const TRIAL_CLEAR_COUPON_PCT = 30
 export const TRIAL_END_COUPON_PCT = 25
 
 export function emptyPets(): PetState {
-  return { v: 1, owned: {}, active: null, freePickUsed: false, trial: null, coupons: [], redeemed: [], streakCouponAt: 0, treats: { snack: 0, feast: 0 }, fieldTreats: 0 }
+  return { v: 1, owned: {}, active: null, freePickUsed: false, trial: null, coupons: [], redeemed: [], streakCouponAt: 0, treats: { snack: 0, feast: 0 }, fieldTreats: 0, defenseStreak: 0 }
 }
 
 const num = (x: unknown, d = 0) => (typeof x === 'number' && Number.isFinite(x) ? x : d)
@@ -341,8 +343,9 @@ export function sanitizePets(raw: unknown): PetState {
   out.freePickUsed = r.freePickUsed === true
   out.streakCouponAt = Math.max(0, num(r.streakCouponAt))
   const tr = (r.treats && typeof r.treats === 'object' ? r.treats : {}) as Record<string, unknown>
-  out.treats = { snack: Math.max(0, Math.min(99, Math.floor(num(tr.snack)))), feast: Math.max(0, Math.min(99, Math.floor(num(tr.feast)))) }
+  out.treats = { snack: Math.max(0, Math.floor(num(tr.snack))), feast: Math.max(0, Math.floor(num(tr.feast))) }
   out.fieldTreats = Math.max(0, Math.min(MAX_FIELD_TREATS, Math.floor(num(r.fieldTreats))))
+  out.defenseStreak = Math.max(0, Math.floor(num((r as Record<string, unknown>).defenseStreak)))
   const a = r.active
   out.active = a && (out.owned[a as PetId] || out.trial?.id === a) ? (a as PetId) : null
   return out
@@ -676,9 +679,9 @@ export function claimFieldTreats(s: PetState): { state: PetState; claimed: numbe
 
 /** Tier-based steal amount: bigger pile = bigger target. Returns [min, max] for the roll. */
 export function stealTier(pile: number): [number, number] {
-  if (pile >= 751) return [25, 50]
-  if (pile >= 501) return [20, 35]
-  if (pile >= 251) return [15, 25]
+  if (pile >= 751) return [18, 30]
+  if (pile >= 501) return [15, 25]
+  if (pile >= 251) return [12, 20]
   if (pile >= 101) return [8, 15]
   return [2, 8]
 }

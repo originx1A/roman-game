@@ -2313,22 +2313,29 @@ export default function App() {
     showToast('👀 A wild buddy is eyeing your treat pile!')
   }
   function handleDefenseCaught(earned: number) {
-    if (earnWithJackpot(earned)) return
+    if (earnWithJackpot(earned, true)) return
     petGiggle()
     const line = pushBanter('win-heckle')
     if (!line.text) showToast(`🛡️ Your buddies chased it off! +${earned} field treats`)
   }
   function handleDefenseScared(earned: number) {
-    if (earnWithJackpot(earned)) return
+    if (earnWithJackpot(earned, true)) return
     const line = pushBanter('win-heckle')
     if (!line.text) showToast(`💨 You scared it off! +${earned} field treats`)
   }
   /** Earn field treats, checking for the 999 jackpot after. Returns true if jackpot hit. */
-  function earnWithJackpot(n: number): boolean {
-    const after = earnFieldTreats(pets, n)
+  function earnWithJackpot(n: number, isDefense = false): boolean {
+    // defense streak bonus: consecutive successful defenses earn +1 extra per streak level
+    let bonus = 0
+    let streak = pets.defenseStreak ?? 0
+    if (isDefense) {
+      streak += 1
+      bonus = Math.min(streak - 1, 10) // +0 first, +1 second, ... capped at +10
+    }
+    const after = earnFieldTreats({ ...pets, defenseStreak: streak }, n + bonus)
     if ((after.fieldTreats ?? 0) >= MAX_FIELD_TREATS) {
       const j = jackpotFieldTreats(after)
-      persistPets(j.state)
+      persistPets({ ...j.state, defenseStreak: 0 })
       sfxCoin()
       showToast(`🎉 JACKPOT! 999 treats defended! ${j.saved} auto-saved + ${j.bonus} bonus treats!`)
       pushBanter('prize')
@@ -2339,7 +2346,8 @@ export default function App() {
   }
   function handleDefenseStolen(stolen: number) {
     const r = stealFieldTreats(pets, stolen)
-    persistPets(r.state)
+    // steal breaks the defense streak
+    persistPets({ ...r.state, defenseStreak: 0 })
     if (r.stolen <= 0) return
     const line = pushBanter('hunt-miss')
     if (!line.text) showToast(`🦝 A wild buddy stole ${r.stolen} treats from the pile!`)
