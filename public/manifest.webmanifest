@@ -1,6 +1,6 @@
 {
   "name": "Roman's Game",
-  "short_name": "Roman",
+  "short_name": "Roman's Game",
   "description": "A logic placement puzzle. One stone per row, column, and region.",
   "start_url": "./",
   "scope": "./",
