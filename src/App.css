@@ -6000,6 +6000,18 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 .owner-stats .hours { display: flex; align-items: flex-end; gap: 2px; height: 70px; }
 .owner-stats .hours i { flex: 1; background: var(--sun); min-height: 2px; border-radius: 2px 2px 0 0; }
 
+/* Feedback note management (10.06) */
+.owner-stats .notes-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 2px; }
+.owner-stats .notes-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.owner-stats .notes-list li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: rgba(244,251,255,0.05); }
+.owner-stats .notes-list li.sel { background: rgba(255,214,102,0.12); outline: 1px solid rgba(255,214,102,0.4); }
+.owner-stats .notes-list li > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.owner-stats .notes-list input[type="checkbox"] { width: 22px; height: 22px; flex: none; accent-color: #ffd666; cursor: pointer; margin: 0; }
+.owner-stats .note-x { flex: none; width: 32px; height: 32px; border-radius: 9px; border: 1px solid rgba(255,107,107,0.5); background: rgba(255,107,107,0.12); color: #ff9d9d; font-size: 20px; line-height: 1; cursor: pointer; padding: 0; }
+.owner-stats .note-x:disabled { opacity: 0.4; cursor: default; }
+.owner-stats .notes-list.archived li { opacity: 0.8; }
+.owner-stats h4 { margin: 6px 0 0; }
+
 /* Today's treasure left (9.30-t) */
 .parade-pot { font-size: 0.95rem; color: #fff6cf; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; }
 .parade-pot b { color: #ffd166; }
