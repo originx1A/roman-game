@@ -2331,7 +2331,12 @@ export default function App() {
   function handleClaimTreats() {
     const r = claimFieldTreats(pets)
     if (r.claimed <= 0) {
-      showToast('The field pile is empty — your buddies will catch treats from wild pets.')
+      const pile = Math.max(0, Math.floor(pets.fieldTreats ?? 0))
+      if (pile > 0) {
+        showToast('Safe stash is full! Swap snacks for coins to make room, then claim again.')
+      } else {
+        showToast('The field pile is empty — your buddies will catch treats from wild pets.')
+      }
       return
     }
     persistPets(r.state)
