@@ -653,7 +653,7 @@ export function grantTreat(s: PetState, treat: TreatId, n = 1): PetState {
  * Field treats are earned by catching wild pets and sit in the outdoor pile, where wild
  * pets can steal them. Claimed or bought treats (the safe snack/feast stash) are never at risk.
  */
-export const MAX_FIELD_TREATS = 999
+export const MAX_FIELD_TREATS = 100
 /** 1 safe-stash snack swaps for this many coins */
 export const SNACK_COIN_RATE = 15
 

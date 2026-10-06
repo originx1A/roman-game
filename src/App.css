@@ -2647,6 +2647,14 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
 .hud-treats:active {
   transform: scale(0.95);
 }
+.hud-treats.is-full {
+  animation: hud-treats-flash 1s ease-in-out infinite;
+  border-color: var(--sun);
+}
+@keyframes hud-treats-flash {
+  0%, 100% { background: rgba(255, 213, 79, 0.25); }
+  50% { background: rgba(255, 213, 79, 0.05); }
+}
 
 .board-stage {
   position: relative;

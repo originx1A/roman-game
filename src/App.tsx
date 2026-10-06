@@ -1669,8 +1669,12 @@ export default function App() {
       setRunning(false)
       setCelebrate(true)
       sfxWin()
-      // 10.06: every win earns 5 field treats for the pile
+      // 10.06: every win earns 5 field treats for the pile (capped at 100)
+      const before = pets.fieldTreats ?? 0
       persistPets(earnFieldTreats(pets, 5))
+      if (before >= 100) {
+        showToast('🍖 Field pile is FULL — tap it to claim your treats!')
+      }
       const perfect = hintsUsed === 0
       // Buddy meter: a perfect win (no hints, rescue, wrong buddies or lost hearts) fills a notch
       const flawless = isPerfectWin({ hintsUsed, flawed: flawedRef.current, livesLost: runMaxLives - lives })
@@ -3025,8 +3029,8 @@ export default function App() {
               </span>
               <button
                 type="button"
-                className="hud-treats"
-                title="Field treats — tap to claim them safe"
+                className={`hud-treats${(pets.fieldTreats ?? 0) >= 100 ? ' is-full' : ''}`}
+                title={(pets.fieldTreats ?? 0) >= 100 ? 'Field pile is FULL — tap to claim them safe' : 'Field treats — tap to claim them safe'}
                 onClick={handleClaimTreats}
               >
                 🍖{pets.fieldTreats ?? 0}
