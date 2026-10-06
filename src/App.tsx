@@ -73,7 +73,6 @@ import {
   earnFieldTreats,
   claimFieldTreats,
   jackpotFieldTreats,
-  JACKPOT_BONUS,
   MAX_FIELD_TREATS,
   swapTreatsToCoins,
   stealFieldTreats,} from './game/pets'
