@@ -11,10 +11,11 @@ import { PetArt } from './PetArt'
  */
 type Kind = Gift['kind']
 
+type OwnerNote = { id: string; t: string; vote: 'up' | 'down'; note: string; place: string }
 type OwnerStats = {
   days: number; opens: number; uniquePlayers: number; returningPlayers: number; levelsCleared: number
   playsByDay: { day: string; plays: number }[]; playsByHour: number[]; topRegions: { place: string; players: number }[]
-  thumbsUp: number; thumbsDown: number; notes: { t: string; vote: 'up' | 'down'; note: string; place: string }[]
+  thumbsUp: number; thumbsDown: number; notes: OwnerNote[]; archivedNotes: OwnerNote[]
 }
 type OwnerPurchases = {
   days: number
@@ -27,6 +28,11 @@ const toToronto = (iso: string) => new Date(iso).toLocaleString('en-CA', { timeZ
 export function OwnerGifts() {
   const [stats, setStats] = useState<{ s: OwnerStats; at: string } | null>(null)
   const [statsErr, setStatsErr] = useState('')
+  // 10.06: feedback note management
+  const [notesExpanded, setNotesExpanded] = useState(false)
+  const [selectedNotes, setSelectedNotes] = useState<Set<string>>(new Set())
+  const [showArchived, setShowArchived] = useState(false)
+  const [noteBusy, setNoteBusy] = useState(false)
   const [buys, setBuys] = useState<{ p: OwnerPurchases; at: string } | null>(null)
   const [buysErr, setBuysErr] = useState('')
   const [status, setStatus] = useState<'loading' | 'missing' | 'ready' | 'offline'>('loading')
@@ -146,6 +152,47 @@ export function OwnerGifts() {
       setStatsErr('Could not reach the stats service.')
     } finally {
       setBusy(false)
+    }
+  }
+
+  // 10.06: feedback note management (delete / archive / restore, single + batch)
+  const toggleNote = (id: string) =>
+    setSelectedNotes((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
+  const manageNotes = async (action: 'delete' | 'deleteAll' | 'archive' | 'unarchive', ids: string[]) => {
+    const n = action === 'deleteAll' ? (stats?.s.notes.length ?? 0) : ids.length
+    const what = action === 'deleteAll' ? `ALL ${n} feedback notes` : `${n} note${n === 1 ? '' : 's'}`
+    const msg =
+      action === 'delete' || action === 'deleteAll'
+        ? `Delete ${what}? This cannot be undone.`
+        : action === 'archive'
+          ? `Archive ${what}? (hidden, but kept)`
+          : `Restore ${what} to the notes list?`
+    if (!window.confirm(msg)) return
+    setNoteBusy(true)
+    try {
+      const r = await fetch('/api/analytics-manage', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ key, action, ids }),
+      })
+      const j = (await r.json()) as { ok?: boolean; error?: string }
+      if (!j.ok) {
+        setStatsErr(j.error ?? 'Could not update the notes.')
+        if (r.status === 401) setUnlocked(false)
+      } else {
+        setSelectedNotes(new Set())
+        await loadStats()
+      }
+    } catch {
+      setStatsErr('Could not reach the notes service.')
+    } finally {
+      setNoteBusy(false)
     }
   }
 
@@ -390,7 +437,63 @@ export function OwnerGifts() {
               <h3>Top regions</h3>
               <ul>{stats.s.topRegions.length ? stats.s.topRegions.map((r) => <li key={r.place}>{r.place}: {r.players} player{r.players === 1 ? '' : 's'}</li>) : <li>None yet</li>}</ul>
               <h3>Recent notes</h3>
-              <ul>{stats.s.notes.length ? stats.s.notes.map((n, i) => <li key={i}>{n.vote === 'up' ? '👍' : '👎'} “{n.note}” · {toToronto(n.t)} · {n.place}</li>) : <li>No notes yet</li>}</ul>
+              {stats.s.notes.length || (stats.s.archivedNotes ?? []).length ? (
+                <>
+                  <div className="notes-tools">
+                    <button type="button" className="btn ghost" disabled={noteBusy || !selectedNotes.size}
+                      onClick={() => void manageNotes('delete', [...selectedNotes])}>
+                      Delete selected{selectedNotes.size ? ` (${selectedNotes.size})` : ''}
+                    </button>
+                    <button type="button" className="btn ghost" disabled={noteBusy || !selectedNotes.size}
+                      onClick={() => void manageNotes('archive', [...selectedNotes])}>
+                      Archive selected
+                    </button>
+                    <button type="button" className="btn ghost" disabled={noteBusy || !stats.s.notes.length}
+                      onClick={() => void manageNotes('deleteAll', [])}>
+                      Delete all
+                    </button>
+                    {(stats.s.archivedNotes ?? []).length > 0 && (
+                      <button type="button" className="btn ghost" onClick={() => setShowArchived((v) => !v)}>
+                        {showArchived ? 'Hide archived' : `Archived (${stats.s.archivedNotes!.length})`}
+                      </button>
+                    )}
+                  </div>
+                  <ul className="notes-list">
+                    {(notesExpanded ? stats.s.notes : stats.s.notes.slice(0, 5)).map((n) => (
+                      <li key={n.id} className={selectedNotes.has(n.id) ? 'sel' : ''}>
+                        <input type="checkbox" checked={selectedNotes.has(n.id)} onChange={() => toggleNote(n.id)} aria-label="Select note" />
+                        <span>{n.vote === 'up' ? '👍' : '👎'} “{n.note}” · {toToronto(n.t)} · {n.place}</span>
+                        <button type="button" className="note-x" aria-label="Delete this note" disabled={noteBusy}
+                          onClick={() => void manageNotes('delete', [n.id])}>×</button>
+                      </li>
+                    ))}
+                  </ul>
+                  {stats.s.notes.length > 5 && (
+                    <button type="button" className="btn ghost" onClick={() => setNotesExpanded((v) => !v)}>
+                      {notesExpanded ? 'Show less' : `Show all (${stats.s.notes.length})`}
+                    </button>
+                  )}
+                  {!stats.s.notes.length && <p>No notes yet</p>}
+                  {showArchived && (stats.s.archivedNotes ?? []).length > 0 && (
+                    <>
+                      <h4>Archived notes</h4>
+                      <ul className="notes-list archived">
+                        {(stats.s.archivedNotes ?? []).map((n) => (
+                          <li key={n.id}>
+                            <span>{n.vote === 'up' ? '👍' : '👎'} “{n.note}” · {toToronto(n.t)} · {n.place}</span>
+                            <button type="button" className="btn ghost" disabled={noteBusy}
+                              onClick={() => void manageNotes('unarchive', [n.id])}>Restore</button>
+                            <button type="button" className="note-x" aria-label="Delete this note" disabled={noteBusy}
+                              onClick={() => void manageNotes('delete', [n.id])}>×</button>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </>
+              ) : (
+                <p>No notes yet</p>
+              )}
               <small>Updated {toToronto(stats.at)}. Stored in UTC, shown in Toronto time. No IP addresses or names are kept.</small>
             </>
           ) : null}
