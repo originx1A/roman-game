@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { createPortal } from 'react-dom'
 import { Board } from './components/Board'
 import { HowToPlay, HOW_NEW_START } from './components/HowToPlay'
+import { BugReport } from './components/BugReport'
 import { PrizeWheel } from './components/PrizeWheel'
 import { ResultOverlay } from './components/ResultOverlay'
 import { WinScreen, type WinReplay } from './components/WinScreen'
@@ -2837,6 +2838,9 @@ export default function App() {
               <button type="button" className="btn ghost" onClick={() => setScreen('how')}>
                 How to play
               </button>
+              <button type="button" className="btn ghost" onClick={() => setScreen('bug')}>
+                🐛 Report a bug
+              </button>
             </div>
           </section>
           {/* 10.06: treat defense — the vulnerable field pile. Claim only on the board screen. */}
@@ -2915,6 +2919,10 @@ export default function App() {
             setScreen('home')
           }}
         />
+      )}
+
+      {screen === 'bug' && (
+        <BugReport currentScreen={screen} onBack={() => setScreen('home')} />
       )}
 
       {screen === 'levels' && (

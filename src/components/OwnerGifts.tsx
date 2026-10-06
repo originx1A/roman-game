@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { BugReports } from './BugReports'
 import { allBuddiesPack, cleanGiftNote, GIFT_NOTE_MAX, GIFT_TAG, giftLabel, giftShareMessage, makeLocalGiftCode, PETS, type Gift, type GiftItem, type PetId } from '../game/pets'
 import { PetArt } from './PetArt'
 
@@ -394,6 +395,9 @@ export function OwnerGifts() {
             </>
           ) : null}
         </div>
+      ) : null}
+      {status === 'ready' && unlocked ? (
+        <BugReports ownerKey={key} />
       ) : null}
       {err ? <p className="owner-warn">{err}</p> : null}
       <p className="owner-foot">Each code works once. Players redeem in The Stable (or open the link), and see it as “{GIFT_TAG}”.</p>
