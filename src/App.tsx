@@ -2331,7 +2331,7 @@ export default function App() {
       persistPets(j.state)
       sfxCoin()
       showToast(`🎉 JACKPOT! 999 treats defended! ${j.saved} auto-saved + ${j.bonus} bonus treats!`)
-      pushBanter('jackpot')
+      pushBanter('prize')
       return true
     }
     persistPets(after)
