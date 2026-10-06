@@ -1,0 +1,192 @@
+import { useEffect, useRef } from 'react'
+import { sfxSpark } from '../game/sound'
+import {
+  CRITTER_TICK_CAP_MS,
+  loadCritterClock,
+  saveCritterClock,
+  tickCritterClock,
+} from '../game/critterClock'
+
+function safeStore(): Storage | null {
+  try {
+    return window.localStorage
+  } catch {
+    return null
+  }
+}
+
+export const CRITTER_STASH_GOAL = 5
+
+export type CritterReward =
+  | { type: 'coins'; amount: number }
+  | { type: 'heart' }
+  | { type: 'hint' }
+
+interface Props {
+  active: boolean
+  /** Informational only — parent owns stash math */
+  stashCount: number
+  onCatch: (reward: CritterReward) => void
+}
+
+/**
+ * Spark critter — smooth CSS transform via DOM.
+ * One tap = one catch reward. Parent decides stash / spin (never auto-spin here).
+ */
+export function SparkCritter({ active, onCatch }: Props) {
+  const elRef = useRef<HTMLButtonElement>(null)
+  const caughtRef = useRef(false)
+  const rafRef = useRef(0)
+  const spawnTimer = useRef(0)
+  const pathRef = useRef<{
+    t0: number
+    dur: number
+    fromY: number
+    amp: number
+    dir: 1 | -1
+  } | null>(null)
+  const busyRef = useRef(false)
+  const trailRef = useRef<HTMLSpanElement>(null)
+  // 10.06: previous positions for the motion trail (ring buffer)
+  const trailPos = useRef<{ x: number; y: number }[]>([])
+
+  useEffect(() => {
+    const el = elRef.current
+    if (!el) return
+
+    if (!active) {
+      el.style.opacity = '0'
+      el.style.pointerEvents = 'none'
+      el.setAttribute('aria-hidden', 'true')
+      window.clearTimeout(spawnTimer.current)
+      cancelAnimationFrame(rafRef.current)
+      return
+    }
+
+    let cancelled = false
+
+    const hide = () => {
+      el.style.opacity = '0'
+      el.style.pointerEvents = 'none'
+      el.setAttribute('aria-hidden', 'true')
+      trailPos.current = []
+      if (trailRef.current) trailRef.current.innerHTML = ''
+    }
+
+    const show = () => {
+      el.style.opacity = '1'
+      el.style.pointerEvents = 'auto'
+      el.removeAttribute('aria-hidden')
+    }
+
+    const startRun = () => {
+      caughtRef.current = false
+      busyRef.current = false
+      const dir: 1 | -1 = Math.random() < 0.5 ? 1 : -1
+      pathRef.current = {
+        t0: performance.now(),
+        dur: 5200 + Math.random() * 1800,
+        fromY: 22 + Math.random() * 50,
+        amp: 6 + Math.random() * 10,
+        dir,
+      }
+      show()
+      cancelAnimationFrame(rafRef.current)
+
+      const tick = (now: number) => {
+        if (cancelled || caughtRef.current) return
+        const p = pathRef.current
+        if (!p) return
+        const u = (now - p.t0) / p.dur
+        if (u >= 1) {
+          hide()
+          return
+        }
+        // 10.06: smooth eased flight — easeInOut on X for natural acceleration,
+        // single dominant sine + gentle secondary on Y (was double-sine, looked jerky)
+        const ue = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2
+        const x = p.dir === 1 ? -14 + ue * 128 : 114 - ue * 128
+        const y =
+          p.fromY +
+          Math.sin(u * Math.PI * 2) * p.amp +
+          Math.sin(u * Math.PI * 4 + 1.3) * (p.amp * 0.18)
+        const rot = Math.sin(u * Math.PI * 2.5) * 10
+        el.style.transform = `translate3d(${x}vw, ${y}vh, 0) translate(-50%, -50%) rotate(${rot}deg)`
+      trailPos.current = []
+      if (trailRef.current) trailRef.current.innerHTML = ''
+        rafRef.current = requestAnimationFrame(tick)
+      }
+      rafRef.current = requestAnimationFrame(tick)
+    }
+
+    hide()
+    // 9.30-j: visits follow total play time across boards (saved), not a per-board timer
+    let clock = loadCritterClock(safeStore())
+    let boardMs = 0
+    let last = performance.now()
+    const clockTimer = window.setInterval(() => {
+      const now = performance.now()
+      const dt = now - last
+      last = now
+      if (cancelled || document.hidden) return
+      boardMs += Math.min(dt, CRITTER_TICK_CAP_MS)
+      // a visit already on screen: keep counting but don't stack another
+      const onScreen = pathRef.current != null && !caughtRef.current && el.style.opacity === '1'
+      const r = tickCritterClock(clock, dt, onScreen ? 0 : boardMs)
+      clock = r.clock
+      saveCritterClock(safeStore(), clock)
+      if (r.spawn) startRun()
+    }, 1000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(clockTimer)
+      window.clearTimeout(spawnTimer.current)
+      cancelAnimationFrame(rafRef.current)
+    }
+  }, [active])
+
+  function catchIt() {
+    if (caughtRef.current || busyRef.current) return
+    const el = elRef.current
+    if (!el || el.style.opacity === '0') return
+    caughtRef.current = true
+    busyRef.current = true
+    el.style.opacity = '0'
+    el.style.pointerEvents = 'none'
+    cancelAnimationFrame(rafRef.current)
+    sfxSpark()
+    // Small random perk only — parent handles 5-catch bonus / spin credit
+    const roll = Math.random()
+    if (roll < 0.35) onCatch({ type: 'heart' })
+    else if (roll < 0.55) onCatch({ type: 'hint' })
+    else onCatch({ type: 'coins', amount: 10 + Math.floor(Math.random() * 16) })
+  }
+
+  return (
+    <button
+      ref={elRef}
+      type="button"
+      className="spark-critter"
+      style={{
+        left: 0,
+        top: 0,
+        opacity: 0,
+        pointerEvents: 'none',
+        transform: 'translate3d(-20vw, 40vh, 0) translate(-50%, -50%)',
+        willChange: 'transform',
+      }}
+      onClick={catchIt}
+      aria-label="Catch the spark critter"
+      aria-hidden
+    >
+      <span ref={trailRef} className="critter-trail" aria-hidden="true" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: -1 }} />
+      <span className="critter-body">
+        <span className="critter-eye l" />
+        <span className="critter-eye r" />
+        <span className="critter-tail" />
+      </span>
+      <span className="critter-glow" />
+    </button>
+  )
+}

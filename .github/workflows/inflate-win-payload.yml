@@ -1,0 +1,10 @@
+name: Inflate win payloads
+on:
+  # Manual only — push triggers were spamming failure emails
+  workflow_dispatch:
+jobs:
+  inflate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Disabled
+        run: echo "Auto inflate disabled. Sources live in src/. No-op."

@@ -1,0 +1,43 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# `netlify dev` serves dist plus these functions. Run `npm run build` first.
+# Plain `npm run dev` has no functions; the shop then says purchases are unavailable.
+
+# Owner page and API answers are never indexed (no listing of the owner path in robots.txt or the sitemap)
+[[headers]]
+  for = "/roman-owner"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow, noarchive"
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+[[headers]]
+  for = "/llms.txt"
+  [headers.values]
+    Content-Type = "text/plain; charset=utf-8"
+    Cache-Control = "public, max-age=3600"
+
+# Payment API before the single-page fallback. Static hosts ignore this file.
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+  force = true
+
+# 200 rewrite, not a 3xx. Share links are /?s=2 and /?s=2#challenge=… (hash stays in the browser).
+# A redirect back to the bare root would send crawlers to the URL X already cached with no card.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Keep UI clean — no Netlify chrome over the game
+[build.processing]
+  skip_processing = false

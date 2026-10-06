@@ -1,0 +1,308 @@
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { Buddy, MarkX, TileMark } from './Board'
+import { regionColorMap } from '../game/themes'
+
+const SIZE = 5
+
+/** Small classic-style regions so the demo uses the real palette. */
+const REGIONS = [
+  0, 0, 0, 1, 1,
+  0, 0, 1, 1, 2,
+  3, 3, 1, 2, 2,
+  3, 4, 4, 2, 2,
+  3, 4, 4, 4, 2,
+]
+
+export type HowDemoId =
+  | 'region' | 'lines' | 'touch' | 'swipe' | 'hearts' | 'critter' | 'hunt'
+  | 'stars' | 'combo' | 'undo' | 'trial' | 'daily' | 'pace' | 'remix'
+
+const PANEL_DEMOS = new Set<HowDemoId>(['stars', 'trial', 'daily', 'remix'])
+const COMBO_MARKS = [10, 11, 12, 13, 14]
+const UNDO_CELL = 12
+const PACE_BUDDIES = [1, 8, 10, 17]
+
+const REGION_CELLS = new Set([0, 1, 2, 5, 6])
+const REGION_BUDDY = 1
+const LINE_ROW = new Set([5, 6, 7, 8, 9])
+const LINE_COL = new Set([3, 8, 13, 18, 23])
+const ROW_BUDDY = 5
+const COL_BUDDY = 23
+const TOUCH_BUDDY = 12
+const TOUCH_NEAR = new Set([6, 7, 8, 11, 13, 16, 17, 18])
+const TOUCH_X = 6
+const SWIPE_MARKS = [10, 11, 13]
+const SWIPE_BUDDY = 12
+const WRONG_TAPS = [0, 9, 21]
+const HINT_CELL = 16
+/** Buddy Hunt demo: 4×4 face-down tiles; taps flip in this order (buddy, miss, buddy, buddy). */
+const HUNT_TAPS: { tile: number; buddy: boolean }[] = [
+  { tile: 5, buddy: true },
+  { tile: 2, buddy: false },
+  { tile: 11, buddy: true },
+  { tile: 12, buddy: true },
+]
+
+function usePrefersReducedMotion() {
+  const [reduce, setReduce] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const onChange = () => setReduce(mq.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return reduce
+}
+
+function edgeClass(i: number): string {
+  const row = Math.floor(i / SIZE)
+  const col = i % SIZE
+  const reg = REGIONS[i]
+  const parts: string[] = []
+  if (row === 0 || REGIONS[i - SIZE] !== reg) parts.push('edge-t')
+  if (row === SIZE - 1 || REGIONS[i + SIZE] !== reg) parts.push('edge-b')
+  if (col === 0 || REGIONS[i - 1] !== reg) parts.push('edge-l')
+  if (col === SIZE - 1 || REGIONS[i + 1] !== reg) parts.push('edge-r')
+  return parts.join(' ')
+}
+
+export function HowDemo({ demo }: { demo: HowDemoId }) {
+  const reduce = usePrefersReducedMotion()
+  const colors = useMemo(() => regionColorMap('classic', REGIONS, SIZE), [])
+
+  return (
+    <div
+      className={`how-demo${reduce ? '' : ' is-animated'}`}
+      data-demo={demo}
+      aria-hidden
+    >
+      <div className="how-demo-hearts">
+        {WRONG_TAPS.map((cell, i) => (
+          <span key={cell} className="heart" style={{ '--at': `${0.4 + i * 0.55}s` } as CSSProperties} />
+        ))}
+      </div>
+      {PANEL_DEMOS.has(demo) ? (
+        <DemoPanel demo={demo} />
+      ) : demo === 'hunt' ? (
+        <div className="how-demo-hunt">
+          {Array.from({ length: 16 }, (_, i) => {
+            const tap = HUNT_TAPS.findIndex((t) => t.tile === i)
+            const hit = tap >= 0 ? HUNT_TAPS[tap] : null
+            return (
+              <div
+                key={i}
+                className={`how-hunt-tile ${hit ? (hit.buddy ? 'is-buddy' : 'is-empty') : ''}`}
+                style={hit ? ({ '--at': `${0.5 + tap * 0.7}s` } as CSSProperties) : undefined}
+              >
+                {hit?.buddy && <Buddy themeId="classic" />}
+                <span className="how-hunt-back">?</span>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+      <div className="how-demo-grid">
+        {REGIONS.map((region, i) => {
+          const color = colors.get(region) ?? { hue: 200, sat: 70, lit: 55, shape: 'dot' as const, ink: 'light' as const }
+          const buddy =
+            (demo === 'region' && i === REGION_BUDDY) ||
+            (demo === 'lines' && (i === ROW_BUDDY || i === COL_BUDDY)) ||
+            (demo === 'touch' && i === TOUCH_BUDDY) ||
+            (demo === 'swipe' && i === SWIPE_BUDDY) ||
+            (demo === 'pace' && PACE_BUDDIES.includes(i))
+          const mark = (demo === 'touch' && i === TOUCH_X) || (demo === 'combo' && COMBO_MARKS.includes(i)) || (demo === 'undo' && i === UNDO_CELL)
+          const swipeMark = demo === 'swipe' && SWIPE_MARKS.includes(i)
+          const swipeSwap = demo === 'swipe' && i === SWIPE_BUDDY
+          const classes = [
+            'cell',
+            edgeClass(i),
+            REGION_CELLS.has(i) ? 'demo-region' : '',
+            LINE_ROW.has(i) ? 'demo-row' : '',
+            LINE_COL.has(i) ? 'demo-col' : '',
+            TOUCH_NEAR.has(i) ? 'demo-near' : '',
+            WRONG_TAPS.includes(i) ? 'demo-wrong' : '',
+            i === HINT_CELL ? 'demo-hint' : '',
+            swipeMark ? 'demo-swipe-mark' : '',
+            swipeSwap ? 'demo-swap' : '',
+            demo === 'combo' && COMBO_MARKS.includes(i) ? 'demo-pop-mark' : '',
+            demo === 'undo' && i === UNDO_CELL ? 'demo-undo-mark' : '',
+            demo === 'pace' && PACE_BUDDIES.includes(i) ? 'demo-pace-buddy' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')
+          const at =
+            demo === 'lines' && LINE_ROW.has(i)
+              ? `${(i - 5) * 0.12}s`
+              : demo === 'lines' && LINE_COL.has(i)
+                ? `${1.15 + [3, 8, 13, 18, 23].indexOf(i) * 0.12}s`
+                : demo === 'swipe' && swipeMark
+                  ? `${[0.22, 0.62, 1.14][[10, 11, 13].indexOf(i)]}s`
+                  : demo === 'hearts' && WRONG_TAPS.includes(i)
+                    ? `${0.4 + WRONG_TAPS.indexOf(i) * 0.55}s`
+                    : demo === 'combo' && COMBO_MARKS.includes(i)
+                      ? `${0.3 + COMBO_MARKS.indexOf(i) * 0.45}s`
+                      : demo === 'pace' && PACE_BUDDIES.includes(i)
+                        ? `${0.4 + PACE_BUDDIES.indexOf(i) * 0.9}s`
+                        : undefined
+          return (
+            <div
+              key={i}
+              className={classes}
+              style={
+                {
+                  '--hue': color.hue,
+                  '--sat': `${color.sat}%`,
+                  '--lit': `${color.lit}%`,
+                  '--at': at,
+                } as CSSProperties
+              }
+            >
+              <span className="cell-fill" />
+              <TileMark shape={color.shape} ink={color.ink} />
+              {(mark || swipeMark || swipeSwap) && <MarkX />}
+              {buddy && (
+                <Buddy
+                  themeId="classic"
+                  className={
+                    demo === 'lines' && i === COL_BUDDY
+                      ? 'demo-in demo-in-late'
+                      : 'demo-in'
+                  }
+                />
+              )}
+            </div>
+          )
+        })}
+        {demo === 'swipe' && <span className="how-demo-finger" />}
+        {demo === 'combo' && (
+          <span className="how-demo-combo">
+            <b className="c1">+4</b>
+            <b className="c2">+4</b>
+            <b className="c3">+6 ×1.5</b>
+            <b className="c4">+6 ×1.5</b>
+            <b className="c5">+8 ×2</b>
+          </span>
+        )}
+        {demo === 'undo' && (
+          <>
+            <span className="how-demo-undo-btn">↶ Undo</span>
+            <span className="how-demo-float">−25 pts</span>
+          </>
+        )}
+        {demo === 'pace' && (
+          <>
+            <span className="how-demo-pace">
+              <b className="ahead">0:21 −2.1s</b>
+              <b className="behind">0:34 +1.4s</b>
+            </span>
+            <span className="how-demo-ghost">
+              <i className="ghost" />
+              <i className="you" />
+            </span>
+          </>
+        )}
+        {demo === 'critter' && (
+          <span className="how-demo-critter">
+            <span className="how-demo-tap" />
+            <span className="critter-body">
+              <span className="critter-eye l" />
+              <span className="critter-eye r" />
+              <span className="critter-tail" />
+            </span>
+            <span className="critter-glow" />
+          </span>
+        )}
+      </div>
+      )}
+    </div>
+  )
+}
+
+/** Card-style demos for the replay features (no board needed). */
+function DemoPanel({ demo }: { demo: HowDemoId }) {
+  if (demo === 'stars') {
+    return (
+      <div className="how-panel-demo demo-stars">
+        {[
+          ['Finish the board', 1],
+          ['Beat the target time', 2],
+          ['Target time + high score + no undo', 3],
+        ].map(([label, n]) => (
+          <div key={n} className={`demo-star-row r${n}`}>
+            <span className="demo-star-icons">
+              {[1, 2, 3].map((i) => (
+                <i key={i} className={i <= (n as number) ? 'on' : ''}>★</i>
+              ))}
+            </span>
+            <span className="demo-star-label">{label}</span>
+          </div>
+        ))}
+      </div>
+    )
+  }
+  if (demo === 'trial') {
+    return (
+      <div className="how-panel-demo demo-trial">
+        <span className="demo-trial-title">⚔ Roman&apos;s Trial</span>
+        <span className="demo-trial-clock">
+          ⏳
+          <span className="demo-stack">
+            <b className="k1">0:48</b>
+            <b className="k2">0:12</b>
+            <b className="k3 hot">0:03</b>
+          </span>
+        </span>
+        <span className="demo-trial-hearts">
+          <span className="heart on" />
+          <span className="heart on" />
+        </span>
+        <span className="demo-trial-rules">No undo · 2 hearts · 2× coins</span>
+      </div>
+    )
+  }
+  if (demo === 'remix') {
+    return (
+      <div className="how-panel-demo demo-daily demo-remix">
+        <span className="demo-daily-title">Remix boards</span>
+        <span className="demo-remix-sizes">
+          {['5×5', '6×6', '7×7', '8×8'].map((sz) => (
+            <i key={sz}>{sz}</i>
+          ))}
+        </span>
+        <span className="demo-daily-streak">
+          New boards in{' '}
+          <span className="demo-stack">
+            <b className="k1">3d</b>
+            <b className="k2">2d</b>
+            <b className="k3">1d</b>
+          </span>
+        </span>
+        <span className="demo-daily-rules">Same boards for everyone · + Endless mode</span>
+      </div>
+    )
+  }
+  return (
+    <div className="how-panel-demo demo-daily">
+      <span className="demo-daily-cal">
+        <span className="demo-stack">
+          <b className="k1">MON</b>
+          <b className="k2">TUE</b>
+          <b className="k3">WED</b>
+        </span>
+      </span>
+      <span className="demo-daily-title">Daily Challenge</span>
+      <span className="demo-daily-streak">
+        🔥{' '}
+        <span className="demo-stack">
+          <b className="k1">1</b>
+          <b className="k2">2</b>
+          <b className="k3">3</b>
+        </span>
+        -day streak
+      </span>
+      <span className="demo-daily-rules">Same board for everyone today · first try counts</span>
+    </div>
+  )
+}

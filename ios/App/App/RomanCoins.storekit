@@ -1,0 +1,129 @@
+{
+  "identifier" : "RomanCoins",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "0.99",
+      "familyShareable" : false,
+      "internalID" : "E1A0C100",
+      "localizations" : [
+        {
+          "description" : "100 coins for hints, rescues, revives, and badge ranks.",
+          "displayName" : "Coin Pouch",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "roman.coins.100",
+      "referenceName" : "Coin Pouch",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "4.99",
+      "familyShareable" : false,
+      "internalID" : "E1A0C500",
+      "localizations" : [
+        {
+          "description" : "500 coins for hints, rescues, revives, and badge ranks.",
+          "displayName" : "Coin Bag",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "roman.coins.500",
+      "referenceName" : "Coin Bag",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "9.99",
+      "familyShareable" : false,
+      "internalID" : "E1A0C1200",
+      "localizations" : [
+        {
+          "description" : "1200 coins for hints, rescues, revives, and badge ranks.",
+          "displayName" : "Coin Chest",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "roman.coins.1200",
+      "referenceName" : "Coin Chest",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "19.99",
+      "familyShareable" : false,
+      "internalID" : "E1A0C3000",
+      "localizations" : [
+        {
+          "description" : "3000 coins for hints, rescues, revives, and badge ranks.",
+          "displayName" : "Coin Vault",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "roman.coins.3000",
+      "referenceName" : "Coin Vault",
+      "type" : "Consumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "com.originx1a.romangame",
+    "_developerTeamID" : "",
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Load Products"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Purchase"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Verification"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Store Sync"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Subscription Status"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Transaction"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Manage Subscriptions Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Refund Request Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Offer Code Redeem Sheet"
+      }
+    ]
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

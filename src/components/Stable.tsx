@@ -1,0 +1,439 @@
+import { useEffect, useRef, useState } from 'react'
+import {
+  BUNDLES,
+  bundleQuote,
+  type BundleId,
+  couponFor,
+  GIFT_TAG,
+  giftLabel,
+  type Gift,
+  careInfo,
+  CARE_XP,
+  hasPet,
+  levelInfo,
+  milestonesReached,
+  moodKind,
+  nextMilestone,
+  SNACK_COIN_RATE,
+  TREATS,
+  type TreatId,
+  weaponFor,
+  onSale,
+  perkFor,
+  petXp,
+  PETS,
+  priceWith,
+  TIER_LABEL,
+  type Coupon,
+  type PetId,
+  type PetState,
+} from '../game/pets'
+import { PetArt } from './PetArt'
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const md = (s: string) => `${MONTHS[Number(s.slice(0, 2)) - 1]} ${Number(s.slice(3))}`
+
+function leftLabel(ms: number): string {
+  const h = Math.max(0, ms) / 3_600_000
+  if (h >= 48) return `${Math.floor(h / 24)}d left`
+  if (h >= 1) return `${Math.floor(h)}h left`
+  return `${Math.max(1, Math.round(h * 60))}m left`
+}
+
+const COUPON_FROM: Record<Coupon['source'], string> = {
+  streak: '7-day streak',
+  'trial-clear': 'Trial clear',
+  'trial-end': 'Trial ended',
+  gift: GIFT_TAG,
+}
+
+export type StableProps = {
+  pets: PetState
+  coins: number
+  now: number
+  onBuy: (id: PetId) => void
+  /** 10.06: claim the one free welcome buddy */
+  onClaimFree: (id: PetId) => void
+  /** 9.30-b coin bundles */
+  onBuyBundle: (id: BundleId) => void
+  /** 9.30-m: the free daily pet, and feeding a treat */
+  onCare: (id: PetId) => void
+  onFeed: (id: PetId, treat: TreatId) => void
+  /** 10.06: swap the safe snack stash for coins */
+  onSwapTreats: () => void
+  /** Toronto date, for the once-a-day care */
+  today: string
+  onEquip: (id: PetId | null) => void
+  /** Look up a gift code without using it (the preview card) */
+  onPeek: (code: string) => Promise<{ ok: boolean; message: string; gift?: Gift; note?: string; code?: string }>
+  /** Claim it (uses the code) */
+  onRedeem: (code: string) => Promise<{ ok: boolean; message: string }>
+  onShop: () => void
+  onBack: () => void
+  /** Redeem link (?gift=CODE) prefill */
+  giftCode?: string
+  /** Owner gift codes need the website's functions */
+  giftsOnline: boolean
+}
+
+export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCare, onFeed, onSwapTreats, today, onEquip, onPeek, onRedeem, onShop, onBack, giftCode, giftsOnline }: StableProps) {
+  const [code, setCode] = useState(giftCode ?? '')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const active = pets.active && hasPet(pets, pets.active, now) ? pets.active : null
+  /** 10.06: new player hasn't claimed their free buddy yet */
+  const freePickMode = Object.keys(pets.owned).length === 0 && !pets.freePickUsed
+
+  const [preview, setPreview] = useState<{ code: string; gift: Gift; note: string } | null>(null)
+  const autoPeeked = useRef(false)
+
+  /** Step 1: show what the gift is (doesn't use the code) */
+  const check = async (raw = code) => {
+    if (!raw.trim() || busy) return
+    setBusy(true)
+    setMsg(null)
+    setPreview(null)
+    try {
+      const r = await onPeek(raw)
+      if (r.ok && r.gift) setPreview({ code: r.code ?? raw, gift: r.gift, note: r.note ?? '' })
+      else setMsg({ ok: false, text: r.message })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /** Step 2: claim it */
+  const claim = async () => {
+    if (!preview || busy) return
+    setBusy(true)
+    try {
+      const r = await onRedeem(preview.code)
+      setMsg({ ok: r.ok, text: r.message })
+      if (r.ok) setCode('')
+      setPreview(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // A redeem link (?gift=CODE) shows its preview right away
+  useEffect(() => {
+    if (giftCode && giftsOnline && !autoPeeked.current) {
+      autoPeeked.current = true
+      void check(giftCode)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [giftCode, giftsOnline])
+
+  return (
+    <main className="panel scroll-pane stable" data-screen="stable">
+      <div className="stable-head">
+        <button type="button" className="hud-back" onClick={onBack} aria-label="Back">
+          ←
+        </button>
+        <div>
+          <h2>The Stable</h2>
+          <p className="stable-sub">Roman's buddies. Keep them forever, ride with one.</p>
+        </div>
+        <span className="stable-coins" aria-label={`${coins} coins`}>
+          🪙 {coins}
+        </span>
+      </div>
+
+      <div className="stable-now">
+        <span>
+          {active ? (
+            <>
+              Riding with <strong>{PETS.find((p) => p.id === active)?.name}</strong>
+            </>
+          ) : (
+            <>
+              <strong>Solo</strong>: no buddy on your runs
+            </>
+          )}
+        </span>
+        <button type="button" className={`btn tool stable-solo ${active ? '' : 'on'}`} onClick={() => onEquip(null)} disabled={!active}>
+          {active ? 'Go Solo' : 'Solo ✓'}
+        </button>
+        <button type="button" className="btn tool" onClick={onShop}>
+          Shop
+        </button>
+      </div>
+
+      {/* 10.06: treat defense — safe stash (never stealable) + swap snacks for coins */}
+      <div className="stable-stash" aria-label="Treat stash">
+        <span>
+          🍖 Stash: <strong>{pets.treats.snack}</strong> snacks · <strong>{pets.treats.feast}</strong> feasts
+          <small>safe from wild buddies · field pile: {pets.fieldTreats ?? 0}</small>
+        </span>
+        <button type="button" className="btn tool" onClick={onSwapTreats} disabled={(pets.treats.snack ?? 0) <= 0}>
+          Swap snacks → coins <small>1 🍖 = {SNACK_COIN_RATE} 🪙</small>
+        </button>
+      </div>
+
+      {pets.trial && pets.trial.until > now ? (
+        <p className="stable-trial">
+          🎁 Free trial: <strong>{PETS.find((p) => p.id === pets.trial!.id)?.name}</strong> · {leftLabel(pets.trial.until - now)}. When it ends you get a coupon for it.
+        </p>
+      ) : null}
+
+      {Object.keys(pets.owned).length === 0 && !pets.freePickUsed ? (
+        <div className="stable-freepick" role="region" aria-label="Pick your free buddy">
+          <p className="stable-freepick-title">🎉 Pick your buddy — FREE!</p>
+          <p className="stable-freepick-sub">Choose one buddy to join you forever. Each has a special perk.</p>
+        </div>
+      ) : null}
+
+      <div className="stable-grid">
+        {PETS.map((p) => {
+          const owned = pets.owned[p.id]
+          const trial = !owned && pets.trial?.id === p.id && pets.trial.until > now
+          const have = !!owned || trial
+          const lv = levelInfo(petXp(pets, p.id))
+          const weapon = have ? weaponFor(lv.level) : null
+          const perk = perkFor(p.id, have ? lv.level : 1, have ? lv.stars : 0)
+          const care = owned ? careInfo(pets, p.id, now, today) : null
+          const sale = onSale(p, now)
+          const coupon = !owned && sale ? couponFor(pets, p.id, now) : null
+          const cost = priceWith(p.price, coupon)
+          const isActive = active === p.id
+          return (
+            <article
+              key={p.id}
+              className={`stable-card tier-${p.tier} ${have ? 'is-owned' : 'is-locked'} ${isActive ? 'is-active' : ''}`}
+              data-pet={p.id}
+              data-owned={owned ? 'yes' : trial ? 'trial' : 'no'}
+            >
+              <div className="stable-card-top">
+                <span className={`stable-tier tier-${p.tier}`}>{p.limited ? `Limited · ${p.limited.label}` : TIER_LABEL[p.tier]}</span>
+                {owned?.gift ? <span className="stable-gift">🎁 {GIFT_TAG}</span> : null}
+                {trial ? <span className="stable-gift is-trial">Trial · {leftLabel(pets.trial!.until - now)}</span> : null}
+              </div>
+              <div className="stable-art">
+                <PetArt id={p.id} size={92} locked={!have} level={lv.level} stars={lv.stars} title={have ? p.name : `${p.name} (locked)`} />
+                {coupon ? (
+                  <span className="stable-coupon" data-coupon={coupon.pct} title={`${COUPON_FROM[coupon.source]} coupon`}>
+                    {coupon.pct}% off
+                    <small>{leftLabel(coupon.expires - now)}</small>
+                  </span>
+                ) : null}
+              </div>
+              <h3>
+                {p.name} <small>the {p.species}</small>
+              </h3>
+              <p className="stable-perk">{perk.label}</p>
+              {have ? (
+                <>
+                  <div className="stable-level" aria-label={`Level ${lv.level}`} data-testid="pet-level">
+                    <span>Lv {lv.level}</span>
+                    <span className="stable-bar">
+                      <i style={{ width: lv.max ? (lv.starNeedXp ? `${Math.round((lv.starInto / lv.starNeedXp) * 100)}%` : '100%') : `${Math.round((lv.into / lv.need) * 100)}%` }} />
+                    </span>
+                    <small>{lv.max ? (lv.starNeedXp ? `★ ${lv.starInto}/${lv.starNeedXp}` : 'All stars!') : `${lv.into}/${lv.need}`}</small>
+                  </div>
+                  {lv.stars > 0 ? <p className="stable-stars" aria-label={`${lv.stars} prestige stars`}>{'★'.repeat(lv.stars)}</p> : null}
+                  {milestonesReached(lv.level).length ? (
+                    <div className="stable-badges">
+                      {milestonesReached(lv.level).filter((m) => m.badge).map((m) => (
+                        <span key={m.level} className="stable-badge" title={m.text}>{m.badge}</span>
+                      ))}
+                    </div>
+                  ) : null}
+                  {weapon ? (
+                    <p className="stable-weapon" title={`${weapon.name} — earned at level ${weapon.level}. Purely cosmetic.`}>
+                      {weapon.icon} {weapon.name}
+                    </p>
+                  ) : null}
+                  {perk.next ? <p className="stable-next">{perk.next}</p> : <p className="stable-next">{p.blurb}</p>}
+                  {nextMilestone(lv.level) ? (
+                    <p className="stable-next" data-testid="next-milestone">Lv {nextMilestone(lv.level)!.level}: {nextMilestone(lv.level)!.text}</p>
+                  ) : lv.stars < 5 ? (
+                    <p className="stable-next">Prestige: earn ★ stars with care and wins</p>
+                  ) : null}
+                  {care ? (
+                    <div className="stable-care" data-testid="care">
+                      <div className={`stable-mood is-${care.kind}`} title="A happy buddy adds a few coins to each win. A hungry one still gives its normal perk.">
+                        <span>{care.kind === 'happy' ? '😊 Happy' : care.kind === 'okay' ? '🙂 Okay' : '🥺 Hungry'}</span>
+                        <span className="stable-bar"><i style={{ width: `${care.mood}%` }} /></span>
+                      </div>
+                      <div className="care-row">
+                        <button type="button" className="btn tool care-btn" data-testid="care-pet" onClick={() => onCare(p.id)} disabled={!care.canPet}>
+                          {care.canPet ? `Pet · free +${CARE_XP} XP` : 'Petted today ✓'}
+                        </button>
+                        {TREATS.map((t) => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            className="btn tool care-btn"
+                            data-testid={`feed-${t.id}`}
+                            onClick={() => onFeed(p.id, t.id)}
+                            disabled={care.feedsLeft <= 0 || care.maxed || (pets.treats[t.id] <= 0 && coins < t.cost)}
+                          >
+                            {t.name} <small>{pets.treats[t.id] > 0 ? `free ×${pets.treats[t.id]}` : `${t.cost} 🪙`} · +{t.xp} XP</small>
+                          </button>
+                        ))}
+                      </div>
+                      <small className="stable-treats">{care.maxed ? 'Fully grown!' : `${care.feedsLeft} of 3 treats left today${moodKind(care.mood) === 'happy' ? ' · happy: +coins on wins' : ''}`}</small>
+                    </div>
+                  ) : null}
+                  <button type="button" className={`btn ${isActive ? 'ghost' : 'primary'} stable-btn`} onClick={() => onEquip(p.id)} disabled={isActive}>
+                    {isActive ? 'Riding ✓' : 'Ride with'}
+                  </button>
+                  {trial ? (
+                    <button type="button" className="btn tool stable-keep" onClick={() => onBuy(p.id)} disabled={coins < cost}>
+                      Keep for {cost} 🪙
+                    </button>
+                  ) : null}
+                </>
+              ) : sale ? (
+                <>
+                  <p className="stable-next">{p.blurb}</p>
+                  {freePickMode ? (
+                    <>
+                      <p className="stable-price is-free">
+                        <strong>FREE</strong> 🎉 <small>your first buddy</small>
+                      </p>
+                      <button type="button" className="btn primary stable-btn stable-free-btn" onClick={() => onClaimFree(p.id)}>
+                        Pick {p.name}!
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="stable-price">
+                        {coupon ? <s>{p.price}</s> : null} <strong>{cost}</strong> 🪙
+                      </p>
+                      <button type="button" className="btn primary stable-btn" onClick={() => onBuy(p.id)} disabled={coins < cost}>
+                        {coins >= cost ? 'Adopt' : `Need ${cost - coins} more`}
+                      </button>
+                    </>
+                  )}
+                </>
+              ) : freePickMode ? (
+                <>
+                  <p className="stable-next">{p.blurb}</p>
+                  <p className="stable-price is-free">
+                    <strong>FREE</strong> 🎉 <small>your first buddy</small>
+                  </p>
+                  <button type="button" className="btn primary stable-btn stable-free-btn" onClick={() => onClaimFree(p.id)}>
+                    Pick {p.name}!
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="stable-next">{p.blurb}</p>
+                  <p className="stable-price is-off">
+                    {p.limited ? `Only ${md(p.limited.from)} – ${md(p.limited.to)}` : 'Not for sale'}
+                  </p>
+                </>
+              )}
+            </article>
+          )
+        })}
+      </div>
+
+      {BUNDLES.map((b) => bundleQuote(pets, b.id, now)).some((q) => q.available) ? (
+        <section className="stable-bundles" aria-label="Bundles">
+          <h3>Bundles</h3>
+          {BUNDLES.map((b) => {
+            const q = bundleQuote(pets, b.id, now)
+            if (!q.available) return null
+            const partial = q.missing.length < b.pets.length
+            return (
+              <article key={b.id} className="stable-bundle" data-bundle={b.id} data-price={q.price}>
+                <span className="stable-bundle-art" aria-hidden="true">
+                  {q.missing.map((id) => (
+                    <PetArt key={id} id={id} size={44} locked />
+                  ))}
+                </span>
+                <div className="stable-bundle-text">
+                  <strong>
+                    {b.name} <span className="stable-bundle-off">{b.pct}% off</span>
+                  </strong>
+                  <small>
+                    {q.missing.map((id) => PETS.find((p) => p.id === id)!.name).join(' + ')}
+                    {partial ? ' (the ones you still need)' : ''}
+                  </small>
+                  <span className="stable-price">
+                    <s>{q.full}</s> <strong>{q.price}</strong> 🪙 · save {q.save}
+                  </span>
+                </div>
+                <button type="button" className="btn primary stable-btn" onClick={() => onBuyBundle(b.id)} disabled={coins < q.price}>
+                  {coins >= q.price ? 'Adopt all' : `Need ${q.price - coins} more`}
+                </button>
+              </article>
+            )
+          })}
+          <p className="stable-note">Bundle prices don't stack with coupons.</p>
+        </section>
+      ) : null}
+
+      <section className="stable-redeem" aria-label="Gift code">
+        <h3>Got a gift code?</h3>
+        {giftsOnline ? (
+          <div className="stable-redeem-row">
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              placeholder="ROMA-7K2P"
+              maxLength={12}
+              aria-label="Gift code"
+              autoCapitalize="characters"
+              spellCheck={false}
+            />
+            <button type="button" className="btn primary" onClick={() => void check()} disabled={busy || !code.trim()}>
+              {busy && !preview ? '…' : 'Redeem'}
+            </button>
+          </div>
+        ) : (
+          <p className="stable-note">Gift codes work on the website version.</p>
+        )}
+        {preview ? (
+          <div className="gift-preview" data-gift-preview={preview.gift.kind} role="dialog" aria-label={`${GIFT_TAG}: ${giftLabel(preview.gift)}`}>
+            <span className={`gift-preview-art ${preview.gift.kind === 'pack' ? 'is-pack' : ''}`} aria-hidden="true">
+              {(preview.gift.kind === 'pack' ? preview.gift.items : [preview.gift]).slice(0, 6).map((it, i) =>
+                it.kind === 'pet' ? (
+                  <PetArt key={i} id={it.pet} size={preview.gift.kind === 'pack' ? 40 : 72} />
+                ) : (
+                  <span key={i} className="gift-preview-icon">
+                    {it.kind === 'coins' ? '🪙' : '🏷️'}
+                  </span>
+                ),
+              )}
+            </span>
+            <div className="gift-preview-text">
+              <small>🎁 {GIFT_TAG}</small>
+              {preview.gift.kind === 'pack' ? (
+                <>
+                  <strong>{preview.gift.pack === 'all' ? 'All buddies pack' : 'Gift pack'}</strong>
+                  <ul className="gift-preview-items">
+                    {preview.gift.items.map((it, i) => (
+                      <li key={i}>{giftLabel(it)}</li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <strong>{giftLabel(preview.gift)}</strong>
+              )}
+              {preview.note ? <em>“{preview.note}”</em> : null}
+              <span className="gift-preview-code">Code {preview.code} · works once</span>
+            </div>
+            <div className="gift-preview-actions">
+              <button type="button" className="btn primary" onClick={() => void claim()} disabled={busy}>
+                {busy ? '…' : 'Claim'}
+              </button>
+              <button type="button" className="btn tool" onClick={() => setPreview(null)} disabled={busy}>
+                Not now
+              </button>
+            </div>
+          </div>
+        ) : null}
+        {msg ? <p className={`stable-msg ${msg.ok ? 'is-ok' : 'is-bad'}`}>{msg.text}</p> : null}
+      </section>
+
+      <p className="stable-note">
+        Coins only, no random boxes. Win boards to earn coins, or grab more in the <button type="button" className="linkish" onClick={onShop}>Shop</button>. Coupons:
+        20% off for a 7-day daily streak, 30% off for a Roman's Trial clear (one per adoption).
+      </p>
+    </main>
+  )
+}
