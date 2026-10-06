@@ -3916,6 +3916,7 @@ export default function App() {
       <TreatDefense
         active={screen === 'play' && !celebrate && !defeated && !showWheel && !rotatePaused}
         defenders={(Object.keys(pets.owned) as PetId[]).slice(0, 3)}
+        allOwned={Object.keys(pets.owned) as PetId[]}
         levels={Object.fromEntries((Object.keys(pets.owned) as PetId[]).map((id) => [id, levelInfo(petXp(pets, id)).level]))}
         fieldTreats={pets.fieldTreats ?? 0}
         mode="play"

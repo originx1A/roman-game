@@ -27,6 +27,8 @@ interface Props extends DefenseHandlers {
   active: boolean
   /** owned pet ids — up to 3 are shown as defenders */
   defenders: PetId[]
+  /** all owned pet ids — for attacker pool (mystery attacker when they own them all) */
+  allOwned: PetId[]
   /** pet id → level, for the cosmetic weapon badges */
   levels: Partial<Record<PetId, number>>
   /** current field pile (lets the run skip stealing when the pile is empty) */
@@ -58,7 +60,7 @@ const pileY = () => (isWideScreen() ? PILE_DESKTOP.y : PILE.y)
 
 type Phase = 'idle' | 'approach' | 'resolve' | 'flee'
 
-export function TreatDefense({ active, defenders, levels, fieldTreats, mode, onApproach, onCaught, onScared, onStolen }: Props) {
+export function TreatDefense({ active, defenders, allOwned, levels, fieldTreats, mode, onApproach, onCaught, onScared, onStolen }: Props) {
   const layerRef = useRef<HTMLDivElement>(null)
   const pileRef = useRef<HTMLDivElement>(null)
   const invaderRef = useRef<HTMLButtonElement>(null)
@@ -68,8 +70,8 @@ export function TreatDefense({ active, defenders, levels, fieldTreats, mode, onA
   const shown = defenders.slice(0, 3)
 
   // latest props for the rAF loop
-  const live = useRef({ defenders, levels, fieldTreats, onApproach, onCaught, onScared, onStolen })
-  live.current = { defenders, levels, fieldTreats, onApproach, onCaught, onScared, onStolen }
+  const live = useRef({ defenders, allOwned, levels, fieldTreats, onApproach, onCaught, onScared, onStolen })
+  live.current = { defenders, allOwned, levels, fieldTreats, onApproach, onCaught, onScared, onStolen }
 
   const sim = useRef<{
     phase: Phase
@@ -166,7 +168,7 @@ export function TreatDefense({ active, defenders, levels, fieldTreats, mode, onA
       const L = live.current
       // pick a wild pet the player doesn't own; if they own them all,
       // use a mystery silhouette attacker instead of a duplicate
-      const owned = new Set(L.defenders)
+      const owned = new Set(L.allOwned)
       const pool = PETS.map((p) => p.id).filter((id) => !owned.has(id))
       if (pool.length) {
         setWildId(pool[Math.floor(Math.random() * pool.length)])
