@@ -643,9 +643,9 @@ export function feedPet(s: PetState, coins: number, id: PetId, treat: TreatId, n
   }
 }
 
-/** Free treats from play (Daily, Buddy Hunt, streaks). The stock is capped so it can't pile up forever. */
+/** Free treats from play (Daily, Buddy Hunt, streaks). No cap — the safe stash is unlimited. */
 export function grantTreat(s: PetState, treat: TreatId, n = 1): PetState {
-  return { ...s, treats: { ...s.treats, [treat]: Math.min(MAX_TREAT_STOCK, (s.treats[treat] ?? 0) + Math.max(0, n)) } }
+  return { ...s, treats: { ...s.treats, [treat]: (s.treats[treat] ?? 0) + Math.max(0, n) } }
 }
 
 // ---------- field treats: the vulnerable pile (10.06 treat defense) ----------
@@ -653,7 +653,7 @@ export function grantTreat(s: PetState, treat: TreatId, n = 1): PetState {
  * Field treats are earned by catching wild pets and sit in the outdoor pile, where wild
  * pets can steal them. Claimed or bought treats (the safe snack/feast stash) are never at risk.
  */
-export const MAX_FIELD_TREATS = 100
+export const MAX_FIELD_TREATS = 999
 /** 1 safe-stash snack swaps for this many coins */
 export const SNACK_COIN_RATE = 15
 
@@ -667,12 +667,38 @@ export function earnFieldTreats(s: PetState, n: number): PetState {
 /** Claim the field pile into the safe snack stash (1 field treat = 1 snack, capped at MAX_TREAT_STOCK). Whatever doesn't fit stays in the pile. */
 export function claimFieldTreats(s: PetState): { state: PetState; claimed: number } {
   const pile = Math.max(0, Math.floor(s.fieldTreats ?? 0))
-  const room = Math.max(0, MAX_TREAT_STOCK - (s.treats.snack ?? 0))
-  const claimed = Math.min(pile, room)
-  if (!claimed) return { state: s, claimed: 0 }
+  if (!pile) return { state: s, claimed: 0 }
   return {
-    state: { ...s, fieldTreats: pile - claimed, treats: { ...s.treats, snack: s.treats.snack + claimed } },
-    claimed,
+    state: { ...s, fieldTreats: 0, treats: { ...s.treats, snack: (s.treats.snack ?? 0) + pile } },
+    claimed: pile,
+  }
+}
+
+/** Tier-based steal amount: bigger pile = bigger target. Returns [min, max] for the roll. */
+export function stealTier(pile: number): [number, number] {
+  if (pile >= 751) return [25, 50]
+  if (pile >= 501) return [20, 35]
+  if (pile >= 251) return [15, 25]
+  if (pile >= 101) return [8, 15]
+  return [2, 8]
+}
+
+/** Roll a steal amount based on the current pile size. */
+export function rollStealAmount(pile: number): number {
+  const [lo, hi] = stealTier(Math.max(0, Math.floor(pile)))
+  return lo + Math.floor(Math.random() * (hi - lo + 1))
+}
+
+/** 999 jackpot: pile hits max → auto-save everything to the stash + bonus. */
+export const JACKPOT_BONUS = 100
+export function jackpotFieldTreats(s: PetState): { state: PetState; saved: number; bonus: number } {
+  const pile = Math.max(0, Math.floor(s.fieldTreats ?? 0))
+  const saved = pile
+  const bonus = JACKPOT_BONUS
+  return {
+    state: { ...s, fieldTreats: 0, treats: { ...s.treats, snack: (s.treats.snack ?? 0) + saved + bonus } },
+    saved,
+    bonus,
   }
 }
 

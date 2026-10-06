@@ -71,6 +71,9 @@ import {
   claimFreePet,
   earnFieldTreats,
   claimFieldTreats,
+  jackpotFieldTreats,
+  JACKPOT_BONUS,
+  MAX_FIELD_TREATS,
   swapTreatsToCoins,
   stealFieldTreats,} from './game/pets'
 import {
@@ -1669,12 +1672,8 @@ export default function App() {
       setRunning(false)
       setCelebrate(true)
       sfxWin()
-      // 10.06: every win earns 5 field treats for the pile (capped at 100)
-      const before = pets.fieldTreats ?? 0
-      persistPets(earnFieldTreats(pets, 5))
-      if (before >= 100) {
-        showToast('🍖 Field pile is FULL — tap it to claim your treats!')
-      }
+      // 10.06: every win earns 5 field treats for the pile (999 = jackpot)
+      earnWithJackpot(5)
       const perfect = hintsUsed === 0
       // Buddy meter: a perfect win (no hints, rescue, wrong buddies or lost hearts) fills a notch
       const flawless = isPerfectWin({ hintsUsed, flawed: flawedRef.current, livesLost: runMaxLives - lives })
@@ -2314,15 +2313,29 @@ export default function App() {
     showToast('👀 A wild buddy is eyeing your treat pile!')
   }
   function handleDefenseCaught(earned: number) {
-    persistPets(earnFieldTreats(pets, earned))
+    if (earnWithJackpot(earned)) return
     petGiggle()
     const line = pushBanter('win-heckle')
     if (!line.text) showToast(`🛡️ Your buddies chased it off! +${earned} field treats`)
   }
   function handleDefenseScared(earned: number) {
-    persistPets(earnFieldTreats(pets, earned))
+    if (earnWithJackpot(earned)) return
     const line = pushBanter('win-heckle')
     if (!line.text) showToast(`💨 You scared it off! +${earned} field treats`)
+  }
+  /** Earn field treats, checking for the 999 jackpot after. Returns true if jackpot hit. */
+  function earnWithJackpot(n: number): boolean {
+    const after = earnFieldTreats(pets, n)
+    if ((after.fieldTreats ?? 0) >= MAX_FIELD_TREATS) {
+      const j = jackpotFieldTreats(after)
+      persistPets(j.state)
+      sfxCoin()
+      showToast(`🎉 JACKPOT! 999 treats defended! ${j.saved} auto-saved + ${j.bonus} bonus treats!`)
+      pushBanter('jackpot')
+      return true
+    }
+    persistPets(after)
+    return false
   }
   function handleDefenseStolen(stolen: number) {
     const r = stealFieldTreats(pets, stolen)
@@ -2331,16 +2344,11 @@ export default function App() {
     const line = pushBanter('hunt-miss')
     if (!line.text) showToast(`🦝 A wild buddy stole ${r.stolen} treats from the pile!`)
   }
-  /** Claim the field pile into the safe snack stash (untouchable from then on). */
+  /** Claim the field pile into the safe snack stash (untouchable from then on). No cap. */
   function handleClaimTreats() {
     const r = claimFieldTreats(pets)
     if (r.claimed <= 0) {
-      const pile = Math.max(0, Math.floor(pets.fieldTreats ?? 0))
-      if (pile > 0) {
-        showToast('Safe stash is full! Swap snacks for coins to make room, then claim again.')
-      } else {
-        showToast('The field pile is empty — your buddies will catch treats from wild pets.')
-      }
+      showToast('The field pile is empty — your buddies will catch treats from wild pets.')
       return
     }
     persistPets(r.state)
@@ -3029,8 +3037,8 @@ export default function App() {
               </span>
               <button
                 type="button"
-                className={`hud-treats${(pets.fieldTreats ?? 0) >= 100 ? ' is-full' : ''}`}
-                title={(pets.fieldTreats ?? 0) >= 100 ? 'Field pile is FULL — tap to claim them safe' : 'Field treats — tap to claim them safe'}
+                className={`hud-treats${(pets.fieldTreats ?? 0) >= 900 ? ' is-full' : ''}`}
+                title={(pets.fieldTreats ?? 0) >= 900 ? 'Field pile almost FULL — 999 triggers the jackpot!' : 'Field treats — tap to claim them safe'}
                 onClick={handleClaimTreats}
               >
                 🍖{pets.fieldTreats ?? 0}

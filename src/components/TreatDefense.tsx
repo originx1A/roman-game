@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { PETS, weaponFor, type PetId } from '../game/pets'
+import { PETS, weaponFor, rollStealAmount, type PetId } from '../game/pets'
 import { PetArt } from './PetArt'
 
 /**
@@ -8,7 +8,7 @@ import { PetArt } from './PetArt'
  * shown) guard the pile and auto-chase the invader.
  *
  * - Defender catches invader → +3-5 field treats (petGiggle + old-timer banter in App)
- * - Invader reaches the pile → steals 5-10 field treats (only what's there), then flees
+ * - Invader reaches the pile → steals tier-based amount (bigger pile = bigger steal), then flees
  * - Player taps the invader → scares it off for +1-2 field treats
  * - Safe stash (snacks/feasts) and coins are NEVER at risk — only the field pile
  *
@@ -179,7 +179,7 @@ export function TreatDefense({ active, defenders, levels, fieldTreats, mode, onA
       // reduced motion: resolve instantly, no animation
       if (reduced()) {
         if (L.defenders.length > 0) L.onCaught(3 + Math.floor(Math.random() * 3))
-        else if (L.fieldTreats > 0) L.onStolen(5 + Math.floor(Math.random() * 6))
+        else if (L.fieldTreats > 0) L.onStolen(rollStealAmount(L.fieldTreats))
         return
       }
 
@@ -261,9 +261,9 @@ export function TreatDefense({ active, defenders, levels, fieldTreats, mode, onA
             }
           }, 650)
         } else if (dist(s.inv.x, s.inv.y, pileX(), pileY()) < STEAL_DIST) {
-          // reached the pile
+          // reached the pile — steal scales with pile size (bigger pile = bigger target)
           s.phase = 'resolve'
-          if (L.fieldTreats > 0) L.onStolen(5 + Math.floor(Math.random() * 6))
+          if (L.fieldTreats > 0) L.onStolen(rollStealAmount(L.fieldTreats))
           window.setTimeout(() => {
             if (!cancelled && sim.current.phase === 'resolve') {
               sim.current.phase = 'flee'
