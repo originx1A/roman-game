@@ -6355,3 +6355,44 @@ html[data-motion='reduce'] .td-invader {
   gap: 0.5rem;
   margin-top: 0.5rem;
 }
+
+/* === Cinematic reskin backgrounds (2026-10-07) === */
+.shell-home {
+  background-image: url('/images/cinematic/final/bg-menu.webp');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+.shell-levels {
+  background-image: url('/images/cinematic/final/bg-levels.webp');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+.shell-challenge {
+  background-image: url('/images/cinematic/final/bg-throne.webp');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+.shell-play {
+  background-image: url('/images/cinematic/final/bg-levels.webp');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+/* Cinematic buddy image on board */
+.buddy-img {
+  width: 85%;
+  height: 85%;
+  object-fit: contain;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6));
+}
+/* Cinematic pet portraits */
+.pet-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
