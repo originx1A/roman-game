@@ -6358,25 +6358,25 @@ html[data-motion='reduce'] .td-invader {
 
 /* === Cinematic reskin backgrounds (2026-10-07) === */
 .shell-home {
-  background-image: url('/images/cinematic/final/bg-menu.webp');
+  background-image: url('/images/cinematic/bg-menu.webp');
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
 }
 .shell-levels {
-  background-image: url('/images/cinematic/final/bg-levels.webp');
+  background-image: url('/images/cinematic/bg-levels.webp');
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
 }
 .shell-challenge {
-  background-image: url('/images/cinematic/final/bg-throne.webp');
+  background-image: url('/images/cinematic/bg-throne.webp');
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
 }
 .shell-play {
-  background-image: url('/images/cinematic/final/bg-levels.webp');
+  background-image: url('/images/cinematic/bg-levels.webp');
   background-size: cover;
   background-position: center;
   background-attachment: fixed;

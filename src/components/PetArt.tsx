@@ -184,11 +184,11 @@ function Hat({ id, hat }: { id: PetId; hat: 'laurel' | 'helmet' | 'crown' }) {
 
 /* Cinematic reskin (2026-10-07): portrait images per pet id */
 const PET_IMG: Record<PetId, string> = {
-  lupa: '/images/cinematic/final/pet-lupa.webp',
-  aquila: '/images/cinematic/final/pet-aquila.webp',
-  leo: '/images/cinematic/final/pet-leo.webp',
-  invictus: '/images/cinematic/final/pet-invictus.webp',
-  nox: '/images/cinematic/final/pet-nox.webp',
+  lupa: '/images/cinematic/pet-lupa.webp',
+  aquila: '/images/cinematic/pet-aquila.webp',
+  leo: '/images/cinematic/pet-leo.webp',
+  invictus: '/images/cinematic/pet-invictus.webp',
+  nox: '/images/cinematic/pet-nox.webp',
 }
 
 export function PetArt({

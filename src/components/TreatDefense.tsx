@@ -29,7 +29,7 @@ function MysteryAttacker({ wildId }: { wildId: PetId }) {
   if (imgOk) {
     return (
       <img
-        src="/images/cinematic/final/treat-thief-panther.webp"
+        src="/images/cinematic/treat-thief-panther.webp"
         alt="Mystery attacker"
         draggable={false}
         style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: '50%' }}
