@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react'
+import { useEffect, useState, type ReactElement } from 'react'
 import { cosmeticsFor, type PetId } from '../game/pets'
 
 /*
@@ -182,6 +182,15 @@ function Hat({ id, hat }: { id: PetId; hat: 'laurel' | 'helmet' | 'crown' }) {
   )
 }
 
+/* Cinematic reskin (2026-10-07): portrait images per pet id */
+const PET_IMG: Record<PetId, string> = {
+  lupa: '/images/cinematic/final/pet-lupa.webp',
+  aquila: '/images/cinematic/final/pet-aquila.webp',
+  leo: '/images/cinematic/final/pet-leo.webp',
+  invictus: '/images/cinematic/final/pet-invictus.webp',
+  nox: '/images/cinematic/final/pet-nox.webp',
+}
+
 export function PetArt({
   id,
   size = 96,
@@ -203,6 +212,30 @@ export function PetArt({
 }) {
   const Draw = ART[id]
   const cos = locked ? cosmeticsFor(1, 0) : cosmeticsFor(level, stars)
+  const [imgOk, setImgOk] = useState(true)
+  useEffect(() => { setImgOk(true) }, [id])
+  const imgSrc = PET_IMG[id]
+  // Cinematic portrait; falls back to the SVG drawing if the image is missing
+  if (imgOk && imgSrc) {
+    return (
+      <span
+        className={`pet-art pet-${id} ${locked ? 'is-locked' : ''} ${className}`}
+        style={{ width: size, height: size, display: 'inline-block', overflow: 'hidden', borderRadius: '50%' }}
+        role="img"
+        aria-label={title ?? (locked ? 'Locked buddy' : `${id} buddy`)}
+        data-pet={id}
+      >
+        <img
+          className="pet-img"
+          src={imgSrc}
+          alt=""
+          draggable={false}
+          style={locked ? { filter: 'brightness(0) opacity(0.7)' } : undefined}
+          onError={() => setImgOk(false)}
+        />
+      </span>
+    )
+  }
   return (
     <svg
       className={`pet-art pet-${id} ${locked ? 'is-locked' : ''} ${cos.idle ? 'has-sway' : ''} ${className}`}

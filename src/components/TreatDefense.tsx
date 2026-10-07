@@ -23,6 +23,23 @@ export interface DefenseHandlers {
   onStolen: (stolen: number) => void
 }
 
+/* Cinematic reskin (2026-10-07): panther as the mystery treat thief, PetArt fallback */
+function MysteryAttacker({ wildId }: { wildId: PetId }) {
+  const [imgOk, setImgOk] = useState(true)
+  if (imgOk) {
+    return (
+      <img
+        src="/images/cinematic/final/treat-thief-panther.webp"
+        alt="Mystery attacker"
+        draggable={false}
+        style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: '50%' }}
+        onError={() => setImgOk(false)}
+      />
+    )
+  }
+  return <PetArt id={wildId} size={48} />
+}
+
 interface Props extends DefenseHandlers {
   active: boolean
   /** owned pet ids — up to 3 are shown as defenders */
@@ -379,7 +396,11 @@ export function TreatDefense({ active, defenders, allOwned, levels, fieldTreats,
         aria-hidden="true"
       >
         <span className={wildMystery ? 'td-invader-mystery' : undefined} title={wildMystery ? 'Mystery attacker!' : undefined}>
-          <PetArt id={wildId} size={48} />
+          {wildMystery ? (
+            <MysteryAttacker wildId={wildId} />
+          ) : (
+            <PetArt id={wildId} size={48} />
+          )}
         </span>
       </button>
     </div>

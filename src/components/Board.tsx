@@ -10,6 +10,17 @@ import {
 } from 'react'
 import type { CellState, Puzzle, ThemeId } from '../game/types'
 import { regionColorMap, type TileShape } from '../game/themes'
+
+/* Cinematic reskin (2026-10-07): map region hue to buddy color variant */
+const BUDDY_BASE = '/images/cinematic/final'
+function buddyForHue(hue: number): string {
+  const h = ((hue % 360) + 360) % 360
+  if (h < 20 || h >= 340) return `${BUDDY_BASE}/buddy-red.webp`
+  if (h < 65) return `${BUDDY_BASE}/buddy-gold.webp`
+  if (h < 160) return `${BUDDY_BASE}/buddy-green.webp`
+  if (h < 265) return `${BUDDY_BASE}/buddy-blue.webp`
+  return `${BUDDY_BASE}/buddy-purple.webp`
+}
 import {
   colOf,
   conflictKindAt,
@@ -57,13 +68,41 @@ export function Buddy({
   giggle,
   themeId,
   className = '',
+  buddySrc,
 }: {
   angry?: boolean
   win?: boolean
   giggle?: boolean
   themeId: ThemeId
   className?: string
+  /** Cinematic reskin: image src for the buddy; falls back to CSS buddy if missing */
+  buddySrc?: string
 }) {
+  const [imgOk, setImgOk] = useState(true)
+  useEffect(() => { setImgOk(true) }, [buddySrc])
+  if (buddySrc && imgOk) {
+    return (
+      <span
+        className={`buddy buddy-${themeId} ${angry ? 'angry' : ''} ${win ? 'win' : ''} ${giggle ? 'giggle' : ''} ${className}`.trim()}
+        aria-hidden
+      >
+        <img
+          className="buddy-img"
+          src={buddySrc}
+          alt=""
+          draggable={false}
+          onError={() => setImgOk(false)}
+        />
+        {giggle && (
+          <>
+            <span className="giggle-burst a">♥</span>
+            <span className="giggle-burst b">✧</span>
+            <span className="giggle-burst c">♪</span>
+          </>
+        )}
+      </span>
+    )
+  }
   return (
     <span
       className={`buddy buddy-${themeId} ${angry ? 'angry' : ''} ${win ? 'win' : ''} ${giggle ? 'giggle' : ''} ${className}`.trim()}
@@ -482,6 +521,7 @@ export function Board({
                 win={celebrate}
                 giggle={giggleIndex === i}
                 themeId={themeId}
+                buddySrc={buddyForHue(style.hue)}
               />
             )}
           </div>
