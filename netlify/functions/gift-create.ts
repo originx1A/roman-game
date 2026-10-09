@@ -1,22 +1,14 @@
 import { getStore } from '@netlify/blobs'
 import { json, siteBase } from '../lib/http.ts'
+import { ownerGate } from '../lib/ownerGate.ts'
 import { cleanGiftNote, giftShareMessage } from '../../src/game/pets.ts'
-import { createGift, GIFT_STORE, OWNER_KEY_ENV, ownerKeyConfigured, ownerKeyMatches, parseGift } from '../lib/gifts.ts'
+import { createGift, GIFT_STORE, parseGift } from '../lib/gifts.ts'
 
 /** Owner only: POST {key, gift, note?} → {code, link}. */
 export default async function giftCreate(req: Request): Promise<Response> {
-  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
-  if (!ownerKeyConfigured()) return json({ error: `Gifting isn't set up: add ${OWNER_KEY_ENV} in Netlify.`, configured: false }, 503)
-  let body: { key?: unknown; gift?: unknown; note?: unknown }
-  try {
-    body = (await req.json()) as typeof body
-  } catch {
-    return json({ error: 'Bad request' }, 400)
-  }
-  if (!ownerKeyMatches(body.key)) {
-    await new Promise((r) => setTimeout(r, 600))
-    return json({ error: 'Wrong owner passphrase.' }, 401)
-  }
+  const gate = await ownerGate(req)
+  if (gate.res) return gate.res
+  const body = gate.body as { key?: unknown; gift?: unknown; note?: unknown }
   const gift = parseGift(body.gift)
   if (!gift) return json({ error: 'That gift isn’t valid.' }, 400)
   try {

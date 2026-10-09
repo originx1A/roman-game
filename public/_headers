@@ -1,0 +1,8 @@
+/roman-owner
+  X-Robots-Tag: noindex, nofollow, noarchive
+  Cache-Control: no-store
+/owner.html
+  X-Robots-Tag: noindex, nofollow, noarchive
+  Cache-Control: no-store
+/api/*
+  X-Robots-Tag: noindex, nofollow

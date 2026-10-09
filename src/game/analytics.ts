@@ -41,7 +41,7 @@ export function openEvents(state: AnonState, today: string): { events: ('app_ope
 
 export interface PingBody {
   id: string
-  ev: 'app_open' | 'level_clear' | 'return_visit' | 'feedback'
+  ev: 'app_open' | 'level_clear' | 'return_visit' | 'feedback' | 'session_end' | 'level_abandon' | 'share' | 'story_end'
   size?: number
   ms?: number
   vote?: 'up' | 'down'

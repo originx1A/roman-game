@@ -5,7 +5,9 @@
  * location, or anything typed except the optional feedback note.
  */
 export const ANALYTICS_STORE = 'roman-analytics'
-export const EVENTS = ['app_open', 'level_clear', 'return_visit', 'feedback'] as const
+export const EVENTS = ['app_open', 'level_clear', 'return_visit', 'feedback', 'session_end', 'level_abandon', 'share', 'story_end'] as const
+/** 10.09: longest session we believe (anything longer is a tab left open) */
+export const SESSION_MAX_MS = 12 * 3_600_000
 export type AnalyticsEvent = (typeof EVENTS)[number]
 export const NOTE_MAX = 200
 export const ID_RE = /^[a-f0-9]{32}$/
@@ -62,6 +64,15 @@ export function buildEvent(body: unknown, geo: Geo | undefined, now: Date = new 
     const ms = Number(b.ms)
     if (Number.isInteger(size) && size >= 3 && size <= 12) out.size = size
     if (Number.isFinite(ms) && ms >= 0 && ms <= 3_600_000) out.ms = Math.round(ms)
+  }
+  if (ev === 'session_end') {
+    const ms = Number(b.ms)
+    if (!Number.isFinite(ms) || ms < 1000) return null
+    out.ms = Math.round(Math.min(ms, SESSION_MAX_MS))
+  }
+  if (ev === 'level_abandon') {
+    const size = Number(b.size)
+    if (Number.isInteger(size) && size >= 3 && size <= 12) out.size = size
   }
   if (ev === 'feedback') {
     if (b.vote !== 'up' && b.vote !== 'down') return null
@@ -132,7 +143,44 @@ export interface Stats {
   notes: OwnerNote[]
   /** owner-archived feedback, newest first */
   archivedNotes: OwnerNote[]
+  /** 10.09 who played and for how long (anonymous ids only) */
+  shares: number
+  storyEnds: number
+  sessionsCounted: number
+  avgSessionSec: number
+  totalPlaySec: number
+  abandonsBySize: { size: number; count: number }[]
+  /** per Toronto day, newest first */
+  daily: DayTotal[]
+  /** per anonymous player (short id), most recently seen first, at most 100 */
+  players: PlayerRow[]
+  /** last sessions, newest first, at most 50 */
+  recentSessions: { player: string; t: string; sec: number; place: string }[]
 }
+
+export interface DayTotal {
+  day: string
+  players: number
+  opens: number
+  sessions: number
+  playSec: number
+  levels: number
+}
+
+export interface PlayerRow {
+  /** first 8 hex of the random device id: enough to tell players apart, not who they are */
+  player: string
+  firstSeen: string
+  lastSeen: string
+  days: number
+  opens: number
+  sessions: number
+  playSec: number
+  levels: number
+  place: string
+}
+
+export const shortId = (id: string) => id.slice(0, 8)
 
 const placeOf = (e: StoredEvent) => [e.city, e.region, e.country].filter(Boolean).join(', ') || 'Unknown'
 
@@ -149,9 +197,47 @@ export function aggregate(events: StoredEvent[], days = 30): Stats {
   let down = 0
   const notes: OwnerNote[] = []
   const archivedNotes: OwnerNote[] = []
+  let shares = 0
+  let storyEnds = 0
+  let sessions = 0
+  let sessionMs = 0
+  const abandons = new Map<number, number>()
+  const dayMap = new Map<string, { players: Set<string>; opens: number; sessions: number; ms: number; levels: number }>()
+  const per = new Map<string, Omit<PlayerRow, 'player' | 'days' | 'playSec'> & { ms: number; daySet: Set<string> }>()
+  const recent: { player: string; t: string; sec: number; place: string }[] = []
   for (const e of events) {
     players.add(e.id)
     const place = placeOf(e)
+    const dayKey = torontoDay(e.t)
+    const d = dayMap.get(dayKey) ?? { players: new Set<string>(), opens: 0, sessions: 0, ms: 0, levels: 0 }
+    dayMap.set(dayKey, d)
+    d.players.add(e.id)
+    const p = per.get(e.id) ?? { firstSeen: e.t, lastSeen: e.t, opens: 0, sessions: 0, ms: 0, levels: 0, place, daySet: new Set<string>() }
+    per.set(e.id, p)
+    if (e.t < p.firstSeen) p.firstSeen = e.t
+    if (e.t >= p.lastSeen) {
+      p.lastSeen = e.t
+      if (place !== 'Unknown') p.place = place
+    }
+    p.daySet.add(dayKey)
+    if (e.ev === 'app_open') {
+      d.opens++
+      p.opens++
+    } else if (e.ev === 'level_clear') {
+      d.levels++
+      p.levels++
+    } else if (e.ev === 'session_end' && typeof e.ms === 'number') {
+      const ms = Math.min(e.ms, SESSION_MAX_MS)
+      sessions++
+      sessionMs += ms
+      d.sessions++
+      d.ms += ms
+      p.sessions++
+      p.ms += ms
+      recent.push({ player: shortId(e.id), t: e.t, sec: Math.round(ms / 1000), place })
+    } else if (e.ev === 'level_abandon' && e.size) abandons.set(e.size, (abandons.get(e.size) ?? 0) + 1)
+    else if (e.ev === 'share') shares++
+    else if (e.ev === 'story_end') storyEnds++
     if (!regionPlayers.has(place)) regionPlayers.set(place, new Set())
     regionPlayers.get(place)!.add(e.id)
     if (e.ev === 'app_open') {
@@ -191,6 +277,20 @@ export function aggregate(events: StoredEvent[], days = 30): Stats {
     thumbsDown: down,
     notes: notes.slice(0, 20),
     archivedNotes: archivedNotes.slice(0, 50),
+    shares,
+    storyEnds,
+    sessionsCounted: sessions,
+    avgSessionSec: sessions ? Math.round(sessionMs / sessions / 1000) : 0,
+    totalPlaySec: Math.round(sessionMs / 1000),
+    abandonsBySize: [...abandons.entries()].sort((a, b) => a[0] - b[0]).map(([size, count]) => ({ size, count })),
+    daily: [...dayMap.entries()]
+      .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+      .map(([day, x]) => ({ day, players: x.players.size, opens: x.opens, sessions: x.sessions, playSec: Math.round(x.ms / 1000), levels: x.levels })),
+    players: [...per.entries()]
+      .map(([id, x]) => ({ player: shortId(id), firstSeen: x.firstSeen, lastSeen: x.lastSeen, days: x.daySet.size, opens: x.opens, sessions: x.sessions, playSec: Math.round(x.ms / 1000), levels: x.levels, place: x.place }))
+      .sort((a, b) => (a.lastSeen < b.lastSeen ? 1 : -1))
+      .slice(0, 100),
+    recentSessions: recent.sort((a, b) => (a.t < b.t ? 1 : -1)).slice(0, 50),
   }
 }
 
