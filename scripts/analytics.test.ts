@@ -92,7 +92,7 @@ test('source: no browser geolocation anywhere; ping is a silent POST; owner stat
   const app = read('../src/App.tsx')
   const client = read('../src/game/analytics.ts')
   for (const src of [app, client, read('../src/components/OwnerGifts.tsx')]) assert.doesNotMatch(src, /navigator\.geolocation|getCurrentPosition/)
-  assert.match(read('../netlify/functions/analytics-stats.ts'), /ownerKeyMatches\(body\.key\)/)
+  assert.match(read('../netlify/functions/analytics-stats.ts'), /await ownerGate\(req\)/) // 10.09: password or login token, checked on the server
   assert.doesNotMatch(read('../netlify/functions/ping.ts'), /x-nf-client-connection-ip|req\.headers|context\.ip/)
   assert.match(app, /data-testid="privacy-note"/)
   assert.match(app, /data-testid="analytics-toggle"/)

@@ -6400,3 +6400,12 @@ html[data-motion='reduce'] .td-invader {
   object-fit: cover;
   border-radius: 50%;
 }
+
+/* 10.09 admin lock: session bar + stats tables */
+.owner-session { align-items: center; margin: 0 0 0.8rem; font-weight: 800; }
+.owner-session span { flex: 1; min-width: 10rem; color: var(--mint); }
+.owner-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.owner-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.owner-table th, .owner-table td { padding: 6px 8px; text-align: left; border-bottom: 1px solid rgba(244,251,255,0.1); white-space: nowrap; }
+.owner-table th { color: var(--sun); font-weight: 800; }
+.owner-table code { color: var(--mint); }

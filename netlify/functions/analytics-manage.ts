@@ -1,6 +1,6 @@
 import { getStore } from '@netlify/blobs'
 import { json } from '../lib/http.ts'
-import { OWNER_KEY_ENV, ownerKeyConfigured, ownerKeyMatches } from '../lib/gifts.ts'
+import { ownerGate } from '../lib/ownerGate.ts'
 import { ANALYTICS_STORE, dayKeyUtc, type StoredEvent } from '../lib/analytics.ts'
 
 /**
@@ -16,18 +16,9 @@ const KEY_RE = /^e\/\d{4}-\d{2}-\d{2}\/.+$/
 const MAX_IDS = 500
 
 export default async function analyticsManage(req: Request): Promise<Response> {
-  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
-  if (!ownerKeyConfigured()) return json({ error: `Add ${OWNER_KEY_ENV} in Netlify first.` }, 503)
-  let body: { key?: unknown; action?: unknown; ids?: unknown }
-  try {
-    body = (await req.json()) as typeof body
-  } catch {
-    return json({ error: 'Bad request' }, 400)
-  }
-  if (!ownerKeyMatches(body.key)) {
-    await new Promise((r) => setTimeout(r, 600))
-    return json({ error: 'Wrong owner passphrase.' }, 401)
-  }
+  const gate = await ownerGate(req)
+  if (gate.res) return gate.res
+  const body = gate.body as { key?: unknown; action?: unknown; ids?: unknown }
   const action = body.action
   if (!['delete', 'deleteAll', 'archive', 'unarchive'].includes(action as string)) {
     return json({ error: 'Bad request.' }, 400)

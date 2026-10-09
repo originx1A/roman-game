@@ -88,7 +88,7 @@ test('9.30-u: an empty store gives clean zeros (the page says "No purchases yet"
 
 test('9.30-u: owner-purchases needs the owner key, is read only, and confirm-checkout writes the record without Stripe changes', () => {
   const fn = rd('../netlify/functions/owner-purchases.ts')
-  assert.match(fn, /ownerKeyMatches\(body\.key\)/)
+  assert.match(fn, /await ownerGate\(req\)/) // 10.09: password or login token, checked on the server
   assert.doesNotMatch(fn, /stripeClient|readStripeKey|STRIPE_SECRET/)
   const cc = rd('../netlify/functions/confirm-checkout.ts')
   assert.match(cc, /buildPurchaseRecord\(session, pack\)/)

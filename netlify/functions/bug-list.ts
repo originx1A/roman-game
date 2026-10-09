@@ -1,21 +1,12 @@
 import { getStore } from '@netlify/blobs'
 import { json } from '../lib/http.ts'
-import { ownerKeyMatches } from '../lib/gifts.ts'
+import { ownerGate } from '../lib/ownerGate.ts'
 import { BUG_STORE, type BugReport } from './bug-submit.ts'
 
 /** Owner only: POST {key} → {reports: BugReport[]}. Newest first. */
 export default async function bugList(req: Request): Promise<Response> {
-  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
-  let body: { key?: unknown }
-  try {
-    body = (await req.json()) as typeof body
-  } catch {
-    return json({ error: 'Bad request' }, 400)
-  }
-  if (!ownerKeyMatches(body.key)) {
-    await new Promise((r) => setTimeout(r, 600))
-    return json({ error: 'Wrong owner passphrase.' }, 401)
-  }
+  const gate = await ownerGate(req)
+  if (gate.res) return gate.res
   try {
     const store = getStore({ name: BUG_STORE, consistency: 'strong' })
     const { blobs } = await store.list()
