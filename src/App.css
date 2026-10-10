@@ -6775,3 +6775,19 @@ html[data-motion='reduce'] .td-invader {
   width: 100%;
   height: auto;
 }
+
+/* 9.31-n: compact home for desktop/laptop screens (1280x800, 1366x768, 1440x900) so the home screen
+   fits without a right-side scrollbar. Only spacing and title size change; nothing is hidden or clipped.
+   Phones and tablets (< 900px wide) and tall screens (> 1000px) are untouched. */
+@media (min-width: 900px) and (max-height: 1000px) {
+  .fixed-shell .home { padding-top: 0.25rem; padding-bottom: 0.75rem; }
+  .fixed-shell .home .hero { padding: 0.75rem 0 0.5rem; }
+  .fixed-shell .home .eyebrow { margin-bottom: 0.35rem; }
+  .fixed-shell .home .logo-hero { font-size: clamp(3.6rem, 9vh, 5.6rem); }
+  .fixed-shell .home .lede { margin: 0.6rem 0 0.85rem; font-size: 1rem; line-height: 1.45; }
+  .fixed-shell .home .treat-pile-widget { margin-top: 0.4rem; padding: 0.35rem 0.8rem; }
+  .fixed-shell .home .home-pet-row { margin: 0.35rem auto 0.4rem; }
+  .fixed-shell .home .daily-card { margin: 0.4rem 0 0.5rem; padding: 0.55rem 0.9rem; }
+  .fixed-shell .home .home-strip { margin-top: 0.6rem; margin-bottom: 0.25rem; padding: 0.35rem 0.15rem; }
+  .fixed-shell .home .home-strip div { padding: 0.35rem 0.75rem; }
+}
