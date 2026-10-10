@@ -1113,6 +1113,10 @@ html[data-motion='reduce'] *::after {
   min-height: 0;
 }
 
+/* 9.31-n: no right-side scrollbar on the PC home screen (Cooper's fix, 10.10) */
+.fixed-shell .hero { min-height: 0; }
+.fixed-shell .home { padding-bottom: 1.25rem; }
+
 .fixed-shell > .foot {
   flex-shrink: 0;
   position: relative;

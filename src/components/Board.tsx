@@ -12,7 +12,7 @@ import type { CellState, Puzzle, ThemeId } from '../game/types'
 import { regionColorMap, type TileShape } from '../game/themes'
 
 /* Cinematic reskin (2026-10-07): map region hue to buddy color variant */
-const BUDDY_BASE = '/images/cinematic/final'
+const BUDDY_BASE = '/images/cinematic'
 function buddyForHue(hue: number): string {
   const h = ((hue % 360) + 360) % 360
   if (h < 20 || h >= 340) return `${BUDDY_BASE}/buddy-red.webp`

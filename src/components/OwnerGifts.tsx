@@ -1,14 +1,41 @@
 import { useEffect, useState } from 'react'
 import { BugReports } from './BugReports'
-import { allBuddiesPack, cleanGiftNote, GIFT_NOTE_MAX, GIFT_TAG, giftLabel, giftShareMessage, makeLocalGiftCode, PETS, type Gift, type GiftItem, type PetId } from '../game/pets'
+import { allBuddiesPack, cleanGiftNote, GIFT_NOTE_MAX, GIFT_TAG, giftLabel, giftShareMessage, PETS, type Gift, type GiftItem, type PetId } from '../game/pets'
 import { PetArt } from './PetArt'
 
 /*
  * 9.30-a: Tony's private gift page (web only, hidden route /roman-owner). 9.30-c: no visible link;
  * 7 quick taps on the home-screen title (within 3 s) open it.
  * The passphrase is the Netlify env var ROMAN_OWNER_KEY; it is typed here, checked by a Netlify
- * function, kept only in this tab's memory, and never stored or shown.
+ * function, and never stored or shown.
+ * 10.09 admin lock: nothing on this page works without the password (no more "free mode" when the
+ * backend can't be reached). A right password returns a signed login token that is kept on this device
+ * (localStorage) so Tony isn't asked every time; Log out removes it, "Log out all devices" voids every token.
+ * Every owner function checks the password or token on the server.
  */
+export const OWNER_TOKEN_KEY = 'roman.owner.session.v1'
+const readToken = () => {
+  try {
+    return localStorage.getItem(OWNER_TOKEN_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+const saveToken = (t: string) => {
+  try {
+    if (t) localStorage.setItem(OWNER_TOKEN_KEY, t)
+    else localStorage.removeItem(OWNER_TOKEN_KEY)
+  } catch {
+    /* private mode: login lasts for this tab only */
+  }
+}
+export const fmtDur = (sec: number) => {
+  if (!sec) return '0m'
+  const h = Math.floor(sec / 3600)
+  const m = Math.floor((sec % 3600) / 60)
+  const s = sec % 60
+  return h ? `${h}h ${m}m` : m ? `${m}m ${s}s` : `${s}s`
+}
 type Kind = Gift['kind']
 
 type OwnerNote = { id: string; t: string; vote: 'up' | 'down'; note: string; place: string }
@@ -16,9 +43,11 @@ type OwnerStats = {
   days: number; opens: number; uniquePlayers: number; returningPlayers: number; levelsCleared: number
   playsByDay: { day: string; plays: number }[]; playsByHour: number[]; topRegions: { place: string; players: number }[]
   thumbsUp: number; thumbsDown: number; notes: OwnerNote[]; archivedNotes: OwnerNote[]
-  // 9.31-m: engagement stats
-  shares: number; storyEnds: number; avgSessionSec: number; sessionsCounted: number
-  abandonsBySize: { size: number; count: number }[]
+  shares?: number; storyEnds?: number; sessionsCounted?: number; avgSessionSec?: number; totalPlaySec?: number
+  abandonsBySize?: { size: number; count: number }[]
+  daily?: { day: string; players: number; opens: number; sessions: number; playSec: number; levels: number }[]
+  players?: { player: string; firstSeen: string; lastSeen: string; days: number; opens: number; sessions: number; playSec: number; levels: number; place: string }[]
+  recentSessions?: { player: string; t: string; sec: number; place: string }[]
 }
 type OwnerPurchases = {
   days: number
@@ -31,7 +60,6 @@ const toToronto = (iso: string) => new Date(iso).toLocaleString('en-CA', { timeZ
 export function OwnerGifts() {
   const [stats, setStats] = useState<{ s: OwnerStats; at: string } | null>(null)
   const [statsErr, setStatsErr] = useState('')
-  const [statsDays, setStatsDays] = useState(30) // 9.31-m: adjustable range
   // 10.06: feedback note management
   const [notesExpanded, setNotesExpanded] = useState(false)
   const [selectedNotes, setSelectedNotes] = useState<Set<string>>(new Set())
@@ -41,8 +69,20 @@ export function OwnerGifts() {
   const [buysErr, setBuysErr] = useState('')
   const [status, setStatus] = useState<'loading' | 'missing' | 'ready' | 'offline'>('loading')
   const [envName, setEnvName] = useState('ROMAN_OWNER_KEY')
+  // `key` holds the saved login token once unlocked (the server accepts it wherever it accepts the password)
   const [key, setKey] = useState('')
-  const [unlocked, setUnlocked] = useState(false)
+  const [pw, setPw] = useState('')
+  const [remember, setRemember] = useState(true)
+  const [unlocked, setUnlockedRaw] = useState(false)
+  const [statsDays, setStatsDays] = useState(30)
+  const [allPlayers, setAllPlayers] = useState(false)
+  const setUnlocked = (v: boolean) => {
+    setUnlockedRaw(v)
+    if (!v) {
+      saveToken('')
+      setKey('')
+    }
+  }
   const [err, setErr] = useState('')
   const [kind, setKind] = useState<Kind>('pet')
   const [pet, setPet] = useState<string>('lupa')
@@ -71,7 +111,21 @@ export function OwnerGifts() {
       .then(async (r) => {
         const j = (await r.json()) as { configured?: boolean; env?: string }
         if (j.env) setEnvName(j.env)
-        setStatus(j.configured ? 'ready' : 'missing')
+        if (!j.configured) return setStatus('missing')
+        const saved = readToken()
+        if (saved) {
+          // remembered login on this device: ask the server if it is still good
+          try {
+            const v = (await (await fetch('/api/gift-status', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: saved }) })).json()) as { ok?: boolean }
+            if (v.ok) {
+              setKey(saved)
+              setUnlockedRaw(true)
+            } else saveToken('')
+          } catch {
+            /* stay locked */
+          }
+        }
+        setStatus('ready')
       })
       .catch(() => setStatus('offline'))
     return () => meta.remove()
@@ -81,11 +135,15 @@ export function OwnerGifts() {
     setErr('')
     setBusy(true)
     try {
-      const r = await fetch('/api/gift-status', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key }) })
-      const j = (await r.json()) as { ok?: boolean; configured?: boolean }
+      const r = await fetch('/api/gift-status', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key: pw }) })
+      const j = (await r.json()) as { ok?: boolean; configured?: boolean; token?: string; error?: string }
       if (j.configured === false) setStatus('missing')
-      else if (j.ok) setUnlocked(true)
-      else setErr('That passphrase is not right.')
+      else if (j.ok && j.token) {
+        setKey(j.token)
+        if (remember) saveToken(j.token)
+        setPw('')
+        setUnlockedRaw(true)
+      } else setErr(j.error ?? 'That password is not right.')
     } catch {
       setErr('Could not reach the gift service.')
     } finally {
@@ -119,14 +177,6 @@ export function OwnerGifts() {
     setBusy(true)
     try {
       const g = gift()
-      // 10.06: free mode — backend-free local codes, no Stripe, just for Tony
-      if (status === 'offline') {
-        const code = makeLocalGiftCode(g, note)
-        const link = `${location.origin}/?gift=${code}`
-        setMade((m) => [{ code, link, what: describe(g), message: giftShareMessage({ gift: g, code, link, note }) }, ...m])
-        setNote('')
-        return
-      }
       const r = await fetch('/api/gift-create', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key, gift: g, note }) })
       const j = (await r.json()) as { ok?: boolean; code?: string; link?: string; message?: string; error?: string }
       if (!j.ok || !j.code) {
@@ -144,12 +194,29 @@ export function OwnerGifts() {
     }
   }
 
+  const logout = () => {
+    setUnlocked(false)
+    setStats(null)
+    setBuys(null)
+    setMade([])
+  }
+  const logoutAll = async () => {
+    if (!window.confirm('Log out on every phone and computer (including this one)?')) return
+    try {
+      await fetch('/api/gift-status', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'logoutAll', token: key }) })
+    } catch {
+      /* still log this device out */
+    }
+    logout()
+  }
+
   const loadStats = async (days = statsDays) => {
     setStatsErr('')
     setBusy(true)
     try {
       const r = await fetch('/api/analytics-stats', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key, days }) })
       const j = (await r.json()) as { ok?: boolean; stats?: OwnerStats; generatedAt?: string; error?: string }
+      if (r.status === 401) setUnlocked(false)
       if (!j.ok || !j.stats) setStatsErr(j.error ?? 'Could not load the stats.')
       else setStats({ s: j.stats, at: j.generatedAt ?? new Date().toISOString() })
     } catch {
@@ -205,6 +272,7 @@ export function OwnerGifts() {
     try {
       const r = await fetch('/api/owner-purchases', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key, days: 30 }) })
       const j = (await r.json()) as { ok?: boolean; purchases?: OwnerPurchases; generatedAt?: string; error?: string }
+      if (r.status === 401) setUnlocked(false)
       if (!j.ok || !j.purchases) setBuysErr(j.error ?? 'Could not load the purchases.')
       else setBuys({ p: j.purchases, at: j.generatedAt ?? new Date().toISOString() })
     } catch {
@@ -213,7 +281,10 @@ export function OwnerGifts() {
   }
   // the purchases list opens by itself once the owner page is unlocked
   useEffect(() => {
-    if (status === 'ready' && unlocked) void loadBuys()
+    if (status === 'ready' && unlocked) {
+      void loadBuys()
+      void loadStats()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, unlocked])
 
@@ -254,9 +325,24 @@ export function OwnerGifts() {
       <a className="owner-back" href="/">
         ← Back to game
       </a>
-      <h1>Roman's Game · owner gifts</h1>
+      <h1>Roman's Game · owner</h1>
+      {status === 'ready' && unlocked ? (
+        <div className="owner-row owner-session" data-testid="owner-session">
+          <span>🔓 Logged in on this device</span>
+          <button type="button" className="btn tool" data-testid="owner-logout" onClick={logout}>
+            Log out
+          </button>
+          <button type="button" className="btn ghost" onClick={() => void logoutAll()}>
+            Log out all devices
+          </button>
+        </div>
+      ) : null}
       {status === 'loading' ? <p>Checking…</p> : null}
-      {status === 'offline' ? <p className="owner-warn">Backend gift service isn't reachable — running in free mode below. No Stripe needed.</p> : null}
+      {status === 'offline' ? (
+        <p className="owner-warn" data-testid="owner-offline">
+          🔒 The owner service can't be reached right now, so this page stays locked. Check your connection and reload.
+        </p>
+      ) : null}
       {status === 'missing' ? (
         <div className="owner-warn" data-owner-missing="1">
           <p>
@@ -270,26 +356,28 @@ export function OwnerGifts() {
       ) : null}
       {status === 'ready' && !unlocked ? (
         <form
-          className="owner-card"
+          className="owner-card owner-login"
+          data-testid="owner-login"
           onSubmit={(e) => {
             e.preventDefault()
             void unlock()
           }}
         >
+          <p>🔒 Owner only. Enter the password to open the store, gifts and stats.</p>
           <label>
-            Owner passphrase
-            <input type="password" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="current-password" />
+            Password
+            <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="current-password" data-testid="owner-password" autoFocus />
           </label>
-          <button type="submit" className="btn primary" disabled={busy || !key}>
+          <label className="owner-check">
+            <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> Remember me on this device
+          </label>
+          <button type="submit" className="btn primary" disabled={busy || !pw} data-testid="owner-unlock">
             Unlock
           </button>
         </form>
       ) : null}
-      {(status === 'ready' && unlocked) || status === 'offline' ? (
-        <div className="owner-card">
-          {status === 'offline' ? (
-            <p className="owner-warn">🎁 Free mode — no backend, no Stripe. Codes work on this device.</p>
-          ) : null}
+      {status === 'ready' && unlocked ? (
+        <div className="owner-card" data-testid="owner-gifts">
           <div className="owner-kinds" role="radiogroup" aria-label="Gift type">
             {(['pet', 'coins', 'coupon', 'pack'] as Kind[]).map((k) => (
               <button key={k} type="button" className={`btn tool ${kind === k ? 'on' : ''}`} onClick={() => setKind(k)} aria-pressed={kind === k}>
@@ -418,11 +506,19 @@ export function OwnerGifts() {
       ) : null}
       {status === 'ready' && unlocked ? (
         <div className="owner-card owner-stats" data-testid="owner-stats">
-          <h2>Anonymous stats</h2>
+          <h2>Stats · who played and for how long</h2>
           <div className="owner-row">
             <label>
               Range
-              <select value={statsDays} onChange={(e) => { const d = Number(e.target.value); setStatsDays(d); if (stats) void loadStats(d) }}>
+              <select
+                value={statsDays}
+                onChange={(e) => {
+                  const n = Number(e.target.value)
+                  setStatsDays(n)
+                  void loadStats(n)
+                }}
+              >
+                <option value={1}>Today</option>
                 <option value={7}>Last 7 days</option>
                 <option value={30}>Last 30 days</option>
                 <option value={90}>Last 90 days</option>
@@ -436,20 +532,72 @@ export function OwnerGifts() {
           {stats ? (
             <>
               <div className="stat-grid">
+                <div><strong>{stats.s.uniquePlayers}</strong>players</div>
+                <div><strong>{fmtDur(stats.s.totalPlaySec ?? 0)}</strong>total play time</div>
+                <div><strong>{stats.s.avgSessionSec ? fmtDur(stats.s.avgSessionSec) : '—'}</strong>avg session{stats.s.sessionsCounted ? ` (${stats.s.sessionsCounted})` : ''}</div>
                 <div><strong>{stats.s.opens}</strong>opens</div>
-                <div><strong>{stats.s.uniquePlayers}</strong>unique players</div>
                 <div><strong>{stats.s.returningPlayers}</strong>returning players</div>
                 <div><strong>{stats.s.levelsCleared}</strong>levels cleared</div>
-                <div><strong>{stats.s.thumbsUp}</strong>👍</div>
-                <div><strong>{stats.s.thumbsDown}</strong>👎</div>
                 <div><strong>{stats.s.shares ?? 0}</strong>shares sent</div>
                 <div><strong>{stats.s.storyEnds ?? 0}</strong>story completions</div>
-                <div><strong>{stats.s.avgSessionSec ? `${Math.floor(stats.s.avgSessionSec / 60)}m ${stats.s.avgSessionSec % 60}s` : '—'}</strong>avg session{stats.s.sessionsCounted ? ` (${stats.s.sessionsCounted})` : ''}</div>
+                <div><strong>{stats.s.thumbsUp}</strong>👍</div>
+                <div><strong>{stats.s.thumbsDown}</strong>👎</div>
               </div>
-              {(stats.s.abandonsBySize ?? []).length > 0 ? (
+              <h3>Daily totals (Toronto)</h3>
+              <div className="owner-table-wrap">
+                <table className="owner-table" data-testid="stats-daily">
+                  <thead>
+                    <tr><th>Day</th><th>Players</th><th>Play time</th><th>Sessions</th><th>Opens</th><th>Levels</th></tr>
+                  </thead>
+                  <tbody>
+                    {(stats.s.daily ?? []).length ? (
+                      (stats.s.daily ?? []).map((d) => (
+                        <tr key={d.day}><td>{d.day}</td><td>{d.players}</td><td>{fmtDur(d.playSec)}</td><td>{d.sessions}</td><td>{d.opens}</td><td>{d.levels}</td></tr>
+                      ))
+                    ) : (
+                      <tr><td colSpan={6}>No plays yet</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <h3>Who played</h3>
+              <div className="owner-table-wrap">
+                <table className="owner-table" data-testid="stats-players">
+                  <thead>
+                    <tr><th>Player</th><th>Last seen</th><th>Play time</th><th>Sessions</th><th>Levels</th><th>Days</th><th>Place</th></tr>
+                  </thead>
+                  <tbody>
+                    {(stats.s.players ?? []).length ? (
+                      (allPlayers ? (stats.s.players ?? []) : (stats.s.players ?? []).slice(0, 15)).map((p) => (
+                        <tr key={p.player}><td><code>#{p.player}</code></td><td>{toToronto(p.lastSeen)}</td><td>{fmtDur(p.playSec)}</td><td>{p.sessions}</td><td>{p.levels}</td><td>{p.days}</td><td>{p.place}</td></tr>
+                      ))
+                    ) : (
+                      <tr><td colSpan={7}>No players yet</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {(stats.s.players ?? []).length > 15 ? (
+                <button type="button" className="btn ghost" onClick={() => setAllPlayers((v) => !v)}>
+                  {allPlayers ? 'Show fewer' : `Show all (${(stats.s.players ?? []).length})`}
+                </button>
+              ) : null}
+              <h3>Recent sessions</h3>
+              <ul data-testid="stats-sessions">
+                {(stats.s.recentSessions ?? []).length ? (
+                  (stats.s.recentSessions ?? []).slice(0, 20).map((x) => (
+                    <li key={x.t + x.player}>
+                      #{x.player} · {fmtDur(x.sec)} · ended {toToronto(x.t)} · {x.place}
+                    </li>
+                  ))
+                ) : (
+                  <li>No finished sessions yet</li>
+                )}
+              </ul>
+              {(stats.s.abandonsBySize ?? []).length ? (
                 <>
-                  <h3>Levels abandoned (board size → left without clearing)</h3>
-                  <ul>{stats.s.abandonsBySize!.map((a) => <li key={a.size}>{a.size}×{a.size} board: {a.count} abandoned</li>)}</ul>
+                  <h3>Levels abandoned</h3>
+                  <ul>{(stats.s.abandonsBySize ?? []).map((a) => <li key={a.size}>{a.size}×{a.size} board: {a.count} left without clearing</li>)}</ul>
                 </>
               ) : null}
               <h3>Plays by day (Toronto)</h3>
@@ -517,20 +665,9 @@ export function OwnerGifts() {
               ) : (
                 <p>No notes yet</p>
               )}
-              <small>Updated {toToronto(stats.at)}. Stored in UTC, shown in Toronto time. No IP addresses or names are kept.</small>
+              <small>Updated {toToronto(stats.at)}. Players are random device numbers (#…), not names. A session's length is sent when the player leaves or switches away from the game. Stored in UTC, shown in Toronto time. No IP addresses or names are kept.</small>
             </>
           ) : null}
-        </div>
-      ) : null}
-      {status === 'ready' && unlocked ? (
-        <div className="owner-card" data-testid="owner-emails">
-          <h2>Player emails</h2>
-          <p>
-            Emails players enter in the game stay <strong>on their own device only</strong> — they are never sent to the
-            server (the analytics backend deliberately stores no emails, names, or IPs). There is no central email list
-            to export. If you want a mailing list for Shorts announcements, the game needs an explicit opt-in that syncs
-            emails to the backend — say the word and it can be added.
-          </p>
         </div>
       ) : null}
       {status === 'ready' && unlocked ? (

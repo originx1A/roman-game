@@ -26,6 +26,34 @@ export async function nativeShare(data: ShareData): Promise<boolean> {
   }
 }
 
+/** 9.31-m: tip appended to text shares (reconstructed 9.31-n from the live 9.31-m bundle; the recovery patch missed it) */
+export const HOMESCREEN_TIP = "Tip: save it to your home screen (browser menu > Add to Home Screen) so it's always one tap away."
+
+async function homescreenGuideFile(): Promise<File | null> {
+  try {
+    const r = await fetch('images/add-to-homescreen-guide.jpg')
+    if (!r.ok) return null
+    const blob = await r.blob()
+    return new File([blob], 'add-to-homescreen.jpg', { type: 'image/jpeg' })
+  } catch {
+    return null
+  }
+}
+
+/** 9.31-m: native share with the add-to-home-screen guide image attached when the device supports files */
+export async function nativeShareWithGuide(opts: { url: string; title: string; text: string }): Promise<boolean> {
+  if (!navigator.share) return false
+  try {
+    const file = await homescreenGuideFile()
+    const data: ShareData = { title: opts.title, text: `${opts.text}\n${opts.url}`, url: opts.url }
+    if (file && navigator.canShare?.({ files: [file] })) data.files = [file]
+    await navigator.share(data)
+    return true
+  } catch {
+    return false
+  }
+}
+
 export async function copyText(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text)
