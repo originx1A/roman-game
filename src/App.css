@@ -1078,6 +1078,12 @@ html[data-motion='reduce'] *::after {
   .panel { padding-bottom: 1.25rem; }
 }
 
+/* 10.10: fix unwanted desktop scrollbar — in the fixed app shell the hero
+   must never force a min-height that overflows the scroll pane. The old
+   72dvh/660px hero was designed for a scrolling page, not the fixed shell. */
+.fixed-shell .hero { min-height: 0; }
+.fixed-shell .home { padding-bottom: 1.25rem; }
+
 @media (max-width: 640px) {
   .topbar { flex-wrap: wrap; }
   .nav { order: 3; width: 100%; margin-left: 0; }
