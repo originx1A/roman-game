@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { createPortal } from 'react-dom'
 import { Board } from './components/Board'
 import { HowToPlay, HOW_NEW_START } from './components/HowToPlay'
+import { StoryScreen, STORY_CHAPTERS, type StoryChapter } from './components/StoryScreen'
 import { BugReport } from './components/BugReport'
 import { PrizeWheel } from './components/PrizeWheel'
 import { ResultOverlay } from './components/ResultOverlay'
@@ -413,6 +414,7 @@ export default function App() {
   settingsRef.current = settings
 
   // 9.30-r: anonymous app_open / return_visit ping (silent if offline; off when the player switches it off or in the store apps)
+  // 9.31-m: session_end (+ level_abandon when a puzzle was left uncleared) on pagehide
   useEffect(() => {
     if (isStoreBuild() || settingsRef.current.analytics === false) return
     const ls = safeLocalStorage()
@@ -424,6 +426,31 @@ export default function App() {
       /* ignore */
     }
     for (const ev of o.events) sendPing({ id: o.next.id, ev })
+    sessionStartRef.current = Date.now()
+    const anonId = o.next.id
+    let endSent = false
+    const onHide = () => {
+      if (endSent) return
+      endSent = true
+      const ms = Date.now() - sessionStartRef.current
+      if (ms >= 1000) {
+        sendPing({ id: anonId, ev: 'session_end', ms })
+        const size = unclearedRef.current
+        if (size) {
+          sendPing({ id: anonId, ev: 'level_abandon', size })
+          unclearedRef.current = null
+        }
+      }
+    }
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') onHide()
+    }
+    window.addEventListener('pagehide', onHide)
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      window.removeEventListener('pagehide', onHide)
+      document.removeEventListener('visibilitychange', onVis)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -467,6 +494,9 @@ export default function App() {
   /** 9.30-m: today's earn counters (wins paid, sparks, spins, hunts). Resets at midnight Toronto. */
   const [econ, setEconState] = useState<Ledger>(() => loadLedger(typeof window === 'undefined' ? null : safeLocalStorage(), torontoDateKey()))
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null)
+  // 9.31-m: session tracking for the owner dashboard — start time + uncleared puzzle size (drop-off)
+  const sessionStartRef = useRef(0)
+  const unclearedRef = useRef<number | null>(null)
   const [cells, setCells] = useState<CellState[]>([])
   const [history, setHistory] = useState<CellState[][]>([])
   const [future, setFuture] = useState<CellState[][]>([])
@@ -493,6 +523,8 @@ export default function App() {
   // voice lines (old_* / tip_*_old_* clips), never for Roman or the Coach
   const [oldTimerPop, setOldTimerPop] = useState<OldTimerPop | null>(null)
   const oldTimerKey = useRef(0)
+  // Story chapter unlock fanfare — set when a level clear unlocks a new chapter
+  const [storyUnlock, setStoryUnlock] = useState<StoryChapter | null>(null)
   /** Old-timer clip ids: `old_*`, plus tips like `tip_trial_old_life`. Roman is `roman_*`/`tip_*_roman_*`, Coach is `coach_*`/`tip_*_coach_*`. */
   function isOldTimerClip(clip: string | undefined): boolean {
     if (!clip) return false
@@ -1112,11 +1144,22 @@ export default function App() {
   /** 9.30-r: anonymous level_clear ping */
   function analyticsClear(size: number, ms: number) {
     if (isStoreBuild() || settingsRef.current.analytics === false) return
+    unclearedRef.current = null // 9.31-m: cleared, not abandoned
     sendPing({ id: loadAnon(safeLocalStorage()).id, ev: 'level_clear', size, ms: Math.round(ms) })
   }
   function sendFeedback(vote: 'up' | 'down', note: string) {
     if (isStoreBuild() || settingsRef.current.analytics === false) return
     sendPing({ id: loadAnon(safeLocalStorage()).id, ev: 'feedback', vote, note: note.slice(0, 200) })
+  }
+  /** 9.31-m: anonymous share ping for the owner dashboard */
+  function analyticsShare() {
+    if (isStoreBuild() || settingsRef.current.analytics === false) return
+    sendPing({ id: loadAnon(safeLocalStorage()).id, ev: 'share' })
+  }
+  /** 9.31-m: anonymous story-completion ping for the owner dashboard */
+  function analyticsStoryEnd() {
+    if (isStoreBuild() || settingsRef.current.analytics === false) return
+    sendPing({ id: loadAnon(safeLocalStorage()).id, ev: 'story_end' })
   }
 
   function saveSettingsPatch(patch: Partial<Settings>) {
@@ -1515,6 +1558,7 @@ export default function App() {
     }
     const themeId = p.theme ?? themeForPuzzle(p.id, p.difficulty)
     setPuzzle({ ...p, theme: themeId })
+    unclearedRef.current = p.size // 9.31-m: drop-off tracking — cleared on win via analyticsClear
     recordedRef.current = false
     setCelebrate(false)
     setDefeated(false)
@@ -1770,6 +1814,19 @@ export default function App() {
       setProgress(prog)
       setProfile(loadProfile())
       saveDraft(null)
+
+      // Story chapter unlock check — did this clear cross a chapter threshold?
+      try {
+        const uniqueCleared = new Set(prog.clears.map((c) => c.puzzleId)).size
+        const newlyUnlocked = STORY_CHAPTERS.find(
+          (ch) => ch.unlockLevels > 0 && ch.unlockLevels === uniqueCleared
+        )
+        if (newlyUnlocked) {
+          setStoryUnlock(newlyUnlocked)
+        }
+      } catch {
+        /* story unlock is a bonus */
+      }
 
       // If this clear answers a scored challenge, build a head-to-head duel link
       if (
@@ -2837,6 +2894,9 @@ export default function App() {
               <button type="button" className="btn ghost" onClick={() => setScreen('how')}>
                 How to play
               </button>
+              <button type="button" className="btn ghost" onClick={() => setScreen('story')}>
+                📖 Story
+              </button>
               <button type="button" className="btn ghost" onClick={() => setScreen('bug')}>
                 🐛 Report a bug
               </button>
@@ -2924,6 +2984,10 @@ export default function App() {
         <BugReport currentScreen={screen} onBack={() => setScreen('home')} />
       )}
 
+      {screen === 'story' && (
+        <StoryScreen onBack={() => setScreen('home')} onStoryEnd={analyticsStoryEnd} />
+      )}
+
       {screen === 'levels' && (
         <main className="panel levels scroll-pane">
           <h2>Levels</h2>
@@ -3006,6 +3070,9 @@ export default function App() {
           <div className="play-hud">
             <button type="button" className="hud-back" onClick={() => setScreen(parseRemixId(puzzle.id) || endlessRef.current ? 'remix' : 'levels')} aria-label="Back">
               ←
+            </button>
+            <button type="button" className="hud-back" onClick={() => setScreen('home')} aria-label="Home">
+              🏠
             </button>
             <div className="hud-title">
               <strong>{puzzle.name}</strong>
@@ -3714,6 +3781,7 @@ export default function App() {
             text={shareText || challengeMsg}
             emailHref={challengeMailHref(shareLink || playUrl)}
             onCopied={() => showToast('Copied')}
+            onShared={analyticsShare}
           />
           {incoming && (
             <div className="incoming">
@@ -3810,6 +3878,7 @@ export default function App() {
                 text={shareText || challengeMsg}
                 emailHref={challengeMailHref(shareLink)}
                 onCopied={() => showToast('Copied')}
+                onShared={analyticsShare}
               />
             </div>
           )}
@@ -3855,6 +3924,7 @@ export default function App() {
             url={duelLink || shareLink || playUrl}
             text={shareText || duelShareText(duel)}
             onCopied={() => showToast('Copied')}
+            onShared={analyticsShare}
           />
           <div className="cta-row" style={{ marginTop: '1rem' }}>
             <button
@@ -3919,6 +3989,47 @@ export default function App() {
       <div className="netlify-safe" aria-hidden />
       {/* 10.06: old-timer heckler pop-up — visual only, never blocks input */}
       <OldTimerPopup pop={oldTimerPop} />
+      {/* Story chapter unlock fanfare — old-timer announces + jump to Story */}
+      {storyUnlock && (
+        <div className="story-unlock-overlay" role="dialog" aria-label="New story chapter unlocked">
+          <div className="story-unlock-card">
+            <img
+              className="story-unlock-art"
+              src="/images/oldtimer.png"
+              alt=""
+              draggable={false}
+            />
+            <div className="story-unlock-text">
+              <span className="story-unlock-kicker">📖 New chapter unlocked</span>
+              <h3>
+                {storyUnlock.numeral}. {storyUnlock.title}
+              </h3>
+              <p className="oldtimer-line">
+                "You've earned it, kid. The story grows with every board you beat."
+              </p>
+            </div>
+            <div className="story-unlock-actions">
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() => {
+                  setStoryUnlock(null)
+                  setScreen('story')
+                }}
+              >
+                ▶ Watch now
+              </button>
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={() => setStoryUnlock(null)}
+              >
+                Keep playing
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* 10.06: treat defense — wild pets vs the field treat pile (home + play) */}
       <TreatDefense
         active={screen === 'play' && !celebrate && !defeated && !showWheel && !rotatePaused}

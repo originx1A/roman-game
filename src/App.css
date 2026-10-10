@@ -611,6 +611,7 @@ main,
   transition: transform 0.14s cubic-bezier(0.22, 1, 0.36, 1);
   will-change: transform;
 }
+
 .cell-fill {
   position: absolute;
   inset: 0;
@@ -631,7 +632,7 @@ main,
     0 0 8px hsl(var(--hue) var(--sat, 60%) 50% / 0.25),
     0 1px 2px rgba(0, 0, 0, 0.4);
   border: 1px solid rgba(0,0,0,0.55);
-transition:
+  transition:
     filter 0.14s ease,
     box-shadow 0.14s ease,
     transform 0.14s cubic-bezier(0.22, 1, 0.36, 1);
@@ -1577,6 +1578,29 @@ body > div > a[href*="netlify"] {
   background: rgba(255, 209, 102, 0.12);
 }
 
+.share-chip.yt-chip {
+  border-color: rgba(255, 0, 0, 0.45);
+  background: rgba(255, 0, 0, 0.12);
+}
+
+.share-chip.yt-chip:hover {
+  border-color: rgba(255, 0, 0, 0.8);
+  background: rgba(255, 0, 0, 0.22);
+}
+
+.btn.primary.yt-btn {
+  background: #ff0000;
+  border-color: #ff0000;
+  color: #fff;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.btn.primary.yt-btn:hover {
+  background: #cc0000;
+  border-color: #cc0000;
+}
+
 .wallet-grid {
   display: none; /* replaced by .stat-strip.wallet-strip */
 }
@@ -1973,7 +1997,7 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
   border-radius: 18px;
   background: rgba(0, 0, 0, 0.22);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  min-height: min(42dvh, 320px);
+  height: min(42dvh, 320px);
   align-content: center;
 }
 
@@ -4586,7 +4610,7 @@ html.play-locked #root {
 @supports not (height: 100dvh) {
   .win-screen { --win-vh: var(--app-height, 100svh); }
 }
-.win-screen .win-screen-card { transition: padding 0.1s; }
+/* 9.31-m: no padding transition — the data-fit level must land instantly, never visibly animate. */
 
 /* 1: tighter spacing, smaller title / stars */
 .win-screen[data-fit='1'] .win-screen-card,
@@ -5857,6 +5881,20 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
   from { opacity: 0; }
   to { opacity: 1; }
 }
+/* 9.31-m: everything caught — buddies scurry off-screen right, then the summary appears. */
+.parade.is-scurry .parade-lane {
+  transition: transform 0.6s ease-in, opacity 0.6s ease-in;
+  transform: translate3d(70vw, 0, 0);
+  opacity: 0;
+}
+.parade.is-scurry .parade-hop {
+  animation-duration: 0.18s;
+}
+.parade.is-scurry .parade-skip-btn,
+.parade.is-scurry .parade-grab-all {
+  opacity: 0;
+  pointer-events: none;
+}
 
 .confetti-layer.over-parade { z-index: 90; }
 
@@ -6401,11 +6439,335 @@ html[data-motion='reduce'] .td-invader {
   border-radius: 50%;
 }
 
-/* 10.09 admin lock: session bar + stats tables */
-.owner-session { align-items: center; margin: 0 0 0.8rem; font-weight: 800; }
-.owner-session span { flex: 1; min-width: 10rem; color: var(--mint); }
-.owner-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.owner-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
-.owner-table th, .owner-table td { padding: 6px 8px; text-align: left; border-bottom: 1px solid rgba(244,251,255,0.1); white-space: nowrap; }
-.owner-table th { color: var(--sun); font-weight: 800; }
-.owner-table code { color: var(--mint); }
+/* Story screen — Empty Throne chapters */
+.story-panel {
+  background: linear-gradient(180deg, #0d0a06 0%, #1a120a 100%);
+}
+.story-top {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+.story-top h2 {
+  font-family: Georgia, 'Times New Roman', serif;
+  color: #d4a94e;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+.story-sub {
+  color: #a8956e;
+  margin-bottom: 1rem;
+}
+.story-chapters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.story-chapter {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  width: 100%;
+  text-align: left;
+  background: rgba(212, 169, 78, 0.07);
+  border: 1px solid rgba(212, 169, 78, 0.25);
+  border-radius: 0.6rem;
+  padding: 0.8rem 1rem;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.story-chapter:not(.is-locked):hover {
+  background: rgba(212, 169, 78, 0.14);
+  border-color: rgba(212, 169, 78, 0.5);
+}
+.story-chapter.is-locked {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.story-chapter-numeral {
+  font-family: Georgia, serif;
+  font-size: 1.6rem;
+  color: #d4a94e;
+  min-width: 2.2rem;
+  text-align: center;
+}
+.story-chapter-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.story-chapter-title {
+  font-weight: 600;
+  color: #f0e6d2;
+  font-size: 1.05rem;
+}
+.story-chapter-blurb {
+  font-size: 0.85rem;
+  color: #a8956e;
+}
+.story-chapter-lock {
+  font-size: 0.8rem;
+  color: #8a7a5e;
+  margin-top: 0.2rem;
+}
+.story-chapter-play {
+  font-size: 1.4rem;
+  color: #d4a94e;
+}
+/* Story video player */
+.story-player {
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.story-player-top {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+}
+.story-player-top h2 {
+  font-family: Georgia, serif;
+  color: #d4a94e;
+  margin: 0;
+  font-size: 1.1rem;
+}
+.story-video {
+  width: 100%;
+  max-height: 70vh;
+  background: #000;
+  border-radius: 0.4rem;
+}
+
+/* Story chapter unlock fanfare overlay */
+.story-unlock-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(8, 8, 16, 0.72);
+  backdrop-filter: blur(3px);
+  animation: story-unlock-in 0.35s ease-out;
+}
+@keyframes story-unlock-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
+}
+.story-unlock-card {
+  max-width: 22rem;
+  width: 100%;
+  background: linear-gradient(160deg, #1a1430 0%, #0e0b1e 100%);
+  border: 1px solid #c9a227;
+  border-radius: 1rem;
+  padding: 1.25rem;
+  text-align: center;
+  box-shadow: 0 0 48px rgba(201, 162, 39, 0.35);
+}
+.story-unlock-art {
+  width: 5.5rem;
+  height: 5.5rem;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #c9a227;
+  margin-bottom: 0.5rem;
+}
+.story-unlock-kicker {
+  display: block;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #c9a227;
+  margin-bottom: 0.25rem;
+}
+.story-unlock-card h3 {
+  margin: 0 0 0.5rem;
+  font-family: Georgia, 'Times New Roman', serif;
+  color: #f5e6c8;
+  font-size: 1.3rem;
+}
+.story-unlock-card .oldtimer-line {
+  font-style: italic;
+  color: #cbb98a;
+  font-size: 0.95rem;
+  margin: 0 0 1rem;
+}
+.story-unlock-actions {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: center;
+}
+
+/* Play Full Story button + progress note */
+.story-playall-btn {
+  display: block;
+  margin: 0 auto 1rem;
+}
+.story-playall-note {
+  text-align: center;
+  color: #c9a227;
+  font-size: 0.85rem;
+  margin: 0 0 0.5rem;
+}
+
+.story-video-wrap .story-video {
+  display: block;
+  width: 100%;
+}
+.story-video-wrap.tapped .story-video {
+  pointer-events: auto;
+}
+.story-video-wrap:not(.tapped) .story-video {
+  pointer-events: none;
+}
+
+/* Story video container + subtle fullscreen button */
+.story-video-container {
+  position: relative;
+  width: 100%;
+}
+.story-fs-btn {
+  position: absolute;
+  bottom: 0.6rem;
+  right: 0.6rem;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.7;
+  backdrop-filter: blur(4px);
+}
+.story-fs-btn:active {
+  opacity: 1;
+  transform: scale(1.08);
+}
+
+/* Story unlock boundary card */
+.story-boundary-card {
+  margin-top: 1rem;
+  padding: 1rem 1.25rem;
+  border-radius: 0.75rem;
+  background: linear-gradient(160deg, #1a1430 0%, #0e0b1e 100%);
+  border: 1px solid #c9a227;
+  text-align: center;
+}
+.story-boundary-card p {
+  margin: 0 0 0.5rem;
+  color: #f5e6c8;
+}
+.story-boundary-card .sub {
+  color: #cbb98a;
+  font-size: 0.9rem;
+}
+
+/* Story boundary overlay — unmissable lock screen */
+.story-boundary-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: rgba(8, 8, 16, 0.82);
+  backdrop-filter: blur(4px);
+  animation: story-unlock-in 0.3s ease-out;
+}
+.story-boundary-card {
+  max-width: 22rem;
+  width: 100%;
+  background: linear-gradient(160deg, #1a1430 0%, #0e0b1e 100%);
+  border: 1px solid #c9a227;
+  border-radius: 1rem;
+  padding: 1.5rem 1.25rem;
+  text-align: center;
+  box-shadow: 0 0 48px rgba(201, 162, 39, 0.35);
+}
+.story-boundary-lock {
+  font-size: 2.5rem;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+.story-boundary-card h3 {
+  margin: 0 0 0.5rem;
+  color: #f5e6c8;
+  font-size: 1.25rem;
+}
+.story-boundary-card p {
+  color: #cbb98a;
+  margin: 0 0 0.75rem;
+}
+.story-boundary-card .sub {
+  font-size: 0.9rem;
+}
+
+/* Story progress track: unlocked vs locked */
+.story-progress-track {
+  position: relative;
+  height: 0.5rem;
+  margin-top: 0.75rem;
+  border-radius: 0.25rem;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: visible;
+}
+.story-progress-unlocked {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 0.25rem;
+  background: rgba(201, 162, 39, 0.35);
+}
+.story-progress-watched {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 0.25rem;
+  background: #c9a227;
+}
+.story-progress-marker {
+  position: absolute;
+  top: -0.15rem;
+  width: 0.15rem;
+  height: 0.8rem;
+  background: #c9a227;
+  border-radius: 1px;
+}
+.story-progress-marker.is-locked {
+  background: rgba(255, 255, 255, 0.25);
+}
+.story-progress-label {
+  text-align: center;
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: #cbb98a;
+}
+
+/* Home-screen guide in share bar */
+.homescreen-chip {
+  border-color: #c9a227;
+  color: #f5e6c8;
+}
+.homescreen-guide {
+  flex-basis: 100%;
+  margin-top: 0.5rem;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  border: 1px solid rgba(201, 162, 39, 0.4);
+}
+.homescreen-guide img {
+  display: block;
+  width: 100%;
+  height: auto;
+}

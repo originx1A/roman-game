@@ -80,6 +80,8 @@ export function WinScreen({
   // Fit everything on one screen: step through tighter layouts (data-fit 0..4) until the card
   // body stops overflowing. Runs on the real visible height, so Safari toolbars, safe areas and
   // short landscape screens are all handled; the less important bits shrink or hide first.
+  // 9.31-m: fit lands instantly with no visible animation — re-fit is a no-op when the current
+  // level already fits, so late re-fits (fonts, resize) never cause a visible snap.
   useLayoutEffect(() => {
     const root = rootRef.current
     if (!root) return
@@ -87,10 +89,12 @@ export function WinScreen({
       const body = root.querySelector<HTMLElement>('.win-screen-body')
       const card = root.querySelector<HTMLElement>('.win-screen-card')
       if (!body || !card) return
+      const overflows = () =>
+        body.scrollHeight - body.clientHeight > 1 || card.scrollHeight - card.clientHeight > 1
+      if (!overflows()) return // current level fits: leave it alone, no visual change
       for (let level = 0; level <= 4; level++) {
         root.dataset.fit = String(level)
-        const over = body.scrollHeight - body.clientHeight > 1 || card.scrollHeight - card.clientHeight > 1
-        if (!over) break
+        if (!overflows()) break
       }
     }
     fit()

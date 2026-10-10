@@ -78,6 +78,9 @@ export function ParadeOverlay({
   const rootRef = useRef<HTMLDivElement | null>(null)
   const [grabAllOn, setGrabAllOn] = useState(false)
   const [holding, setHolding] = useState(false)
+  // 9.31-m: when every treasure is caught, buddies scurry off and the summary shows right away
+  const [scurry, setScurry] = useState(false)
+  const scurryTimer = useRef<number | null>(null)
   const holdTimer = useRef<number | null>(null)
   const lastTap = useRef<{ at: number; x: number; y: number } | null>(null)
   const total = treasure.filter(Boolean).length
@@ -86,6 +89,10 @@ export function ParadeOverlay({
   /** March over (or Skip): anything not tapped is paid now, then the "You got..." card shows and closes itself */
   const toSummary = () => {
     if (doneRef.current) return
+    if (scurryTimer.current) {
+      window.clearTimeout(scurryTimer.current)
+      scurryTimer.current = null
+    }
     treasure.forEach((t, i) => {
       if (!t || caughtIdx.current.has(i)) return
       caughtIdx.current.add(i)
@@ -107,7 +114,10 @@ export function ParadeOverlay({
   }
   useEffect(() => {
     const t = window.setTimeout(toSummary, reduce ? Math.min(durationMs, 12000) : durationMs)
-    return () => window.clearTimeout(t)
+    return () => {
+      window.clearTimeout(t)
+      if (scurryTimer.current) window.clearTimeout(scurryTimer.current)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -146,6 +156,18 @@ export function ParadeOverlay({
       if (readPotPct) setPotPct(readPotPct())
       setFlies((f) => f.filter((x) => x.id !== id))
     }, 850)
+    // 9.31-m: everything caught — scurry the buddies off and show the summary right away
+    if (caughtIdx.current.size >= total) scurryOff()
+  }
+
+  /** All treasure caught: buddies scurry off-screen, then the "You got..." summary appears. */
+  const scurryOff = () => {
+    if (doneRef.current || scurryTimer.current) return
+    setScurry(true)
+    scurryTimer.current = window.setTimeout(() => {
+      scurryTimer.current = null
+      toSummary()
+    }, 650)
   }
 
   /**
@@ -273,7 +295,7 @@ export function ParadeOverlay({
   return (
     <div
       ref={rootRef}
-      className={`parade ${reduce ? 'is-still' : ''} ${holding ? 'is-holding' : ''}`}
+      className={`parade ${reduce ? 'is-still' : ''} ${holding ? 'is-holding' : ''} ${scurry ? 'is-scurry' : ''}`}
       role="dialog"
       aria-label="Buddy parade. Tap the buddies to grab their treasure."
       data-testid="parade"
