@@ -19,6 +19,15 @@
   box-sizing: border-box;
 }
 
+/* No visible scrollbars anywhere in the game — scrolling still works via touch/wheel */
+* {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+*::-webkit-scrollbar {
+  display: none !important;
+}
+
 html,
 body,
 #root {
