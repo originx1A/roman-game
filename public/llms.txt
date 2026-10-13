@@ -2,7 +2,7 @@
 
 > Roman's Game is a free, kid-friendly logic puzzle game that runs in the browser (phone, tablet or computer). No account, no sign-up and no download are needed: open the link and play. Place one cute buddy in every colored region, row and column, and never let two buddies touch, not even diagonally.
 
-Play it: https://romans-game.netlify.app/
+Play it: https://play.romansgame.com/
 
 ## How to play
 - The board is a square grid (5x5 up to 8x8) split into colored regions.
@@ -25,11 +25,11 @@ Play it: https://romans-game.netlify.app/
 - Made by JRNY (https://jrny.fun).
 - Free to play. Progress is saved on your own device; there are no accounts.
 - Kid-friendly: no chat, no ads, no public profiles.
-- Only anonymous play counts are collected (no names, emails or IP addresses). See https://romans-game.netlify.app/privacy.html
+- Only anonymous play counts are collected (no names, emails or IP addresses). See https://play.romansgame.com/privacy.html
 - Works on iPhone, iPad, Android and desktop browsers; it can be added to the Home Screen.
 
 ## Links
 - Made by JRNY: https://jrny.fun
-- Game: https://romans-game.netlify.app/
-- Privacy policy: https://romans-game.netlify.app/privacy.html
-- Sitemap: https://romans-game.netlify.app/sitemap.xml
+- Game: https://play.romansgame.com/
+- Privacy policy: https://play.romansgame.com/privacy.html
+- Sitemap: https://play.romansgame.com/sitemap.xml

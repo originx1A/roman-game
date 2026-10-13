@@ -32,4 +32,4 @@ Allow: /
 User-agent: CCBot
 Allow: /
 
-Sitemap: https://romans-game.netlify.app/sitemap.xml
+Sitemap: https://play.romansgame.com/sitemap.xml
