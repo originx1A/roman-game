@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { BugReports } from './BugReports'
-import { allBuddiesPack, cleanGiftNote, GIFT_NOTE_MAX, GIFT_TAG, giftLabel, giftShareMessage, makeLocalGiftCode, PETS, type Gift, type GiftItem, type PetId } from '../game/pets'
+import { allBuddiesPack, cleanGiftNote, GIFT_NOTE_MAX, GIFT_TAG, giftLabel, giftShareMessage, PETS, type Gift, type GiftItem, type PetId } from '../game/pets'
 import { PetArt } from './PetArt'
 
 /*
@@ -115,12 +115,9 @@ export function OwnerGifts() {
     setBusy(true)
     try {
       const g = gift()
-      // 10.06: free mode — backend-free local codes, no Stripe, just for Tony
+      // 2026-10-13: offline bypass removed — no codes without the backend, ever.
       if (status === 'offline') {
-        const code = makeLocalGiftCode(g, note)
-        const link = `${location.origin}/?gift=${code}`
-        setMade((m) => [{ code, link, what: describe(g), message: giftShareMessage({ gift: g, code, link, note }) }, ...m])
-        setNote('')
+        setErr('Gift service is unreachable. No codes can be made until it is back.')
         return
       }
       const r = await fetch('/api/gift-create', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key, gift: g, note }) })
@@ -252,7 +249,7 @@ export function OwnerGifts() {
       </a>
       <h1>Roman's Game · owner gifts</h1>
       {status === 'loading' ? <p>Checking…</p> : null}
-      {status === 'offline' ? <p className="owner-warn">Backend gift service isn't reachable — running in free mode below. No Stripe needed.</p> : null}
+      {status === 'offline' ? <p className="owner-warn">Gift service isn't reachable right now — the tools stay locked until it's back. Try again in a bit.</p> : null}
       {status === 'missing' ? (
         <div className="owner-warn" data-owner-missing="1">
           <p>
@@ -281,11 +278,8 @@ export function OwnerGifts() {
           </button>
         </form>
       ) : null}
-      {(status === 'ready' && unlocked) || status === 'offline' ? (
+      {status === 'ready' && unlocked ? (
         <div className="owner-card">
-          {status === 'offline' ? (
-            <p className="owner-warn">🎁 Free mode — no backend, no Stripe. Codes work on this device.</p>
-          ) : null}
           <div className="owner-kinds" role="radiogroup" aria-label="Gift type">
             {(['pet', 'coins', 'coupon', 'pack'] as Kind[]).map((k) => (
               <button key={k} type="button" className={`btn tool ${kind === k ? 'on' : ''}`} onClick={() => setKind(k)} aria-pressed={kind === k}>

@@ -254,18 +254,18 @@ export function WinScreen({
           </div>
           <a
             className="win-fb-follow"
-            href="https://facebook.com/romansgame"
+            href="https://romansgame.com"
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Follow Roman's Game on Facebook"
+            aria-label="Explore the world of Roman's Game"
           >
             <svg className="win-fb-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
               <path
                 fill="currentColor"
-                d="M13.5 21v-7h2.4l.4-3h-2.8V9.1c0-.9.3-1.5 1.6-1.5h1.3V4.9c-.3 0-1.1-.1-2-.1-2 0-3.4 1.2-3.4 3.5V11H8.5v3H11v7h2.5z"
+                d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2c2.1 0 3.9 1.1 5 2.7H7c1.1-1.6 2.9-2.7 5-2.7zM4.2 12c0-1.2.3-2.4.8-3.4h14c.5 1 .8 2.2.8 3.4s-.3 2.4-.8 3.4H5c-.5-1-.8-2.2-.8-3.4zm7.8 8c-2.1 0-3.9-1.1-5-2.7h10c-1.1 1.6-2.9 2.7-5 2.7z"
               />
             </svg>
-            Loved it? Follow Roman&rsquo;s Game for new puzzles!
+            Loved it? Explore the world of Roman&rsquo;s Game!
           </a>
         </div>
       </div>
