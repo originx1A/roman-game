@@ -1,7 +1,7 @@
 /** Public site for every share, challenge, and duel link.
  *  Change this if the site moves (a custom domain or a store link).
  */
-export const PUBLIC_GAME_URL = 'https://romans-game.netlify.app'
+export const PUBLIC_GAME_URL = 'https://play.romansgame.com'
 
 /**
  * Cache-buster on every shared link. X and Facebook cache the exact URL,
