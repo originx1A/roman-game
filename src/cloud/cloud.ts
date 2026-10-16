@@ -93,17 +93,28 @@ export function onCloud(fn: (s: CloudState) => void): () => void {
   return () => listeners.delete(fn)
 }
 
-function readQueue(): ScoreRow[] {
+/**
+ * Queues are per player: signed in -> `rg.cloud.queue.v1.<user id>`, signed out -> the shared
+ * `rg.cloud.queue.v1` (games played before signing in; they go to whoever signs in next).
+ * "Switch player" signs out, so player A's unsent scores stay under A's id and only send when A
+ * signs in again; they are never mixed into player B.
+ */
+let queueOwner: string | null = null
+function queueKey(owner: string | null = queueOwner): string {
+  return owner ? `${QUEUE_KEY}.${owner}` : QUEUE_KEY
+}
+function readQueue(owner: string | null = queueOwner): ScoreRow[] {
   try {
-    const q = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]')
+    const q = JSON.parse(localStorage.getItem(queueKey(owner)) || '[]')
     return Array.isArray(q) ? q : []
   } catch {
     return []
   }
 }
-function writeQueue(q: ScoreRow[]) {
+function writeQueue(q: ScoreRow[], owner: string | null = queueOwner) {
   try {
-    localStorage.setItem(QUEUE_KEY, JSON.stringify(q.slice(-MAX_QUEUE)))
+    if (!q.length) localStorage.removeItem(queueKey(owner))
+    else localStorage.setItem(queueKey(owner), JSON.stringify(q.slice(-MAX_QUEUE)))
   } catch {
     /* storage full / private mode: the score just isn't queued */
   }
@@ -126,7 +137,19 @@ function client(): Promise<SupabaseClient | null> {
 }
 
 async function loadPlayer(sb: SupabaseClient, session: Session | null) {
-  if (!session) return set({ status: 'signed-out', email: undefined, name: undefined })
+  if (!session) {
+    queueOwner = null
+    return set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined })
+  }
+  if (queueOwner !== session.user.id) {
+    queueOwner = session.user.id
+    // games played while signed out belong to the player who signs in now
+    const anon = readQueue(null)
+    if (anon.length) {
+      writeQueue([...readQueue(), ...anon])
+      writeQueue([], null)
+    }
+  }
   const { data, error } = await sb.from('players').select('display_name, public_name').eq('id', session.user.id).maybeSingle()
   if (error) return set({ status: 'signed-in', email: session.user.email, name: state.name ?? null })
   set({ status: 'signed-in', email: session.user.email, name: data?.display_name ?? null, publicName: data?.public_name })
@@ -183,8 +206,10 @@ export async function savePlayerName(name: string, consent: Consent): Promise<{ 
 
 export async function signOut(): Promise<void> {
   const sb = await client()
-  await sb?.auth.signOut().catch(() => undefined)
-  set({ status: 'signed-out', email: undefined, name: undefined })
+  // local scope: only this device; this player's unsent scores stay queued under their id
+  await sb?.auth.signOut({ scope: 'local' }).catch(() => undefined)
+  queueOwner = null
+  set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined })
 }
 
 /** Queue a finished game and try to send everything queued. Safe to call offline. */
@@ -207,17 +232,20 @@ let flushing = false
 export async function flushScores(): Promise<void> {
   if (flushing || state.status !== 'signed-in' || !state.name) return
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return
-  const q = readQueue()
-  if (!q.length) return
+  const owner = queueOwner
+  const q = readQueue(owner)
+  if (!owner || !q.length) return
   flushing = true
   try {
     const sb = await client()
     if (!sb) return
     const rows = q.map(({ at: _at, ...r }) => r)
+    const { data: sess } = await sb.auth.getSession()
+    if (sess.session?.user.id !== owner) return // switched player mid-send: leave the queue alone
     const { error } = await sb.from('scores').insert(rows)
     if (!error) {
       // keep anything queued while we were sending
-      writeQueue(readQueue().slice(q.length))
+      writeQueue(readQueue(owner).slice(q.length), owner)
       set({ lastSync: new Date().toISOString() })
     }
   } catch {

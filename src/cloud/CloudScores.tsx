@@ -50,6 +50,18 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
         ? `☁ Save my scores (${cloud.pending} waiting)`
         : '☁ Save my scores'
 
+  /** Families sharing a phone: sign this player out (their unsent scores stay theirs) and sign in someone else */
+  async function switchPlayer() {
+    await signOut()
+    setEmail('')
+    setName('')
+    setAge13(false)
+    setOptIn(false)
+    saveConsent({ age13: false, optIn: false })
+    setErr('')
+    setSheet('email')
+  }
+
   const nameProblem = !name.trim() ? '' : isProfane(name) ? "Let's pick a different name. Keep it friendly!" : ''
 
   return (
@@ -64,6 +76,11 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
       >
         {label}
       </button>
+      {cloud.status === 'signed-in' && cloud.name && (
+        <button type="button" className={`btn ghost cloud-switch${compact ? ' is-compact' : ''}`} onClick={() => void switchPlayer()}>
+          Switch player
+        </button>
+      )}
       {sheet &&
         createPortal(
           <div className="start-sheet cloud-sheet" role="dialog" aria-modal="true" aria-label="Save my scores">
@@ -160,6 +177,13 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 </p>
                 <button type="button" className="btn primary" onClick={() => setSheet(null)}>
                   Done
+                </button>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={() => void switchPlayer()}
+                >
+                  Switch player
                 </button>
                 <button type="button" className="btn ghost" onClick={() => { void signOut(); setSheet(null) }}>
                   Sign out
