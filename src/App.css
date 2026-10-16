@@ -6057,117 +6057,102 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 }
 .foot-links > * { white-space: nowrap; }
 
-/* ——— Old-timer heckler pop-up (10.06) ——— */
-/* Visual companion to the old-timer's voice lines ONLY (old_* / tip_*_old_* clips).
-   Never shown for Roman or the Coach. pointer-events:none — taps pass through,
-   it can never block the board or cause layout shift. */
-.oldtimer-pop {
+/* ——— The Unseen heckler pop-up (9.31-u; replaces the 10.06 Unseen) ——— */
+/* Visual companion to the heckler's voice lines ONLY (old_* / tip_*_old_* clips).
+   The hooded sticker rises from the bottom-right corner (his art is cut off on the right and
+   bottom, so he sits flush to the edge), tilted so his finger points up and in at the board.
+   pointer-events:none — taps pass through, it never blocks the board or shifts layout. */
+.unseen-pop {
   position: fixed;
-  right: max(0.75rem, env(safe-area-inset-right, 0px));
-  bottom: max(4.5rem, calc(env(safe-area-inset-bottom, 0px) + 4.5rem));
+  right: 0;
+  bottom: 0;
   z-index: 75; /* above win screen (70), below result overlay */
   display: flex;
+  flex-direction: column;
   align-items: flex-end;
-  gap: 0.35rem;
   pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
-  max-width: min(78vw, 340px);
   will-change: transform, opacity;
 }
-.oldtimer-pop.is-entering {
-  animation: oldtimerIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+.unseen-pop.is-entering { animation: unseenIn 0.6s cubic-bezier(0.34, 1.4, 0.64, 1) both; }
+.unseen-pop.is-leaving { animation: unseenOut 0.4s cubic-bezier(0.55, 0.06, 0.68, 0.19) both; }
+@keyframes unseenIn {
+  from { transform: translate(40%, 60%); opacity: 0; }
+  to { transform: translate(0, 0); opacity: 1; }
 }
-.oldtimer-pop.is-leaving {
-  animation: oldtimerOut 0.4s cubic-bezier(0.55, 0.06, 0.68, 0.19) both;
+@keyframes unseenOut {
+  from { transform: translate(0, 0); opacity: 1; }
+  to { transform: translate(40%, 60%); opacity: 0; }
 }
-@keyframes oldtimerIn {
-  from { transform: translateY(120%) rotate(6deg); opacity: 0; }
-  to { transform: translateY(0) rotate(0deg); opacity: 1; }
+.unseen-art {
+  display: block;
+  width: 170px;
+  height: auto;
+  margin-right: -14px;
+  margin-bottom: -10px;
+  filter: drop-shadow(0 0 12px rgba(255, 196, 80, 0.25)) drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55));
+  transform-origin: 100% 100%;
+  transform: rotate(12deg);
+  /* slow ominous sway while visible */
+  animation: unseenSway 3.2s ease-in-out infinite;
 }
-@keyframes oldtimerOut {
-  from { transform: translateY(0); opacity: 1; }
-  to { transform: translateY(120%) rotate(-4deg); opacity: 0; }
+@keyframes unseenSway {
+  0%, 100% { transform: rotate(11deg); }
+  50% { transform: rotate(14deg); }
 }
-.oldtimer-art {
-  width: 128px;
-  height: 128px;
-  object-fit: contain;
-  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.45));
-  flex-shrink: 0;
-  /* idle grumble: subtle rock while visible */
-  animation: oldtimerGrumble 2.2s ease-in-out infinite;
-  transform-origin: 50% 90%;
-}
-@keyframes oldtimerGrumble {
-  0%, 100% { transform: rotate(-1.5deg); }
-  50% { transform: rotate(1.5deg); }
-}
-.oldtimer-bubble {
+.unseen-bubble {
   position: relative;
   background: #fffdf5;
-  color: #2a2118;
-  border-radius: 14px;
-  border: 2px solid #d8c9a3;
-  padding: 0.5rem 0.65rem 0.55rem;
-  margin-bottom: 1.4rem;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
-  font-size: 0.82rem;
+  color: #15121c;
+  border-radius: 16px;
+  border: 3px solid #111;
+  padding: 0.5rem 0.7rem 0.55rem;
+  margin: 0 0.6rem 0.2rem 0;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4);
+  font-size: 0.85rem;
+  font-weight: 600;
   line-height: 1.3;
-  max-width: 200px;
+  max-width: 220px;
 }
-/* bubble tail pointing at the old man */
-.oldtimer-bubble::after {
+/* tail drops down-left toward his pointing hand */
+.unseen-bubble::after {
   content: '';
   position: absolute;
-  right: -9px;
-  bottom: 14px;
+  left: 22px;
+  bottom: -10px;
   width: 14px;
   height: 14px;
   background: #fffdf5;
-  border-right: 2px solid #d8c9a3;
-  border-bottom: 2px solid #d8c9a3;
-  transform: rotate(-45deg);
+  border-right: 3px solid #111;
+  border-bottom: 3px solid #111;
+  transform: rotate(45deg);
   border-bottom-right-radius: 4px;
 }
-.oldtimer-name {
+.unseen-name {
   display: block;
   font-size: 0.62rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: #8a6d3b;
   margin-bottom: 0.15rem;
 }
-.oldtimer-bubble p {
-  margin: 0;
-  font-style: italic;
-}
-/* mobile: smaller, tucked tighter into the corner */
+.unseen-bubble p { margin: 0; }
 @media (max-width: 640px) {
-  .oldtimer-pop {
-    right: max(0.4rem, env(safe-area-inset-right, 0px));
-    bottom: max(3.75rem, calc(env(safe-area-inset-bottom, 0px) + 3.75rem));
-    max-width: 72vw;
-  }
-  .oldtimer-art {
-    width: 88px;
-    height: 88px;
-  }
-  .oldtimer-bubble {
-    font-size: 0.72rem;
-    max-width: 150px;
-    margin-bottom: 0.9rem;
-    padding: 0.4rem 0.5rem 0.45rem;
+  .unseen-art { width: 104px; }
+  .unseen-bubble {
+    font-size: 0.74rem;
+    max-width: 170px;
+    padding: 0.4rem 0.55rem 0.45rem;
   }
 }
-/* reduced motion: fade instead of spring */
-html[data-motion='reduce'] .oldtimer-pop.is-entering,
-html[data-motion='reduce'] .oldtimer-pop.is-leaving {
+html[data-motion='reduce'] .unseen-pop.is-entering,
+html[data-motion='reduce'] .unseen-pop.is-leaving {
   animation-duration: 0.2s;
   animation-timing-function: ease;
 }
-html[data-motion='reduce'] .oldtimer-art {
+html[data-motion='reduce'] .unseen-art {
   animation: none;
 }
 
@@ -6175,7 +6160,7 @@ html[data-motion='reduce'] .oldtimer-art {
 .treat-defense {
   position: fixed;
   inset: 0;
-  z-index: 30; /* above board, below flyby (40) and old-timer pop (75) */
+  z-index: 30; /* above board, below flyby (40) and Unseen pop (75) */
   pointer-events: none;
   overflow: hidden;
 }

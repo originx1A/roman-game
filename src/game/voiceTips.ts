@@ -2,7 +2,7 @@
  * Voice tips (build 9.28-b): short, funny, slightly naggy teaching lines that fire on context
  * triggers and retire once the player shows they get the feature.
  *
- * Lines go through the three existing voices (deep Roman, the coach, the old-timer) and the same
+ * Lines go through the three existing voices (deep Roman, the coach, the Unseen) and the same
  * one-at-a-time voice channel as every other line. Each tip keeps a saved shuffle bag per voice
  * (via comments.ts), and the voices take turns. A line only plays if it has a recorded clip: new
  * lines are written here and in /workspace/roman-audit/voice-tips-draft.md, and stay silent until
@@ -24,7 +24,7 @@ export interface TipLine {
 
 const R = (id: string, text: string, reason?: TipReason): TipLine => ({ id, voice: 'roman', text: `Roman says: ${text}`, reason })
 const C = (id: string, text: string, reason?: TipReason): TipLine => ({ id, voice: 'coach', text, reason })
-const O = (id: string, text: string, reason?: TipReason): TipLine => ({ id, voice: 'old', text: `Old-timer: ${text}`, reason })
+const O = (id: string, text: string, reason?: TipReason): TipLine => ({ id, voice: 'old', text: `The Unseen: ${text}`, reason })
 
 /** NEW lines (not recorded yet — silent until approved + recorded). */
 export const NEW_TIP_LINES: Record<TipId, TipLine[]> = {
@@ -103,15 +103,15 @@ export const NEW_TIP_LINES: Record<TipId, TipLine[]> = {
 
 /**
  * EXISTING recorded lines that already fit a tip. They stay in their original bags too.
- * 9.28-b wired a first handful; 9.29-a adds the rest of the old-timer's recorded put-downs that
- * fit each tip (Tony wants more of the gruff old-timer heard).
+ * 9.28-b wired a first handful; 9.29-a adds the rest of the Unseen's recorded put-downs that
+ * fit each tip (Tony wants more of the gruff Unseen heard).
  */
 export const RECORDED_TIP_LINES: Record<TipId, { id: string; voice: TipVoice; reason?: TipReason }[]> = {
   stall: [
     { id: 'coach_lose_breathe', voice: 'coach' },
     { id: 'old_idle_glacier', voice: 'old' },
     { id: 'old_idle_mail', voice: 'old' },
-    // 9.29-a: the rest of the old-timer's "you're slow" lines
+    // 9.29-a: the rest of the Unseen's "you're slow" lines
     { id: 'old_idle_twenty', voice: 'old' },
     { id: 'old_idle_crossword', voice: 'old' },
     { id: 'old_idle_kettle', voice: 'old' },
@@ -148,7 +148,7 @@ export const RECORDED_TIP_LINES: Record<TipId, { id: string; voice: TipVoice; re
   ],
   stuck: [
     { id: 'roman_nudge', voice: 'roman' },
-    // 9.29-a: the old-timer's hint grumbles (the stuck tip points at the Hint button)
+    // 9.29-a: the Unseen's hint grumbles (the stuck tip points at the Hint button)
     { id: 'old_hint_stare', voice: 'old' },
     { id: 'old_hint_tell', voice: 'old' },
     { id: 'old_hint_push', voice: 'old' },
@@ -160,8 +160,8 @@ export const RECORDED_TIP_LINES: Record<TipId, { id: string; voice: TipVoice; re
 }
 
 /**
- * 9.29-a general "snark" pool: the old-timer's recorded jabs. The stall, undo and stuck tips
- * draw from it too (old-timer voice), so these get heard during play and not only after a
+ * 9.29-a general "snark" pool: the Unseen's recorded jabs. The stall, undo and stuck tips
+ * draw from it too (Unseen voice), so these get heard during play and not only after a
  * wrong tap. They also stay in their original bags (wrong move, Buddy Hunt miss).
  */
 export const OLD_SNARK_TIP_LINES: readonly string[] = [
