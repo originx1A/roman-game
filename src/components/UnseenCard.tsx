@@ -14,7 +14,8 @@ export function useUnseenPieces(records?: RecordsBlob): { pieces: number; earned
 }
 
 /** The card under shadow. `from` animates the shadow burning back to `pieces`. */
-export function UnseenCardArt({ pieces, from, size = 'sm' }: { pieces: number; from?: number; size?: 'sm' | 'lg' }) {
+/** Still card face sits under the shadow; once earned, the big views pop out and play the animated card. */
+export function UnseenCardArt({ pieces, from, size = 'sm', animate = size === 'lg' }: { pieces: number; from?: number; size?: 'sm' | 'lg'; animate?: boolean }) {
   const [shown, setShown] = useState(from ?? pieces)
   useEffect(() => {
     if (from == null) return setShown(pieces)
@@ -25,11 +26,19 @@ export function UnseenCardArt({ pieces, from, size = 'sm' }: { pieces: number; f
   const r = Math.max(0, Math.min(1, shown / CARD_PIECES))
   return (
     <div className={`unseen-card unseen-card-${size}${r >= 1 ? ' is-earned' : ''}`} style={{ ['--reveal' as string]: r }} aria-hidden="true">
-      <img src="/images/unseen-card.webp" alt="" draggable={false} />
+      {r >= 1 && animate && !reducedMotion() ? (
+        <video src="/images/unseen-card-animated.mp4" poster="/images/unseen-card.webp" autoPlay muted loop playsInline disablePictureInPicture />
+      ) : (
+        <img src="/images/unseen-card.webp" alt="" draggable={false} />
+      )}
       <div className="unseen-shadow" />
       {from != null && pieces > from ? <div className="unseen-burn" /> : null}
     </div>
   )
+}
+
+function reducedMotion(): boolean {
+  return typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 }
 
 export function UnseenCardTile({ records }: { records?: RecordsBlob }) {
@@ -68,7 +77,7 @@ export function UnseenCardTile({ records }: { records?: RecordsBlob }) {
 export function UnseenCardGain({ from, to }: { from: number; to: number }) {
   return (
     <div className="unseen-gain" role="status">
-      <UnseenCardArt pieces={to} from={from} />
+      <UnseenCardArt pieces={to} from={from} size={to >= CARD_PIECES ? 'lg' : 'sm'} />
       <span>
         <b>{to >= CARD_PIECES ? 'The Unseen card is yours!' : 'The shadow burns back'}</b>
         <small>Unseen card: {to} of {CARD_PIECES}</small>

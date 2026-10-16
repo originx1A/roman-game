@@ -6359,12 +6359,17 @@ html[data-motion='reduce'] .td-invader {
 .cloud-switch { font-size: 0.8rem; padding: 0.35rem 0.75rem; min-height: 0; opacity: 0.9; }
 
 /* 9.32-b: exclusive Unseen card, shadow reveal */
-.unseen-card { position: relative; width: 44px; aspect-ratio: 1310 / 2403; border-radius: 4px; overflow: hidden; flex: none; background: #000; box-shadow: 0 0 0 1px rgba(201,162,77,.45); }
+.unseen-card { position: relative; width: 44px; aspect-ratio: 2 / 3; border-radius: 4px; overflow: hidden; flex: none; background: #000; box-shadow: 0 0 0 1px rgba(201,162,77,.45); }
 .unseen-card-lg { width: min(62vw, 240px); border-radius: 10px; margin: 0 auto 12px; }
 .unseen-card img { width: 100%; height: 100%; object-fit: cover; display: block; filter: saturate(calc(.3 + var(--reveal) * .7)); }
 .unseen-shadow { position: absolute; inset: -20%; pointer-events: none; transition: --reveal 0s, background 1.2s ease;
   background: radial-gradient(ellipse 50% 45% at 50% 48%, rgba(4,4,10,calc(.85 - var(--reveal) * .85)) calc(var(--reveal) * 80%), rgba(4,4,10,.99) calc(var(--reveal) * 80% + 14%)); }
 .unseen-card.is-earned .unseen-shadow { display: none; }
+.unseen-card video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.unseen-card-lg.is-earned { animation: unseen-earned-pop .7s cubic-bezier(.2,1.4,.4,1) both; box-shadow: 0 0 0 1px rgba(201,162,77,.8), 0 0 28px rgba(255,150,40,.45); }
+.unseen-gain .unseen-card-lg { width: min(44vw, 160px); margin: 0; }
+@keyframes unseen-earned-pop { from { transform: scale(.82); opacity: .4 } to { transform: none; opacity: 1 } }
+@media (prefers-reduced-motion: reduce) { .unseen-card-lg.is-earned { animation: none; } }
 .unseen-card { transition: box-shadow .6s; }
 .unseen-card .unseen-shadow { transition: background 1.2s ease; }
 .unseen-burn { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 50% 48%, rgba(255,170,60,.85), rgba(255,90,20,0) 60%); mix-blend-mode: screen; animation: unseen-burn 1.6s ease-out forwards; }
