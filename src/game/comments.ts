@@ -574,7 +574,7 @@ export interface Banter {
 export const VOICE_PRIORITY = { idle: 1, chatter: 2, wrong: 3, hint: 4, prize: 4, win: 5, lose: 5 } as const
 
 // All roman_* clips are the deeper Roman voice (en-US-BrianNeural, see scripts/voice-manifest.json).
-// old_* clips are the old-timer heckler (en-AU-WilliamMultilingualNeural + rasp). Coach clips are en-US-JennyNeural.
+// old_* clips are the Unseen heckler (en-AU-WilliamMultilingualNeural + rasp). Coach clips are en-US-JennyNeural.
 
 /** Win cheers (Roman). Every id has a clip under public/voices. */
 export const ROMAN_CHEER_CLIPS = [
@@ -790,7 +790,7 @@ export const ROMAN_STASH_CLIPS = [
   'roman_stash_jazz',
 ] as const satisfies readonly VoiceClipId[]
 
-/** Old-timer heckles for a wrong move. */
+/** The Unseen heckles for a wrong move. */
 export const OLDTIMER_WRONG_CLIPS = [
   'old_wrong_stick',
   'old_wrong_pigeon',
@@ -832,7 +832,7 @@ export const OLDTIMER_WRONG_CLIPS = [
   'old_wrong_cane',
 ] as const satisfies readonly VoiceClipId[]
 
-/** Old-timer grumbles when the player is slow. */
+/** The Unseen grumbles when the player is slow. */
 export const OLDTIMER_IDLE_CLIPS = [
   'old_idle_twenty',
   'old_idle_crossword',
@@ -853,7 +853,7 @@ export const OLDTIMER_IDLE_CLIPS = [
   'tip_stall_old_free',
 ] as const satisfies readonly VoiceClipId[]
 
-/** Old-timer on hints. */
+/** The Unseen on hints. */
 export const OLDTIMER_HINT_CLIPS = [
   'old_hint_stare',
   'old_hint_tell',
@@ -869,7 +869,7 @@ export const OLDTIMER_HINT_CLIPS = [
   'old_hint_giveup',
 ] as const satisfies readonly VoiceClipId[]
 
-/** Old-timer on undo/redo spam. */
+/** The Unseen on undo/redo spam. */
 export const OLDTIMER_UNDO_CLIPS = [
   'old_undo_hokey',
   'old_undo_dizzy',
@@ -920,7 +920,7 @@ export const COACH_WIN_CLIPS = ['board_complete', 'cleared'] as const satisfies 
 export const ROMAN_NEAR_MISS_CLIPS = ['roman_almost'] as const satisfies readonly VoiceClipId[]
 export const OLDTIMER_NEAR_MISS_CLIPS = ['old_nearmiss', 'old_nearmiss_close'] as const satisfies readonly VoiceClipId[]
 
-/** Old-timer when the player runs out of hearts. */
+/** The Unseen when the player runs out of hearts. */
 export const OLDTIMER_LOSE_CLIPS = [
   'old_lose_tape',
   'old_lose_goldfish',
@@ -932,7 +932,7 @@ export const OLDTIMER_LOSE_CLIPS = [
   'old_lose_deal',
 ] as const satisfies readonly VoiceClipId[]
 
-/** Old-timer backhanded compliments after a slow or sloppy win. */
+/** The Unseen backhanded compliments after a slow or sloppy win. */
 export const OLDTIMER_WIN_CLIPS = [
   'old_win_eventually',
   'old_win_ugly',
@@ -945,7 +945,7 @@ export const OLDTIMER_WIN_CLIPS = [
   'old_win_twothree',
 ] as const satisfies readonly VoiceClipId[]
 
-/** Old-timer when the player buys a rescue. */
+/** The Unseen when the player buys a rescue. */
 export const OLDTIMER_RESCUE_CLIPS = [
   'old_rescue_modern',
   'old_rescue_refund',
@@ -1025,7 +1025,7 @@ export const OLDTIMER_GOOD_CLIPS = [
 ] as const satisfies readonly VoiceClipId[]
 
 /**
- * The old-timer takes about one in three shared voice moments (wrong move, idle, hint, lose),
+ * The Unseen takes about one in three shared voice moments (wrong move, idle, hint, lose),
  * instead of Roman or the coach, never on top of them. A quiet gap keeps him from stacking
  * heckles. Each pool is its own saved shuffle bag (see voiceBags below).
  */
@@ -1077,7 +1077,9 @@ setVoiceHeardListener(noteVoiceHeard)
 /** Speaker / turn bags (not lines): they move on when drawn, and never count as a spoken line */
 const turnBags = createBagSet({ store: browserBagStore(), key: 'roman.voiceturns.v1' })
 
-function bag(name: string, pool: readonly VoiceClipId[]) {
+function bag(name: string, allPool: readonly VoiceClipId[]) {
+  // 9.31-u: retired old-age lines (RETIRED_UNSEEN_CLIPS) never enter a bag
+  const pool = allPool.filter((id) => isPlayableVoiceClip(id))
   const next = voiceBags.bag(name, pool)
   return () => ({ clip: next(), pool })
 }
@@ -1122,7 +1124,7 @@ const oldRecord = bag('old.record', OLDTIMER_RECORD_CLIPS)
  * 9.30-a (Tony): ONE line for the whole moment, board cleared + slower than your best, instead of
  * the win cheer followed by a tease. Teasing, never a loss line.
  * 9.30-g: Tony approved the 14 combined lines and they are recorded; they replace the stand-in
- * teasers (those stay in their own win/record/nice-try pools). Old-timer about 60%, Roman and the
+ * teasers (those stay in their own win/record/nice-try pools). The Unseen about 60%, Roman and the
  * coach take weighted turns for the rest.
  */
 export const ROMAN_NOT_BEST_CLIPS = ['roman_notbest_record', 'roman_notbest_again', 'roman_notbest_turtle', 'roman_notbest_snail', 'roman_notbest_yawn'] as const satisfies readonly VoiceClipId[]
@@ -1146,7 +1148,7 @@ export const OLDTIMER_NOT_BEST_CLIPS = [
 export const COACH_NOT_BEST_CLIPS = ['coach_notbest_clear', 'coach_notbest_close', 'coach_notbest_stands', 'coach_notbest_okay', 'coach_notbest_chase', 'coach_notbest_breath', 'coach_notbest_safe', 'coach_notbest_practice', 'coach_notbest_again', 'coach_notbest_steady', 'coach_notbest_learning', 'coach_notbest_nice_win', 'coach_notbest_almost', 'coach_notbest_fresh', 'coach_notbest_calm', 'coach_notbest_close2', 'coach_notbest_rhythm', 'coach_notbest_smile', 'coach_notbest_bank'] as const satisfies readonly VoiceClipId[]
 const oldNotBest = bag('old.notBest', OLDTIMER_NOT_BEST_CLIPS)
 
-/** Old-timer draw. The bag set already keeps a line from playing twice in a row across bags. */
+/** The Unseen draw. The bag set already keeps a line from playing twice in a row across bags. */
 function pickOld(draw: () => { clip: VoiceClipId; pool: readonly VoiceClipId[] }) {
   return draw()
 }
@@ -1195,9 +1197,9 @@ const nextHint = takeTurns('hint', ROMAN_HINT_CLIPS, COACH_HINT_CLIPS)
 const nextBadge = takeTurns('badge', ROMAN_BADGE_CLIPS, COACH_BADGE_CLIPS)
 const nextPrize = takeTurns('prize', ROMAN_PRIZE_CLIPS, COACH_PRIZE_CLIPS)
 const nextStash = takeTurns('stash', ROMAN_STASH_CLIPS, COACH_STASH_CLIPS)
-// 9.30-g: Roman and the coach share the non-old-timer not-best turns (bags roman.notBest / coach.notBest)
+// 9.30-g: Roman and the coach share the non-Unseen not-best turns (bags roman.notBest / coach.notBest)
 const nextNotBest = takeTurns('notBest', ROMAN_NOT_BEST_CLIPS, COACH_NOT_BEST_CLIPS)
-// 9.30-i: record / Trial clear / Daily done: Roman and the coach take weighted turns (the old-timer has his share)
+// 9.30-i: record / Trial clear / Daily done: Roman and the coach take weighted turns (the Unseen has his share)
 const nextRecord = takeTurns('record', ROMAN_RECORD_CLIPS, COACH_RECORD_CLIPS)
 const nextTrialClear = takeTurns('trialClear', ROMAN_TRIAL_CLEAR_CLIPS, COACH_TRIAL_CLEAR_CLIPS)
 const nextDailyDone = takeTurns('dailyDone', ROMAN_DAILY_DONE_CLIPS, COACH_DAILY_DONE_CLIPS)
@@ -1345,7 +1347,7 @@ export function banterFor(
     if (oldtimerTurn(0.5, OLDTIMER_RESCUE_CLIPS, [ROMAN_HINT_CLIPS, COACH_HINT_CLIPS])) return voiced(pickOld(oldRescue), 'neutral', 'neutral', VOICE_PRIORITY.hint)
     return voiced(nextHint(), 'neutral', 'happy', VOICE_PRIORITY.hint)
   }
-  // Undo/redo spam: only the old-timer comments, and only now and then
+  // Undo/redo spam: only the Unseen comments, and only now and then
   if (event === 'undo-spam') {
     if (oldtimerTurn(0.6, OLDTIMER_UNDO_CLIPS, [ROMAN_UNDO_CLIPS, COACH_UNDO_CLIPS])) return voiced(pickOld(oldUndo), 'bad', 'neutral', VOICE_PRIORITY.chatter)
     // 9.30-j: Roman / the coach sometimes take it (their undo-tip lines); otherwise stay quiet
@@ -1459,7 +1461,7 @@ export function tipBanter(tip: TipId, reason?: TipReason): Banter {
   const lines = playableTipLines(tip, reason, isPlayableVoiceClip, voiceLineText)
   if (lines.length === 0) return silent
   const voices = [...new Set(lines.map((l) => l.voice))] as TipVoice[]
-  // 9.29-a: the old-timer takes two turns in every voice cycle (Tony wants more of him heard).
+  // 9.29-a: the Unseen takes two turns in every voice cycle (Tony wants more of him heard).
   // Still a shuffle bag, so the voices keep rotating and no voice runs away with it.
   const turns = voices.includes('old') && voices.length > 1 ? [...voices, 'old2'] : voices
   const turn = turns.length === 1 ? turns[0] : turnBags.bag(`tipvoice.${tip}`, turns)()
@@ -1598,10 +1600,10 @@ export function reachableClips(): string[] {
 /** 9.30-k: "Voice lines heard: X of Y", with a per-voice breakdown for Settings */
 export function heardSummary(): { heard: number; total: number; plays: number; voices: { name: string; heard: number; total: number }[] } {
   const all = reachableClips()
-  const groups: Record<string, string[]> = { Roman: [], 'Old-timer': [], Coach: [] }
+  const groups: Record<string, string[]> = { Roman: [], 'The Unseen': [], Coach: [] }
   for (const id of all) {
     const r = roleForClip(id)
-    groups[r === 'roman' ? 'Roman' : r === 'oldtimer' ? 'Old-timer' : 'Coach'].push(id)
+    groups[r === 'roman' ? 'Roman' : r === 'oldtimer' ? 'The Unseen' : 'Coach'].push(id)
   }
   return {
     heard: heardLog.heardOf(all),
@@ -1627,7 +1629,7 @@ export type BoardOutcome = 'won' | 'lost' | null
 
 /**
  * May this event speak now? Once a board is won, only win lines (and badge / prize / spark lines)
- * play: a wrong-move, idle, undo or old-timer put-down queued just before the win is dropped, and
+ * play: a wrong-move, idle, undo or Unseen put-down queued just before the win is dropped, and
  * a lose line can never follow a win (and the other way round).
  */
 export function eventAllowed(event: BanterEvent, outcome: BoardOutcome): boolean {

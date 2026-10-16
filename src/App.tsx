@@ -17,7 +17,7 @@ import { ShareBar } from './components/ShareBar'
 import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './components/SparkCritter'
 import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
-import { OldTimerPopup, type OldTimerPop } from './components/OldTimerPopup'
+import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
 import { TapButton } from './components/TapButton'
 import { BuddyHunt } from './components/BuddyHunt'
@@ -489,19 +489,19 @@ export default function App() {
   const [runMaxLives, setRunMaxLives] = useState(MAX_LIVES)
   const [lastScore, setLastScore] = useState<number | null>(null)
   const [toast, setToast] = useState('')
-  // 10.06: old-timer heckler pop-up — visual only, shown ONLY for old-timer
+  // 10.06: Unseen heckler pop-up — visual only, shown ONLY for Unseen
   // voice lines (old_* / tip_*_old_* clips), never for Roman or the Coach
-  const [oldTimerPop, setOldTimerPop] = useState<OldTimerPop | null>(null)
-  const oldTimerKey = useRef(0)
-  /** Old-timer clip ids: `old_*`, plus tips like `tip_trial_old_life`. Roman is `roman_*`/`tip_*_roman_*`, Coach is `coach_*`/`tip_*_coach_*`. */
-  function isOldTimerClip(clip: string | undefined): boolean {
+  const [unseenPop, setUnseenPop] = useState<UnseenPop | null>(null)
+  const unseenKey = useRef(0)
+  /** The Unseen clip ids: `old_*`, plus tips like `tip_trial_old_life`. Roman is `roman_*`/`tip_*_roman_*`, Coach is `coach_*`/`tip_*_coach_*`. */
+  function isUnseenClip(clip: string | undefined): boolean {
     if (!clip) return false
     return clip.startsWith('old_') || (clip.startsWith('tip_') && clip.includes('_old_'))
   }
-  function maybeOldTimerPop(line: { text?: string; clip?: string; speak?: boolean; silent?: boolean }) {
-    if (!line.speak || line.silent || !line.text || !isOldTimerClip(line.clip)) return
-    oldTimerKey.current += 1
-    setOldTimerPop({ text: line.text, key: oldTimerKey.current })
+  function maybeUnseenPop(line: { text?: string; clip?: string; speak?: boolean; silent?: boolean }) {
+    if (!line.speak || line.silent || !line.text || !isUnseenClip(line.clip)) return
+    unseenKey.current += 1
+    setUnseenPop({ text: line.text, key: unseenKey.current })
   }
   const [shortfall, setShortfall] = useState<null | { action: ShortfallAction; need: number; detail?: string }>(null)
   const [incoming, setIncoming] = useState<Challenge | null>(null)
@@ -988,7 +988,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running, celebrate, defeated])
 
-  // Old-timer aside: if nobody has held the voice channel for a while, he drops a random remark.
+  // The Unseen aside: if nobody has held the voice channel for a while, he drops a random remark.
   useEffect(() => {
     if (!running || celebrate || defeated) return
     resetVoiceQuietClock()
@@ -1047,7 +1047,7 @@ export default function App() {
     // place-good: Board already plays buddy giggle — don't speak here
     if (line.giggle || !line.speak || !line.clip) return line
     playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
-    maybeOldTimerPop(line)
+    maybeUnseenPop(line)
     return line
   }
 
@@ -1099,7 +1099,7 @@ export default function App() {
       if (line.silent || !line.clip) return false
       if (line.text) showToast(line.text)
       playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
-      maybeOldTimerPop(line)
+      maybeUnseenPop(line)
       boardTipsRef.current = [...boardTipsRef.current, id]
       lastTipAtRef.current = now
       persistTips(noteShown(tipsRef.current, id, now))
@@ -1656,7 +1656,7 @@ export default function App() {
       }
     } else if (meta.kind === 'stone') {
       lastProgressRef.current = Date.now()
-      // The winning buddy gets the win line only (no old-timer grumble cut off by the cheer)
+      // The winning buddy gets the win line only (no Unseen grumble cut off by the cheer)
       if (!(puzzle && isSolved(puzzle, next))) pushBanter('place-good')
       setGiggleIndex(meta.index)
       window.setTimeout(() => setGiggleIndex((g) => (g === meta.index ? null : g)), 900)
@@ -1667,7 +1667,7 @@ export default function App() {
     if (puzzle && isSolved(puzzle, next) && !recordedRef.current) {
       recordedRef.current = true
       boardOverRef.current = 'won'
-      // Drop anything queued from the live board (wrong move, stall, tip, old-timer) before the win line
+      // Drop anything queued from the live board (wrong move, stall, tip, Unseen) before the win line
       cancelVoiceBelow(VOICE_PRIORITY.win)
       setRunning(false)
       setCelebrate(true)
@@ -1739,7 +1739,7 @@ export default function App() {
       if (isRecord) sfxRecord()
       const win = pushBanter(winEvent)
       setWinLine(win.text || 'Roman says: nice clear!')
-      // Slow or sloppy clear (lost a heart, 2+ hints, or over 3 minutes): the old-timer may chime in
+      // Slow or sloppy clear (lost a heart, 2+ hints, or over 3 minutes): the Unseen may chime in
       // with a backhanded compliment once Roman's cheer is done (never on top of it)
       // Voice tips: what the player has shown they get, and how to reach 3 stars if they missed it
       let tipped = false
@@ -1941,7 +1941,7 @@ export default function App() {
     }
   }
 
-  /** Undo/redo spam (4 within 5s) gives the old-timer an opening */
+  /** Undo/redo spam (4 within 5s) gives the Unseen an opening */
   function noteUndoRedo() {
     const now = Date.now()
     const recent = [...undoTimesRef.current.filter((t) => now - t < 5000), now]
@@ -3917,8 +3917,8 @@ export default function App() {
       </footer>
       {/* Keep clear of Netlify “Powered by” badge */}
       <div className="netlify-safe" aria-hidden />
-      {/* 10.06: old-timer heckler pop-up — visual only, never blocks input */}
-      <OldTimerPopup pop={oldTimerPop} />
+      {/* 10.06: Unseen heckler pop-up — visual only, never blocks input */}
+      <UnseenPopup pop={unseenPop} />
       {/* 10.06: treat defense — wild pets vs the field treat pile (home + play) */}
       <TreatDefense
         active={screen === 'play' && !celebrate && !defeated && !showWheel && !rotatePaused}

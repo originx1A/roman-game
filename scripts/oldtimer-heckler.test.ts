@@ -68,7 +68,7 @@ test('new heckler lines use the William rasp recipe and stay in one pool each', 
   assert.equal(Object.keys(LINES).length, 28)
   for (const [id, text] of Object.entries(LINES)) {
     assert.match(voices, new RegExp(`${id}: '/voices/${id}\\.mp3'`))
-    assert.ok(sound.includes(`Old-timer: ${text}`), `${id} caption`)
+    assert.ok(sound.includes(`The Unseen: ${text}`), `${id} caption`)
     assert.match(recipe, new RegExp(`"${id}": "${escapeReg(text)}"`))
     assert.match(comments, new RegExp(`'${id}'`))
     const entry = manifest[id]
