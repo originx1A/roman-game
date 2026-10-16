@@ -9,6 +9,9 @@
  */
 import type { SupabaseClient, Session } from '@supabase/supabase-js'
 
+/** Longest player name (matches players_display_name_len in supabase/schema.sql) */
+export const NAME_MAX = 24
+
 export const SUPABASE_URL = 'https://oelsglmfkpzbueqysvdm.supabase.co'
 /** Publishable (public) key: safe in the browser; RLS decides what it can do */
 export const SUPABASE_KEY = 'sb_publishable_-lwtjOa1ekpRv6bdjOoTmg_lL3Tmne8'
@@ -29,6 +32,8 @@ export interface CloudState {
   email?: string
   /** null = signed in but no name yet (show the one-time prompt) */
   name?: string | null
+  /** The unique name shown on the leaderboard (server adds 02, 03... if the name was taken) */
+  publicName?: string
   pending: number
   lastSync?: string
 }
@@ -86,9 +91,9 @@ function client(): Promise<SupabaseClient | null> {
 
 async function loadPlayer(sb: SupabaseClient, session: Session | null) {
   if (!session) return set({ status: 'signed-out', email: undefined, name: undefined })
-  const { data, error } = await sb.from('players').select('display_name').eq('id', session.user.id).maybeSingle()
+  const { data, error } = await sb.from('players').select('display_name, public_name').eq('id', session.user.id).maybeSingle()
   if (error) return set({ status: 'signed-in', email: session.user.email, name: state.name ?? null })
-  set({ status: 'signed-in', email: session.user.email, name: data?.display_name ?? null })
+  set({ status: 'signed-in', email: session.user.email, name: data?.display_name ?? null, publicName: data?.public_name })
   if (data) void flushScores()
 }
 
@@ -117,18 +122,18 @@ export async function sendMagicLink(email: string): Promise<{ ok: boolean; error
   return { ok: true }
 }
 
-export async function savePlayerName(name: string): Promise<{ ok: boolean; error?: string }> {
+export async function savePlayerName(name: string): Promise<{ ok: boolean; error?: string; publicName?: string }> {
   const sb = await client()
   if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
   const { data } = await sb.auth.getSession()
   const uid = data.session?.user.id
   if (!uid) return { ok: false, error: 'Please sign in first.' }
-  const display_name = name.trim().replace(/\s+/g, ' ').slice(0, 40)
-  const { error } = await sb.from('players').upsert({ id: uid, display_name }, { onConflict: 'id' })
+  const display_name = name.trim().replace(/\s+/g, ' ').slice(0, NAME_MAX)
+  const { data: row, error } = await sb.from('players').upsert({ id: uid, display_name }, { onConflict: 'id' }).select('display_name, public_name').single()
   if (error) return { ok: false, error: "Couldn't save your name. Try again." }
-  set({ name: display_name })
+  set({ name: row.display_name, publicName: row.public_name })
   void flushScores()
-  return { ok: true }
+  return { ok: true, publicName: row.public_name }
 }
 
 export async function signOut(): Promise<void> {

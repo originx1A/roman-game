@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { firstWord, isProfane } from './profanity'
-import { onCloud, savePlayerName, sendMagicLink, signOut, type CloudState } from './cloud'
+import { isProfane } from './profanity'
+import { NAME_MAX, onCloud, savePlayerName, sendMagicLink, signOut, type CloudState } from './cloud'
 
 /**
  * "Save my scores" button + sheets: email magic-link sign-in, then a one-time name prompt.
- * Only the first word of the name is ever shown publicly; bad words are rejected on the spot.
+ * The whole chosen name is shown publicly (the server adds 02, 03... if it's taken); bad words are rejected on the spot.
  */
 export function useCloud(): CloudState {
   const [s, setS] = useState<CloudState>({ status: 'off', pending: 0 })
@@ -30,7 +30,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
 
   const label =
     cloud.status === 'signed-in' && cloud.name
-      ? `☁ Scores saving as ${firstWord(cloud.name)}${cloud.pending ? ` (${cloud.pending} waiting)` : ''}`
+      ? `☁ Scores saving as ${cloud.publicName ?? cloud.name}${cloud.pending ? ` (${cloud.pending} waiting)` : ''}`
       : cloud.pending
         ? `☁ Save my scores (${cloud.pending} waiting)`
         : '☁ Save my scores'
@@ -100,15 +100,15 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                   setBusy(true)
                   const r = await savePlayerName(name)
                   setBusy(false)
-                  if (r.ok) setSheet(null)
+                  if (r.ok) setSheet(r.publicName && r.publicName !== name.trim() ? 'account' : null)
                   else setErr(r.error ?? 'Something went wrong.')
                 }}
               >
                 <h3>Pick your leaderboard name</h3>
                 <p className="start-sheet-tip">
-                  Only your first word shows on the leaderboard{name.trim() && !nameProblem ? `: “${firstWord(name)}”` : ''}. You only do this once.
+                  This name will be shown publicly on the leaderboard, so don't use your full real name. If someone already has it, we'll add a number (like {name.trim() && !nameProblem ? `${name.trim()}02` : 'Mike02'}). You only do this once.
                 </p>
-                <input className="name-input" type="text" maxLength={40} autoComplete="nickname" placeholder="Your name" aria-label="Your name" value={name} onChange={(e) => setName(e.target.value)} />
+                <input className="name-input" type="text" maxLength={NAME_MAX} autoComplete="nickname" placeholder="Your name" aria-label="Your name" value={name} onChange={(e) => setName(e.target.value)} />
                 {(nameProblem || err) && <p className="cloud-err" role="alert">{nameProblem || err}</p>}
                 <button type="submit" className="btn primary" disabled={busy || !name.trim() || !!nameProblem}>
                   {busy ? 'Saving…' : 'Save name'}
@@ -119,7 +119,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
               <div className="start-sheet-card">
                 <h3>Scores are saving</h3>
                 <p className="start-sheet-tip">
-                  Signed in as {cloud.email}. Leaderboard name: <b>{firstWord(cloud.name ?? '')}</b>.
+                  Signed in as {cloud.email}. Leaderboard name: <b>{cloud.publicName ?? cloud.name}</b>.
                   {cloud.pending ? ` ${cloud.pending} score${cloud.pending === 1 ? '' : 's'} will send when you're back online.` : ' Every game you finish is saved.'}
                 </p>
                 <button type="button" className="btn primary" onClick={() => setSheet(null)}>
