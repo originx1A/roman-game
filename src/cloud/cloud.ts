@@ -39,6 +39,42 @@ export interface CloudState {
 }
 
 const QUEUE_KEY = 'rg.cloud.queue.v1'
+const CONSENT_KEY = 'rg.cloud.consent.v1'
+/** Same Kit form as romansgame.com/news/#signup (public form endpoint, no secret key in the client) */
+export const KIT_FORM_URL = 'https://app.kit.com/forms/10053148/subscriptions'
+
+export interface Consent {
+  age13: boolean
+  optIn: boolean
+}
+/** Choices made on the sign-in sheet, kept until the account row is created after the magic link */
+export function loadConsent(): Consent | null {
+  try {
+    const c = JSON.parse(localStorage.getItem(CONSENT_KEY) || 'null')
+    return c && typeof c.age13 === 'boolean' ? { age13: c.age13, optIn: !!c.optIn } : null
+  } catch {
+    return null
+  }
+}
+export function saveConsent(c: Consent): void {
+  try {
+    localStorage.setItem(CONSENT_KEY, JSON.stringify(c))
+  } catch {
+    /* private mode: the name sheet asks again */
+  }
+}
+
+/** Add the email to the Roman's World News list (Kit). Never throws; Kit sends its own confirm email. */
+export async function subscribeNews(email: string): Promise<boolean> {
+  try {
+    const body = new FormData()
+    body.append('email_address', email)
+    const r = await fetch(KIT_FORM_URL, { method: 'POST', body, headers: { Accept: 'application/json' } })
+    return r.ok
+  } catch {
+    return false
+  }
+}
 const MAX_QUEUE = 200
 let clientP: Promise<SupabaseClient | null> | null = null
 let state: CloudState = { status: 'off', pending: readQueue().length }
@@ -122,7 +158,8 @@ export async function sendMagicLink(email: string): Promise<{ ok: boolean; error
   return { ok: true }
 }
 
-export async function savePlayerName(name: string): Promise<{ ok: boolean; error?: string; publicName?: string }> {
+export async function savePlayerName(name: string, consent: Consent): Promise<{ ok: boolean; error?: string; publicName?: string }> {
+  if (!consent.age13) return { ok: false, error: 'Ask a parent to sign up for you.' }
   const sb = await client()
   if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
   const { data } = await sb.auth.getSession()
@@ -131,13 +168,15 @@ export async function savePlayerName(name: string): Promise<{ ok: boolean; error
   const display_name = name.trim().replace(/\s+/g, ' ').slice(0, NAME_MAX)
   // insert first; if the row already exists, update just the name (players can only write display_name,
   // so an upsert, which also writes id, is refused by the column grant)
-  let { data: row, error } = await sb.from('players').insert({ id: uid, display_name }).select('display_name, public_name').single()
+  let { data: row, error } = await sb.from('players').insert({ id: uid, display_name, age_13_plus: true, marketing_opt_in: consent.optIn }).select('display_name, public_name').single()
   if (error?.code === '23505') {
     ;({ data: row, error } = await sb.from('players').update({ display_name }).eq('id', uid).select('display_name, public_name').single())
   }
   if (!row) return { ok: false, error: "Couldn't save your name. Try again." }
   if (error) return { ok: false, error: "Couldn't save your name. Try again." }
   set({ name: row.display_name, publicName: row.public_name })
+  saveConsent(consent)
+  if (consent.optIn && data.session?.user.email) void subscribeNews(data.session.user.email)
   void flushScores()
   return { ok: true, publicName: row.public_name }
 }
