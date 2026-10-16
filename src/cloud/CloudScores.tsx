@@ -32,8 +32,9 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
       </label>
       <label className="cloud-check">
         <input type="checkbox" checked={optIn} onChange={(e) => setOptIn(e.target.checked)} />
-        <span>Send me Roman's World News emails</span>
+        <span>Get Roman's World News: the story behind this game. Unsubscribe anytime.</span>
       </label>
+      {/* Kit newsletter only: unsubscribing there never touches the game account */}
     </div>
   )
 
