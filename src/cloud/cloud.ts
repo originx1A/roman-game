@@ -129,7 +129,13 @@ export async function savePlayerName(name: string): Promise<{ ok: boolean; error
   const uid = data.session?.user.id
   if (!uid) return { ok: false, error: 'Please sign in first.' }
   const display_name = name.trim().replace(/\s+/g, ' ').slice(0, NAME_MAX)
-  const { data: row, error } = await sb.from('players').upsert({ id: uid, display_name }, { onConflict: 'id' }).select('display_name, public_name').single()
+  // insert first; if the row already exists, update just the name (players can only write display_name,
+  // so an upsert, which also writes id, is refused by the column grant)
+  let { data: row, error } = await sb.from('players').insert({ id: uid, display_name }).select('display_name, public_name').single()
+  if (error?.code === '23505') {
+    ;({ data: row, error } = await sb.from('players').update({ display_name }).eq('id', uid).select('display_name, public_name').single())
+  }
+  if (!row) return { ok: false, error: "Couldn't save your name. Try again." }
   if (error) return { ok: false, error: "Couldn't save your name. Try again." }
   set({ name: row.display_name, publicName: row.public_name })
   void flushScores()
