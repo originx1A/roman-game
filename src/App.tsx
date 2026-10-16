@@ -18,6 +18,8 @@ import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './componen
 import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
 import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
+import { CloudScoresButton } from './cloud/CloudScores'
+import { initCloud, saveScore } from './cloud/cloud'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
 import { TapButton } from './components/TapButton'
 import { BuddyHunt } from './components/BuddyHunt'
@@ -413,6 +415,10 @@ export default function App() {
   settingsRef.current = settings
 
   // 9.30-r: anonymous app_open / return_visit ping (silent if offline; off when the player switches it off or in the store apps)
+  // 9.32: player accounts + score saving (lazy, never blocks the game)
+  useEffect(() => {
+    void initCloud()
+  }, [])
   useEffect(() => {
     if (isStoreBuild() || settingsRef.current.analytics === false) return
     const ls = safeLocalStorage()
@@ -1696,6 +1702,19 @@ export default function App() {
         comboPoints: comboRef.current.points,
       })
       setLastScore(score)
+      // 9.32: save the finished game to the player's account (queued offline / until signed in)
+      try {
+        saveScore({
+          score,
+          level: puzzle.size,
+          moves: hist.past.length,
+          time_seconds: elapsedMs / 1000,
+          mode: dailyRunRef.current ? 'daily' : endlessRef.current ? 'endless' : runMode === 'trial' ? 'trial' : runMode === 'normal' ? 'normal' : 'other',
+          puzzle_id: String(puzzle.id),
+        })
+      } catch {
+        /* never block the win */
+      }
       // Personal bests, stars, Trial and Daily
       let replay: RunResult | null = null
       let rec = records
@@ -2840,6 +2859,7 @@ export default function App() {
               <button type="button" className="btn ghost" onClick={() => setScreen('bug')}>
                 🐛 Report a bug
               </button>
+              <CloudScoresButton suggestedName={playerName} />
             </div>
           </section>
           {/* 10.06: treat defense — the vulnerable field pile. Claim only on the board screen. */}
