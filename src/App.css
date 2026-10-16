@@ -6357,3 +6357,26 @@ html[data-motion='reduce'] .td-invader {
 .cloud-check { display: flex; align-items: center; gap: 0.55rem; font-size: 0.88rem; cursor: pointer; }
 .cloud-check input { width: 1.15rem; height: 1.15rem; flex-shrink: 0; accent-color: #f5c84c; }
 .cloud-switch { font-size: 0.8rem; padding: 0.35rem 0.75rem; min-height: 0; opacity: 0.9; }
+
+/* 9.32-b: exclusive Unseen card, shadow reveal */
+.unseen-card { position: relative; width: 44px; aspect-ratio: 1310 / 2403; border-radius: 4px; overflow: hidden; flex: none; background: #000; box-shadow: 0 0 0 1px rgba(201,162,77,.45); }
+.unseen-card-lg { width: min(62vw, 240px); border-radius: 10px; margin: 0 auto 12px; }
+.unseen-card img { width: 100%; height: 100%; object-fit: cover; display: block; filter: saturate(calc(.3 + var(--reveal) * .7)); }
+.unseen-shadow { position: absolute; inset: -20%; pointer-events: none; transition: --reveal 0s, background 1.2s ease;
+  background: radial-gradient(ellipse 50% 45% at 50% 48%, rgba(4,4,10,calc(.85 - var(--reveal) * .85)) calc(var(--reveal) * 80%), rgba(4,4,10,.99) calc(var(--reveal) * 80% + 14%)); }
+.unseen-card.is-earned .unseen-shadow { display: none; }
+.unseen-card { transition: box-shadow .6s; }
+.unseen-card .unseen-shadow { transition: background 1.2s ease; }
+.unseen-burn { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 50% 48%, rgba(255,170,60,.85), rgba(255,90,20,0) 60%); mix-blend-mode: screen; animation: unseen-burn 1.6s ease-out forwards; }
+@keyframes unseen-burn { 0% { opacity: 0 } 25% { opacity: 1 } 100% { opacity: 0 } }
+.unseen-tile { display: flex; align-items: center; gap: 12px; width: 100%; max-width: 360px; margin: 10px auto 0; padding: 8px 12px; border-radius: 12px; border: 1px solid rgba(201,162,77,.5); background: rgba(10,12,24,.75); color: #f3e6c4; text-align: left; cursor: pointer; font: inherit; }
+.unseen-tile-text { display: flex; flex-direction: column; gap: 2px; }
+.unseen-tile-text small, .unseen-gain small { opacity: .75; font-size: .8rem; }
+.unseen-modal { position: fixed; inset: 0; z-index: 2000; overflow-y: auto; display: grid; place-items: center; background: rgba(0,0,0,.88); padding: 16px; }
+.unseen-modal-body { max-width: 340px; width: 100%; background: #0d1020; color: #f3e6c4; border: 1px solid rgba(201,162,77,.5); border-radius: 16px; padding: 18px; text-align: center; }
+.unseen-modal-body ul { text-align: left; padding-left: 18px; margin: 8px 0; font-size: .9rem; }
+.unseen-modal-body h3 { margin: 4px 0 6px; }
+.unseen-note { font-size: .8rem; opacity: .7; }
+.unseen-gain { display: flex; align-items: center; gap: 12px; margin: 8px auto; padding: 8px 12px; border-radius: 12px; background: rgba(10,12,24,.8); border: 1px solid rgba(255,160,60,.55); color: #f3e6c4; animation: unseen-pop .5s ease-out; max-width: 340px; text-align: left; }
+.unseen-gain span { display: flex; flex-direction: column; }
+@keyframes unseen-pop { from { transform: scale(.9); opacity: 0 } to { transform: none; opacity: 1 } }

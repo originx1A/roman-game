@@ -23,6 +23,8 @@ export interface ScoreRow {
   time_seconds: number
   mode: 'normal' | 'trial' | 'daily' | 'endless' | 'remix' | 'other'
   puzzle_id?: string
+  /** Toronto date (YYYY-MM-DD) of a scored daily puzzle win */
+  daily_date?: string
   /** ISO time the game ended (kept so queued scores are not re-sent twice) */
   at: string
 }
@@ -153,7 +155,7 @@ async function loadPlayer(sb: SupabaseClient, session: Session | null) {
   const { data, error } = await sb.from('players').select('display_name, public_name').eq('id', session.user.id).maybeSingle()
   if (error) return set({ status: 'signed-in', email: session.user.email, name: state.name ?? null })
   set({ status: 'signed-in', email: session.user.email, name: data?.display_name ?? null, publicName: data?.public_name })
-  if (data) void flushScores()
+  if (data) void flushScores().then(() => syncCard())
 }
 
 /** Call once at startup. Never throws, never blocks. */
@@ -221,6 +223,7 @@ export function saveScore(row: Omit<ScoreRow, 'at'>): void {
     time_seconds: Math.max(0, Math.min(86_400, Math.round(row.time_seconds) || 0)),
     mode: row.mode,
     puzzle_id: row.puzzle_id?.slice(0, 80),
+    ...(row.mode === 'daily' && row.daily_date && /^\d{4}-\d{2}-\d{2}$/.test(row.daily_date) ? { daily_date: row.daily_date } : {}),
     at: new Date().toISOString(),
   }
   writeQueue([...readQueue(), clean])
@@ -239,7 +242,9 @@ export async function flushScores(): Promise<void> {
   try {
     const sb = await client()
     if (!sb) return
-    const rows = q.map(({ at: _at, ...r }) => r)
+    // the server only takes a daily_date from the last week; older queued rows still send their score
+    const weekAgo = new Date(Date.now() - 6 * 86_400_000).toISOString().slice(0, 10)
+    const rows = q.map(({ at: _at, ...r }) => (r.daily_date && r.daily_date < weekAgo ? { ...r, daily_date: undefined } : r))
     const { data: sess } = await sb.auth.getSession()
     if (sess.session?.user.id !== owner) return // switched player mid-send: leave the queue alone
     const { error } = await sb.from('scores').insert(rows)
@@ -248,9 +253,40 @@ export async function flushScores(): Promise<void> {
       writeQueue(readQueue(owner).slice(q.length), owner)
       set({ lastSync: new Date().toISOString() })
     }
+    void syncCard()
   } catch {
     /* stays queued */
   } finally {
     flushing = false
+  }
+}
+
+/** Server-verified Unseen card progress for the signed-in player (null = signed out / unknown) */
+export interface CardProgress { boards: number; days: number; pieces: number; needed: number; earned: boolean }
+let cardProgress: CardProgress | null = null
+const cardListeners = new Set<(p: CardProgress | null) => void>()
+export function onCardProgress(fn: (p: CardProgress | null) => void): () => void {
+  cardListeners.add(fn)
+  fn(cardProgress)
+  return () => cardListeners.delete(fn)
+}
+function setCard(p: CardProgress | null) {
+  cardProgress = p
+  for (const l of cardListeners) l(p)
+}
+onCloud((s) => {
+  if (s.status !== 'signed-in' && cardProgress) setCard(null)
+})
+/** Ask the server to count saved wins and award the card at 50/50. Idempotent. */
+export async function syncCard(): Promise<void> {
+  if (state.status !== 'signed-in' || !state.name) return
+  try {
+    const sb = await client()
+    if (!sb) return
+    const { data, error } = await sb.rpc('claim_unseen_card')
+    const row = Array.isArray(data) ? data[0] : data
+    if (!error && row) setCard({ boards: row.boards, days: row.days, pieces: row.pieces, needed: row.needed, earned: !!row.earned })
+  } catch {
+    /* keep the local count */
   }
 }
