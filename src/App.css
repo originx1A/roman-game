@@ -6036,8 +6036,10 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 .next-parade-hint { margin: 4px 0; font-size: 0.85rem; color: #cfe0ff; text-align: center; }
 
 /* Small "A JRNY project" credit in the footer (9.30-v) */
-.jrny-link { opacity: 0.75; font-size: 0.85em; }
-.jrny-link:hover, .jrny-link:focus-visible { opacity: 1; }
+.jrny-link { font-size: 0.85em; }
+/* 9.32-e: footer links meet WCAG AA (>= 4.5:1 on the dark footer); the rest of the footer text is unchanged */
+.foot .privacy-link { color: rgba(244, 251, 255, 0.86); }
+.foot .privacy-link:hover, .foot .privacy-link:focus-visible { color: #f4fbff; }
 
 /* Footer must never clip on a narrow phone: the "Sound on/off" button was cut off at the right edge. */
 .foot {
@@ -6057,125 +6059,103 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 }
 .foot-links > * { white-space: nowrap; }
 
-/* ——— Old-timer heckler pop-up (10.06) ——— */
-/* Visual companion to the old-timer's voice lines ONLY (old_* / tip_*_old_* clips).
-   Never shown for Roman or the Coach. pointer-events:none — taps pass through,
-   it can never block the board or cause layout shift. */
-.oldtimer-pop {
+/* ——— The Unseen heckler pop-up (9.31-u; replaces the 10.06 Unseen) ——— */
+/* Visual companion to the heckler's voice lines ONLY (old_* / tip_*_old_* clips).
+   The hooded sticker rises from the bottom-right corner (his art is cut off on the right and
+   bottom, so he sits flush to the edge), tilted so his finger points up and in at the board.
+   pointer-events:none — taps pass through, it never blocks the board or shifts layout. */
+.unseen-pop {
+  --unseen-w: 225px;
   position: fixed;
-  right: max(0.75rem, env(safe-area-inset-right, 0px));
-  bottom: max(4.5rem, calc(env(safe-area-inset-bottom, 0px) + 4.5rem));
+  right: 0;
+  bottom: 0;
   z-index: 75; /* above win screen (70), below result overlay */
   display: flex;
+  flex-direction: column;
   align-items: flex-end;
-  gap: 0.35rem;
   pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
-  max-width: min(78vw, 340px);
   will-change: transform, opacity;
 }
-.oldtimer-pop.is-entering {
-  animation: oldtimerIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+.unseen-pop.is-entering { animation: unseenIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.unseen-pop.is-leaving { animation: unseenOut 0.4s cubic-bezier(0.55, 0.06, 0.68, 0.19) both; }
+/* same speed/easing/hold as the 10.06 old-timer pop-up; slides in from the right edge */
+@keyframes unseenIn {
+  from { transform: translateX(120%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
 }
-.oldtimer-pop.is-leaving {
-  animation: oldtimerOut 0.4s cubic-bezier(0.55, 0.06, 0.68, 0.19) both;
+@keyframes unseenOut {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(120%); opacity: 0; }
 }
-@keyframes oldtimerIn {
-  from { transform: translateY(120%) rotate(6deg); opacity: 0; }
-  to { transform: translateY(0) rotate(0deg); opacity: 1; }
+.unseen-art {
+  display: block;
+  width: var(--unseen-w);
+  height: auto;
+  margin-right: -14px;
+  margin-bottom: -10px;
+  filter: drop-shadow(0 0 12px rgba(255, 196, 80, 0.25)) drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55));
+  transform-origin: 100% 100%;
+  transform: rotate(12deg);
 }
-@keyframes oldtimerOut {
-  from { transform: translateY(0); opacity: 1; }
-  to { transform: translateY(120%) rotate(-4deg); opacity: 0; }
-}
-.oldtimer-art {
-  width: 128px;
-  height: 128px;
-  object-fit: contain;
-  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.45));
-  flex-shrink: 0;
-  /* idle grumble: subtle rock while visible */
-  animation: oldtimerGrumble 2.2s ease-in-out infinite;
-  transform-origin: 50% 90%;
-}
-@keyframes oldtimerGrumble {
-  0%, 100% { transform: rotate(-1.5deg); }
-  50% { transform: rotate(1.5deg); }
-}
-.oldtimer-bubble {
+.unseen-bubble {
   position: relative;
   background: #fffdf5;
-  color: #2a2118;
-  border-radius: 14px;
-  border: 2px solid #d8c9a3;
-  padding: 0.5rem 0.65rem 0.55rem;
-  margin-bottom: 1.4rem;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
-  font-size: 0.82rem;
+  color: #15121c;
+  border-radius: 16px;
+  border: 3px solid #111;
+  padding: 0.5rem 0.7rem 0.55rem;
+  margin: 0 0.4rem 0.35rem 0;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4);
+  font-size: 0.85rem;
+  font-weight: 600;
   line-height: 1.3;
-  max-width: 200px;
+  max-width: 220px;
 }
-/* bubble tail pointing at the old man */
-.oldtimer-bubble::after {
+/* tail drops onto his hood (hood centre sits ~42% of the art width in from the right edge) */
+.unseen-bubble::after {
   content: '';
   position: absolute;
-  right: -9px;
-  bottom: 14px;
+  right: calc(var(--unseen-w) * 0.42 - 0.4rem - 21px);
+  bottom: -10px;
   width: 14px;
   height: 14px;
   background: #fffdf5;
-  border-right: 2px solid #d8c9a3;
-  border-bottom: 2px solid #d8c9a3;
-  transform: rotate(-45deg);
+  border-right: 3px solid #111;
+  border-bottom: 3px solid #111;
+  transform: rotate(45deg);
   border-bottom-right-radius: 4px;
 }
-.oldtimer-name {
+.unseen-name {
   display: block;
   font-size: 0.62rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: #8a6d3b;
   margin-bottom: 0.15rem;
 }
-.oldtimer-bubble p {
-  margin: 0;
-  font-style: italic;
-}
-/* mobile: smaller, tucked tighter into the corner */
+.unseen-bubble p { margin: 0; }
 @media (max-width: 640px) {
-  .oldtimer-pop {
-    right: max(0.4rem, env(safe-area-inset-right, 0px));
-    bottom: max(3.75rem, calc(env(safe-area-inset-bottom, 0px) + 3.75rem));
-    max-width: 72vw;
-  }
-  .oldtimer-art {
-    width: 88px;
-    height: 88px;
-  }
-  .oldtimer-bubble {
-    font-size: 0.72rem;
-    max-width: 150px;
-    margin-bottom: 0.9rem;
-    padding: 0.4rem 0.5rem 0.45rem;
+  .unseen-pop { --unseen-w: 140px; }
+  .unseen-bubble {
+    font-size: 0.74rem;
+    max-width: 170px;
+    padding: 0.4rem 0.55rem 0.45rem;
   }
 }
-/* reduced motion: fade instead of spring */
-html[data-motion='reduce'] .oldtimer-pop.is-entering,
-html[data-motion='reduce'] .oldtimer-pop.is-leaving {
+html[data-motion='reduce'] .unseen-pop.is-entering,
+html[data-motion='reduce'] .unseen-pop.is-leaving {
   animation-duration: 0.2s;
   animation-timing-function: ease;
-}
-html[data-motion='reduce'] .oldtimer-art {
-  animation: none;
 }
 
 /* 10.06: treat defense — wild pets vs the field treat pile */
 .treat-defense {
   position: fixed;
   inset: 0;
-  z-index: 30; /* above board, below flyby (40) and old-timer pop (75) */
+  z-index: 30; /* above board, below flyby (40) and Unseen pop (75) */
   pointer-events: none;
   overflow: hidden;
 }
@@ -6370,3 +6350,48 @@ html[data-motion='reduce'] .td-invader {
   gap: 0.5rem;
   margin-top: 0.5rem;
 }
+
+/* 9.32: Save my scores (Supabase) */
+.cloud-btn.is-compact { font-size: 0.8rem; padding: 0.35rem 0.7rem; min-height: 0; }
+.cloud-err { margin: 0.25rem 0 0; color: #ff8a8a; font-size: 0.82rem; font-weight: 600; }
+.cloud-sheet .name-input { width: 100%; }
+.cloud-checks { display: grid; gap: 0.45rem; margin: 0.6rem 0 0.2rem; text-align: left; }
+.cloud-check { display: flex; align-items: center; gap: 0.55rem; font-size: 0.88rem; cursor: pointer; }
+.cloud-check input { width: 1.15rem; height: 1.15rem; flex-shrink: 0; accent-color: #f5c84c; }
+.cloud-switch { font-size: 0.8rem; padding: 0.35rem 0.75rem; min-height: 0; opacity: 0.9; }
+
+/* 9.32-d: exclusive Unseen card, back while locked, flips to the animated front when earned */
+.unseen-card { position: relative; width: 44px; aspect-ratio: 2 / 3; flex: none; perspective: 900px; }
+.unseen-card-lg { width: min(62vw, 240px); margin: 0 auto 12px; }
+.unseen-flip { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform .9s cubic-bezier(.3,1.25,.45,1); }
+.unseen-card.is-earned .unseen-flip { transform: rotateY(180deg); }
+.unseen-face { position: absolute; inset: 0; overflow: hidden; border-radius: 4px; background: #000; backface-visibility: hidden; -webkit-backface-visibility: hidden; box-shadow: 0 0 0 1px rgba(201,162,77,.45); }
+.unseen-card-lg .unseen-face { border-radius: 10px; }
+.unseen-front { transform: rotateY(180deg); }
+.unseen-face img, .unseen-face video { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* light leaking through the cracks: pulses, and gets stronger as pieces are collected */
+.unseen-cracks { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen;
+  background: radial-gradient(ellipse 46% 40% at 50% 52%, rgba(255,170,60,.55), rgba(255,110,20,.18) 55%, rgba(0,0,0,0) 75%);
+  opacity: calc(.15 + var(--reveal) * .55); animation: unseen-crack-pulse 3.2s ease-in-out infinite; }
+@keyframes unseen-crack-pulse { 0%, 100% { filter: brightness(.7) } 50% { filter: brightness(1.35) } }
+.unseen-embers { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen; opacity: .8;
+  background-image: radial-gradient(1.5px 1.5px at 22% 80%, #ffb347, transparent), radial-gradient(1.5px 1.5px at 64% 90%, #ff9a2e, transparent),
+    radial-gradient(1px 1px at 40% 70%, #ffd27a, transparent), radial-gradient(1.5px 1.5px at 78% 76%, #ffb347, transparent), radial-gradient(1px 1px at 52% 86%, #ff8c1a, transparent);
+  animation: unseen-embers 4.5s linear infinite; }
+@keyframes unseen-embers { from { transform: translateY(0); opacity: 0 } 15% { opacity: .9 } to { transform: translateY(-55%); opacity: 0 } }
+.unseen-card-lg.is-earned .unseen-front { box-shadow: 0 0 0 1px rgba(201,162,77,.8), 0 0 28px rgba(255,150,40,.45); }
+.unseen-gain .unseen-card-lg { width: min(44vw, 160px); margin: 0; }
+@media (prefers-reduced-motion: reduce) { .unseen-flip { transition: none; } .unseen-cracks, .unseen-embers { animation: none; } }
+.unseen-burn { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 50% 50%, rgba(255,170,60,.85), rgba(255,90,20,0) 60%); mix-blend-mode: screen; animation: unseen-burn 1.6s ease-out forwards; }
+@keyframes unseen-burn { 0% { opacity: 0 } 25% { opacity: 1 } 100% { opacity: 0 } }
+.unseen-tile { display: flex; align-items: center; gap: 12px; width: 100%; max-width: 360px; margin: 10px auto 0; padding: 8px 12px; border-radius: 12px; border: 1px solid rgba(201,162,77,.5); background: rgba(10,12,24,.75); color: #f3e6c4; text-align: left; cursor: pointer; font: inherit; }
+.unseen-tile-text { display: flex; flex-direction: column; gap: 2px; }
+.unseen-tile-text small, .unseen-gain small { opacity: .75; font-size: .8rem; }
+.unseen-modal { position: fixed; inset: 0; z-index: 2000; overflow-y: auto; display: grid; place-items: center; background: rgba(0,0,0,.88); padding: 16px; }
+.unseen-modal-body { max-width: 340px; width: 100%; background: #0d1020; color: #f3e6c4; border: 1px solid rgba(201,162,77,.5); border-radius: 16px; padding: 18px; text-align: center; }
+.unseen-modal-body ul { text-align: left; padding-left: 18px; margin: 8px 0; font-size: .9rem; }
+.unseen-modal-body h3 { margin: 4px 0 6px; }
+.unseen-note { font-size: .8rem; opacity: .7; }
+.unseen-gain { display: flex; align-items: center; gap: 12px; margin: 8px auto; padding: 8px 12px; border-radius: 12px; background: rgba(10,12,24,.8); border: 1px solid rgba(255,160,60,.55); color: #f3e6c4; animation: unseen-pop .5s ease-out; max-width: 340px; text-align: left; }
+.unseen-gain span { display: flex; flex-direction: column; }
+@keyframes unseen-pop { from { transform: scale(.9); opacity: 0 } to { transform: none; opacity: 1 } }

@@ -3,6 +3,8 @@
  * Roman's Trial and the Daily Challenge. Pure logic (no DOM, no storage) so it can be tested;
  * storage.ts loads/saves the blob under a versioned key.
  */
+import type { Puzzle } from './types'
+import { generateRandomPuzzle } from './generatePuzzle'
 
 export type RunMode = 'normal' | 'trial'
 
@@ -466,6 +468,53 @@ export function finishDaily(
   }
 }
 
+// ---------- generator-driven daily ----------
+/** Toronto date of daily challenge day #1 */
+export const DAILY_EPOCH = '2026-01-01'
+
+/** Fixed fallback attempts per daily (the generator usually succeeds on the first) */
+export const DAILY_FALLBACK_SEEDS = 24
+
+/** FNV-1a of `roman-daily:<key>:<attempt>` — same seed on every device */
+function dailySeed(key: string, attempt: number): number {
+  let h = 0x811c9dc5
+  for (const ch of `roman-daily:${key}:${attempt}`) {
+    h ^= ch.charCodeAt(0)
+    h = Math.imul(h, 0x01000193) >>> 0
+  }
+  return h >>> 0
+}
+
+const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/**
+ * The daily board for a Toronto date key (YYYY-MM-DD), the same board for everyone.
+ * Built by the generator (which guarantees exactly one solution): the first
+ * successful uniquely-solvable seed wins, so every phone lands on the same board.
+ * Medium (6×6): the 20 hand-made dailies span all four difficulties evenly, so no
+ * skew to match — 6×6 is the quick sit-down a daily should be, and it generates
+ * in milliseconds.
+ */
+export function dailyBoardForKey(key: string): Puzzle | null {
+  for (let attempt = 0; attempt < DAILY_FALLBACK_SEEDS; attempt++) {
+    const p = generateRandomPuzzle('medium', dailySeed(key, attempt))
+    if (p && p.size === 6) {
+      const [, m, d] = key.split('-').map(Number)
+      const mon = SHORT_MONTHS[(m ?? 1) - 1] ?? '???'
+      return { ...p, id: `daily-${key}`, name: `Daily · ${mon} ${d ?? '??'}`, difficulty: 'medium' }
+    }
+  }
+  return null
+}
+
+/** Daily number: whole days since DAILY_EPOCH + 1, so DAILY_EPOCH itself is Daily #1 */
+export function dailyNumber(key: string): number {
+  const [ey, em, ed] = DAILY_EPOCH.split('-').map(Number)
+  const [y, m, d] = key.split('-').map(Number)
+  const days = Math.round((Date.UTC(y, m - 1, d) - Date.UTC(ey, em - 1, ed)) / 86_400_000)
+  return days + 1
+}
+
 // ---------- share text ----------
 /**
  * Buddy slot in share text (9.30-a): "with Lupa the Wolf Pup", or "Solo run, no buddy" for null.
@@ -503,5 +552,12 @@ export function scoreShareText(o: {
   if (o.newBest) parts.push('New best!')
   parts.push(o.timeMs != null ? `beat my time (${shareTime(o.timeMs)}) in Roman's Game` : "beat my score in Roman's Game")
   return parts.join(' — ')
+}
+
+/**
+ * Wordle-style daily share text: "Roman's Daily #23 ✅ 1:42 🔥5"
+ */
+export function dailyShareText(o: { n: number; ms: number; streak: number }): string {
+  return `Roman's Daily #${o.n} ✅ ${shareTime(o.ms)} 🔥${o.streak}`
 }
 

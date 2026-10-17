@@ -346,7 +346,23 @@ export function regionStyle(themeId: ThemeId, regionIndex: number): {
   return { hue: theme.hues[i], sat: theme.sats[i], lit: theme.lits[i] }
 }
 
-export function themeForPuzzle(id: string, difficulty: string): ThemeId {
+/** All 7 themes, in rotation order for generated boards */
+export const ALL_THEMES: ThemeId[] = ['classic', 'cosmic', 'ruins', 'neon', 'ocean', 'ember', 'crystal']
+
+/** FNV-1a hash — the same value on every device */
+function fnv1a(s: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 0x01000193) >>> 0
+  }
+  return h >>> 0
+}
+
+/** Hand-made boards keep their curated theme; every other id (gen-*, daily-*, rmx-*, …) rotates
+ * through all 7 themes by FNV-1a hash of the id, so the same board always gets the same theme.
+ * Theme is look-only, never gameplay — safe. */
+export function themeForPuzzle(id: string, _difficulty: string): ThemeId {
   const map: Record<string, ThemeId> = {
     dawn: 'classic',
     harbor: 'ocean',
@@ -370,7 +386,5 @@ export function themeForPuzzle(id: string, difficulty: string): ThemeId {
     prism: 'crystal',
   }
   if (map[id]) return map[id]
-  if (difficulty === 'expert') return 'cosmic'
-  if (difficulty === 'hard') return 'neon'
-  return 'classic'
+  return ALL_THEMES[fnv1a(id) % ALL_THEMES.length]
 }

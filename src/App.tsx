@@ -1,5 +1,5 @@
 import { useTapCount } from './components/useTapCount'
-import { loadAnon, openEvents, sendPing, PRIVACY_NOTE, ANON_KEY } from './game/analytics'
+import { loadAnon, openEvents, sendPing, PRIVACY_NOTE, ANON_KEY, gaEvent, setGaEnabled } from './game/analytics'
 import { OWNER_PATH, OWNER_TAP_WINDOW_MS, OWNER_TAPS } from './game/ownerDoor'
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
@@ -17,13 +17,18 @@ import { ShareBar } from './components/ShareBar'
 import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './components/SparkCritter'
 import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
-import { OldTimerPopup, type OldTimerPop } from './components/OldTimerPopup'
+import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
+import { CloudScoresButton } from './cloud/CloudScores'
+import { initCloud, saveScore } from './cloud/cloud'
+import { UnseenCardTile } from './components/UnseenCard'
+import { noteCardWin } from './game/unseenCard'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
 import { TapButton } from './components/TapButton'
 import { BuddyHunt } from './components/BuddyHunt'
 import { PetArt } from './components/PetArt'
 import { Stable } from './components/Stable'
 import { RemixScreen } from './components/RemixScreen'
+import { StatsPopup } from './components/StatsPopup'
 import {
   nextRemixSize,
   parseRemixId,
@@ -125,8 +130,11 @@ import {
   UNDO_COST,
   comboMove,
   comboMult,
+  dailyBoardForKey,
   dailyCoins,
   dailyIndex,
+  dailyNumber,
+  dailyShareText,
   finishDaily,
   formatDelta,
   ghostProgress,
@@ -392,6 +400,30 @@ function burstConfetti(root: HTMLElement, above = false) {
   window.setTimeout(() => layer.remove(), 1800)
 }
 
+/**
+ * 9.32-f: styles for the App-wired menu additions (streak chip + remix/endless button stack).
+ * Kept here because the 9.32-f task scope is App.tsx only.
+ */
+const MENU_CSS = `
+.remix-entry-btns { display: grid; gap: 0.4rem; flex: 0 0 auto; }
+.daily-streakbtn {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid rgba(255, 209, 102, 0.55);
+  background: rgba(255, 159, 67, 0.14);
+  color: #ffd166;
+  border-radius: 999px;
+  padding: 0.28rem 0.7rem;
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.daily-streakbtn:active { transform: scale(0.96); }
+`
+
 export default function App() {
   const [screen, setScreen] = useState<Screen>('home')
   const [{ layout }, setLayoutInfo] = useState(() => readLayout())
@@ -413,7 +445,12 @@ export default function App() {
   settingsRef.current = settings
 
   // 9.30-r: anonymous app_open / return_visit ping (silent if offline; off when the player switches it off or in the store apps)
+  // 9.32: player accounts + score saving (lazy, never blocks the game)
   useEffect(() => {
+    void initCloud()
+  }, [])
+  useEffect(() => {
+    setGaEnabled(!isStoreBuild() && settingsRef.current.analytics !== false)
     if (isStoreBuild() || settingsRef.current.analytics === false) return
     const ls = safeLocalStorage()
     const today = torontoDateKey()
@@ -489,19 +526,19 @@ export default function App() {
   const [runMaxLives, setRunMaxLives] = useState(MAX_LIVES)
   const [lastScore, setLastScore] = useState<number | null>(null)
   const [toast, setToast] = useState('')
-  // 10.06: old-timer heckler pop-up — visual only, shown ONLY for old-timer
+  // 10.06: Unseen heckler pop-up — visual only, shown ONLY for Unseen
   // voice lines (old_* / tip_*_old_* clips), never for Roman or the Coach
-  const [oldTimerPop, setOldTimerPop] = useState<OldTimerPop | null>(null)
-  const oldTimerKey = useRef(0)
-  /** Old-timer clip ids: `old_*`, plus tips like `tip_trial_old_life`. Roman is `roman_*`/`tip_*_roman_*`, Coach is `coach_*`/`tip_*_coach_*`. */
-  function isOldTimerClip(clip: string | undefined): boolean {
+  const [unseenPop, setUnseenPop] = useState<UnseenPop | null>(null)
+  const unseenKey = useRef(0)
+  /** The Unseen clip ids: `old_*`, plus tips like `tip_trial_old_life`. Roman is `roman_*`/`tip_*_roman_*`, Coach is `coach_*`/`tip_*_coach_*`. */
+  function isUnseenClip(clip: string | undefined): boolean {
     if (!clip) return false
     return clip.startsWith('old_') || (clip.startsWith('tip_') && clip.includes('_old_'))
   }
-  function maybeOldTimerPop(line: { text?: string; clip?: string; speak?: boolean; silent?: boolean }) {
-    if (!line.speak || line.silent || !line.text || !isOldTimerClip(line.clip)) return
-    oldTimerKey.current += 1
-    setOldTimerPop({ text: line.text, key: oldTimerKey.current })
+  function maybeUnseenPop(line: { text?: string; clip?: string; speak?: boolean; silent?: boolean }) {
+    if (!line.speak || line.silent || !line.text || !isUnseenClip(line.clip)) return
+    unseenKey.current += 1
+    setUnseenPop({ text: line.text, key: unseenKey.current })
   }
   const [shortfall, setShortfall] = useState<null | { action: ShortfallAction; need: number; detail?: string }>(null)
   const [incoming, setIncoming] = useState<Challenge | null>(null)
@@ -576,6 +613,11 @@ export default function App() {
 
   // ---- Replay challenge: bests, ghost pace, combo/undo scoring, stars, Trial, Daily ----
   const [records, setRecords] = useState<RecordsBlob>(() => loadRecords(catalogBoard))
+  const [cardGain, setCardGain] = useState<{ from: number; to: number } | null>(null)
+  /** 9.32-f: the stats popup over the daily card (streak tap) */
+  const [showStats, setShowStats] = useState(false)
+  /** 9.32-f: the last daily win — drives the Wordle-style daily share text */
+  const [lastDailyWin, setLastDailyWin] = useState<{ key: string; streak: number } | null>(null)
   const [mode, setMode] = useState<RunMode>('normal')
   const modeRef = useRef<RunMode>('normal')
   /** Today's date key while this attempt is the scored (first) Daily try */
@@ -988,7 +1030,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running, celebrate, defeated])
 
-  // Old-timer aside: if nobody has held the voice channel for a while, he drops a random remark.
+  // The Unseen aside: if nobody has held the voice channel for a while, he drops a random remark.
   useEffect(() => {
     if (!running || celebrate || defeated) return
     resetVoiceQuietClock()
@@ -1047,7 +1089,7 @@ export default function App() {
     // place-good: Board already plays buddy giggle — don't speak here
     if (line.giggle || !line.speak || !line.clip) return line
     playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
-    maybeOldTimerPop(line)
+    maybeUnseenPop(line)
     return line
   }
 
@@ -1099,7 +1141,7 @@ export default function App() {
       if (line.silent || !line.clip) return false
       if (line.text) showToast(line.text)
       playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
-      maybeOldTimerPop(line)
+      maybeUnseenPop(line)
       boardTipsRef.current = [...boardTipsRef.current, id]
       lastTipAtRef.current = now
       persistTips(noteShown(tipsRef.current, id, now))
@@ -1120,6 +1162,7 @@ export default function App() {
   }
 
   function saveSettingsPatch(patch: Partial<Settings>) {
+    if (patch.analytics !== undefined) setGaEnabled(patch.analytics !== false)
     setSettings((cur) => {
       const next = { ...cur, ...patch }
       saveSettings(next)
@@ -1458,6 +1501,7 @@ export default function App() {
     modeRef.current = runMode
     setMode(runMode)
     dailyRunRef.current = dailyKey
+    if (!resuming) gaEvent('game_start', { board_id: p.id })
     endlessRef.current = !resuming && opts.endless ? p.difficulty : null
     setDailyTag(dailyKey ? 'scored' : practice || (opts.daily && !dailyKey) ? 'practice' : '')
     setWinReplay(null)
@@ -1656,7 +1700,7 @@ export default function App() {
       }
     } else if (meta.kind === 'stone') {
       lastProgressRef.current = Date.now()
-      // The winning buddy gets the win line only (no old-timer grumble cut off by the cheer)
+      // The winning buddy gets the win line only (no Unseen grumble cut off by the cheer)
       if (!(puzzle && isSolved(puzzle, next))) pushBanter('place-good')
       setGiggleIndex(meta.index)
       window.setTimeout(() => setGiggleIndex((g) => (g === meta.index ? null : g)), 900)
@@ -1667,7 +1711,7 @@ export default function App() {
     if (puzzle && isSolved(puzzle, next) && !recordedRef.current) {
       recordedRef.current = true
       boardOverRef.current = 'won'
-      // Drop anything queued from the live board (wrong move, stall, tip, old-timer) before the win line
+      // Drop anything queued from the live board (wrong move, stall, tip, Unseen) before the win line
       cancelVoiceBelow(VOICE_PRIORITY.win)
       setRunning(false)
       setCelebrate(true)
@@ -1696,10 +1740,25 @@ export default function App() {
         comboPoints: comboRef.current.points,
       })
       setLastScore(score)
+      // 9.32: save the finished game to the player's account (queued offline / until signed in)
+      try {
+        saveScore({
+          score,
+          level: puzzle.size,
+          moves: hist.past.length,
+          time_seconds: elapsedMs / 1000,
+          mode: dailyRunRef.current ? 'daily' : endlessRef.current ? 'endless' : runMode === 'trial' ? 'trial' : runMode === 'normal' ? 'normal' : 'other',
+          puzzle_id: String(puzzle.id),
+          daily_date: dailyRunRef.current ?? undefined,
+        })
+      } catch {
+        /* never block the win */
+      }
       // Personal bests, stars, Trial and Daily
       let replay: RunResult | null = null
       let rec = records
       let dailyStreak: number | null = null
+      const cardDaily = dailyRunRef.current
       try {
         const fullSplits = [...splitsRef.current]
         while (fullSplits.length < puzzle.size) fullSplits.push(elapsedMs)
@@ -1712,11 +1771,21 @@ export default function App() {
           const fin = finishDaily(rec.daily, dailyRunRef.current, true, { score, ms: elapsedMs, buddy: runPetRef.current })
           rec = { ...rec, daily: fin.daily }
           if (fin.counted) dailyStreak = fin.streak
+          if (fin.counted) gaEvent('daily_puzzle_complete', { board_id: puzzle.id })
           dailyRunRef.current = null
+        }
+        // 9.32-f: remember this daily win so the WinScreen share uses the Wordle-style daily text
+        setLastDailyWin(cardDaily ? { key: cardDaily, streak: dailyStreak ?? liveStreak(rec.daily, cardDaily) } : null)
+        try {
+          const gain = noteCardWin(records, String(puzzle.id), cardDaily)
+          setCardGain(gain.after > gain.before ? { from: gain.before, to: gain.after } : null)
+        } catch {
+          setCardGain(null)
         }
         if (rec !== records) persistRecords(rec)
         if (endlessRef.current) setEndless(noteEndlessClear(puzzle.size))
         analyticsClear(puzzle.size, elapsedMs)
+        gaEvent('game_win', { board_id: puzzle.id })
       } catch {
         /* never block the win */
       }
@@ -1739,7 +1808,7 @@ export default function App() {
       if (isRecord) sfxRecord()
       const win = pushBanter(winEvent)
       setWinLine(win.text || 'Roman says: nice clear!')
-      // Slow or sloppy clear (lost a heart, 2+ hints, or over 3 minutes): the old-timer may chime in
+      // Slow or sloppy clear (lost a heart, 2+ hints, or over 3 minutes): the Unseen may chime in
       // with a backhanded compliment once Roman's cheer is done (never on top of it)
       // Voice tips: what the player has shown they get, and how to reach 3 stars if they missed it
       let tipped = false
@@ -1941,7 +2010,7 @@ export default function App() {
     }
   }
 
-  /** Undo/redo spam (4 within 5s) gives the old-timer an opening */
+  /** Undo/redo spam (4 within 5s) gives the Unseen an opening */
   function noteUndoRedo() {
     const now = Date.now()
     const recent = [...undoTimesRef.current.filter((t) => now - t < 5000), now]
@@ -2448,18 +2517,24 @@ export default function App() {
     setShareChallenge(c)
     const link = encodeChallengeLink(c, puzzle)
     setShareLink(link)
-    const lv = records.levels[puzzle.id]
-    setShareText(
-      scoreShareText({
-        name: who,
-        score: lastScore,
-        levelLabel: levelLabelFor(puzzle),
-        stars: modeRef.current === 'normal' && lv ? lv.stars : undefined,
-        timeMs: elapsedMs,
-        newBest: winReplay?.banner?.kind === 'record',
-        buddy: petLabel(runPetRef.current),
-      }),
-    )
+    // 9.32-f: daily wins get the Wordle-style daily text; everything else keeps its text
+    const isDailyWin = lastDailyWin != null && String(puzzle.id) === `daily-${lastDailyWin.key}`
+    if (isDailyWin) {
+      setShareText(dailyShareText({ n: dailyNumber(lastDailyWin.key), ms: elapsedMs, streak: lastDailyWin.streak }))
+    } else {
+      const lv = records.levels[puzzle.id]
+      setShareText(
+        scoreShareText({
+          name: who,
+          score: lastScore,
+          levelLabel: levelLabelFor(puzzle),
+          stars: modeRef.current === 'normal' && lv ? lv.stars : undefined,
+          timeMs: elapsedMs,
+          newBest: winReplay?.banner?.kind === 'record',
+          buddy: petLabel(runPetRef.current),
+        }),
+      )
+    }
     setIncoming(null)
     setActiveChallenge(null)
     setScreen('challenge')
@@ -2545,7 +2620,12 @@ export default function App() {
 
   // Daily Challenge: same board for everyone on a Toronto date
   const todayKey = torontoDateKey()
-  const dailyBoard = PUZZLES[dailyIndex(todayKey, PUZZLES.length)]
+  // 9.32-f: generator board first (same for everyone), old hashed pick as the fallback.
+  // Memoized on the date key so a re-render never swaps the board mid-day.
+  const dailyBoard = useMemo(
+    () => dailyBoardForKey(todayKey) ?? PUZZLES[dailyIndex(todayKey, PUZZLES.length)],
+    [todayKey],
+  )
   const dailyToday = records.daily.days[todayKey]
   const dailyStreakNow = liveStreak(records.daily, todayKey)
   const dailyDateLabel = new Date(`${todayKey}T12:00:00Z`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })
@@ -2587,6 +2667,37 @@ export default function App() {
     })
   }
 
+  /** 9.32-f: menu "Mix it up" — a fresh Endless board at a random size */
+  function mixItUp() {
+    const diffs = ['easy', 'medium', 'hard', 'expert'] as const
+    startEndless(diffs[Math.floor(Math.random() * diffs.length)])
+  }
+
+  /** 9.32-f: shared level-card rendering — used by the difficulty tabs AND the Classic boards set */
+  const levelCardFor = (p: Puzzle) => {
+    const rec = records.levels[p.id]
+    const stars = rec?.stars ?? 0
+    return (
+      <button
+        key={p.id}
+        type="button"
+        className={`level-card ${rec?.bestMs != null ? 'cleared' : ''}`}
+        data-level={p.id}
+        onClick={() => setStartSheet(p)}
+      >
+        <span className="lv-name">
+          {p.name}
+          <span className={`lv-stars s${stars}`} aria-label={`${stars} of 3 stars`}>{starString(stars)}</span>
+        </span>
+        <span className="lv-meta">
+          {p.size}×{p.size} · {THEMES[themeForPuzzle(p.id, p.difficulty)].label}
+          {rec?.bestMs != null ? ` · best ${formatMs(rec.bestMs)}` : ''}
+          {trialUnlocked(records, p.id) ? ' · ⚔ Trial' : ''}
+        </span>
+      </button>
+    )
+  }
+
   startPuzzleRef.current = startPuzzle
 
   const remixClearedCount = REMIX_SIZES.filter((sz) => records.levels[remixId(remixSet, sz)]?.bestMs != null).length
@@ -2601,12 +2712,17 @@ export default function App() {
             Remix boards
             {isFresh ? <span className="new-badge" aria-label="New boards">NEW</span> : null}
           </strong>
-          <span>4 new boards every 3 days · same for everyone{remixClearedCount ? ` · ${remixClearedCount}/4 cleared` : ''}</span>
-          <span className="daily-status">New boards in {remixCountdownLabel(remixMsLeft)} · plus Endless mode</span>
+          <span>New boards every 3 days · same for everyone{remixClearedCount ? ` · ${remixClearedCount}/4 cleared` : ''}</span>
+          <span className="daily-status">Next set in {remixCountdownLabel(remixMsLeft)} · plus Endless mode</span>
         </div>
-        <button type="button" className={`btn ${isFresh ? 'primary' : 'ghost'} daily-btn`} data-open-remix onClick={() => setScreen('remix')}>
-          Remix
-        </button>
+        <div className="remix-entry-btns">
+          <button type="button" className={`btn ${isFresh ? 'primary' : 'ghost'} daily-btn`} data-open-remix onClick={() => setScreen('remix')}>
+            Remix
+          </button>
+          <button type="button" className="btn ghost daily-btn" onClick={mixItUp} disabled={endlessBusy != null} title="A fresh Endless board at a random size">
+            {endlessBusy ? 'Making…' : '🎲 Mix it up'}
+          </button>
+        </div>
       </section>
     )
   })()
@@ -2672,14 +2788,29 @@ export default function App() {
             document.body,
           )
 
+  // 9.32-f: stats-popup data — total daily wins + best daily time (from the daily-day records)
+  const dailyWins = Object.values(records.daily.days).filter((d) => d.status === 'won').length
+  const bestDailyMs = Object.values(records.daily.days).reduce<number | null>(
+    (best, d) => (d.status === 'won' && d.ms != null ? (best == null ? d.ms : Math.min(best, d.ms)) : best),
+    null,
+  )
+
   const dailyCard = (
     <section className="daily-card" aria-label="Daily Challenge">
       <div className="daily-text">
         <strong>Daily Challenge · {dailyDateLabel}</strong>
         <span>
           {dailyBoard.name} · {dailyBoard.size}×{dailyBoard.size}
-          {dailyStreakNow > 0 ? ` · 🔥 ${dailyStreakNow}-day streak` : ''}
         </span>
+        {/* 9.32-f: prominent streak — tap opens the stats popup (fixed overlay, no layout shift) */}
+        <button
+          type="button"
+          className="daily-streakbtn"
+          onClick={() => setShowStats(true)}
+          aria-label={`Open daily stats. ${dailyStreakNow}-day streak, best streak ${records.daily.bestStreak}.`}
+        >
+          🔥 {dailyStreakNow}-day streak · best {records.daily.bestStreak}
+        </button>
         <span className="daily-status">
           {dailyToday?.status === 'won'
             ? `Done today: ${formatMs(dailyToday.ms ?? 0)} · ${dailyToday.score ?? 0} pts. New board tomorrow.`
@@ -2691,6 +2822,16 @@ export default function App() {
       <button type="button" className={`btn ${dailyToday ? 'ghost' : 'primary'} daily-btn`} onClick={() => startPuzzle(dailyBoard, false, { daily: true })}>
         {dailyToday ? 'Practice' : 'Play daily'}
       </button>
+      {showStats ? (
+        <StatsPopup
+          streak={dailyStreakNow}
+          bestStreak={records.daily.bestStreak}
+          wins={dailyWins}
+          bestDailyMs={bestDailyMs}
+          formatMs={formatMs}
+          onClose={() => setShowStats(false)}
+        />
+      ) : null}
     </section>
   )
 
@@ -2713,6 +2854,7 @@ export default function App() {
       onPointerDown={unlockAudio}
     >
       <div className="atmosphere" aria-hidden />
+      <style>{MENU_CSS}</style>
       {!hideChrome && (
         <header className="topbar topbar-slim">
           <button
@@ -2840,6 +2982,8 @@ export default function App() {
               <button type="button" className="btn ghost" onClick={() => setScreen('bug')}>
                 🐛 Report a bug
               </button>
+              <CloudScoresButton suggestedName={playerName} />
+              <UnseenCardTile records={records} />
             </div>
           </section>
           {/* 10.06: treat defense — the vulnerable field pile. Claim only on the board screen. */}
@@ -2947,10 +3091,10 @@ export default function App() {
               </button>
             ))}
           </div>
-          <section key={levelTab} className="diff-block" role="tabpanel">
+          <section key={levelTab} className="diff-block" role="tabpanel" aria-label="Classic boards">
             <div className="diff-head">
               <h3>
-                {DIFFICULTY_LABEL[levelTab]}
+                Classic boards
                 <span className="diff-size">
                   {' '}
                   · {levelTab === 'easy' ? '5×5' : levelTab === 'medium' ? '6×6' : levelTab === 'hard' ? '7×7' : '8×8'}
@@ -2971,29 +3115,7 @@ export default function App() {
               </button>
             </div>
             <div className="level-grid">
-              {byDiff[levelTab].map((p) => {
-                const rec = records.levels[p.id]
-                const stars = rec?.stars ?? 0
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    className={`level-card ${rec?.bestMs != null ? 'cleared' : ''}`}
-                    data-level={p.id}
-                    onClick={() => setStartSheet(p)}
-                  >
-                    <span className="lv-name">
-                      {p.name}
-                      <span className={`lv-stars s${stars}`} aria-label={`${stars} of 3 stars`}>{starString(stars)}</span>
-                    </span>
-                    <span className="lv-meta">
-                      {p.size}×{p.size} · {THEMES[themeForPuzzle(p.id, p.difficulty)].label}
-                      {rec?.bestMs != null ? ` · best ${formatMs(rec.bestMs)}` : ''}
-                      {trialUnlocked(records, p.id) ? ' · ⚔ Trial' : ''}
-                    </span>
-                  </button>
-                )
-              })}
+              {byDiff[levelTab].map((p) => levelCardFor(p))}
             </div>
           </section>
           {startSheetEl}
@@ -3239,6 +3361,7 @@ export default function App() {
               spins={wallet.spins}
               perfect={hintsUsed === 0}
               replay={winReplay ?? undefined}
+              cardGain={cardGain ?? undefined}
               nextLabel={endlessRef.current ? 'Next Endless board' : parseRemixId(puzzle.id) ? 'Next Remix board' : 'Next board'}
               paradeHint={settings.parade === false ? undefined : paradeHint(paradeRef.current).text}
               modeNote={endlessRef.current ? `Endless mode · ${endless.cleared} cleared. Levels list and Home are below.` : parseRemixId(puzzle.id) ? boardKindNote(puzzle.id) : undefined}
@@ -3917,8 +4040,8 @@ export default function App() {
       </footer>
       {/* Keep clear of Netlify “Powered by” badge */}
       <div className="netlify-safe" aria-hidden />
-      {/* 10.06: old-timer heckler pop-up — visual only, never blocks input */}
-      <OldTimerPopup pop={oldTimerPop} />
+      {/* 10.06: Unseen heckler pop-up — visual only, never blocks input */}
+      <UnseenPopup pop={unseenPop} />
       {/* 10.06: treat defense — wild pets vs the field treat pile (home + play) */}
       <TreatDefense
         active={screen === 'play' && !celebrate && !defeated && !showWheel && !rotatePaused}

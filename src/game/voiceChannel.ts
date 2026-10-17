@@ -1,5 +1,5 @@
 /*
- * 9.30-e: rules for the one shared voice channel (Roman, the coach and the old-timer), kept pure so
+ * 9.30-e: rules for the one shared voice channel (Roman, the coach and the Unseen), kept pure so
  * they are unit-tested.
  *
  * - A line that has STARTED PLAYING always finishes. No other voice, board end or screen change

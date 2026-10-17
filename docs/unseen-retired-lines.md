@@ -1,0 +1,218 @@
+# Retired old-age lines (92)
+
+- `old_aside_ache`: My elbow says something's coming. Could be lunch.
+- `old_aside_biscuit`: I could go for a biscuit. Hard ones. Like life.
+- `old_aside_cat`: The cat's on the board again. Mentally. She's very judgmental.
+- `old_aside_glasses`: Did somebody move my glasses?
+- `old_aside_heat`: Who turned the heat up in here?
+- `old_aside_humming`: Is that my radio? No? Then who\'s humming?
+- `old_aside_knees`: My knees just predicted rain. They're never wrong.
+- `old_aside_lawn`: Kids on my lawn again. Mentally.
+- `old_aside_lemon`: Smells like lemon in here. Or is it me?
+- `old_aside_mail`: Did the mail come? I'm expecting nothing, as usual.
+- `old_aside_nap`: I was resting my eyes. Not sleeping. Resting.
+- `old_aside_neighbour`: The neighbour's dog is judging me.
+- `old_aside_phone`: Phone's ringing. Nope, that's my ears.
+- `old_aside_pigeons`: The pigeons out back are plotting something. I can feel it.
+- `old_aside_remote`: Where'd I put the remote? Don't you move, I'm still talking.
+- `old_aside_slippers`: Where did my slippers go? They were just here.
+- `old_aside_smell`: I smell something funny. Was that you?
+- `old_aside_socks`: One sock's missing. I blame the squares.
+- `old_aside_stairs`: Stairs got longer overnight, I swear.
+- `old_aside_stove`: Hold on, I think I left the stove on.
+- `old_aside_tea`: My tea's gone cold again. Story of my life.
+- `old_aside_weather`: Radio says rain. Radio also says a lot of things.
+- `old_daily_paper`: Daily done. Now I can read my paper in peace.
+- `old_daily_tomorrow`: That's today's. Come back tomorrow. I'll still be here. Probably.
+- `old_good_bench`: I'll save you a spot on the bench for that one.
+- `old_good_bingo`: I haven't seen a move like that since bingo night.
+- `old_good_bones`: My bones felt that one. In a good way.
+- `old_good_cardigan`: That deserves a warm cardigan.
+- `old_good_carry`: Fine. I'll carry your bags. Just this once.
+- `old_good_clap`: Don\'t expect me to clap. My hands are cold.
+- `old_good_day`: Back in my day that would've been a Tuesday. Still, not terrible.
+- `old_good_gravy`: That's gravy. Thin gravy, but gravy.
+- `old_good_hat`: I'd tip my hat, but I can't find my hat.
+- `old_good_kid`: Not bad, kid. Don't tell your mother I said so.
+- `old_good_knees`: My knees approve. High praise, from them.
+- `old_good_newspaper`: That belongs in the newspaper. The small print.
+- `old_good_porch`: Sit on the porch with that one. You've earned it.
+- `old_good_radio`: That was smoother than my radio.
+- `old_good_soup`: Not bad. Almost like my soup.
+- `old_good_stopped`: Even a stopped clock, and so on. Go on.
+- `old_good_tea`: Not bad. I'll allow a sip of tea.
+- `old_good_whistle`: I'd whistle, but my teeth are in the other room.
+- `old_hint_cane`: Lean on that hint. I lean on a cane. We all need something.
+- `old_hint_cheating`: Back in my day we called that cheating.
+- `old_hint_crutch`: That hint's a crutch. Lean on it, sure.
+- `old_hint_grandkid`: My grandkid asks for hints. He\'s four.
+- `old_hint_stare`: A hint? In my day we just stared at it until it gave up.
+- `old_idle_birthday`: Hurry up. I\'d like to finish before my birthday.
+- `old_idle_crossword`: I started a crossword while I wait. It's going better.
+- `old_idle_kettle`: Should I put the kettle on? Feels like a two-kettle puzzle.
+- `old_idle_mail`: The mail came faster than your next move.
+- `old_idle_nap`: Wake me up when you've got a move. I'll be snoozing.
+- `old_idle_twenty`: Take your time. I've got maybe twenty years left.
+- `old_idle_younger`: Any day now. I'm not getting any younger.
+- `old_jab_backday`: Back in my day we didn't tap. We committed.
+- `old_jab_bingo`: I've seen better moves at a bingo hall.
+- `old_lose_nephew`: My nephew lost like that once. He\'s a lawyer now. Worked out fine.
+- `old_lose_tape`: Out of hearts. I'd lend you one, but mine runs on duct tape.
+- `old_notbest_downhill`: A win, but slower than your record. It's all downhill from here, kid.
+- `old_notbest_knees`: Cleared it. Slower than before, and I know slow. Ask my knees.
+- `old_notbest_pension`: A win at a pensioner's pace. I approve, sort of.
+- `old_notbest_slow`: Won it. Slower than your best. Fine. Slow is my speed.
+- `old_notbest_tea`: You won. I finished a whole cup of tea. Last time I only got a sip.
+- `old_record_nap`: New record. I didn't even get to finish my nap.
+- `old_record_pencil`: Fine, it's a record. I'll write it down. Where'd I put my pencil?
+- `old_record_rocking`: That was quick. My rocking chair's still rocking.
+- `old_record_showoff`: New record. Back in my day we called that showing off.
+- `old_record_tea`: Faster than last time. I nearly spilled my tea.
+- `old_record_teeth`: Faster than ever. I almost dropped my teeth.
+- `old_undo_aging`: Pick one! I\'m aging over here.
+- `old_undo_dial`: Turning that undo like a radio dial. Find a station!
+- `old_undo_rocking`: Back and forth, back and forth. Are you solving, or rocking in a chair?
+- `old_win_napped`: Congratulations. I only napped twice.
+- `old_wrong_aim`: Your aim's worse than mine, and I've got cataracts.
+- `old_wrong_cane`: I'd poke that move with my cane.
+- `old_wrong_knees`: My knees make better decisions than that. And they're sixty years old.
+- `old_wrong_love`: Nope. And I say that with all the love I have left.
+- `old_wrong_nickel`: In my day a wrong move cost you a nickel. You'd be broke by now.
+- `old_wrong_spectacles`: Put your glasses on. Oh, you don\'t wear any? There\'s your problem.
+- `old_wrong_stick`: Back in my day we solved these with a stick. And we were faster.
+- `old_wrong_tea`: Wrong. I'd explain why, but my tea's getting cold.
+- `tip_daily_old_crossword`: The daily. I treat it like the crossword, except I actually finish this one.
+- `tip_daily_old_glasses`: Daily puzzle. I do one every day too. It's called finding my glasses.
+- `tip_daily_old_nap`: New puzzle every morning. It's the only routine I respect besides napping.
+- `tip_daily_old_pills`: Daily puzzle. Same time tomorrow, like my pills.
+- `tip_stall_old_combo`: Your combo died of old age. And I'd know about old age.
+- `tip_stall_old_timer`: The timer doesn't stop for thinking, kiddo. Neither do I. Well, I do. Often.
+- `tip_stuck_old_knees`: Hint button. Bottom of the screen. I'd press it for you, but my knees.
+- `tip_trial_old_doctor`: Two hearts and a timer. I've had doctor's appointments like this.
+- `tip_trial_old_gym`: No hints, no mercy. Just like my old gym teacher.
+- `tip_trial_old_marriage`: Trial mode. No safety net. Like my first marriage.
+- `tip_undo_old_crying`: Back in my day we had one undo. It was called crying.
+
+# Kept Unseen lines (121)
+
+- `old_aside_clock`: That clock's been slow since Thursday.
+- `old_aside_crossword`: Seven letters, starts with S. Squares.
+- `old_aside_door`: Did somebody knock? No? Must be the door thinking again.
+- `old_aside_tuesday`: Is it Tuesday? Feels like a Tuesday.
+- `old_aside_whistle`: Somebody's whistling. Is it me? It's me.
+- `old_daily_everyday`: Every day, huh? Even I don't show up every day.
+- `old_good_accident`: A correct buddy. I'll assume it was an accident.
+- `old_good_blink`: Blink and I'd have missed it. Then I did.
+- `old_good_clock`: Even a broken clock is right twice a day.
+- `old_good_decent`: Decent. Very decent. I said decent.
+- `old_good_fair`: Fair enough. Fair enough.
+- `old_good_fine`: Fine. That one was fine. Don't get excited.
+- `old_good_grumble`: Hmm. Adequate. That's the nicest word I've got.
+- `old_good_lucky`: Lucky tap. Don\'t let it go to your head.
+- `old_good_mild`: That was mildly acceptable.
+- `old_good_nod`: You get a nod. Don't spend it all at once.
+- `old_good_once`: You got one right. Write it down, it might not happen again.
+- `old_good_rare`: A right answer. Rarer than a quiet pigeon.
+- `old_good_square`: That square can stay. The rest of them are still nervous.
+- `old_good_surprised`: Well, would you look at that. I\'m surprised too.
+- `old_good_twice`: Do that twice and I'll believe it.
+- `old_good_weather`: Good. Weather's clearing up.
+- `old_hint_flashlight`: A hint? Want a map and a flashlight too?
+- `old_hint_giveup`: Hints already? I've waited longer for a bus.
+- `old_hint_mapquest`: Fine, here's a hint. Don't get used to being led around.
+- `old_hint_push`: A hint, huh. Fine. Every legend needs a little push.
+- `old_hint_smart`: Asking for help already? Smart. Sad, but smart.
+- `old_hint_tell`: Go on, take the hint. I won't tell anyone. I'll tell everyone.
+- `old_hint_wheels`: Ah, the training wheels. Classic.
+- `old_idle_beard`: I grew a beard waiting for that. Look at it.
+- `old_idle_glacier`: I've seen glaciers with more hustle.
+- `old_idle_gossip`: Still thinking? The squares are starting to gossip.
+- `old_jab_buddy`: That buddy looks as confused as you do.
+- `old_jab_map`: You need a map for a five-by-five? Bless your heart.
+- `old_jab_mitts`: You play like you're wearing oven mitts.
+- `old_jab_patience`: I've got patience. You've got... something else.
+- `old_jab_phone`: Is this your first time holding a phone?
+- `old_jab_shoes`: Tie your shoes and try that square again.
+- `old_jab_square`: Pick a square, any square. Preferably a different one.
+- `old_jab_thinking`: I can hear you thinking. It's very quiet.
+- `old_lose_called`: Called it. I called it at the first square.
+- `old_lose_deal`: Fold \'em, kiddo. Deal again.
+- `old_lose_goldfish`: Game over. Even my goldfish saw that coming.
+- `old_lose_popcorn`: And that's the ballgame. Rematch? I'll get my popcorn.
+- `old_lose_sandwich`: Hearts gone. Go have a sandwich and think about what you did.
+- `old_lose_sideways`: Well, that went sideways. Dust yourself off, kiddo.
+- `old_nearmiss`: Almost. Almost doesn't win a medal.
+- `old_nearmiss_close`: Close. A closer look next time.
+- `old_notbest_calendar`: Nice clear. Your best time is over there, waving. From far away.
+- `old_notbest_crawl`: Won it. Your best time is still out in front. Way out.
+- `old_notbest_ghost`: Done, sure. Your ghost finished first and went home.
+- `old_notbest_rerun`: Same board, slower time. Like a rerun, but longer.
+- `old_notbest_slowpoke`: Board's done. Your record's safe. From you, mostly.
+- `old_notbest_snail`: You won. A snail sent a postcard while you thought.
+- `old_notbest_stroll`: Cleared. You took the scenic route.
+- `old_notbest_sunday`: Nice win. Took a nice Sunday stroll, did you?
+- `old_notbest_tsk`: Board's clear... but slower than last time. Tsk.
+- `old_notbest_yesterday`: You won. Your old self still beat you, though. He's smug about it.
+- `old_record_head`: New record, huh. Don't let it go to your head.
+- `old_record_luck`: A new best? Beginner's luck. Probably. Maybe.
+- `old_rescue_cat`: Rescued! Like a cat from a tree. A very confused cat.
+- `old_rescue_coins`: Coins well spent. That buddy was a disaster.
+- `old_rescue_lifeguard`: Somebody call a lifeguard. You\'re drowning in squares.
+- `old_rescue_modern`: Buying your way out of trouble? Very modern.
+- `old_rescue_parachute`: Nice parachute. Shame about the landing.
+- `old_rescue_refund`: Rescue, huh. Nothing says confidence like a refund.
+- `old_trial_candy`: Double coins, eh? Don't spend it all on candy.
+- `old_trial_complaint`: Beat the clock, did ya? The clock's filing a complaint.
+- `old_trial_huh`: You beat the Trial. Huh. Didn't see that coming.
+- `old_undo_dizzy`: Make up your mind! The board's getting dizzy.
+- `old_undo_eraser`: You\'d wear out an eraser in a day.
+- `old_undo_face`: Undo all you like. You can\'t undo that face you\'re making.
+- `old_undo_hokey`: Undo, redo, undo. You're doing the hokey pokey.
+- `old_undo_merry`: Round and round like a merry-go-round.
+- `old_undo_pendulum`: You swing like a pendulum. Pick a side.
+- `old_undo_regret`: So much regret for one little square.
+- `old_undo_sweep`: Sweeping it away and putting it back. Quite the housekeeper.
+- `old_undo_vacation`: That undo button's gonna need a vacation.
+- `old_undo_yoyo`: Up, down, back, forth. You\'re a yo-yo.
+- `old_win_eventually`: You won. Eventually. I'll allow it.
+- `old_win_frame`: Frame it. It might not happen again.
+- `old_win_gaveup`: Well, look at that. The board gave up before you did.
+- `old_win_paint`: That was like watching paint dry. But with a happy ending.
+- `old_win_squirrel`: A blindfolded squirrel would\'ve been quicker. But fine, you won.
+- `old_win_twothree`: Messy. Slow. Victorious. I\'ll take one out of three.
+- `old_win_ugly`: A win's a win. Even an ugly one.
+- `old_win_yesterday`: Done already? Oh wait, you started yesterday. Nice.
+- `old_wrong_again`: Ha! Classic. Do it again, I missed it.
+- `old_wrong_bird`: A pigeon would have picked better.
+- `old_wrong_bold`: Bold. Wrong, but bold. Mostly wrong.
+- `old_wrong_chaos`: Oh sure, put it there. Why not. Chaos is free.
+- `old_wrong_cheese`: That's the wrong cheese, kid.
+- `old_wrong_choice`: That's a choice. Not a good one, but a choice.
+- `old_wrong_close`: Close. Well, no. Not close at all, actually.
+- `old_wrong_hallway`: You\'d get lost in a hallway, wouldn\'t you?
+- `old_wrong_history`: That move\'s going in the history books. Under \'don\'t\'.
+- `old_wrong_loudly`: I'm not saying it's wrong. The board is saying it's wrong. Loudly.
+- `old_wrong_map`: You're lost. Want directions?
+- `old_wrong_money`: You tapped that like it owed you money.
+- `old_wrong_nope`: Nope. Nope. And nope again.
+- `old_wrong_personal`: Did the board do something to you? That felt personal.
+- `old_wrong_pigeon`: Even a pigeon would've skipped that square. A pigeon!
+- `old_wrong_refund`: That buddy wants a refund.
+- `old_wrong_seat`: That square's already got a seat.
+- `old_wrong_sideways`: You went sideways. Squares don't go sideways.
+- `old_wrong_teacher`: Somewhere, a puzzle teacher just felt a chill.
+- `old_wrong_toaster`: I\'ve seen a toaster make smarter choices.
+- `tip_daily_old_diet`: One try a day. That's more discipline than my diet.
+- `tip_daily_old_parking`: One shot, kiddo. No do-overs. Like parking at the grocery store.
+- `tip_stall_old_free`: Put an X somewhere. X's are free. Unlike my patience.
+- `tip_star_old_barber`: The third star doesn't like undos. Neither does my barber.
+- `tip_star_old_coffee`: Score's too low for the third star. Try moving like you've had coffee.
+- `tip_star_old_motel`: Two stars. Like a motel. Go get the third.
+- `tip_star_old_time`: You finished. So did the ice age. Faster next time for the third star.
+- `tip_stuck_old_complaint`: You've been staring so long the squares filed a complaint. Try the hint.
+- `tip_stuck_old_pride`: Pride's nice. Hints are faster.
+- `tip_trial_old_baseball`: Three strikes and you're out. Baseball got it right.
+- `tip_trial_old_embarrass`: This is the real deal. Try not to embarrass yourself.
+- `tip_trial_old_life`: No undo button in here. Welcome to how life works.
+- `tip_undo_old_prices`: Twenty-five points a pop. At these prices I'd think before I tapped.
+- `tip_undo_old_rent`: Undo again and I'm charging you rent on that button.

@@ -7,7 +7,7 @@ import { PetArt } from './PetArt'
  * the player's vulnerable field treat pile. The player's OWNED buddies (up to 3
  * shown) guard the pile and auto-chase the invader.
  *
- * - Defender catches invader → +3-5 field treats (petGiggle + old-timer banter in App)
+ * - Defender catches invader → +3-5 field treats (petGiggle + Unseen banter in App)
  * - Invader reaches the pile → steals tier-based amount (bigger pile = bigger steal), then flees
  * - Player taps the invader → scares it off for +1-2 field treats
  * - Safe stash (snacks/feasts) and coins are NEVER at risk — only the field pile

@@ -9,14 +9,14 @@ export const PUBLIC_GAME_URL = 'https://play.romansgame.com'
  * Bump the value (`s=3`, `s=4`, …) when the share card should be fetched again.
  * Keep `og:url` in index.html on this same URL.
  */
-export const SHARE_LINK_QUERY = 's=2'
+export const SHARE_LINK_QUERY = ''
 
 function publicUrl(): URL {
   const url = new URL(PUBLIC_GAME_URL)
   url.hash = ''
   const eq = SHARE_LINK_QUERY.indexOf('=')
   url.search = ''
-  url.searchParams.set(SHARE_LINK_QUERY.slice(0, eq), SHARE_LINK_QUERY.slice(eq + 1))
+  if (eq > 0) url.searchParams.set(SHARE_LINK_QUERY.slice(0, eq), SHARE_LINK_QUERY.slice(eq + 1))
   return url
 }
 

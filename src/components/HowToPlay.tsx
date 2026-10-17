@@ -26,7 +26,7 @@ const STEPS = [
   { title: 'Buddy flyby', blurb: 'Your active buddy swoops across the board every couple of minutes. Tap it for a reward — coins, hints, hearts, even rescues!', demo: 'critter', isNew: true },
   { title: 'Treat defense', blurb: 'Wild pets sneak onto the board trying to steal your treat pile! Your pets chase them off automatically (+3-5 treats). Or tap the invader yourself (+1-2). Tap the 🍖 count up top to stash your treats safe.', demo: 'hunt', isNew: true },
   { title: 'Treats & coins', blurb: 'Every win earns 5 field treats. Treats feed and upgrade your pets. Swap safe treats for coins (15 coins each). Bought treats can never be stolen.', demo: 'stars', isNew: true },
-  { title: 'The old-timer', blurb: 'A grumpy old heckler watches you play. He pops up with a wisecrack when he speaks — and he never shuts up.', demo: 'combo', isNew: true },
+  { title: 'The Unseen', blurb: 'A faceless hooded figure watches you play. He creeps up from the corner and points at the board with a jab when he speaks.', demo: 'combo', isNew: true },
   { title: 'Free buddy', blurb: 'New players pick one buddy FREE — Lupa, Aquila, Leo, Invictus, or Nox. Yours forever.', demo: 'region', isNew: true },
 ] as const satisfies readonly { title: string; blurb: string; demo: HowDemoId; ms?: number; isNew?: boolean }[]
 
