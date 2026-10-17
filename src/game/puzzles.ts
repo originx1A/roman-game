@@ -165,6 +165,12 @@ export const PUZZLES: Puzzle[] = [
   }
 ]
 
+/**
+ * The 20 hand-made boards, exactly as shipped: the "Classics" set in the level menu.
+ * (A later worker wires the UI; this alias is the menu's set list.)
+ */
+export const CLASSICS: Puzzle[] = PUZZLES
+
 export function getPuzzle(id: string): Puzzle | undefined {
   // 9.30-n: a board that came with a shared link (or was made earlier) wins over the live Remix cache, so an old
   // challenge always opens the exact board the sender played, even after the Remix set has rotated
