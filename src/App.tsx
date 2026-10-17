@@ -161,7 +161,7 @@ import {
   type RunMode,
   type RunResult,
 } from './game/replay'
-import { PUZZLES, CLASSICS, getPuzzle, puzzlesByDifficulty, createFreshPuzzle } from './game/puzzles'
+import { PUZZLES, getPuzzle, puzzlesByDifficulty, createFreshPuzzle } from './game/puzzles'
 import { pickNextBoard } from './game/nextBoard'
 import type { CellState, Challenge, Difficulty, DuelResult, Profile, Puzzle, Screen } from './game/types'
 import { DIFFICULTY_LABEL } from './game/types'
@@ -2620,8 +2620,12 @@ export default function App() {
 
   // Daily Challenge: same board for everyone on a Toronto date
   const todayKey = torontoDateKey()
-  // 9.32-f: generator board first (same for everyone), old hashed pick as the fallback
-  const dailyBoard = dailyBoardForKey(todayKey) ?? PUZZLES[dailyIndex(todayKey, PUZZLES.length)]
+  // 9.32-f: generator board first (same for everyone), old hashed pick as the fallback.
+  // Memoized on the date key so a re-render never swaps the board mid-day.
+  const dailyBoard = useMemo(
+    () => dailyBoardForKey(todayKey) ?? PUZZLES[dailyIndex(todayKey, PUZZLES.length)],
+    [todayKey],
+  )
   const dailyToday = records.daily.days[todayKey]
   const dailyStreakNow = liveStreak(records.daily, todayKey)
   const dailyDateLabel = new Date(`${todayKey}T12:00:00Z`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })
@@ -3087,10 +3091,10 @@ export default function App() {
               </button>
             ))}
           </div>
-          <section key={levelTab} className="diff-block" role="tabpanel">
+          <section key={levelTab} className="diff-block" role="tabpanel" aria-label="Classic boards">
             <div className="diff-head">
               <h3>
-                {DIFFICULTY_LABEL[levelTab]}
+                Classic boards
                 <span className="diff-size">
                   {' '}
                   · {levelTab === 'easy' ? '5×5' : levelTab === 'medium' ? '6×6' : levelTab === 'hard' ? '7×7' : '8×8'}
@@ -3112,15 +3116,6 @@ export default function App() {
             </div>
             <div className="level-grid">
               {byDiff[levelTab].map((p) => levelCardFor(p))}
-            </div>
-          </section>
-          {/* 9.32-f: the 20 hand-made boards as their own "Classic boards" set (same card UI as above) */}
-          <section className="diff-block" aria-label="Classic boards">
-            <div className="diff-head">
-              <h3>Classic boards</h3>
-            </div>
-            <div className="level-grid">
-              {CLASSICS.map((p) => levelCardFor(p))}
             </div>
           </section>
           {startSheetEl}

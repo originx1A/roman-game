@@ -1,5 +1,6 @@
 import type { Puzzle, Difficulty } from './types'
 import { generateRandomPuzzle } from './generatePuzzle'
+import { dailyBoardForKey } from './replay'
 import { getGeneratedPuzzle, getRemixBoard, getSharedPuzzle, rememberGeneratedPuzzle } from './storage'
 
 export const PUZZLES: Puzzle[] = [
@@ -171,9 +172,23 @@ export const PUZZLES: Puzzle[] = [
  */
 export const CLASSICS: Puzzle[] = PUZZLES
 
+/** Daily board ids look like `daily-2026-10-17` (Toronto date key) */
+const DAILY_ID_RE = /^daily-(\d{4}-\d{2}-\d{2})$/
+
 export function getPuzzle(id: string): Puzzle | undefined {
   // 9.30-n: a board that came with a shared link (or was made earlier) wins over the live Remix cache, so an old
   // challenge always opens the exact board the sender played, even after the Remix set has rotated
+  //
+  // 9.32-f: a mid-Daily resume must rebuild the same board the player started. The generator is
+  // deterministic (seeded by Toronto date; first uniquely-solvable seed wins), so rebuilding the
+  // `daily-YYYY-MM-DD` id from the date key returns the exact board — resume works after reload.
+  const dailyMatch = DAILY_ID_RE.exec(id)
+  if (dailyMatch) {
+    // Rebuild the exact board from the date key; if generation ever fails,
+    // fall through to the other lookups rather than stranding the resume.
+    return dailyBoardForKey(dailyMatch[1])
+      ?? PUZZLES.find((p) => p.id === id) ?? getSharedPuzzle(id) ?? getGeneratedPuzzle(id) ?? getRemixBoard(id)
+  }
   return PUZZLES.find((p) => p.id === id) ?? getSharedPuzzle(id) ?? getGeneratedPuzzle(id) ?? getRemixBoard(id)
 }
 
