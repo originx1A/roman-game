@@ -221,22 +221,27 @@ export function WinScreen({
         </div>
 
         <div className="win-screen-actions">
+          {/* 9.32-a: Share is the main CTA — primary gold, top placement */}
+          {onShare ? (
+            <button type="button" className="btn primary win-cta win-share" onClick={onShare}>
+              Share
+            </button>
+          ) : null}
           {buddyMeter?.pending && onBuddyHunt ? (
             <button type="button" className="btn primary win-cta win-hunt" onClick={onBuddyHunt}>
               Buddy Hunt!
             </button>
           ) : null}
-          <button type="button" className={`btn ${buddyMeter?.pending && onBuddyHunt ? 'ghost' : 'primary'} win-cta`} onClick={onNext}>
+          <button
+            type="button"
+            className={`btn ${onShare || (buddyMeter?.pending && onBuddyHunt) ? 'ghost' : 'primary'} win-cta`}
+            onClick={onNext}
+          >
             {nextLabel ?? 'Next board'}
           </button>
           {cardGain ? <UnseenCardGain from={cardGain.from} to={cardGain.to} /> : null}
           <CloudScoresButton compact />
           <div className="win-screen-row">
-            {onShare ? (
-              <button type="button" className="btn ghost win-cta" onClick={onShare}>
-                Share
-              </button>
-            ) : null}
             <button type="button" className="btn ghost win-cta" onClick={onReplay}>
               Play again
             </button>

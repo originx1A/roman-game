@@ -42,7 +42,9 @@ export function RemixScreen({
     <main className="panel levels remix-screen scroll-pane">
       <h2>Remix boards</h2>
       <section className="remix-countdown" aria-live="polite">
-        <strong data-remix-countdown>New boards in {remixCountdownLabel(msLeft)}</strong>
+        <strong data-remix-countdown>
+          New boards every 3 days <span className="remix-next-in">· next set in {remixCountdownLabel(msLeft)}</span>
+        </strong>
         <span className="remix-note">Same boards for everyone until the countdown ends. Compare scores with friends.</span>
       </section>
       <div className="level-grid remix-grid" data-remix-set={set}>
