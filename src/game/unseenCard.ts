@@ -1,5 +1,5 @@
 /**
- * 9.32-b: the exclusive Unseen card (shadow reveal).
+ * 9.32-b: the exclusive Unseen card (9.32-d: card back while locked, flips to the front when earned).
  * 50 pieces = 1 per hand-made board on its first clear (20) + 1 per daily puzzle won (1 a day, 30).
  * Signed out: counted on this device. Signed in: the server counts saved wins (claim_unseen_card).
  */

@@ -13,8 +13,10 @@ export function useUnseenPieces(records?: RecordsBlob): { pieces: number; earned
   return { pieces: p, earned: false, verified: false }
 }
 
-/** The card under shadow. `from` animates the shadow burning back to `pieces`. */
-/** Still card face sits under the shadow; once earned, the big views pop out and play the animated card. */
+/**
+ * 9.32-d: card BACK while locked (cracked gold back, the Unseen pressed through, glow pulsing in the cracks
+ * and getting stronger with progress). Once earned the card FLIPS to the front, which plays the looping animation.
+ */
 export function UnseenCardArt({ pieces, from, size = 'sm', animate = size === 'lg' }: { pieces: number; from?: number; size?: 'sm' | 'lg'; animate?: boolean }) {
   const [shown, setShown] = useState(from ?? pieces)
   useEffect(() => {
@@ -24,15 +26,24 @@ export function UnseenCardArt({ pieces, from, size = 'sm', animate = size === 'l
     return () => window.clearTimeout(t)
   }, [from, pieces])
   const r = Math.max(0, Math.min(1, shown / CARD_PIECES))
+  const earned = r >= 1
   return (
-    <div className={`unseen-card unseen-card-${size}${r >= 1 ? ' is-earned' : ''}`} style={{ ['--reveal' as string]: r }} aria-hidden="true">
-      {r >= 1 && animate && !reducedMotion() ? (
-        <video src="/images/unseen-card-animated.mp4" poster="/images/unseen-card.webp" autoPlay muted loop playsInline disablePictureInPicture />
-      ) : (
-        <img src="/images/unseen-card.webp" alt="" draggable={false} />
-      )}
-      <div className="unseen-shadow" />
-      {from != null && pieces > from ? <div className="unseen-burn" /> : null}
+    <div className={`unseen-card unseen-card-${size}${earned ? ' is-earned' : ''}`} style={{ ['--reveal' as string]: r }} aria-hidden="true">
+      <div className="unseen-flip">
+        <div className="unseen-face unseen-back">
+          <img src="/images/unseen-card-back.webp" alt="" draggable={false} />
+          <div className="unseen-cracks" />
+          {size === 'lg' ? <div className="unseen-embers" /> : null}
+          {from != null && pieces > from && pieces < CARD_PIECES ? <div className="unseen-burn" /> : null}
+        </div>
+        <div className="unseen-face unseen-front">
+          {earned && animate && !reducedMotion() ? (
+            <video src="/images/unseen-card-animated.mp4" poster="/images/unseen-card-poster.webp" autoPlay muted loop playsInline disablePictureInPicture />
+          ) : (
+            <img src="/images/unseen-card.webp" alt="" draggable={false} />
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -58,7 +69,7 @@ export function UnseenCardTile({ records }: { records?: RecordsBlob }) {
           <div className="unseen-modal-body" onClick={(e) => e.stopPropagation()}>
             <UnseenCardArt pieces={earned ? CARD_PIECES : pieces} size="lg" />
             <h3>{earned ? 'The Unseen is yours' : `Unseen card: ${pieces} of ${CARD_PIECES}`}</h3>
-            <p>Each piece burns back the shadow.</p>
+            <p>{earned ? 'The card has turned. The Unseen is yours.' : 'Each piece brings the card closer. Collect them all and it turns over.'}</p>
             <ul>
               <li>Clear a board for the first time: 1 piece (20 boards)</li>
               <li>Win the daily puzzle: 1 piece a day (30 days)</li>
@@ -79,7 +90,7 @@ export function UnseenCardGain({ from, to }: { from: number; to: number }) {
     <div className="unseen-gain" role="status">
       <UnseenCardArt pieces={to} from={from} size={to >= CARD_PIECES ? 'lg' : 'sm'} />
       <span>
-        <b>{to >= CARD_PIECES ? 'The Unseen card is yours!' : 'The shadow burns back'}</b>
+        <b>{to >= CARD_PIECES ? 'The Unseen card is yours!' : 'The cracks glow brighter'}</b>
         <small>Unseen card: {to} of {CARD_PIECES}</small>
       </span>
     </div>
