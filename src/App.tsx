@@ -28,6 +28,7 @@ import { BuddyHunt } from './components/BuddyHunt'
 import { PetArt } from './components/PetArt'
 import { Stable } from './components/Stable'
 import { RemixScreen } from './components/RemixScreen'
+import { StatsPopup } from './components/StatsPopup'
 import {
   nextRemixSize,
   parseRemixId,
@@ -129,8 +130,11 @@ import {
   UNDO_COST,
   comboMove,
   comboMult,
+  dailyBoardForKey,
   dailyCoins,
   dailyIndex,
+  dailyNumber,
+  dailyShareText,
   finishDaily,
   formatDelta,
   ghostProgress,
@@ -157,7 +161,7 @@ import {
   type RunMode,
   type RunResult,
 } from './game/replay'
-import { PUZZLES, getPuzzle, puzzlesByDifficulty, createFreshPuzzle } from './game/puzzles'
+import { PUZZLES, CLASSICS, getPuzzle, puzzlesByDifficulty, createFreshPuzzle } from './game/puzzles'
 import { pickNextBoard } from './game/nextBoard'
 import type { CellState, Challenge, Difficulty, DuelResult, Profile, Puzzle, Screen } from './game/types'
 import { DIFFICULTY_LABEL } from './game/types'
@@ -396,6 +400,30 @@ function burstConfetti(root: HTMLElement, above = false) {
   window.setTimeout(() => layer.remove(), 1800)
 }
 
+/**
+ * 9.32-f: styles for the App-wired menu additions (streak chip + remix/endless button stack).
+ * Kept here because the 9.32-f task scope is App.tsx only.
+ */
+const MENU_CSS = `
+.remix-entry-btns { display: grid; gap: 0.4rem; flex: 0 0 auto; }
+.daily-streakbtn {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid rgba(255, 209, 102, 0.55);
+  background: rgba(255, 159, 67, 0.14);
+  color: #ffd166;
+  border-radius: 999px;
+  padding: 0.28rem 0.7rem;
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.daily-streakbtn:active { transform: scale(0.96); }
+`
+
 export default function App() {
   const [screen, setScreen] = useState<Screen>('home')
   const [{ layout }, setLayoutInfo] = useState(() => readLayout())
@@ -586,6 +614,10 @@ export default function App() {
   // ---- Replay challenge: bests, ghost pace, combo/undo scoring, stars, Trial, Daily ----
   const [records, setRecords] = useState<RecordsBlob>(() => loadRecords(catalogBoard))
   const [cardGain, setCardGain] = useState<{ from: number; to: number } | null>(null)
+  /** 9.32-f: the stats popup over the daily card (streak tap) */
+  const [showStats, setShowStats] = useState(false)
+  /** 9.32-f: the last daily win — drives the Wordle-style daily share text */
+  const [lastDailyWin, setLastDailyWin] = useState<{ key: string; streak: number } | null>(null)
   const [mode, setMode] = useState<RunMode>('normal')
   const modeRef = useRef<RunMode>('normal')
   /** Today's date key while this attempt is the scored (first) Daily try */
@@ -1742,6 +1774,8 @@ export default function App() {
           if (fin.counted) gaEvent('daily_puzzle_complete', { board_id: puzzle.id })
           dailyRunRef.current = null
         }
+        // 9.32-f: remember this daily win so the WinScreen share uses the Wordle-style daily text
+        setLastDailyWin(cardDaily ? { key: cardDaily, streak: dailyStreak ?? liveStreak(rec.daily, cardDaily) } : null)
         try {
           const gain = noteCardWin(records, String(puzzle.id), cardDaily)
           setCardGain(gain.after > gain.before ? { from: gain.before, to: gain.after } : null)
@@ -2483,18 +2517,24 @@ export default function App() {
     setShareChallenge(c)
     const link = encodeChallengeLink(c, puzzle)
     setShareLink(link)
-    const lv = records.levels[puzzle.id]
-    setShareText(
-      scoreShareText({
-        name: who,
-        score: lastScore,
-        levelLabel: levelLabelFor(puzzle),
-        stars: modeRef.current === 'normal' && lv ? lv.stars : undefined,
-        timeMs: elapsedMs,
-        newBest: winReplay?.banner?.kind === 'record',
-        buddy: petLabel(runPetRef.current),
-      }),
-    )
+    // 9.32-f: daily wins get the Wordle-style daily text; everything else keeps its text
+    const isDailyWin = lastDailyWin != null && String(puzzle.id) === `daily-${lastDailyWin.key}`
+    if (isDailyWin) {
+      setShareText(dailyShareText({ n: dailyNumber(lastDailyWin.key), ms: elapsedMs, streak: lastDailyWin.streak }))
+    } else {
+      const lv = records.levels[puzzle.id]
+      setShareText(
+        scoreShareText({
+          name: who,
+          score: lastScore,
+          levelLabel: levelLabelFor(puzzle),
+          stars: modeRef.current === 'normal' && lv ? lv.stars : undefined,
+          timeMs: elapsedMs,
+          newBest: winReplay?.banner?.kind === 'record',
+          buddy: petLabel(runPetRef.current),
+        }),
+      )
+    }
     setIncoming(null)
     setActiveChallenge(null)
     setScreen('challenge')
@@ -2580,7 +2620,8 @@ export default function App() {
 
   // Daily Challenge: same board for everyone on a Toronto date
   const todayKey = torontoDateKey()
-  const dailyBoard = PUZZLES[dailyIndex(todayKey, PUZZLES.length)]
+  // 9.32-f: generator board first (same for everyone), old hashed pick as the fallback
+  const dailyBoard = dailyBoardForKey(todayKey) ?? PUZZLES[dailyIndex(todayKey, PUZZLES.length)]
   const dailyToday = records.daily.days[todayKey]
   const dailyStreakNow = liveStreak(records.daily, todayKey)
   const dailyDateLabel = new Date(`${todayKey}T12:00:00Z`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })
@@ -2622,6 +2663,37 @@ export default function App() {
     })
   }
 
+  /** 9.32-f: menu "Mix it up" — a fresh Endless board at a random size */
+  function mixItUp() {
+    const diffs = ['easy', 'medium', 'hard', 'expert'] as const
+    startEndless(diffs[Math.floor(Math.random() * diffs.length)])
+  }
+
+  /** 9.32-f: shared level-card rendering — used by the difficulty tabs AND the Classic boards set */
+  const levelCardFor = (p: Puzzle) => {
+    const rec = records.levels[p.id]
+    const stars = rec?.stars ?? 0
+    return (
+      <button
+        key={p.id}
+        type="button"
+        className={`level-card ${rec?.bestMs != null ? 'cleared' : ''}`}
+        data-level={p.id}
+        onClick={() => setStartSheet(p)}
+      >
+        <span className="lv-name">
+          {p.name}
+          <span className={`lv-stars s${stars}`} aria-label={`${stars} of 3 stars`}>{starString(stars)}</span>
+        </span>
+        <span className="lv-meta">
+          {p.size}×{p.size} · {THEMES[themeForPuzzle(p.id, p.difficulty)].label}
+          {rec?.bestMs != null ? ` · best ${formatMs(rec.bestMs)}` : ''}
+          {trialUnlocked(records, p.id) ? ' · ⚔ Trial' : ''}
+        </span>
+      </button>
+    )
+  }
+
   startPuzzleRef.current = startPuzzle
 
   const remixClearedCount = REMIX_SIZES.filter((sz) => records.levels[remixId(remixSet, sz)]?.bestMs != null).length
@@ -2636,12 +2708,17 @@ export default function App() {
             Remix boards
             {isFresh ? <span className="new-badge" aria-label="New boards">NEW</span> : null}
           </strong>
-          <span>4 new boards every 3 days · same for everyone{remixClearedCount ? ` · ${remixClearedCount}/4 cleared` : ''}</span>
-          <span className="daily-status">New boards in {remixCountdownLabel(remixMsLeft)} · plus Endless mode</span>
+          <span>New boards every 3 days · same for everyone{remixClearedCount ? ` · ${remixClearedCount}/4 cleared` : ''}</span>
+          <span className="daily-status">Next set in {remixCountdownLabel(remixMsLeft)} · plus Endless mode</span>
         </div>
-        <button type="button" className={`btn ${isFresh ? 'primary' : 'ghost'} daily-btn`} data-open-remix onClick={() => setScreen('remix')}>
-          Remix
-        </button>
+        <div className="remix-entry-btns">
+          <button type="button" className={`btn ${isFresh ? 'primary' : 'ghost'} daily-btn`} data-open-remix onClick={() => setScreen('remix')}>
+            Remix
+          </button>
+          <button type="button" className="btn ghost daily-btn" onClick={mixItUp} disabled={endlessBusy != null} title="A fresh Endless board at a random size">
+            {endlessBusy ? 'Making…' : '🎲 Mix it up'}
+          </button>
+        </div>
       </section>
     )
   })()
@@ -2707,14 +2784,29 @@ export default function App() {
             document.body,
           )
 
+  // 9.32-f: stats-popup data — total daily wins + best daily time (from the daily-day records)
+  const dailyWins = Object.values(records.daily.days).filter((d) => d.status === 'won').length
+  const bestDailyMs = Object.values(records.daily.days).reduce<number | null>(
+    (best, d) => (d.status === 'won' && d.ms != null ? (best == null ? d.ms : Math.min(best, d.ms)) : best),
+    null,
+  )
+
   const dailyCard = (
     <section className="daily-card" aria-label="Daily Challenge">
       <div className="daily-text">
         <strong>Daily Challenge · {dailyDateLabel}</strong>
         <span>
           {dailyBoard.name} · {dailyBoard.size}×{dailyBoard.size}
-          {dailyStreakNow > 0 ? ` · 🔥 ${dailyStreakNow}-day streak` : ''}
         </span>
+        {/* 9.32-f: prominent streak — tap opens the stats popup (fixed overlay, no layout shift) */}
+        <button
+          type="button"
+          className="daily-streakbtn"
+          onClick={() => setShowStats(true)}
+          aria-label={`Open daily stats. ${dailyStreakNow}-day streak, best streak ${records.daily.bestStreak}.`}
+        >
+          🔥 {dailyStreakNow}-day streak · best {records.daily.bestStreak}
+        </button>
         <span className="daily-status">
           {dailyToday?.status === 'won'
             ? `Done today: ${formatMs(dailyToday.ms ?? 0)} · ${dailyToday.score ?? 0} pts. New board tomorrow.`
@@ -2726,6 +2818,16 @@ export default function App() {
       <button type="button" className={`btn ${dailyToday ? 'ghost' : 'primary'} daily-btn`} onClick={() => startPuzzle(dailyBoard, false, { daily: true })}>
         {dailyToday ? 'Practice' : 'Play daily'}
       </button>
+      {showStats ? (
+        <StatsPopup
+          streak={dailyStreakNow}
+          bestStreak={records.daily.bestStreak}
+          wins={dailyWins}
+          bestDailyMs={bestDailyMs}
+          formatMs={formatMs}
+          onClose={() => setShowStats(false)}
+        />
+      ) : null}
     </section>
   )
 
@@ -2748,6 +2850,7 @@ export default function App() {
       onPointerDown={unlockAudio}
     >
       <div className="atmosphere" aria-hidden />
+      <style>{MENU_CSS}</style>
       {!hideChrome && (
         <header className="topbar topbar-slim">
           <button
@@ -3008,29 +3111,16 @@ export default function App() {
               </button>
             </div>
             <div className="level-grid">
-              {byDiff[levelTab].map((p) => {
-                const rec = records.levels[p.id]
-                const stars = rec?.stars ?? 0
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    className={`level-card ${rec?.bestMs != null ? 'cleared' : ''}`}
-                    data-level={p.id}
-                    onClick={() => setStartSheet(p)}
-                  >
-                    <span className="lv-name">
-                      {p.name}
-                      <span className={`lv-stars s${stars}`} aria-label={`${stars} of 3 stars`}>{starString(stars)}</span>
-                    </span>
-                    <span className="lv-meta">
-                      {p.size}×{p.size} · {THEMES[themeForPuzzle(p.id, p.difficulty)].label}
-                      {rec?.bestMs != null ? ` · best ${formatMs(rec.bestMs)}` : ''}
-                      {trialUnlocked(records, p.id) ? ' · ⚔ Trial' : ''}
-                    </span>
-                  </button>
-                )
-              })}
+              {byDiff[levelTab].map((p) => levelCardFor(p))}
+            </div>
+          </section>
+          {/* 9.32-f: the 20 hand-made boards as their own "Classic boards" set (same card UI as above) */}
+          <section className="diff-block" aria-label="Classic boards">
+            <div className="diff-head">
+              <h3>Classic boards</h3>
+            </div>
+            <div className="level-grid">
+              {CLASSICS.map((p) => levelCardFor(p))}
             </div>
           </section>
           {startSheetEl}
