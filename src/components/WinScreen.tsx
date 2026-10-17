@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { CRITTER_STASH_GOAL } from './SparkCritter'
 import { PetArt } from './PetArt'
+import { CloudScoresButton } from '../cloud/CloudScores'
+import { UnseenCardGain } from './UnseenCard'
 import type { PetId } from '../game/pets'
 
 /** Replay challenge extras for this win: stars, a record/near-miss banner, coins earned */
@@ -45,6 +47,8 @@ export type WinScreenProps = {
   buddyMeter?: { notches: number; goal: number; pending: boolean; perfect: boolean }
   onBuddyHunt?: () => void
   replay?: WinReplay
+  /** 9.32-b: this win added an Unseen card piece */
+  cardGain?: { from: number; to: number }
 }
 
 export function WinScreen({
@@ -73,6 +77,7 @@ export function WinScreen({
   buddyMeter,
   onBuddyHunt,
   replay,
+  cardGain,
 }: WinScreenProps) {
   const [entered, setEntered] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -224,6 +229,8 @@ export function WinScreen({
           <button type="button" className={`btn ${buddyMeter?.pending && onBuddyHunt ? 'ghost' : 'primary'} win-cta`} onClick={onNext}>
             {nextLabel ?? 'Next board'}
           </button>
+          {cardGain ? <UnseenCardGain from={cardGain.from} to={cardGain.to} /> : null}
+          <CloudScoresButton compact />
           <div className="win-screen-row">
             {onShare ? (
               <button type="button" className="btn ghost win-cta" onClick={onShare}>

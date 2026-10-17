@@ -18,6 +18,10 @@ import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './componen
 import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
 import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
+import { CloudScoresButton } from './cloud/CloudScores'
+import { initCloud, saveScore } from './cloud/cloud'
+import { UnseenCardTile } from './components/UnseenCard'
+import { noteCardWin } from './game/unseenCard'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
 import { TapButton } from './components/TapButton'
 import { BuddyHunt } from './components/BuddyHunt'
@@ -413,6 +417,10 @@ export default function App() {
   settingsRef.current = settings
 
   // 9.30-r: anonymous app_open / return_visit ping (silent if offline; off when the player switches it off or in the store apps)
+  // 9.32: player accounts + score saving (lazy, never blocks the game)
+  useEffect(() => {
+    void initCloud()
+  }, [])
   useEffect(() => {
     if (isStoreBuild() || settingsRef.current.analytics === false) return
     const ls = safeLocalStorage()
@@ -576,6 +584,7 @@ export default function App() {
 
   // ---- Replay challenge: bests, ghost pace, combo/undo scoring, stars, Trial, Daily ----
   const [records, setRecords] = useState<RecordsBlob>(() => loadRecords(catalogBoard))
+  const [cardGain, setCardGain] = useState<{ from: number; to: number } | null>(null)
   const [mode, setMode] = useState<RunMode>('normal')
   const modeRef = useRef<RunMode>('normal')
   /** Today's date key while this attempt is the scored (first) Daily try */
@@ -1696,10 +1705,25 @@ export default function App() {
         comboPoints: comboRef.current.points,
       })
       setLastScore(score)
+      // 9.32: save the finished game to the player's account (queued offline / until signed in)
+      try {
+        saveScore({
+          score,
+          level: puzzle.size,
+          moves: hist.past.length,
+          time_seconds: elapsedMs / 1000,
+          mode: dailyRunRef.current ? 'daily' : endlessRef.current ? 'endless' : runMode === 'trial' ? 'trial' : runMode === 'normal' ? 'normal' : 'other',
+          puzzle_id: String(puzzle.id),
+          daily_date: dailyRunRef.current ?? undefined,
+        })
+      } catch {
+        /* never block the win */
+      }
       // Personal bests, stars, Trial and Daily
       let replay: RunResult | null = null
       let rec = records
       let dailyStreak: number | null = null
+      const cardDaily = dailyRunRef.current
       try {
         const fullSplits = [...splitsRef.current]
         while (fullSplits.length < puzzle.size) fullSplits.push(elapsedMs)
@@ -1713,6 +1737,12 @@ export default function App() {
           rec = { ...rec, daily: fin.daily }
           if (fin.counted) dailyStreak = fin.streak
           dailyRunRef.current = null
+        }
+        try {
+          const gain = noteCardWin(records, String(puzzle.id), cardDaily)
+          setCardGain(gain.after > gain.before ? { from: gain.before, to: gain.after } : null)
+        } catch {
+          setCardGain(null)
         }
         if (rec !== records) persistRecords(rec)
         if (endlessRef.current) setEndless(noteEndlessClear(puzzle.size))
@@ -2840,6 +2870,8 @@ export default function App() {
               <button type="button" className="btn ghost" onClick={() => setScreen('bug')}>
                 🐛 Report a bug
               </button>
+              <CloudScoresButton suggestedName={playerName} />
+              <UnseenCardTile records={records} />
             </div>
           </section>
           {/* 10.06: treat defense — the vulnerable field pile. Claim only on the board screen. */}
@@ -3239,6 +3271,7 @@ export default function App() {
               spins={wallet.spins}
               perfect={hintsUsed === 0}
               replay={winReplay ?? undefined}
+              cardGain={cardGain ?? undefined}
               nextLabel={endlessRef.current ? 'Next Endless board' : parseRemixId(puzzle.id) ? 'Next Remix board' : 'Next board'}
               paradeHint={settings.parade === false ? undefined : paradeHint(paradeRef.current).text}
               modeNote={endlessRef.current ? `Endless mode · ${endless.cleared} cleared. Levels list and Home are below.` : parseRemixId(puzzle.id) ? boardKindNote(puzzle.id) : undefined}
