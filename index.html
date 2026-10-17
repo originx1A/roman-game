@@ -9,13 +9,13 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
     <title>Roman's Game: free logic puzzle game for kids and grown-ups (no account)</title>
-    <meta name="description" content="Roman's Game is a free, kid-friendly logic puzzle you can play in your browser with no account. Place one buddy in every colored region, row and column, and never let two touch, even diagonally. Daily Challenge, new Remix boards every 3 days, Endless mode." />
+    <meta name="description" content="Free, kid-friendly logic puzzle in your browser, no account needed. One buddy per region, row and column, never touching. Daily Challenge and Endless mode." />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <link rel="alternate" type="text/plain" href="/llms.txt" title="Plain-text description for AI assistants" />
     <link rel="canonical" href="https://play.romansgame.com/" />
     <meta property="og:type" content="website" />
-    <!-- Keep in sync with SHARE_LINK_QUERY in src/game/publicUrl.ts. Facebook scrapes og:url, so this must be the cache-busted share URL. -->
-    <meta property="og:url" content="https://play.romansgame.com/?s=2" />
+    <!-- Matches the canonical URL (9.32-e). Keep in sync with SHARE_LINK_QUERY in src/game/publicUrl.ts. -->
+    <meta property="og:url" content="https://play.romansgame.com/" />
     <meta property="og:title" content="Roman's Game: a free logic puzzle where buddies refuse to touch" />
     <meta property="og:site_name" content="Roman's Game" />
     <meta property="og:description" content="Free, kid-friendly logic puzzle, no account needed. One buddy per region, row and column, and no touching, even diagonally. Daily Challenge, Remix boards, Endless mode." />
@@ -80,6 +80,26 @@
     "url": "https://jrny.fun"
   }
 }
+    </script>
+    <!-- 9.32-e: Google Analytics (same GA4 property as romansgame.com). Web only (not the native app shell),
+         no Google signals, no ad personalization. Respects the in-game analytics switch. Events carry no names, emails or ids. -->
+    <script>
+      (function () {
+        var GA_ID = 'G-9MYJE42RQ1'
+        if (location.hostname === 'localhost' || location.protocol.indexOf('http') !== 0) return
+        try {
+          var st = JSON.parse(localStorage.getItem('roman.settings.v1') || '{}')
+          if (st && st.analytics === false) window['ga-disable-' + GA_ID] = true
+        } catch (e) {}
+        window.dataLayer = window.dataLayer || []
+        window.gtag = function () { window.dataLayer.push(arguments) }
+        window.gtag('js', new Date())
+        window.gtag('config', GA_ID, { allow_google_signals: false, allow_ad_personalization_signals: false })
+        var s = document.createElement('script')
+        s.async = true
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_ID
+        document.head.appendChild(s)
+      })()
     </script>
   </head>
   <body>

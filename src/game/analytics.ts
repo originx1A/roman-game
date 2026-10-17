@@ -58,5 +58,35 @@ export function sendPing(body: PingBody, enabled = true): void {
   }
 }
 
+/**
+ * 9.32-e: Google Analytics events (gtag is loaded in index.html, web only).
+ * Only these anonymous events, and only a board id / level number. Never names, emails or user ids.
+ */
+export type GaEvent = 'game_start' | 'game_win' | 'sign_in' | 'daily_puzzle_complete'
+export const GA_ID = 'G-9MYJE42RQ1'
+let gaOn = true
+/** Follows the in-game analytics switch (also stops gtag's own page_view hits). */
+export function setGaEnabled(on: boolean): void {
+  gaOn = on
+  try {
+    ;(window as unknown as Record<string, unknown>)['ga-disable-' + GA_ID] = !on
+  } catch {
+    /* no window */
+  }
+}
+export function gaEvent(name: GaEvent, params?: { board_id?: string | number; level?: number }): void {
+  if (!gaOn) return
+  try {
+    const g = (window as unknown as { gtag?: (...a: unknown[]) => void }).gtag
+    if (typeof g !== 'function') return
+    const clean: Record<string, string | number> = {}
+    if (params?.board_id != null) clean.board_id = String(params.board_id).slice(0, 40)
+    if (typeof params?.level === 'number') clean.level = params.level
+    g('event', name, clean)
+  } catch {
+    /* blocked: ignore */
+  }
+}
+
 export const PRIVACY_NOTE =
   'We count how the game is used, without knowing who you are. Each time the game opens, a level is cleared (with its board size and time), someone comes back another day, or you tap 👍/👎 (with a note if you write one), it sends that with a random number made on this device and a rough place (city/region/country) worked out by the server. We do not collect your name, email or exact location, and we do not keep your IP address. You can switch this off below.'

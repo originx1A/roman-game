@@ -6036,8 +6036,10 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 .next-parade-hint { margin: 4px 0; font-size: 0.85rem; color: #cfe0ff; text-align: center; }
 
 /* Small "A JRNY project" credit in the footer (9.30-v) */
-.jrny-link { opacity: 0.75; font-size: 0.85em; }
-.jrny-link:hover, .jrny-link:focus-visible { opacity: 1; }
+.jrny-link { font-size: 0.85em; }
+/* 9.32-e: footer links meet WCAG AA (>= 4.5:1 on the dark footer); the rest of the footer text is unchanged */
+.foot .privacy-link { color: rgba(244, 251, 255, 0.86); }
+.foot .privacy-link:hover, .foot .privacy-link:focus-visible { color: #f4fbff; }
 
 /* Footer must never clip on a narrow phone: the "Sound on/off" button was cut off at the right edge. */
 .foot {

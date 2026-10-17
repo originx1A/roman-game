@@ -3,10 +3,10 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { SHARE_LINK_QUERY, publicLinkWithHash, publicPlayUrl } from '../src/game/publicUrl.ts'
 
-const PLAY = 'https://romans-game.netlify.app/?s=2'
+const PLAY = 'https://play.romansgame.com/'
 
-test('shared play link carries the cache-bust query', () => {
-  assert.equal(SHARE_LINK_QUERY, 's=2')
+test('shared play link matches the canonical URL', () => {
+  assert.equal(SHARE_LINK_QUERY, '')
   assert.equal(publicPlayUrl(), PLAY)
 })
 
@@ -17,9 +17,8 @@ test('challenge and duel links keep the query in front of the hash', () => {
   assert.equal(duel, `${PLAY}#duel=xyz`)
   for (const link of [challenge, duel]) {
     const url = new URL(link)
-    assert.equal(url.searchParams.get('s'), '2')
     assert.equal(url.searchParams.get('checkout'), null)
-    assert.equal([...url.searchParams.keys()].join(','), 's')
+    assert.equal([...url.searchParams.keys()].join(','), '')
     assert.equal(url.hash.includes('?'), false)
     assert.equal(url.hash.includes('s=2'), false)
   }
@@ -41,8 +40,8 @@ test('the app reads the hash and does not treat the share query as navigation', 
 
 test('index.html og:url matches the shared play link and the spa rewrite does not redirect', () => {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8')
-  assert.match(html, /property="og:url" content="https:\/\/romans-game\.netlify\.app\/\?s=2"/)
-  assert.match(html, /property="og:image" content="https:\/\/romans-game\.netlify\.app\/og-image\.png"/)
+  assert.match(html, /property="og:url" content="https:\/\/play\.romansgame\.com\/"/)
+  assert.match(html, /property="og:image" content="https:\/\/play\.romansgame\.com\/og-image\.png"/)
   const toml = readFileSync(new URL('../netlify.toml', import.meta.url), 'utf8')
   assert.match(toml, /from = "\/\*"\s+to = "\/index.html"\s+status = 200/)
   assert.equal(toml.includes('status = 301'), false)
