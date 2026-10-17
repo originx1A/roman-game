@@ -1,5 +1,5 @@
 import { useTapCount } from './components/useTapCount'
-import { loadAnon, openEvents, sendPing, PRIVACY_NOTE, ANON_KEY } from './game/analytics'
+import { loadAnon, openEvents, sendPing, PRIVACY_NOTE, ANON_KEY, gaEvent, setGaEnabled } from './game/analytics'
 import { OWNER_PATH, OWNER_TAP_WINDOW_MS, OWNER_TAPS } from './game/ownerDoor'
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
@@ -422,6 +422,7 @@ export default function App() {
     void initCloud()
   }, [])
   useEffect(() => {
+    setGaEnabled(!isStoreBuild() && settingsRef.current.analytics !== false)
     if (isStoreBuild() || settingsRef.current.analytics === false) return
     const ls = safeLocalStorage()
     const today = torontoDateKey()
@@ -1129,6 +1130,7 @@ export default function App() {
   }
 
   function saveSettingsPatch(patch: Partial<Settings>) {
+    if (patch.analytics !== undefined) setGaEnabled(patch.analytics !== false)
     setSettings((cur) => {
       const next = { ...cur, ...patch }
       saveSettings(next)
@@ -1467,6 +1469,7 @@ export default function App() {
     modeRef.current = runMode
     setMode(runMode)
     dailyRunRef.current = dailyKey
+    if (!resuming) gaEvent('game_start', { board_id: p.id })
     endlessRef.current = !resuming && opts.endless ? p.difficulty : null
     setDailyTag(dailyKey ? 'scored' : practice || (opts.daily && !dailyKey) ? 'practice' : '')
     setWinReplay(null)
@@ -1736,6 +1739,7 @@ export default function App() {
           const fin = finishDaily(rec.daily, dailyRunRef.current, true, { score, ms: elapsedMs, buddy: runPetRef.current })
           rec = { ...rec, daily: fin.daily }
           if (fin.counted) dailyStreak = fin.streak
+          if (fin.counted) gaEvent('daily_puzzle_complete', { board_id: puzzle.id })
           dailyRunRef.current = null
         }
         try {
@@ -1747,6 +1751,7 @@ export default function App() {
         if (rec !== records) persistRecords(rec)
         if (endlessRef.current) setEndless(noteEndlessClear(puzzle.size))
         analyticsClear(puzzle.size, elapsedMs)
+        gaEvent('game_win', { board_id: puzzle.id })
       } catch {
         /* never block the win */
       }

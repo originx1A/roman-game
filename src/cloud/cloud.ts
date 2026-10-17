@@ -1,3 +1,4 @@
+import { gaEvent } from '../game/analytics'
 /**
  * Player accounts + score saving (Supabase, project romans-game).
  *
@@ -166,6 +167,7 @@ export async function initCloud(): Promise<void> {
     const { data } = await sb.auth.getSession()
     await loadPlayer(sb, data.session)
     sb.auth.onAuthStateChange((_e, session) => {
+      if (_e === 'SIGNED_IN' && state.status !== 'signed-in') gaEvent('sign_in')
       void loadPlayer(sb, session)
     })
     window.addEventListener('online', () => void flushScores())
