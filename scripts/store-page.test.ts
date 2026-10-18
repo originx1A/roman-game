@@ -44,7 +44,7 @@ test('store page links Amazon in a new tab and points at the existing newsletter
   assert.match(html, /Get notified/)
   assert.match(html, /role="tablist"/)
   assert.match(html, /aria-current="page"/)
-  assert.match(html, /Many Thrones, Book 1: Carvings/)
+  assert.match(html, /The Many Thrones, Book 1: The Carvings Under the Throne/)
   assert.match(html, /data-buy="the-first-five"/)
   assert.match(html, /<details class="audio-group">/)
   const coloring = html.slice(html.indexOf('id="coloring-books"'), html.indexOf('id="audiobooks"'))
@@ -63,6 +63,37 @@ test('store page links Amazon in a new tab and points at the existing newsletter
   assert.doesNotMatch(audio, /amazon/i)
   assert.doesNotMatch(audio, /stories\/audio/)
   assert.doesNotMatch(html, /sk_live|sk_test|whsec_|supabase/i)
+})
+
+test('the Many Thrones shelf lists the seven stories in series order with their uploaded files', () => {
+  const books = [
+    ['many-thrones-1-carvings', 'The Many Thrones, Book 1: The Carvings Under the Throne', '52m'],
+    ['many-thrones-2-root', 'The Many Thrones, Book 2: The Root Throne', '51m'],
+    ['many-thrones-3-diver', 'The Many Thrones, Book 3: The Old Diver', '50m'],
+    ['many-thrones-7-invite', 'The Many Thrones, Book 4: Keepers Invite', '57m'],
+    ['many-thrones-6-wont-go', "The Many Thrones, Book 5: Where the Defenders Won't Go", '51m'],
+    ['many-thrones-4-hollow', 'The Many Thrones, Book 6: The Hollow Hill', '57m'],
+    ['many-thrones-5-map', 'The Many Thrones, Book 7: The Map With No Edge', '56m'],
+  ] as const
+  const group = html.slice(html.indexOf('<details class="audio-group">'), html.indexOf('</details>'))
+  assert.match(group, /class="group-title">The Many Thrones</)
+  const cards = group.split('<article class="audio-card"').slice(1)
+  assert.equal(cards.length, books.length)
+  for (const [index, [slug, title, runtime]] of books.entries()) {
+    const card = cards[index]
+    assert.ok(card.includes(`id="audio-${slug}"`))
+    assert.ok(card.includes(`<h2>${title}</h2>`))
+    assert.ok(card.includes(`>${runtime}</`))
+    assert.ok(card.includes(`alt="Cover of ${title}"`))
+    assert.ok(card.includes(`data-cover="covers/${slug}.jpg"`))
+    assert.ok(card.includes(`aria-label="5-minute sample of ${title}"`))
+    assert.ok(card.includes(`data-sample="samples/${slug}-sample.mp3"`))
+    assert.ok(card.includes(`aria-label="Buy ${title}"`))
+    assert.ok(card.includes(`data-buy="${slug}"`))
+  }
+  assert.equal(page, html)
+  assert.doesNotMatch(html, /Book \d: (?:Carvings|Root|Diver|Hollow|Map|Won't Go|Invite)</)
+  assert.doesNotMatch(sitemap, /many-thrones-|The Many Thrones, Book/)
 })
 
 test('the game nav and sitemap point at /store/', () => {

@@ -146,7 +146,7 @@ function audioCard(product: AudioProduct): string {
 function manyThrones(products: AudioProduct[]): string {
   return `<details class="audio-group">
       <summary>
-        <span class="group-title">Many Thrones</span>
+        <span class="group-title">The Many Thrones</span>
         <span class="group-note">7 books, CA$5.99 each</span>
         <span class="status status-soon" data-soon>Coming soon</span>
       </summary>

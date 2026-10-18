@@ -157,13 +157,15 @@ function standardAudioFiles(slug: string): AudioFiles {
 export const AUDIO_PRODUCTS: AudioProduct[] = [
   audioProduct({ slug: 'tales-of-the-empty-throne', title: 'Tales of the Empty Throne', runtimeMinutes: 91, priceCents: 0, group: null }),
   audioProduct({ slug: 'the-first-five', title: 'The First Five', runtimeMinutes: 45, priceCents: 599, group: null }),
-  audioProduct({ slug: 'many-thrones-1-carvings', title: 'Many Thrones, Book 1: Carvings', runtimeMinutes: 52, priceCents: 599, group: 'many-thrones' }),
-  audioProduct({ slug: 'many-thrones-2-root', title: 'Many Thrones, Book 2: Root', runtimeMinutes: 51, priceCents: 599, group: 'many-thrones' }),
-  audioProduct({ slug: 'many-thrones-3-diver', title: 'Many Thrones, Book 3: Diver', runtimeMinutes: 50, priceCents: 599, group: 'many-thrones' }),
-  audioProduct({ slug: 'many-thrones-4-hollow', title: 'Many Thrones, Book 4: Hollow', runtimeMinutes: 57, priceCents: 599, group: 'many-thrones' }),
-  audioProduct({ slug: 'many-thrones-5-map', title: 'Many Thrones, Book 5: Map', runtimeMinutes: 56, priceCents: 599, group: 'many-thrones' }),
-  audioProduct({ slug: 'many-thrones-6-wont-go', title: "Many Thrones, Book 6: Won't Go", runtimeMinutes: 51, priceCents: 599, group: 'many-thrones' }),
-  audioProduct({ slug: 'many-thrones-7-invite', title: 'Many Thrones, Book 7: Invite', runtimeMinutes: 57, priceCents: 599, group: 'many-thrones' }),
+  // Reading order matches the stories page series "The Many Thrones".
+  // Slugs stay the uploaded R2 keys, so the number in a key is not the book number.
+  audioProduct({ slug: 'many-thrones-1-carvings', title: 'The Many Thrones, Book 1: The Carvings Under the Throne', runtimeMinutes: 52, priceCents: 599, group: 'many-thrones' }),
+  audioProduct({ slug: 'many-thrones-2-root', title: 'The Many Thrones, Book 2: The Root Throne', runtimeMinutes: 51, priceCents: 599, group: 'many-thrones' }),
+  audioProduct({ slug: 'many-thrones-3-diver', title: 'The Many Thrones, Book 3: The Old Diver', runtimeMinutes: 50, priceCents: 599, group: 'many-thrones' }),
+  audioProduct({ slug: 'many-thrones-7-invite', title: 'The Many Thrones, Book 4: Keepers Invite', runtimeMinutes: 57, priceCents: 599, group: 'many-thrones' }),
+  audioProduct({ slug: 'many-thrones-6-wont-go', title: "The Many Thrones, Book 5: Where the Defenders Won't Go", runtimeMinutes: 51, priceCents: 599, group: 'many-thrones' }),
+  audioProduct({ slug: 'many-thrones-4-hollow', title: 'The Many Thrones, Book 6: The Hollow Hill', runtimeMinutes: 57, priceCents: 599, group: 'many-thrones' }),
+  audioProduct({ slug: 'many-thrones-5-map', title: 'The Many Thrones, Book 7: The Map With No Edge', runtimeMinutes: 56, priceCents: 599, group: 'many-thrones' }),
   audioProduct({ slug: 'the-unseen', title: 'The Unseen', runtimeMinutes: 90, priceCents: 799, group: null }),
   audioProduct({ slug: 'the-face-of-the-unseen', title: 'The Face of the Unseen', runtimeMinutes: 70, priceCents: 799, group: null }),
   audioProduct({ slug: 'the-lost-keeper', title: 'The Lost Keeper', runtimeMinutes: 66, priceCents: 799, group: null }),

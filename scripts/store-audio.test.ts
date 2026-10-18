@@ -18,6 +18,7 @@ import {
   claimDownload,
   fulfillPaidSession,
   makeDownloadToken,
+  thanksView,
   MAX_DOWNLOADS_PER_PRODUCT,
   memoryBlobStore,
   recordDownload,
@@ -74,7 +75,7 @@ test('catalog prices are the 13 audiobooks plus the all-13 bundle', () => {
   assert.equal(AUDIO_PRODUCTS.find((product) => product.slug === 'the-choice')?.runtime, '1h 06m')
   assert.equal(separateAudioCents(), 7988)
   assert.equal(bundleSavingsCents(), 4989)
-  assert.equal(AUDIO_PRODUCTS.find((product) => product.slug === 'many-thrones-1-carvings')?.title, 'Many Thrones, Book 1: Carvings')
+  assert.equal(AUDIO_PRODUCTS.find((product) => product.slug === 'many-thrones-1-carvings')?.title, 'The Many Thrones, Book 1: The Carvings Under the Throne')
 
   const bundle = purchaseBySlug('all-13')
   assert.ok(bundle)
@@ -113,6 +114,72 @@ test('catalog prices are the 13 audiobooks plus the all-13 bundle', () => {
   assert.match(page, /Save CA\$49\.89 versus buying them separately \(CA\$79\.88\)\./)
   assert.match(page, /data-buy="all-13"/)
   assert.doesNotMatch(page, /shelf-banner|og-image\.png/)
+})
+
+/** Series order from romansgame.com/stories/ series-3. Slugs are the existing R2 keys. */
+const MANY_THRONES = [
+  { slug: 'many-thrones-1-carvings', title: 'The Many Thrones, Book 1: The Carvings Under the Throne', runtimeMinutes: 52 },
+  { slug: 'many-thrones-2-root', title: 'The Many Thrones, Book 2: The Root Throne', runtimeMinutes: 51 },
+  { slug: 'many-thrones-3-diver', title: 'The Many Thrones, Book 3: The Old Diver', runtimeMinutes: 50 },
+  { slug: 'many-thrones-7-invite', title: 'The Many Thrones, Book 4: Keepers Invite', runtimeMinutes: 57 },
+  { slug: 'many-thrones-6-wont-go', title: "The Many Thrones, Book 5: Where the Defenders Won't Go", runtimeMinutes: 51 },
+  { slug: 'many-thrones-4-hollow', title: 'The Many Thrones, Book 6: The Hollow Hill', runtimeMinutes: 57 },
+  { slug: 'many-thrones-5-map', title: 'The Many Thrones, Book 7: The Map With No Edge', runtimeMinutes: 56 },
+] as const
+
+test('Many Thrones follows the stories series order and keeps each file on its uploaded key', async () => {
+  const books = AUDIO_PRODUCTS.filter((product) => product.group === 'many-thrones')
+  assert.deepEqual(
+    books.map((product) => ({ slug: product.slug, title: product.title, runtimeMinutes: product.runtimeMinutes })),
+    MANY_THRONES.map((book) => ({ ...book })),
+  )
+  for (const book of MANY_THRONES) {
+    assert.equal(books.find((product) => product.slug === book.slug)?.runtime, formatRuntime(book.runtimeMinutes))
+    assert.deepEqual(audioFiles(book.slug), {
+      master: `masters/${book.slug}.mp3`,
+      sample: `samples/${book.slug}-sample.mp3`,
+      cover: `covers/${book.slug}.jpg`,
+    })
+    const checkout = audiobookCheckoutParams({ slug: book.slug, siteBase: 'https://play.romansgame.com', automaticTax: false })
+    const price = checkout?.line_items?.[0]?.price_data
+    assert.equal(price && typeof price !== 'string' ? price.product_data?.name : '', book.title)
+    const bought = purchaseBySlug(book.slug)
+    assert.deepEqual(bought?.slugs, [book.slug])
+    assert.equal(bought?.title, book.title)
+    const mail = thankYouMessage({ title: bought?.title ?? '', url: 'https://play.romansgame.com/store/thanks?session_id=cs_test_manythrones' })
+    assert.equal(mail.subject, `Your audiobook: ${book.title}`)
+    assert.match(mail.text, new RegExp(`Thank you for buying ${book.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.`))
+  }
+
+  const bundle = purchaseBySlug('all-13')
+  assert.deepEqual(
+    bundle?.slugs.filter((slug) => slug.startsWith('many-thrones-')),
+    MANY_THRONES.map((book) => book.slug),
+  )
+  const grant = await fulfillPaidSession(memoryBlobStore(), paid('all-13', 2999), 1_700_000_000_000, 'm'.repeat(43))
+  assert.ok(grant)
+  const listed = thanksView(grant).items.filter((item) => item.slug.startsWith('many-thrones-'))
+  assert.deepEqual(listed.map((item) => item.title), MANY_THRONES.map((book) => book.title))
+  assert.deepEqual(listed.map((item) => item.slug), MANY_THRONES.map((book) => book.slug))
+  assert.deepEqual(
+    listed.map((item) => item.runtime),
+    MANY_THRONES.map((book) => formatRuntime(book.runtimeMinutes)),
+  )
+
+  const page = readFileSync(new URL('../public/store/index.html', import.meta.url), 'utf8')
+  const group = page.slice(page.indexOf('<details class="audio-group">'), page.indexOf('</details>'))
+  assert.match(group, /class="group-title">The Many Thrones</)
+  const cards = group.split('<article class="audio-card"').slice(1)
+  assert.equal(cards.length, 7)
+  for (const [index, book] of MANY_THRONES.entries()) {
+    const card = cards[index]
+    assert.ok(card.includes(`<h2>${book.title}</h2>`))
+    assert.ok(card.includes(`data-cover="covers/${book.slug}.jpg"`))
+    assert.ok(card.includes(`data-sample="samples/${book.slug}-sample.mp3"`))
+    assert.ok(card.includes(`data-buy="${book.slug}"`))
+    assert.ok(card.includes(`<span>${formatRuntime(book.runtimeMinutes)}</span>`))
+  }
+  assert.doesNotMatch(page, /Book \d: (?:Carvings|Root|Diver|Hollow|Map|Won't Go|Invite)</)
 })
 
 function paid(slug: string, amount = purchaseBySlug(slug)?.priceCents ?? 0, extra: Partial<PaidSession> = {}): PaidSession {
