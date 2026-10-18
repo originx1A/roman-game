@@ -1,4 +1,5 @@
 import { gaEvent } from '../game/analytics'
+import { consentAllowsAccount, parseStoredConsent, type PolicyConsentRecord } from '../game/legalCopy'
 import { adoptCloudProgress, parkCloudProgress } from '../game/storage'
 /**
  * Player accounts + score saving (Supabase, project romans-game).
@@ -8,6 +9,9 @@ import { adoptCloudProgress, parkCloudProgress } from '../game/storage'
  * - Scores: queued locally first, then sent. Offline / Supabase down / not signed in = they wait
  *   in the queue (max 200) and flush on sign-in, on `online`, and after each new game.
  * - supabase-js is loaded lazily, so the game never waits on it and works fully without it.
+ * - One account is meant for romansgame.com and this game. This file still uses magic-link
+ *   implicit flow so a purchase-PIN reset email works without a PKCE verifier. Do not switch
+ *   flowType here. A shared cookie on .romansgame.com is not turned on.
  */
 import type { SupabaseClient, Session } from '@supabase/supabase-js'
 
@@ -55,12 +59,13 @@ export const KIT_FORM_URL = 'https://app.kit.com/forms/10053148/subscriptions'
 export interface Consent {
   age13: boolean
   optIn: boolean
+  /** Set when the Terms and Privacy Policy checkbox is checked. Absent on older saves. */
+  policy?: PolicyConsentRecord
 }
 /** Choices made on the sign-in sheet, kept until the account row is created after the magic link */
 export function loadConsent(): Consent | null {
   try {
-    const c = JSON.parse(localStorage.getItem(CONSENT_KEY) || 'null')
-    return c && typeof c.age13 === 'boolean' ? { age13: c.age13, optIn: !!c.optIn } : null
+    return parseStoredConsent(JSON.parse(localStorage.getItem(CONSENT_KEY) || 'null'))
   } catch {
     return null
   }
@@ -197,7 +202,10 @@ export async function sendMagicLink(email: string): Promise<{ ok: boolean; error
 }
 
 export async function savePlayerName(name: string, consent: Consent): Promise<{ ok: boolean; error?: string; publicName?: string }> {
-  if (!consent.age13) return { ok: false, error: 'Ask a parent to sign up for you.' }
+  if (!consentAllowsAccount(consent)) {
+    if (!consent.age13 && !consent.policy?.guardian) return { ok: false, error: 'Ask a parent to sign up for you.' }
+    return { ok: false, error: 'Agree to the Terms and Privacy Policy to make an account.' }
+  }
   const sb = await client()
   if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
   const { data } = await sb.auth.getSession()
@@ -205,7 +213,10 @@ export async function savePlayerName(name: string, consent: Consent): Promise<{ 
   if (!uid) return { ok: false, error: 'Please sign in first.' }
   const display_name = name.trim().replace(/\s+/g, ' ').slice(0, NAME_MAX)
   // insert first; if the row already exists, update just the name (players can only write display_name,
-  // so an upsert, which also writes id, is refused by the column grant)
+  // so an upsert, which also writes id, is refused by the column grant).
+  // age_13_plus stays true: the live rule only accepts that. A parent agreeing for a player
+  // under 13 is the guardian flag on the device. policy_version and policy_consented_at are
+  // not columns on the live table. Do not send them. Migration 006 (not applied) adds them.
   let { data: row, error } = await sb.from('players').insert({ id: uid, display_name, age_13_plus: true, marketing_opt_in: consent.optIn }).select('display_name, public_name').single()
   if (error?.code === '23505') {
     ;({ data: row, error } = await sb.from('players').update({ display_name }).eq('id', uid).select('display_name, public_name').single())
@@ -214,6 +225,7 @@ export async function savePlayerName(name: string, consent: Consent): Promise<{ 
   if (error) return { ok: false, error: "Couldn't save your name. Try again." }
   set({ name: row.display_name, publicName: row.public_name })
   saveConsent(consent)
+  if (consent.policy) void recordPolicyConsent(consent.policy.guardian)
   if (consent.optIn && data.session?.user.email) void subscribeNews(data.session.user.email)
   void flushScores()
   return { ok: true, publicName: row.public_name }
@@ -224,6 +236,25 @@ export async function accessToken(): Promise<string | null> {
   if (!sb) return null
   const { data } = await sb.auth.getSession()
   return data.session?.access_token ?? null
+}
+
+/**
+ * Asks the server to store the consent time and policy version on the account.
+ * The server writes nothing unless the owner applies migration 006 and turns the ledger flag on.
+ * A failure here does not undo the name save. The device copy is already kept.
+ */
+export async function recordPolicyConsent(guardian: boolean): Promise<void> {
+  try {
+    const token = await accessToken()
+    if (!token) return
+    await fetch('/api/policy-consent', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({ guardian: guardian === true }),
+    })
+  } catch {
+    /* Device copy already has the time and version. */
+  }
 }
 
 export async function signOut(): Promise<void> {

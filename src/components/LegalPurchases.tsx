@@ -44,6 +44,11 @@ export function LegalPurchases({
             {block.paragraphs.map((text) => (
               <p key={text.slice(0, 48)}>{text}</p>
             ))}
+            {block.links?.map((link) => (
+              <p key={link.href}>
+                <a href={link.href} target="_blank" rel="noopener noreferrer">{link.label}</a>
+              </p>
+            ))}
           </section>
         ))}
         <p>

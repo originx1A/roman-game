@@ -525,6 +525,16 @@ export default function App() {
   const [askPack, setAskPack] = useState<CoinPackId | null>(null)
   const [pinReset, setPinReset] = useState(false)
   const [legalSection, setLegalSection] = useState<LegalSection | null>(null)
+  useEffect(() => {
+    const open = (event: Event) => {
+      const detail = (event as CustomEvent<string>).detail
+      if (detail === 'use' || detail === 'terms' || detail === 'refunds' || detail === 'privacy' || detail === 'parents' || detail === 'contact') {
+        setLegalSection(detail)
+      }
+    }
+    window.addEventListener('roman:open-legal', open)
+    return () => window.removeEventListener('roman:open-legal', open)
+  }, [])
   const [weekSpent, setWeekSpent] = useState(0)
   const [fountain, setFountain] = useState(() => loadFountain(Date.now()))
   const [giftCal, setGiftCal] = useState(() => loadGiftCalendar())
