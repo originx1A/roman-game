@@ -5,19 +5,12 @@ import { readStripeKey } from './stripeServer.ts'
 
 type Env = Record<string, string | undefined>
 
-export function publicAudioBase(env: Env = process.env): string | null {
-  const raw = env.R2_PUBLIC_BASE_URL?.trim()
-  if (!raw) return null
-  try {
-    const url = new URL(raw)
-    if (url.protocol !== 'https:') return null
-    return raw.replace(/\/$/, '')
-  } catch {
-    return null
-  }
+/** Covers, samples, and the free saga can load once R2 credentials exist. The bucket stays private. */
+export function audioMediaEnabled(env: Env = process.env): boolean {
+  return r2Settings(env) !== null
 }
 
-/** Buy buttons stay hidden until this is true. Samples can still use the public base on their own. */
+/** Buy buttons stay hidden until this is true. */
 export function audioSalesEnabled(env: Env = process.env): boolean {
   return env.STORE_AUDIO_SALES_ENABLED === 'true' && readStripeKey(env) !== null && r2Settings(env) !== null
 }

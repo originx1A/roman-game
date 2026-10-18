@@ -23,7 +23,9 @@ import {
   type AudioGrant,
   type PaidSession,
 } from '../netlify/lib/audioGrant.ts'
-import { audiobookCheckoutParams, audioSalesEnabled, automaticTaxEnabled, publicAudioBase } from '../netlify/lib/audioSales.ts'
+import { audioMediaEnabled, audiobookCheckoutParams, audioSalesEnabled, automaticTaxEnabled } from '../netlify/lib/audioSales.ts'
+import { PUBLIC_FREE_MASTER, PUBLIC_MEDIA_CACHE, isPublicAudioKey } from '../netlify/lib/publicMedia.ts'
+import storeMedia from '../netlify/functions/store-media.ts'
 import { handleAudiobookWebhook } from '../netlify/lib/audioWebhook.ts'
 import { thankYouMessage } from '../netlify/lib/resendMail.ts'
 import { presignGetUrl, presignR2Get, R2_PRESIGN_SECONDS, r2Settings } from '../netlify/lib/r2Sign.ts'
@@ -71,13 +73,19 @@ test('catalog prices are the 13 audiobooks plus the all-13 bundle', () => {
 
   for (const product of AUDIO_PRODUCTS) {
     assert.deepEqual(audioFiles(product.slug), {
-      master: `${product.slug}.mp3`,
+      master: `masters/${product.slug}.mp3`,
       sample: `samples/${product.slug}-sample.mp3`,
       cover: `covers/${product.slug}.jpg`,
     })
   }
   assert.equal(Object.keys(AUDIO_FILES).length, 14)
-  assert.equal(audioFiles('all-13')?.master, 'all-13.mp3')
+  assert.equal(audioFiles('tales-of-the-empty-throne')?.master, PUBLIC_FREE_MASTER)
+  assert.equal(audioFiles('all-13')?.master, 'masters/all-13.mp3')
+  assert.equal(audioFiles('all-13')?.cover, 'covers/all-13.jpg')
+  const page = readFileSync(new URL('../public/store/index.html', import.meta.url), 'utf8')
+  assert.match(page, /data-free="masters\/tales-of-the-empty-throne\.mp3"/)
+  assert.doesNotMatch(page, /data-free="tales-of-the-empty-throne\.mp3"/)
+  assert.match(page, /data-cover="covers\/all-13\.jpg"/)
 })
 
 function paid(slug: string, amount = purchaseBySlug(slug)?.priceCents ?? 0, extra: Partial<PaidSession> = {}): PaidSession {
@@ -167,12 +175,12 @@ test('R2 presign matches the AWS query-string example and expires in 15 minutes'
     accessKeyId: 'access',
     secretAccessKey: 'secret',
     bucket: 'romansgame-audiobooks',
-    key: 'the-first-five.mp3',
+    key: 'masters/the-first-five.mp3',
     now: new Date('2026-10-18T00:00:00.000Z'),
   })
   const url = new URL(r2)
   assert.equal(url.host, 'account123.r2.cloudflarestorage.com')
-  assert.equal(url.pathname, '/romansgame-audiobooks/the-first-five.mp3')
+  assert.equal(url.pathname, '/romansgame-audiobooks/masters/the-first-five.mp3')
   assert.equal(url.searchParams.get('X-Amz-Expires'), String(R2_PRESIGN_SECONDS))
   assert.equal(url.searchParams.get('X-Amz-Algorithm'), 'AWS4-HMAC-SHA256')
   assert.match(url.searchParams.get('X-Amz-Signature') ?? '', /^[0-9a-f]{64}$/)
@@ -294,8 +302,101 @@ test('checkout uses catalog cents in CAD and adds tax only behind the flag', () 
     R2_ACCESS_KEY_ID: 'key',
     R2_SECRET_ACCESS_KEY: 'secret',
   }), true)
-  assert.equal(publicAudioBase({ R2_PUBLIC_BASE_URL: 'https://audio.example.com/' }), 'https://audio.example.com')
-  assert.equal(publicAudioBase({ R2_PUBLIC_BASE_URL: 'http://audio.example.com' }), null)
+  assert.equal(audioMediaEnabled({ R2_ACCOUNT_ID: 'acc', R2_ACCESS_KEY_ID: 'key', R2_SECRET_ACCESS_KEY: 'secret' }), true)
+  assert.equal(audioMediaEnabled({ R2_PUBLIC_BASE_URL: 'https://audio.example.com' }), false)
+  assert.equal(audioMediaEnabled({}), false)
+})
+
+const R2_ENV = {
+  R2_ACCOUNT_ID: 'acc',
+  R2_ACCESS_KEY_ID: 'key',
+  R2_SECRET_ACCESS_KEY: 'secret',
+  R2_BUCKET: 'romansgame-audiobooks',
+}
+
+test('public media allowlist signs the free saga, samples, and covers, and rejects paid masters', async () => {
+  assert.equal(isPublicAudioKey(PUBLIC_FREE_MASTER), true)
+  assert.equal(isPublicAudioKey('samples/the-first-five-sample.mp3'), true)
+  assert.equal(isPublicAudioKey('covers/all-13.jpg'), true)
+  assert.equal(isPublicAudioKey('covers/many-thrones.jpg'), true)
+  for (const product of AUDIO_PRODUCTS) {
+    const files = audioFiles(product.slug)
+    assert.ok(files)
+    assert.equal(isPublicAudioKey(files.sample), true)
+    assert.equal(isPublicAudioKey(files.cover), true)
+    assert.equal(isPublicAudioKey(files.master), product.priceCents === 0)
+  }
+  assert.equal(isPublicAudioKey('masters/all-13.mp3'), false)
+  assert.equal(isPublicAudioKey('masters/the-first-five.mp3'), false)
+  assert.equal(isPublicAudioKey('masters/the-unseen.mp3'), false)
+  assert.equal(isPublicAudioKey('samples/../masters/the-first-five.mp3'), false)
+  assert.equal(isPublicAudioKey('covers/../masters/the-unseen.mp3'), false)
+  assert.equal(isPublicAudioKey('/masters/tales-of-the-empty-throne.mp3'), false)
+  assert.equal(isPublicAudioKey('samples//the-first-five-sample.mp3'), false)
+  assert.equal(isPublicAudioKey('samples/the-first-five.mp3'), false)
+  assert.equal(isPublicAudioKey('covers/all-13.png'), false)
+  assert.equal(isPublicAudioKey(''), false)
+  assert.equal(isPublicAudioKey(null), false)
+
+  const saved = {
+    R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID,
+    R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID,
+    R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY,
+    R2_BUCKET: process.env.R2_BUCKET,
+    R2_PUBLIC_BASE_URL: process.env.R2_PUBLIC_BASE_URL,
+  }
+  Object.assign(process.env, R2_ENV)
+  delete process.env.R2_PUBLIC_BASE_URL
+  try {
+    const paid = await storeMedia(new Request('https://play.romansgame.com/api/store-media?key=masters/the-first-five.mp3'))
+    assert.equal(paid.status, 404)
+    assert.equal(paid.headers.get('location'), null)
+    assert.equal(await paid.text(), 'Not found')
+
+    const traversal = await storeMedia(new Request('https://play.romansgame.com/api/store-media?key=samples/..%2Fmasters%2Fthe-unseen.mp3'))
+    assert.equal(traversal.status, 404)
+    assert.equal(traversal.headers.get('location'), null)
+
+    const free = await storeMedia(new Request('https://play.romansgame.com/api/store-media?key=masters/tales-of-the-empty-throne.mp3'))
+    assert.equal(free.status, 302)
+    const freeUrl = free.headers.get('location') ?? ''
+    assert.match(freeUrl, /\/masters\/tales-of-the-empty-throne\.mp3\?/)
+    assert.match(freeUrl, /X-Amz-Expires=900/)
+    assert.doesNotMatch(freeUrl, /the-first-five/)
+    assert.equal(free.headers.get('cache-control'), PUBLIC_MEDIA_CACHE)
+
+    const sample = await storeMedia(new Request('https://play.romansgame.com/api/store-media?key=samples/the-choice-sample.mp3'))
+    assert.equal(sample.status, 302)
+    assert.match(sample.headers.get('location') ?? '', /\/samples\/the-choice-sample\.mp3\?/)
+
+    const cover = await storeMedia(new Request('https://play.romansgame.com/api/store-media?key=covers/all-13.jpg'))
+    assert.equal(cover.status, 302)
+    assert.match(cover.headers.get('location') ?? '', /\/covers\/all-13\.jpg\?/)
+
+    const series = await storeMedia(new Request('https://play.romansgame.com/api/store-media?key=covers/many-thrones.jpg'))
+    assert.equal(series.status, 302)
+
+    assert.equal((await storeMedia(new Request('https://play.romansgame.com/api/store-media', { method: 'POST' }))).status, 405)
+    for (const name of ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET'] as const) {
+      delete process.env[name]
+    }
+    const offline = await storeMedia(new Request('https://play.romansgame.com/api/store-media?key=masters/tales-of-the-empty-throne.mp3'))
+    assert.equal(offline.status, 503)
+    const stillPaid = await storeMedia(new Request('https://play.romansgame.com/api/store-media?key=masters/the-lost-keeper.mp3'))
+    assert.equal(stillPaid.status, 404)
+  } finally {
+    for (const [name, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[name]
+      else process.env[name] = value
+    }
+  }
+
+  const client = readFileSync(new URL('../public/store/store.js', import.meta.url), 'utf8')
+  assert.match(client, /\/api\/store-media\?key=/)
+  assert.doesNotMatch(client, /publicBase|R2_PUBLIC_BASE_URL/)
+  const sales = readFileSync(new URL('../netlify/functions/store-sales.ts', import.meta.url), 'utf8')
+  assert.match(sales, /media: audioMediaEnabled\(\)/)
+  assert.doesNotMatch(sales, /publicBase|R2_PUBLIC_BASE_URL/)
 })
 
 test('the thank-you rewrite stays ahead of the single-page fallback', () => {

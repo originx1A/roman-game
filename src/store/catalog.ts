@@ -110,7 +110,7 @@ export function formatCad(cents: number): string {
 }
 
 export type AudioFiles = {
-  /** Full master. Not used for the free public file's checkout. */
+  /** Full master in the private bucket. Paid masters need a purchase token. */
   master: string
   sample: string
   cover: string
@@ -127,12 +127,13 @@ export type AudioProduct = {
 }
 
 /**
- * File names in the audiobook bucket. Change a line here when the real names are confirmed.
- * masters: <slug>.mp3 · samples: samples/<slug>-sample.mp3 · covers: covers/<slug>.jpg
+ * Object keys in the private audiobook bucket.
+ * masters: masters/<slug>.mp3 · samples: samples/<slug>-sample.mp3 · covers: covers/<slug>.jpg
+ * The bundle cover is covers/all-13.jpg. The bundle is not itself a download.
  */
 function standardAudioFiles(slug: string): AudioFiles {
   return {
-    master: `${slug}.mp3`,
+    master: `masters/${slug}.mp3`,
     sample: `samples/${slug}-sample.mp3`,
     cover: `covers/${slug}.jpg`,
   }

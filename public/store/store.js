@@ -63,35 +63,32 @@
     })
   }
 
-  function fileUrl(base, key) {
-    return String(base).replace(/\/$/, '') + '/' + String(key).split('/').map(function (part) {
-      return encodeURIComponent(part)
-    }).join('/')
+  function mediaUrl(key) {
+    return '/api/store-media?key=' + encodeURIComponent(key)
   }
 
   fetch('/api/store-sales', { headers: { accept: 'application/json' } })
     .then(function (res) { return res.ok ? res.json() : null })
     .then(function (data) {
       if (!data) return
-      var base = typeof data.publicBase === 'string' && data.publicBase.indexOf('https://') === 0 ? data.publicBase : ''
-      if (base) {
+      if (data.media === true) {
         document.querySelectorAll('[data-cover]').forEach(function (img) {
           var key = img.getAttribute('data-cover')
           if (!key) return
           img.addEventListener('error', function () { img.hidden = true })
-          img.src = fileUrl(base, key)
+          img.src = mediaUrl(key)
           img.hidden = false
         })
         document.querySelectorAll('[data-sample]').forEach(function (audio) {
           var key = audio.getAttribute('data-sample')
           if (!key) return
-          audio.src = fileUrl(base, key)
+          audio.src = mediaUrl(key)
           audio.hidden = false
         })
         document.querySelectorAll('[data-free]').forEach(function (link) {
           var key = link.getAttribute('data-free')
           if (!key) return
-          link.href = fileUrl(base, key)
+          link.href = mediaUrl(key)
           link.hidden = false
           var card = link.closest('article')
           var wait = card && card.querySelector('[data-free-wait]')
