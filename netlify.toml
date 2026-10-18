@@ -31,6 +31,25 @@
   status = 200
   force = true
 
+# Thank-you page keeps ?session_id=. Must sit ahead of the single-page fallback.
+[[redirects]]
+  from = "/store/thanks"
+  to = "/store/thanks/index.html"
+  status = 200
+[[redirects]]
+  from = "/store/thanks/"
+  to = "/store/thanks/index.html"
+  status = 200
+
+[[headers]]
+  for = "/store/thanks"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+[[headers]]
+  for = "/store/thanks/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
 # 200 rewrite, not a 3xx. Share links are / and /#challenge=… (hash stays in the browser).
 # A redirect back to the bare root would send crawlers to the URL X already cached with no card.
 [[redirects]]

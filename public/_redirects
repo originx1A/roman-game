@@ -1,2 +1,4 @@
 /api/* /.netlify/functions/:splat 200!
+/store/thanks /store/thanks/index.html 200
+/store/thanks/ /store/thanks/index.html 200
 /* /index.html 200

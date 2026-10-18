@@ -2,8 +2,7 @@
  * Roman's world shelf. Add a product by editing this file only.
  * The store page HTML is generated from it (scripts/render-store-page.ts).
  *
- * No prices live here. Amazon shows the coloring-book price. Everything
- * else is still "coming soon" and must not invent a number.
+ * The coloring book price stays on Amazon. Audiobook prices are CAD cents.
  */
 
 export type StoreLink = {
@@ -83,7 +82,92 @@ export type StoreNavLink = {
 export const STORE_TITLE = 'Store'
 
 export const STORE_INTRO =
-  'One shelf for the books, stories, and music of Roman\u2019s world. The coloring book is ready. Stories, songs, and bundles are still on the way.'
+  'One shelf for the books, stories, and music of Roman\u2019s world. The coloring book is on Amazon. Audiobooks are listed here. Songs are still on the way.'
+
+/** CAD display. Free stays the word Free, never CA$0.00. */
+export function formatCad(cents: number): string {
+  if (cents === 0) return 'Free'
+  return `CA$${(cents / 100).toFixed(2)}`
+}
+
+export type AudioFiles = {
+  /** Full master. Not used for the free public file's checkout. */
+  master: string
+  sample: string
+  cover: string
+}
+
+export type AudioProduct = {
+  slug: string
+  title: string
+  /** Spoken length, for the card. */
+  runtime: string
+  /** 0 means free. No Stripe checkout. */
+  priceCents: number
+  group: 'many-thrones' | null
+}
+
+/**
+ * File names in the audiobook bucket. Change a line here when the real names are confirmed.
+ * masters: <slug>.mp3 · samples: samples/<slug>-sample.mp3 · covers: covers/<slug>.jpg
+ */
+function standardAudioFiles(slug: string): AudioFiles {
+  return {
+    master: `${slug}.mp3`,
+    sample: `samples/${slug}-sample.mp3`,
+    cover: `covers/${slug}.jpg`,
+  }
+}
+
+export const AUDIO_PRODUCTS: AudioProduct[] = [
+  { slug: 'tales-of-the-empty-throne', title: 'Tales of the Empty Throne', runtime: '1h 31m', priceCents: 0, group: null },
+  { slug: 'the-first-five', title: 'The First Five', runtime: '45m', priceCents: 599, group: null },
+  { slug: 'many-thrones-1-carvings', title: 'Many Thrones, Book 1: Carvings', runtime: '52m', priceCents: 599, group: 'many-thrones' },
+  { slug: 'many-thrones-2-root', title: 'Many Thrones, Book 2: Root', runtime: '51m', priceCents: 599, group: 'many-thrones' },
+  { slug: 'many-thrones-3-diver', title: 'Many Thrones, Book 3: Diver', runtime: '50m', priceCents: 599, group: 'many-thrones' },
+  { slug: 'many-thrones-4-hollow', title: 'Many Thrones, Book 4: Hollow', runtime: '57m', priceCents: 599, group: 'many-thrones' },
+  { slug: 'many-thrones-5-map', title: 'Many Thrones, Book 5: Map', runtime: '56m', priceCents: 599, group: 'many-thrones' },
+  { slug: 'many-thrones-6-wont-go', title: "Many Thrones, Book 6: Won't Go", runtime: '51m', priceCents: 599, group: 'many-thrones' },
+  { slug: 'many-thrones-7-invite', title: 'Many Thrones, Book 7: Invite', runtime: '57m', priceCents: 599, group: 'many-thrones' },
+  { slug: 'the-unseen', title: 'The Unseen', runtime: '1h 30m', priceCents: 799, group: null },
+  { slug: 'the-face-of-the-unseen', title: 'The Face of the Unseen', runtime: '1h 10m', priceCents: 799, group: null },
+  { slug: 'the-lost-keeper', title: 'The Lost Keeper', runtime: '1h 06m', priceCents: 799, group: null },
+  { slug: 'the-choice', title: 'The Choice', runtime: '1h 06m', priceCents: 799, group: null },
+]
+
+export const AUDIO_BUNDLE = {
+  slug: 'all-13',
+  title: 'All 13 Audiobooks',
+  priceCents: 2999,
+  summary: 'The 12 paid audiobooks together. Tales of the Empty Throne stays free.',
+} as const
+
+export const AUDIO_FILES: Record<string, AudioFiles> = Object.fromEntries(
+  [...AUDIO_PRODUCTS.map((product) => product.slug), AUDIO_BUNDLE.slug].map((slug) => [slug, standardAudioFiles(slug)]),
+)
+
+export function audioFiles(slug: string): AudioFiles | null {
+  return AUDIO_FILES[slug] ?? null
+}
+
+export function paidAudioProducts(): AudioProduct[] {
+  return AUDIO_PRODUCTS.filter((product) => product.priceCents > 0)
+}
+
+/** What a paid slug grants. Free stories and unknown slugs are not for sale. */
+export function purchaseBySlug(slug: string): { slug: string; title: string; priceCents: number; slugs: string[] } | null {
+  if (slug === AUDIO_BUNDLE.slug) {
+    return {
+      slug,
+      title: AUDIO_BUNDLE.title,
+      priceCents: AUDIO_BUNDLE.priceCents,
+      slugs: paidAudioProducts().map((product) => product.slug),
+    }
+  }
+  const product = AUDIO_PRODUCTS.find((item) => item.slug === slug)
+  if (!product || product.priceCents <= 0) return null
+  return { slug, title: product.title, priceCents: product.priceCents, slugs: [product.slug] }
+}
 
 /** Same Roman's World News signup the rest of the site already uses. Not a new list. */
 export const STORE_NOTIFY: StoreNotify = {
@@ -144,15 +228,7 @@ export const STORE_SECTIONS: StoreSection[] = [
   {
     id: 'audiobooks',
     label: 'Audiobooks & Stories',
-    items: [
-      {
-        id: 'sagas',
-        title: 'Audiobooks & Stories',
-        summary: 'Saga 1 will be free to read and hear. Later sagas will be sold here. Prices are not set yet.',
-        status: 'soon',
-        statusLabel: 'Coming soon',
-      },
-    ],
+    items: [],
   },
   {
     id: 'music',

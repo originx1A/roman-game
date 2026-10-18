@@ -9,7 +9,7 @@ const page = readFileSync(new URL('../public/store/index.html', import.meta.url)
 const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8')
 const sitemap = readFileSync(new URL('../public/sitemap.xml', import.meta.url), 'utf8')
 
-test('store catalog is the four shelves, with the coloring book live and nothing else priced', () => {
+test('store catalog keeps the coloring book live, and music and bundles unpriced', () => {
   assert.deepEqual(STORE_SECTIONS.map((s) => s.id), ['coloring-books', 'audiobooks', 'music', 'bundles'])
   const book = STORE_SECTIONS[0].items[0]
   assert.equal(book.status, 'live')
@@ -18,14 +18,15 @@ test('store catalog is the four shelves, with the coloring book live and nothing
     book.links?.map((l) => l.href),
     ['https://www.amazon.ca/dp/B0HNDZ96N5', 'https://www.amazon.com/dp/B0HNDZ96N5'],
   )
-  for (const section of STORE_SECTIONS.slice(1)) {
+  assert.equal(STORE_SECTIONS[1].items.length, 0)
+  for (const section of STORE_SECTIONS.slice(2)) {
     assert.equal(section.items[0].status, 'soon')
     assert.equal(section.items[0].links, undefined)
     assert.equal(section.items[0].priceNote, undefined)
   }
 })
 
-test('store page links Amazon in a new tab, points at the existing newsletter, and has no payment code', () => {
+test('store page links Amazon in a new tab and points at the existing newsletter', () => {
   assert.equal(page, html)
   assert.match(html, /rel="noopener sponsored"/)
   assert.match(html, /target="_blank"/)
@@ -33,13 +34,19 @@ test('store page links Amazon in a new tab, points at the existing newsletter, a
   assert.match(html, /https:\/\/www\.amazon\.com\/dp\/B0HNDZ96N5/)
   assert.match(html, /See price on Amazon/)
   assert.match(html, /Coming soon/)
-  assert.match(html, /Saga 1 will be free/)
   assert.match(html, /href="https:\/\/romansgame\.com\/news\/#signup"/)
   assert.match(html, /Get notified/)
   assert.match(html, /role="tablist"/)
   assert.match(html, /aria-current="page"/)
-  assert.doesNotMatch(html, /\$\d/)
-  assert.doesNotMatch(html, /stripe|checkout|sk_live|sk_test|supabase/i)
+  assert.match(html, /Many Thrones, Book 1: Carvings/)
+  assert.match(html, /data-buy="the-first-five"/)
+  assert.match(html, /<details class="audio-group">/)
+  const coloring = html.slice(html.indexOf('id="coloring-books"'), html.indexOf('id="audiobooks"'))
+  const audio = html.slice(html.indexOf('id="audiobooks"'), html.indexOf('id="music"'))
+  assert.doesNotMatch(coloring, /CA\$/)
+  assert.doesNotMatch(audio, /amazon/i)
+  assert.doesNotMatch(audio, /stories\/audio/)
+  assert.doesNotMatch(html, /sk_live|sk_test|whsec_|supabase/i)
 })
 
 test('the game nav and sitemap point at /store/', () => {

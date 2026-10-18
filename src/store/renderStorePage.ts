@@ -1,11 +1,16 @@
 import {
   amazonAssociateDisclosure,
   amazonHref,
+  AUDIO_BUNDLE,
+  AUDIO_PRODUCTS,
+  audioFiles,
+  formatCad,
   STORE_INTRO,
   STORE_NAV,
   STORE_NOTIFY,
   STORE_SECTIONS,
   STORE_TITLE,
+  type AudioProduct,
   type StoreLink,
 } from './catalog.ts'
 
@@ -71,6 +76,89 @@ function itemCard(sectionId: string, item: (typeof STORE_SECTIONS)[number]['item
     </article>`
 }
 
+function audioCover(slug: string, title: string): string {
+  const files = audioFiles(slug)
+  return `<div class="audio-cover">
+        <img data-cover="${escapeHtml(files?.cover ?? '')}" alt="Cover of ${escapeHtml(title)}" width="72" height="72" hidden>
+      </div>`
+}
+
+function audioSample(product: AudioProduct): string {
+  const files = audioFiles(product.slug)
+  return `<p class="sample-label">5-minute sample</p>
+        <audio class="sample" controls preload="none" data-sample="${escapeHtml(files?.sample ?? '')}" aria-label="5-minute sample of ${escapeHtml(product.title)}" hidden></audio>`
+}
+
+function audioCard(product: AudioProduct): string {
+  const files = audioFiles(product.slug)
+  const offer = product.priceCents === 0
+    ? `<p class="actions">
+          <a class="btn" data-free="${escapeHtml(files?.master ?? '')}" hidden>Listen or download</a>
+        </p>
+        <p class="fine" data-free-wait>The free listen link appears when the audio files are online.</p>`
+    : `<p class="actions">
+          <button type="button" class="btn" data-buy="${escapeHtml(product.slug)}" aria-label="Buy ${escapeHtml(product.title)}" hidden>Buy</button>
+        </p>
+        <p class="status status-soon" data-soon>Coming soon</p>
+        <p class="fine buy-error" data-buy-error role="status"></p>`
+  return `<article class="audio-card" id="audio-${escapeHtml(product.slug)}">
+      ${audioCover(product.slug, product.title)}
+      <div class="audio-copy">
+        <h2>${escapeHtml(product.title)}</h2>
+        <p class="audio-meta"><span>${escapeHtml(product.runtime)}</span> · <span class="price">${escapeHtml(formatCad(product.priceCents))}</span></p>
+        ${audioSample(product)}
+        ${offer}
+      </div>
+    </article>`
+}
+
+function manyThrones(products: AudioProduct[]): string {
+  return `<details class="audio-group">
+      <summary>
+        <span class="group-title">Many Thrones</span>
+        <span class="group-note">7 books, CA$5.99 each</span>
+        <span class="status status-soon" data-soon>Coming soon</span>
+      </summary>
+      <div class="audio-group-list">
+        ${products.map((product) => audioCard(product)).join('\n        ')}
+      </div>
+    </details>`
+}
+
+function bundleCard(): string {
+  return `<article class="audio-card audio-bundle" id="audio-${escapeHtml(AUDIO_BUNDLE.slug)}">
+      ${audioCover(AUDIO_BUNDLE.slug, AUDIO_BUNDLE.title)}
+      <div class="audio-copy">
+        <h2>${escapeHtml(AUDIO_BUNDLE.title)}</h2>
+        <p>${escapeHtml(AUDIO_BUNDLE.summary)}</p>
+        <p class="audio-meta"><span class="price">${escapeHtml(formatCad(AUDIO_BUNDLE.priceCents))}</span></p>
+        <p class="actions">
+          <button type="button" class="btn" data-buy="${escapeHtml(AUDIO_BUNDLE.slug)}" aria-label="Buy ${escapeHtml(AUDIO_BUNDLE.title)}" hidden>Buy</button>
+        </p>
+        <p class="status status-soon" data-soon>Coming soon</p>
+        <p class="fine buy-error" data-buy-error role="status"></p>
+      </div>
+    </article>`
+}
+
+/** Free story, standalone titles, the Many Thrones group, then the bundle. */
+function audiobookShelf(): string {
+  const parts: string[] = []
+  let grouped = false
+  for (const product of AUDIO_PRODUCTS) {
+    if (product.group === 'many-thrones') {
+      if (!grouped) {
+        parts.push(manyThrones(AUDIO_PRODUCTS.filter((item) => item.group === 'many-thrones')))
+        grouped = true
+      }
+      continue
+    }
+    parts.push(audioCard(product))
+  }
+  parts.push(bundleCard())
+  return `<div class="audio-shelf">\n      ${parts.join('\n      ')}\n    </div>`
+}
+
 /** Full store document. Edit src/store/catalog.ts, then regenerate this. */
 export function renderStorePage(): string {
   const nav = STORE_NAV.map(
@@ -88,7 +176,7 @@ export function renderStorePage(): string {
 
   const panels = STORE_SECTIONS.map((section) => {
     const cards = section.items.map((item) => itemCard(section.id, item)).join('\n      ')
-    const body = cards || `<p>Coming soon.</p>`
+    const body = section.id === 'audiobooks' ? audiobookShelf() : cards || `<p>Coming soon.</p>`
     return `<section class="panel" id="${escapeHtml(section.id)}" role="tabpanel" data-store-panel aria-labelledby="tab-${escapeHtml(section.id)}" tabindex="0">
       ${body}
     </section>`
@@ -100,11 +188,11 @@ export function renderStorePage(): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Store — Roman's Game</title>
-  <meta name="description" content="Coloring books, stories, and music from Roman's world. The Tales of the Empty Throne coloring book is on Amazon. Audiobooks, songs, and bundles are coming soon.">
+  <meta name="description" content="Coloring books, stories, and music from Roman's world. The Tales of the Empty Throne coloring book is on Amazon. Audiobooks are listed in Canadian dollars. Songs and bundles are coming soon.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="${PAGE_URL}">
   <meta property="og:title" content="Store — Roman's Game">
-  <meta property="og:description" content="The Tales of the Empty Throne coloring book is on Amazon. Stories, songs, and bundles are coming soon.">
+  <meta property="og:description" content="The Tales of the Empty Throne coloring book is on Amazon. Audiobooks are listed in Canadian dollars. Songs and bundles are coming soon.">
   <meta property="og:url" content="${PAGE_URL}">
   <meta property="og:type" content="website">
   <link rel="icon" href="https://romansgame.com/assets/icons/favicon.ico">

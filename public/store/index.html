@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Store — Roman's Game</title>
-  <meta name="description" content="Coloring books, stories, and music from Roman's world. The Tales of the Empty Throne coloring book is on Amazon. Audiobooks, songs, and bundles are coming soon.">
+  <meta name="description" content="Coloring books, stories, and music from Roman's world. The Tales of the Empty Throne coloring book is on Amazon. Audiobooks are listed in Canadian dollars. Songs and bundles are coming soon.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://play.romansgame.com/store/">
   <meta property="og:title" content="Store — Roman's Game">
-  <meta property="og:description" content="The Tales of the Empty Throne coloring book is on Amazon. Stories, songs, and bundles are coming soon.">
+  <meta property="og:description" content="The Tales of the Empty Throne coloring book is on Amazon. Audiobooks are listed in Canadian dollars. Songs and bundles are coming soon.">
   <meta property="og:url" content="https://play.romansgame.com/store/">
   <meta property="og:type" content="website">
   <link rel="icon" href="https://romansgame.com/assets/icons/favicon.ico">
@@ -29,7 +29,7 @@
   <img class="shelf-banner" src="../og-image.png" alt="Roman’s Game board with glossy tiles, a yellow buddy, and a gold coin" width="1200" height="630">
   <main class="wrap" id="store">
     <h1>Store</h1>
-    <p class="intro">One shelf for the books, stories, and music of Roman’s world. The coloring book is ready. Stories, songs, and bundles are still on the way.</p>
+    <p class="intro">One shelf for the books, stories, and music of Roman’s world. The coloring book is on Amazon. Audiobooks are listed here. Songs are still on the way.</p>
     <div class="tabs" role="tablist" aria-label="Store sections">
         <button type="button" role="tab" id="tab-coloring-books" data-store-tab="coloring-books" aria-controls="coloring-books" aria-selected="true" tabindex="0">Coloring Books</button>
         <button type="button" role="tab" id="tab-audiobooks" data-store-tab="audiobooks" aria-controls="audiobooks" aria-selected="false" tabindex="-1">Audiobooks &amp; Stories</button>
@@ -53,16 +53,239 @@
     </section>
 
     <section class="panel" id="audiobooks" role="tabpanel" data-store-panel aria-labelledby="tab-audiobooks" tabindex="0">
-      <article class="product product-soon product-text">
-      
-      <div class="product-copy">
-        <p class="status status-soon">Coming soon</p>
-        <h2 id="audiobooks-title">Audiobooks &amp; Stories</h2>
-        <p>Saga 1 will be free to read and hear. Later sagas will be sold here. Prices are not set yet.</p>
-        
-        
+      <div class="audio-shelf">
+      <article class="audio-card" id="audio-tales-of-the-empty-throne">
+      <div class="audio-cover">
+        <img data-cover="covers/tales-of-the-empty-throne.jpg" alt="Cover of Tales of the Empty Throne" width="72" height="72" hidden>
+      </div>
+      <div class="audio-copy">
+        <h2>Tales of the Empty Throne</h2>
+        <p class="audio-meta"><span>1h 31m</span> · <span class="price">Free</span></p>
+        <p class="sample-label">5-minute sample</p>
+        <audio class="sample" controls preload="none" data-sample="samples/tales-of-the-empty-throne-sample.mp3" aria-label="5-minute sample of Tales of the Empty Throne" hidden></audio>
+        <p class="actions">
+          <a class="btn" data-free="tales-of-the-empty-throne.mp3" hidden>Listen or download</a>
+        </p>
+        <p class="fine" data-free-wait>The free listen link appears when the audio files are online.</p>
       </div>
     </article>
+      <article class="audio-card" id="audio-the-first-five">
+      <div class="audio-cover">
+        <img data-cover="covers/the-first-five.jpg" alt="Cover of The First Five" width="72" height="72" hidden>
+      </div>
+      <div class="audio-copy">
+        <h2>The First Five</h2>
+        <p class="audio-meta"><span>45m</span> · <span class="price">CA$5.99</span></p>
+        <p class="sample-label">5-minute sample</p>
+        <audio class="sample" controls preload="none" data-sample="samples/the-first-five-sample.mp3" aria-label="5-minute sample of The First Five" hidden></audio>
+        <p class="actions">
+          <button type="button" class="btn" data-buy="the-first-five" aria-label="Buy The First Five" hidden>Buy</button>
+        </p>
+        <p class="status status-soon" data-soon>Coming soon</p>
+        <p class="fine buy-error" data-buy-error role="status"></p>
+      </div>
+    </article>
+      <details class="audio-group">
+      <summary>
+        <span class="group-title">Many Thrones</span>
+        <span class="group-note">7 books, CA$5.99 each</span>
+        <span class="status status-soon" data-soon>Coming soon</span>
+      </summary>
+      <div class="audio-group-list">
+        <article class="audio-card" id="audio-many-thrones-1-carvings">
+      <div class="audio-cover">
+        <img data-cover="covers/many-thrones-1-carvings.jpg" alt="Cover of Many Thrones, Book 1: Carvings" width="72" height="72" hidden>
+      </div>
+      <div class="audio-copy">
+        <h2>Many Thrones, Book 1: Carvings</h2>
+        <p class="audio-meta"><span>52m</span> · <span class="price">CA$5.99</span></p>
+        <p class="sample-label">5-minute sample</p>
+        <audio class="sample" controls preload="none" data-sample="samples/many-thrones-1-carvings-sample.mp3" aria-label="5-minute sample of Many Thrones, Book 1: Carvings" hidden></audio>
+        <p class="actions">
+          <button type="button" class="btn" data-buy="many-thrones-1-carvings" aria-label="Buy Many Thrones, Book 1: Carvings" hidden>Buy</button>
+        </p>
+        <p class="status status-soon" data-soon>Coming soon</p>
+        <p class="fine buy-error" data-buy-error role="status"></p>
+      </div>
+    </article>
+        <article class="audio-card" id="audio-many-thrones-2-root">
+      <div class="audio-cover">
+        <img data-cover="covers/many-thrones-2-root.jpg" alt="Cover of Many Thrones, Book 2: Root" width="72" height="72" hidden>
+      </div>
+      <div class="audio-copy">
+        <h2>Many Thrones, Book 2: Root</h2>
+        <p class="audio-meta"><span>51m</span> · <span class="price">CA$5.99</span></p>
+        <p class="sample-label">5-minute sample</p>
+        <audio class="sample" controls preload="none" data-sample="samples/many-thrones-2-root-sample.mp3" aria-label="5-minute sample of Many Thrones, Book 2: Root" hidden></audio>
+        <p class="actions">
+          <button type="button" class="btn" data-buy="many-thrones-2-root" aria-label="Buy Many Thrones, Book 2: Root" hidden>Buy</button>
+        </p>
+        <p class="status status-soon" data-soon>Coming soon</p>
+        <p class="fine buy-error" data-buy-error role="status"></p>
+      </div>
+    </article>
+        <article class="audio-card" id="audio-many-thrones-3-diver">
+      <div class="audio-cover">
+        <img data-cover="covers/many-thrones-3-diver.jpg" alt="Cover of Many Thrones, Book 3: Diver" width="72" height="72" hidden>
+      </div>
+      <div class="audio-copy">
+        <h2>Many Thrones, Book 3: Diver</h2>
+        <p class="audio-meta"><span>50m</span> · <span class="price">CA$5.99</span></p>
+        <p class="sample-label">5-minute sample</p>
+        <audio class="sample" controls preload="none" data-sample="samples/many-thrones-3-diver-sample.mp3" aria-label="5-minute sample of Many Thrones, Book 3: Diver" hidden></audio>
+        <p class="actions">
+          <button type="button" class="btn" data-buy="many-thrones-3-diver" aria-label="Buy Many Thrones, Book 3: Diver" hidden>Buy</button>
+        </p>
+        <p class="status status-soon" data-soon>Coming soon</p>
+        <p class="fine buy-error" data-buy-error role="status"></p>
+      </div>
+    </article>
+        <article class="audio-card" id="audio-many-thrones-4-hollow">
+      <div class="audio-cover">
+        <img data-cover="covers/many-thrones-4-hollow.jpg" alt="Cover of Many Thrones, Book 4: Hollow" width="72" height="72" hidden>
+      </div>
+      <div class="audio-copy">
+        <h2>Many Thrones, Book 4: Hollow</h2>
+        <p class="audio-meta"><span>57m</span> · <span class="price">CA$5.99</span></p>
+        <p class="sample-label">5-minute sample</p>
+        <audio class="sample" controls preload="none" data-sample="samples/many-thrones-4-hollow-sample.mp3" aria-label="5-minute sample of Many Thrones, Book 4: Hollow" hidden></audio>
+        <p class="actions">
+          <button type="button" class="btn" data-buy="many-thrones-4-hollow" aria-label="Buy Many Thrones, Book 4: Hollow" hidden>Buy</button>
+        </p>
+        <p class="status status-soon" data-soon>Coming soon</p>
+        <p class="fine buy-error" data-buy-error role="status"></p>
+      </div>
+    </article>
+        <article class="audio-card" id="audio-many-thrones-5-map">
+      <div class="audio-cover">
+        <img data-cover="covers/many-thrones-5-map.jpg" alt="Cover of Many Thrones, Book 5: Map" width="72" height="72" hidden>
+      </div>
+      <div class="audio-copy">
+        <h2>Many Thrones, Book 5: Map</h2>
+        <p class="audio-meta"><span>56m</span> · <span class="price">CA$5.99</span></p>
+        <p class="sample-label">5-minute sample</p>
+        <audio class="sample" controls preload="none" data-sample="samples/many-thrones-5-map-sample.mp3" aria-label="5-minute sample of Many Thrones, Book 5: Map" hidden></audio>
+        <p class="actions">
+          <button type="button" class="btn" data-buy="many-thrones-5-map" aria-label="Buy Many Thrones, Book 5: Map" hidden>Buy</button>
+        </p>
+        <p class="status status-soon" data-soon>Coming soon</p>
+        <p class="fine buy-error" data-buy-error role="status"></p>
+      </div>
+    </article>
+        <article class="audio-card" id="audio-many-thrones-6-wont-go">
+      <div class="audio-cover">
+        <img data-cover="covers/many-thrones-6-wont-go.jpg" alt="Cover of Many Thrones, Book 6: Won't Go" width="72" height="72" hidden>
+      </div>
+      <div class="audio-copy">
+        <h2>Many Thrones, Book 6: Won't Go</h2>
+        <p class="audio-meta"><span>51m</span> · <span class="price">CA$5.99</span></p>
+        <p class="sample-label">5-minute sample</p>
+        <audio class="sample" controls preload="none" data-sample="samples/many-thrones-6-wont-go-sample.mp3" aria-label="5-minute sample of Many Thrones, Book 6: Won't Go" hidden></audio>
+        <p class="actions">
+          <button type="button" class="btn" data-buy="many-thrones-6-wont-go" aria-label="Buy Many Thrones, Book 6: Won't Go" hidden>Buy</button>
+        </p>
+        <p class="status status-soon" data-soon>Coming soon</p>
+        <p class="fine buy-error" data-buy-error role="status"></p>
+      </div>
+    </article>
+        <article class="audio-card" id="audio-many-thrones-7-invite">
+      <div class="audio-cover">
+        <img data-cover="covers/many-thrones-7-invite.jpg" alt="Cover of Many Thrones, Book 7: Invite" width="72" height="72" hidden>
+      </div>
+      <div class="audio-copy">
+        <h2>Many Thrones, Book 7: Invite</h2>
+        <p class="audio-meta"><span>57m</span> · <span class="price">CA$5.99</span></p>
+        <p class="sample-label">5-minute sample</p>
+        <audio class="sample" controls preload="none" data-sample="samples/many-thrones-7-invite-sample.mp3" aria-label="5-minute sample of Many Thrones, Book 7: Invite" hidden></audio>
+        <p class="actions">
+          <button type="button" class="btn" data-buy="many-thrones-7-invite" aria-label="Buy Many Thrones, Book 7: Invite" hidden>Buy</button>
+        </p>
+        <p class="status status-soon" data-soon>Coming soon</p>
+        <p class="fine buy-error" data-buy-error role="status"></p>
+      </div>
+    </article>
+      </div>
+    </details>
+      <article class="audio-card" id="audio-the-unseen">
+      <div class="audio-cover">
+        <img data-cover="covers/the-unseen.jpg" alt="Cover of The Unseen" width="72" height="72" hidden>
+      </div>
+      <div class="audio-copy">
+        <h2>The Unseen</h2>
+        <p class="audio-meta"><span>1h 30m</span> · <span class="price">CA$7.99</span></p>
+        <p class="sample-label">5-minute sample</p>
+        <audio class="sample" controls preload="none" data-sample="samples/the-unseen-sample.mp3" aria-label="5-minute sample of The Unseen" hidden></audio>
+        <p class="actions">
+          <button type="button" class="btn" data-buy="the-unseen" aria-label="Buy The Unseen" hidden>Buy</button>
+        </p>
+        <p class="status status-soon" data-soon>Coming soon</p>
+        <p class="fine buy-error" data-buy-error role="status"></p>
+      </div>
+    </article>
+      <article class="audio-card" id="audio-the-face-of-the-unseen">
+      <div class="audio-cover">
+        <img data-cover="covers/the-face-of-the-unseen.jpg" alt="Cover of The Face of the Unseen" width="72" height="72" hidden>
+      </div>
+      <div class="audio-copy">
+        <h2>The Face of the Unseen</h2>
+        <p class="audio-meta"><span>1h 10m</span> · <span class="price">CA$7.99</span></p>
+        <p class="sample-label">5-minute sample</p>
+        <audio class="sample" controls preload="none" data-sample="samples/the-face-of-the-unseen-sample.mp3" aria-label="5-minute sample of The Face of the Unseen" hidden></audio>
+        <p class="actions">
+          <button type="button" class="btn" data-buy="the-face-of-the-unseen" aria-label="Buy The Face of the Unseen" hidden>Buy</button>
+        </p>
+        <p class="status status-soon" data-soon>Coming soon</p>
+        <p class="fine buy-error" data-buy-error role="status"></p>
+      </div>
+    </article>
+      <article class="audio-card" id="audio-the-lost-keeper">
+      <div class="audio-cover">
+        <img data-cover="covers/the-lost-keeper.jpg" alt="Cover of The Lost Keeper" width="72" height="72" hidden>
+      </div>
+      <div class="audio-copy">
+        <h2>The Lost Keeper</h2>
+        <p class="audio-meta"><span>1h 06m</span> · <span class="price">CA$7.99</span></p>
+        <p class="sample-label">5-minute sample</p>
+        <audio class="sample" controls preload="none" data-sample="samples/the-lost-keeper-sample.mp3" aria-label="5-minute sample of The Lost Keeper" hidden></audio>
+        <p class="actions">
+          <button type="button" class="btn" data-buy="the-lost-keeper" aria-label="Buy The Lost Keeper" hidden>Buy</button>
+        </p>
+        <p class="status status-soon" data-soon>Coming soon</p>
+        <p class="fine buy-error" data-buy-error role="status"></p>
+      </div>
+    </article>
+      <article class="audio-card" id="audio-the-choice">
+      <div class="audio-cover">
+        <img data-cover="covers/the-choice.jpg" alt="Cover of The Choice" width="72" height="72" hidden>
+      </div>
+      <div class="audio-copy">
+        <h2>The Choice</h2>
+        <p class="audio-meta"><span>1h 06m</span> · <span class="price">CA$7.99</span></p>
+        <p class="sample-label">5-minute sample</p>
+        <audio class="sample" controls preload="none" data-sample="samples/the-choice-sample.mp3" aria-label="5-minute sample of The Choice" hidden></audio>
+        <p class="actions">
+          <button type="button" class="btn" data-buy="the-choice" aria-label="Buy The Choice" hidden>Buy</button>
+        </p>
+        <p class="status status-soon" data-soon>Coming soon</p>
+        <p class="fine buy-error" data-buy-error role="status"></p>
+      </div>
+    </article>
+      <article class="audio-card audio-bundle" id="audio-all-13">
+      <div class="audio-cover">
+        <img data-cover="covers/all-13.jpg" alt="Cover of All 13 Audiobooks" width="72" height="72" hidden>
+      </div>
+      <div class="audio-copy">
+        <h2>All 13 Audiobooks</h2>
+        <p>The 12 paid audiobooks together. Tales of the Empty Throne stays free.</p>
+        <p class="audio-meta"><span class="price">CA$29.99</span></p>
+        <p class="actions">
+          <button type="button" class="btn" data-buy="all-13" aria-label="Buy All 13 Audiobooks" hidden>Buy</button>
+        </p>
+        <p class="status status-soon" data-soon>Coming soon</p>
+        <p class="fine buy-error" data-buy-error role="status"></p>
+      </div>
+    </article>
+    </div>
     </section>
 
     <section class="panel" id="music" role="tabpanel" data-store-panel aria-labelledby="tab-music" tabindex="0">
