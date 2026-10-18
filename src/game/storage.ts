@@ -1,4 +1,5 @@
-import { adoptOnSignIn, emptyStoredProgress, parkOnSignOut, type ProgressBlob as AccountBlob, type StoredProgress } from './accountProgress'
+import { adoptOnSignIn, emptyStoredProgress, forgetAccount, parkOnSignOut, type ProgressBlob as AccountBlob, type StoredProgress } from './accountProgress'
+import { DEVICE_PROGRESS_KEYS } from './accountDelete'
 import { sanitizeTips } from './voiceTips'
 import { sanitizeMeter } from './buddyHunt'
 import { PETS_KEY, sanitizePets, type PetState } from './pets'
@@ -329,6 +330,42 @@ export function adoptCloudProgress(userId: string): { adoptedGuest: boolean } {
 export function parkCloudProgress() {
   const book = loadAccountBook()
   saveAccountBook(parkOnSignOut(book, asAccountBlob()))
+}
+
+/** Delete account on this device. Other accounts' snapshots stay. The player name is cleared. Purchase session ids stay. */
+export function clearDeletedAccountOnDevice(userId: string): void {
+  try {
+    saveAccountBook(forgetAccount(loadAccountBook(), userId))
+  } catch {
+    /* private mode */
+  }
+  for (const key of DEVICE_PROGRESS_KEYS) {
+    try {
+      localStorage.removeItem(key)
+    } catch {
+      /* private mode */
+    }
+  }
+  try {
+    localStorage.removeItem(`rg.cloud.queue.v1.${userId}`)
+  } catch {
+    /* private mode */
+  }
+  try {
+    const settings = loadSettings()
+    if (settings.playerName) {
+      const next = { ...settings }
+      delete next.playerName
+      saveSettings(next)
+    }
+  } catch {
+    /* private mode */
+  }
+  try {
+    window.dispatchEvent(new CustomEvent('roman:progress-adopted'))
+  } catch {
+    /* no window in tests */
+  }
 }
 
 export function signOutKeepDevice() {

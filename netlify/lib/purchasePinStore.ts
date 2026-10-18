@@ -38,6 +38,7 @@ interface GrantRecord {
 type BlobStore = {
   get(key: string, opts: { type: 'json' }): Promise<unknown>
   setJSON(key: string, value: unknown): Promise<unknown>
+  delete(key: string): Promise<void>
 }
 
 function store(): BlobStore {
@@ -169,6 +170,12 @@ export async function consumePinGrant(userId: string, grantId: string, now = Dat
   if (typeof raw.exp !== 'number' || raw.exp < now) return false
   await store().setJSON(key, { userId, exp: raw.exp, used: true })
   return true
+}
+
+/** Removes the PIN hash for a deleted account. Does not write to Supabase. */
+export async function deletePinRecord(userId: string): Promise<void> {
+  if (!/^[0-9a-f-]{36}$/i.test(userId)) return
+  await store().delete(pinKey(userId))
 }
 
 export function resetRedirect(siteBase: string): string {

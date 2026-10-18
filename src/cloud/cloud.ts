@@ -1,6 +1,6 @@
 import { gaEvent } from '../game/analytics'
 import { consentAllowsAccount, nicknameAllowed, parseStoredConsent, type PolicyConsentRecord } from '../game/legalCopy'
-import { adoptCloudProgress, parkCloudProgress } from '../game/storage'
+import { adoptCloudProgress, clearDeletedAccountOnDevice, parkCloudProgress } from '../game/storage'
 /**
  * Player accounts + score saving (Supabase, project romans-game).
  *
@@ -229,6 +229,7 @@ export async function savePlayerName(name: string, consent: Consent): Promise<{ 
   set({ name: row.display_name, publicName: row.public_name })
   saveConsent(consent)
   if (consent.policy) void recordPolicyConsent(consent.policy.guardian)
+  if (consent.policy?.guardian) void scheduleParentNotice(consent.policy.nickname)
   if (consent.optIn && data.session?.user.email) void subscribeNews(data.session.user.email)
   void flushScores()
   return { ok: true, publicName: row.public_name }
@@ -258,6 +259,91 @@ export async function recordPolicyConsent(guardian: boolean): Promise<void> {
   } catch {
     /* Device copy already has the time and version. */
   }
+}
+
+/**
+ * Schedules the parent confirmation and the day-later follow-up.
+ * The server stores the notice without sending mail unless the ledger flag and Resend key are set.
+ * A failure here does not undo the account.
+ */
+export async function scheduleParentNotice(nickname?: string): Promise<void> {
+  try {
+    const token = await accessToken()
+    if (!token) return
+    await fetch('/api/parent-notice', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({ guardian: true, nickname: nickname ?? null }),
+    })
+  } catch {
+    /* The account exists. The notice can be scheduled the next time Account is opened. */
+  }
+}
+
+export interface ParentNoticeStatus {
+  scheduled: boolean
+  cancelled: boolean
+  followUpAt: number | null
+  mail: boolean
+  confirmSent: boolean
+  followUpSent: boolean
+}
+
+/** The day-later schedule for this account. Null when signed out or the request fails. */
+export async function parentNoticeStatus(): Promise<ParentNoticeStatus | null> {
+  try {
+    const token = await accessToken()
+    if (!token) return null
+    const res = await fetch('/api/parent-notice', { headers: { authorization: `Bearer ${token}` } })
+    if (!res.ok) return null
+    const data = await res.json() as {
+      scheduled?: unknown
+      cancelled?: unknown
+      followUpAt?: unknown
+      mail?: unknown
+      confirmSent?: unknown
+      followUpSent?: unknown
+    }
+    return {
+      scheduled: data.scheduled === true,
+      cancelled: data.cancelled === true,
+      followUpAt: typeof data.followUpAt === 'number' ? data.followUpAt : null,
+      mail: data.mail === true,
+      confirmSent: data.confirmSent === true,
+      followUpSent: data.followUpSent === true,
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Account → Delete account.
+ * Clears this device and signs out only after the server accepts the request.
+ * The server removes the account row only when the ledger flag is on.
+ */
+export async function deleteAccount(): Promise<{ ok: true; database: boolean } | { ok: false; error: string }> {
+  const sb = await client()
+  const session = sb ? (await sb.auth.getSession()).data.session : null
+  const token = session?.access_token ?? null
+  const userId = session?.user.id ?? null
+  if (!token || !userId) return { ok: false, error: 'Sign in first.' }
+  let database = false
+  try {
+    const res = await fetch('/api/delete-account', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}` },
+    })
+    if (res.status === 401) return { ok: false, error: 'Sign in first.' }
+    if (!res.ok) return { ok: false, error: "Couldn't delete the account. Try again." }
+    const data = await res.json() as { database?: unknown }
+    database = data.database === true
+  } catch {
+    return { ok: false, error: "Couldn't delete the account. Try again." }
+  }
+  clearDeletedAccountOnDevice(userId)
+  await signOut()
+  return { ok: true, database }
 }
 
 /** Asks the server to store the Terms of Purchase version. No-ops unless the migration flag is on. */

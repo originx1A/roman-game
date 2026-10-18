@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { isProfane } from './profanity'
-import { NAME_MAX, loadConsent, saveConsent, onCloud, savePlayerName, sendMagicLink, signOut, type CloudState } from './cloud'
+import { NAME_MAX, deleteAccount, loadConsent, onCloud, parentNoticeStatus, saveConsent, savePlayerName, scheduleParentNotice, sendMagicLink, signOut, type CloudState } from './cloud'
 import {
   policyConsentRecord,
   PRESET_NICKNAMES,
@@ -27,7 +27,7 @@ export function useCloud(): CloudState {
   return s
 }
 
-type Sheet = null | 'email' | 'sent' | 'name' | 'account' | 'parent'
+type Sheet = null | 'email' | 'sent' | 'name' | 'account' | 'parent' | 'delete' | 'deleted'
 
 export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: string; compact?: boolean }) {
   const cloud = useCloud()
@@ -44,6 +44,8 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
   const [optIn, setOptIn] = useState(() => stored?.optIn ?? false)
   const [policyOn, setPolicyOn] = useState(false)
   const [nickname, setNickname] = useState(() => stored?.policy?.nickname ?? PRESET_NICKNAMES[0])
+  const [databaseGone, setDatabaseGone] = useState(false)
+  const [followUpLine, setFollowUpLine] = useState('')
   const age13 = who === '13'
   function openLegal(section: 'use' | 'privacy' | 'parents') {
     window.dispatchEvent(new CustomEvent('roman:open-legal', { detail: section }))
@@ -143,6 +145,39 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
     if (cloud.status === 'signed-in' && cloud.name === null) setSheet((s) => (s === 'account' ? s : 'name'))
   }, [cloud.status, cloud.name])
 
+  // Parent accounts: schedule the confirmation and the day-later follow-up if it is not saved yet.
+  useEffect(() => {
+    if (sheet !== 'account' || !loadConsent()?.policy?.guardian) return
+    let stop = false
+    void (async () => {
+      let status = await parentNoticeStatus()
+      if (stop) return
+      if (status && !status.scheduled && !status.cancelled) {
+        await scheduleParentNotice(loadConsent()?.policy?.nickname)
+        status = await parentNoticeStatus()
+      }
+      if (stop || !status?.followUpAt || status.cancelled) return
+      const when = new Date(status.followUpAt).toUTCString()
+      setFollowUpLine(status.mail
+        ? `We'll email you to confirm, and again a day later (${when}) so you can cancel if this wasn't you.`
+        : `A confirmation email and a day-later follow-up are scheduled for ${when}. Email sending is off on this site, so nothing has been sent yet.`)
+    })()
+    return () => { stop = true }
+  }, [sheet])
+
+  async function confirmDelete() {
+    setBusy(true)
+    const result = await deleteAccount()
+    setBusy(false)
+    if (!result.ok) {
+      setErr(result.error)
+      return
+    }
+    setDatabaseGone(result.database)
+    setErr('')
+    setSheet('deleted')
+  }
+
   const label =
     cloud.status === 'signed-in' && cloud.name
       ? `☁ Scores saving as ${cloud.publicName ?? cloud.name}${cloud.pending ? ` (${cloud.pending} waiting)` : ''}`
@@ -184,7 +219,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
       )}
       {sheet &&
         createPortal(
-          <div className="start-sheet cloud-sheet" role="dialog" aria-modal="true" aria-label="Save my scores">
+          <div className="start-sheet cloud-sheet" role="dialog" aria-modal="true" aria-label={sheet === 'delete' || sheet === 'deleted' ? 'Delete account' : sheet === 'account' ? 'Account' : 'Save my scores'}>
             <div className="start-sheet-scrim" onClick={() => setSheet(null)} />
             {sheet === 'email' && (
               <form
@@ -252,7 +287,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                   setBusy(true)
                   const r = await savePlayerName(chosen, { age13: policy.guardian ? false : age13, optIn: policy.guardian ? false : optIn, policy })
                   setBusy(false)
-                  if (r.ok) setSheet(r.publicName && r.publicName !== name.trim() ? 'account' : null)
+                  if (r.ok) setSheet(policy.guardian || (r.publicName && r.publicName !== chosen.trim()) ? 'account' : null)
                   else setErr(r.error ?? 'Something went wrong.')
                 }}
               >
@@ -291,11 +326,14 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
             )}
             {sheet === 'account' && (
               <div className="start-sheet-card">
-                <h3>Scores are saving</h3>
+                <h3>Account</h3>
                 <p className="start-sheet-tip">
                   Signed in as {cloud.email}. Leaderboard name: <b>{cloud.publicName ?? cloud.name}</b>.
                   {cloud.pending ? ` ${cloud.pending} score${cloud.pending === 1 ? '' : 's'} will send when you're back online.` : ' Every game you finish is saved.'}
                 </p>
+                {loadConsent()?.policy?.guardian ? (
+                  <p className="start-sheet-tip">{followUpLine || SIGNUP_PARENT_NOTE}</p>
+                ) : null}
                 <button type="button" className="btn primary" onClick={() => setSheet(null)}>
                   Done
                 </button>
@@ -308,6 +346,37 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 </button>
                 <button type="button" className="btn ghost" onClick={() => { void signOut(); setSheet(null) }}>
                   Sign out
+                </button>
+                <button type="button" className="btn danger" onClick={() => { setErr(''); setSheet('delete') }}>
+                  Delete account
+                </button>
+              </div>
+            )}
+            {sheet === 'delete' && (
+              <div className="start-sheet-card">
+                <h3>Delete account?</h3>
+                <p className="start-sheet-tip">
+                  This removes the leaderboard name, game progress, and purchase PIN. Purchase and tax records are kept for 6 years, without your name or email. A consent record with no name or email is kept for 3 years. You'll be signed out.
+                </p>
+                {err && <p className="cloud-err" role="alert">{err}</p>}
+                <button type="button" className="btn danger" disabled={busy} onClick={() => void confirmDelete()}>
+                  {busy ? 'Deleting…' : 'Delete account'}
+                </button>
+                <button type="button" className="btn ghost" disabled={busy} onClick={() => { setErr(''); setSheet('account') }}>
+                  Keep account
+                </button>
+              </div>
+            )}
+            {sheet === 'deleted' && (
+              <div className="start-sheet-card">
+                <h3>{databaseGone ? 'Account deleted' : 'Signed out'}</h3>
+                <p className="start-sheet-tip">
+                  {databaseGone
+                    ? "You're signed out. The account, leaderboard name, and game progress are removed. Purchase and tax records are kept for 6 years, without your name or email. A consent record with no name or email is kept for 3 years."
+                    : "You're signed out and this device is cleared. The account row on the server stays until deletion is turned on there. Purchase and tax records are kept for 6 years."}
+                </p>
+                <button type="button" className="btn primary" onClick={() => setSheet(null)}>
+                  OK
                 </button>
               </div>
             )}

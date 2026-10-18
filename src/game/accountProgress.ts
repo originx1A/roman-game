@@ -136,6 +136,22 @@ export function adoptOnSignIn(stored: StoredProgress, userId: string, device: Pr
   }
 }
 
+/**
+ * Delete account. Drops that account's snapshot.
+ * Other accounts on this device stay. Guest progress already on the device is left as it is.
+ * The caller clears the live device keys so the deleted account's current game is not kept.
+ */
+export function forgetAccount(stored: StoredProgress, userId: string): StoredProgress {
+  const accounts = { ...stored.accounts }
+  delete accounts[userId]
+  return {
+    owner: stored.owner === userId ? null : stored.owner,
+    parked: stored.parked === userId ? null : stored.parked,
+    guest: stored.guest,
+    accounts,
+  }
+}
+
 /** Sign-out keeps the account snapshot. The device save stays so play is not reset. */
 export function parkOnSignOut(stored: StoredProgress, device: ProgressBlob): StoredProgress {
   const holder = stored.owner ?? stored.parked

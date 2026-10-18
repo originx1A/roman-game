@@ -6,6 +6,10 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
+# Day-later parent follow-up. Production only. The function sends nothing unless the ledger flag and Resend key are set.
+[functions."parent-notice-send"]
+  schedule = "@hourly"
+
 # `netlify dev` serves dist plus these functions. Run `npm run build` first.
 # Plain `npm run dev` has no functions; the shop then says purchases are unavailable.
 
