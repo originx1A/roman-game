@@ -245,10 +245,12 @@ export const STORE_SECTIONS: StoreSection[] = [
         details: '92 pages · 8.5 × 11 in',
         status: 'soon',
         statusLabel: 'Coming soon',
-        /** Set this to the ASIN when the book is on Amazon. The card then shows the Amazon buttons. */
+        /** Set this to the ASIN when the book is on Amazon. A cover alone does not put the card on sale. */
         asin: '',
-        /** Set `{ src, alt }` when the cover file is in the repo. `null` keeps the placeholder. */
-        image: null,
+        image: {
+          src: './adult-coloring-book-cover.webp',
+          alt: "Cover of Roman's Game: Tales of the Empty Throne: Adult Coloring Book. A cracked throne stands in a ruined hall under shafts of light, with a hooded figure at the foot of the steps.",
+        },
         links: [
           {
             label: 'Get notified',
