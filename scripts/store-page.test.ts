@@ -13,11 +13,17 @@ test('store catalog keeps the coloring book live, and music and bundles unpriced
   assert.deepEqual(STORE_SECTIONS.map((s) => s.id), ['coloring-books', 'audiobooks', 'music', 'bundles'])
   const book = STORE_SECTIONS[0].items[0]
   assert.equal(book.status, 'live')
+  assert.equal(book.asin, 'B0HNDZ96N5')
   assert.equal(book.priceNote, 'See price on Amazon')
-  assert.deepEqual(
-    book.links?.map((l) => l.href),
-    ['https://www.amazon.ca/dp/B0HNDZ96N5', 'https://www.amazon.com/dp/B0HNDZ96N5'],
-  )
+  assert.equal(book.details, 'JRNYfun Publishing · First Edition · 45 pages · 8.5 × 11 in paperback')
+  assert.equal(book.bonus?.href, '#audio-tales-of-the-empty-throne')
+  const adult = STORE_SECTIONS[0].items[1]
+  assert.equal(adult.status, 'soon')
+  assert.equal(adult.asin, '')
+  assert.equal(adult.priceNote, undefined)
+  assert.equal(adult.image, null)
+  assert.equal(adult.details, '92 pages · 8.5 × 11 in')
+  assert.deepEqual(adult.links?.map((l) => l.href), ['https://romansgame.com/news/#signup'])
   assert.equal(STORE_SECTIONS[1].items.length, 0)
   for (const section of STORE_SECTIONS.slice(2)) {
     assert.equal(section.items[0].status, 'soon')
@@ -42,8 +48,14 @@ test('store page links Amazon in a new tab and points at the existing newsletter
   assert.match(html, /data-buy="the-first-five"/)
   assert.match(html, /<details class="audio-group">/)
   const coloring = html.slice(html.indexOf('id="coloring-books"'), html.indexOf('id="audiobooks"'))
+  const adult = html.slice(html.indexOf('id="empty-throne-adult-coloring-book"'), html.indexOf('id="audiobooks"'))
   const audio = html.slice(html.indexOf('id="audiobooks"'), html.indexOf('id="music"'))
   assert.doesNotMatch(coloring, /CA\$/)
+  assert.match(coloring, /JRNYfun Publishing · First Edition · 45 pages · 8\.5 × 11 in paperback/)
+  assert.match(coloring, /Bonus: the QR code on the back cover unlocks a free audio story, <a href="#audio-tales-of-the-empty-throne">Tales of the Empty Throne<\/a>\./)
+  assert.match(adult, /92 pages · 8\.5 × 11 in/)
+  assert.match(adult, /href="https:\/\/romansgame\.com\/news\/#signup"/)
+  assert.doesNotMatch(adult, /amazon\.(ca|com)|See price on Amazon|Buy on Amazon/)
   assert.doesNotMatch(audio, /amazon/i)
   assert.doesNotMatch(audio, /stories\/audio/)
   assert.doesNotMatch(html, /sk_live|sk_test|whsec_|supabase/i)
@@ -65,7 +77,8 @@ test('Amazon Associates tags are appended per shop, and an empty tag leaves the 
   assert.equal(amazonAssociateDisclosure({ ca: '', us: '' }), '')
   assert.match(html, /amazon\.ca\/dp\/B0HNDZ96N5\?tag=jrny06-20/)
   assert.match(html, /amazon\.com\/dp\/B0HNDZ96N5\?tag=jrny00-20/)
-  assert.match(html, /As an Amazon Associate we earn from qualifying purchases\./)
+  assert.equal(html.split(AMAZON_ASSOCIATE_DISCLOSURE).length - 1, 2)
+  assert.doesNotMatch(html, /As an Amazon Associate we earn/)
   assert.match(html, /coloring-book-cover\.webp/)
   assert.match(html, /shelf-banner/)
   assert.doesNotMatch(html, /tag=jrny06-20[\s\S]*tag=jrny06-20/)

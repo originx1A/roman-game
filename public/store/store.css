@@ -266,7 +266,20 @@ h2 { font-size: clamp(1.25rem, 3vw, 1.55rem); margin: 0 0 0.55rem; }
 .status-live { color: var(--gold); }
 .status-soon { color: var(--muted); }
 
+.panel .product + .product { margin-top: 0.95rem; }
+
 .product p { margin: 0 0 0.75rem; }
+
+.details { color: var(--muted); font-size: 0.95rem; }
+.bonus a { font-weight: 600; }
+.text-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 600;
+}
+.panel .associate { margin: 1rem 0 0; text-align: left; }
+.cover-placeholder .cover-name { font-size: 0.92rem; }
 
 .price {
   color: var(--muted);

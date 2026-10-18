@@ -11,6 +11,7 @@ import {
   STORE_SECTIONS,
   STORE_TITLE,
   type AudioProduct,
+  type StoreItem,
   type StoreLink,
 } from './catalog.ts'
 
@@ -49,27 +50,54 @@ function cover(itemId: string, title: string, image: { src: string; alt: string 
   }
   if (image !== null) return ''
   return `<div class="cover cover-placeholder" role="img" aria-label="Placeholder for the cover of ${escapeHtml(title)}. The cover image is not in the project yet.">
-    <!-- TODO: replace this placeholder with the coloring book cover when the file is added to the repo (${escapeHtml(itemId)}). -->
+    <!-- TODO: replace this placeholder with the cover when the file is added to the repo (${escapeHtml(itemId)}). -->
     <span class="cover-kicker">Roman&rsquo;s Game</span>
-    <span class="cover-name">Tales of the Empty Throne</span>
+    <span class="cover-name">${escapeHtml(title)}</span>
     <span class="cover-kind">Coloring book</span>
   </div>`
 }
 
-function itemCard(sectionId: string, item: (typeof STORE_SECTIONS)[number]['items'][number]): string {
-  const links = (item.links ?? [])
-    .map((link) => `<a class="btn" ${linkAttrs(link)}>${escapeHtml(link.label)}</a>`)
-    .join('\n          ')
-  const price = item.priceNote ? `<p class="price">${escapeHtml(item.priceNote)}</p>` : ''
+/** An ASIN means the book is on Amazon. A blank ASIN keeps the coming-soon links. */
+function offerFor(item: StoreItem): { status: 'live' | 'soon'; statusLabel: string; priceNote?: string; links: StoreLink[] } {
+  const asin = item.asin?.trim()
+  if (!asin) {
+    return { status: item.status, statusLabel: item.statusLabel, priceNote: item.priceNote, links: item.links ?? [] }
+  }
+  return {
+    status: 'live',
+    statusLabel: 'Available now',
+    priceNote: 'See price on Amazon',
+    links: [
+      { label: 'Buy on Amazon.ca', href: `https://www.amazon.ca/dp/${asin}`, sponsored: true },
+      { label: 'Buy on Amazon.com', href: `https://www.amazon.com/dp/${asin}`, sponsored: true },
+    ],
+  }
+}
+
+function linkHtml(link: StoreLink): string {
+  if (link.sponsored) return `<a class="btn" ${linkAttrs(link)}>${escapeHtml(link.label)}</a>`
+  return `<a class="text-link" href="${safeHref(link.href)}">${escapeHtml(link.label)}</a>`
+}
+
+function itemCard(item: StoreItem): string {
+  const offer = offerFor(item)
+  const links = offer.links.map((link) => linkHtml(link)).join('\n          ')
+  const details = item.details ? `<p class="details">${escapeHtml(item.details)}</p>` : ''
+  const bonus = item.bonus
+    ? `<p class="bonus">${escapeHtml(item.bonus.before)}<a href="${safeHref(item.bonus.href)}">${escapeHtml(item.bonus.label)}</a>${escapeHtml(item.bonus.after)}</p>`
+    : ''
+  const price = offer.priceNote ? `<p class="price">${escapeHtml(offer.priceNote)}</p>` : ''
   const actions = links ? `<div class="actions">\n          ${links}\n        </div>` : ''
   const art = cover(item.id, item.title, item.image)
-  const classes = ['product', item.status === 'soon' ? 'product-soon' : '', art ? '' : 'product-text'].filter(Boolean).join(' ')
-  return `<article class="${classes}">
+  const classes = ['product', offer.status === 'soon' ? 'product-soon' : '', art ? '' : 'product-text'].filter(Boolean).join(' ')
+  return `<article class="${classes}" id="${escapeHtml(item.id)}">
       ${art}
       <div class="product-copy">
-        <p class="status status-${item.status}">${escapeHtml(item.statusLabel)}</p>
-        <h2 id="${escapeHtml(sectionId)}-title">${escapeHtml(item.title)}</h2>
+        <p class="status status-${offer.status}">${escapeHtml(offer.statusLabel)}</p>
+        <h2>${escapeHtml(item.title)}</h2>
         <p>${escapeHtml(item.summary)}</p>
+        ${details}
+        ${bonus}
         ${price}
         ${actions}
       </div>
@@ -175,10 +203,11 @@ export function renderStorePage(): string {
   const disclosureHtml = disclosure ? `\n    <p class="associate">${escapeHtml(disclosure)}</p>` : ''
 
   const panels = STORE_SECTIONS.map((section) => {
-    const cards = section.items.map((item) => itemCard(section.id, item)).join('\n      ')
-    const body = section.id === 'audiobooks' ? audiobookShelf() : cards || `<p>Coming soon.</p>`
+    const cards = section.items.map((item) => itemCard(item)).join('\n      ')
+    const shelf = section.id === 'audiobooks' ? audiobookShelf() : cards || `<p>Coming soon.</p>`
+    const note = section.id === 'coloring-books' && disclosure ? `\n      <p class="associate">${escapeHtml(disclosure)}</p>` : ''
     return `<section class="panel" id="${escapeHtml(section.id)}" role="tabpanel" data-store-panel aria-labelledby="tab-${escapeHtml(section.id)}" tabindex="0">
-      ${body}
+      ${shelf}${note}
     </section>`
   }).join('\n\n    ')
 

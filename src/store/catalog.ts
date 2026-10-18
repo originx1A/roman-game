@@ -19,7 +19,7 @@ export type StoreLink = {
 export const amazonTagCA = 'jrny06-20'
 export const amazonTagUS = 'jrny00-20'
 
-export const AMAZON_ASSOCIATE_DISCLOSURE = 'As an Amazon Associate we earn from qualifying purchases.'
+export const AMAZON_ASSOCIATE_DISCLOSURE = 'As an Amazon Associate I earn from qualifying purchases.'
 
 export function amazonHref(href: string, tags: { ca: string; us: string } = { ca: amazonTagCA, us: amazonTagUS }): string {
   let url: URL
@@ -45,12 +45,31 @@ export type StoreImage = {
   alt: string
 }
 
+export type StoreBonus = {
+  /** Text before the link, including the trailing space. */
+  before: string
+  label: string
+  href: string
+  /** Text after the link, usually the period. */
+  after: string
+}
+
 export type StoreItem = {
   id: string
   title: string
   summary: string
   status: 'live' | 'soon'
   statusLabel: string
+  /** One spec line, such as publisher, edition, and page size. */
+  details?: string
+  /** Extra line. The label is the link. */
+  bonus?: StoreBonus
+  /**
+   * Amazon ASIN. When this is set, the card is for sale: Amazon buttons and
+   * "See price on Amazon". Leave it empty and set `image` to null until the
+   * book is ready. Adding an ASIN and a cover is the whole switch to live.
+   */
+  asin?: string
   /** Plain sentence. Never a made-up price. */
   priceNote?: string
   /** Cover art. `null` shows the book placeholder. Omit it when the item has no cover. */
@@ -203,23 +222,37 @@ export const STORE_SECTIONS: StoreSection[] = [
         id: 'empty-throne-coloring-book',
         title: "Roman's Game: Tales of the Empty Throne Coloring Book",
         summary: 'A paperback coloring book of the Empty Throne tales, sold on Amazon.',
+        details: 'JRNYfun Publishing · First Edition · 45 pages · 8.5 × 11 in paperback',
+        bonus: {
+          before: 'Bonus: the QR code on the back cover unlocks a free audio story, ',
+          label: 'Tales of the Empty Throne',
+          href: '#audio-tales-of-the-empty-throne',
+          after: '.',
+        },
         status: 'live',
         statusLabel: 'Available now',
         priceNote: 'See price on Amazon',
+        asin: 'B0HNDZ96N5',
         image: {
           src: './coloring-book-cover.webp',
           alt: "Cover of Roman's Game: Tales of the Empty Throne Coloring Book. A boy and five defenders stand before a stone archway.",
         },
+      },
+      {
+        id: 'empty-throne-adult-coloring-book',
+        title: "Roman's Game: Tales of the Empty Throne: Adult Coloring Book",
+        summary: 'A longer coloring book of the Empty Throne tales. It is not for sale yet.',
+        details: '92 pages · 8.5 × 11 in',
+        status: 'soon',
+        statusLabel: 'Coming soon',
+        /** Set this to the ASIN when the book is on Amazon. The card then shows the Amazon buttons. */
+        asin: '',
+        /** Set `{ src, alt }` when the cover file is in the repo. `null` keeps the placeholder. */
+        image: null,
         links: [
           {
-            label: 'Buy on Amazon.ca',
-            href: 'https://www.amazon.ca/dp/B0HNDZ96N5',
-            sponsored: true,
-          },
-          {
-            label: 'Buy on Amazon.com',
-            href: 'https://www.amazon.com/dp/B0HNDZ96N5',
-            sponsored: true,
+            label: 'Get notified',
+            href: 'https://romansgame.com/news/#signup',
           },
         ],
       },

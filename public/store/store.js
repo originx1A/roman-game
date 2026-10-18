@@ -15,9 +15,24 @@
   }
 
   if (tabs.length && panels.length) {
-    var fromHash = (location.hash || '').replace(/^#/, '')
     var ids = tabs.map(function (tab) { return tab.getAttribute('data-store-tab') })
-    show(ids.indexOf(fromHash) === -1 ? ids[0] : fromHash)
+
+    function tabIdForHash(hash) {
+      if (ids.indexOf(hash) !== -1) return hash
+      var node = hash ? document.getElementById(hash) : null
+      var panel = node && node.closest ? node.closest('[data-store-panel]') : null
+      return panel ? panel.id : ids[0]
+    }
+
+    function showFromHash() {
+      var hash = (location.hash || '').replace(/^#/, '')
+      show(tabIdForHash(hash))
+      var node = hash ? document.getElementById(hash) : null
+      if (node && node.scrollIntoView) node.scrollIntoView({ block: 'nearest' })
+    }
+
+    showFromHash()
+    window.addEventListener('hashchange', showFromHash)
 
     tabs.forEach(function (tab, index) {
       tab.addEventListener('click', function () {
