@@ -15,7 +15,7 @@ const STEPS = [
     // longer text: stay up a bit longer before the next tip
     ms: 8000,
   },
-  { title: 'Spark critter', blurb: 'A silly spark zig-zags by at random. Catch it across games — 5 catches unlock a prize spin!', demo: 'critter' },
+  { title: 'Spark critter', blurb: 'A silly spark zig-zags by. Catch it up to 5 times a day. A full set unlocks one prize spin.', demo: 'critter' },
   { title: 'Stars', blurb: '★ finish · ★★ beat the target time · ★★★ target time, a high score and zero undos. 3 stars unlocks the Trial.', demo: 'stars', isNew: true },
   { title: 'Combo', blurb: 'Quick good moves build a combo: ×1.5, ×2, up to ×3 points. Wait 4 seconds or slip up and it resets.', demo: 'combo', isNew: true },
   { title: 'Undo costs 25', blurb: 'Undo is always there, but each one costs 25 points and breaks your combo.', demo: 'undo', isNew: true },
@@ -24,10 +24,11 @@ const STEPS = [
   { title: 'Pace timer', blurb: 'Replaying a board? The timer turns green when you are ahead of your best and red when behind.', demo: 'pace', isNew: true },
   { title: 'Remix boards', blurb: 'New boards every 3 days, the same set for everyone, so you can compare scores. Want more? Endless mode makes unlimited new boards.', demo: 'remix', isNew: true },
   { title: 'Buddy flyby', blurb: 'Your active buddy swoops across the board every couple of minutes. Tap it for a reward — coins, hints, hearts, even rescues!', demo: 'critter', isNew: true },
-  { title: 'Treat defense', blurb: 'Wild pets sneak onto the board trying to steal your treat pile! Your pets chase them off automatically (+3-5 treats). Or tap the invader yourself (+1-2). Tap the 🍖 count up top to stash your treats safe.', demo: 'hunt', isNew: true },
-  { title: 'Treats & coins', blurb: 'Every win earns 5 field treats. Treats feed and upgrade your pets. Swap safe treats for coins (15 coins each). Bought treats can never be stolen.', demo: 'stars', isNew: true },
-  { title: 'The Unseen', blurb: 'A faceless hooded figure watches you play. He creeps up from the corner and points at the board with a jab when he speaks.', demo: 'combo', isNew: true },
-  { title: 'Free buddy', blurb: 'New players pick one buddy FREE — Lupa, Aquila, Leo, Invictus, or Nox. Yours forever.', demo: 'region', isNew: true },
+  { title: 'Treat defense', blurb: 'Wild buddies eye the treat pile. Your buddies chase them for 2–3 treats, or you tap to scare one off for 1 treat. Defense treats stop at 10 a day.', demo: 'hunt', isNew: true },
+  { title: 'Treats & coins', blurb: 'A win earns 1 field treat, up to 5 a day. Snack 35, Feast 100, Banquet 250. Up to 3 feeds a day. Treats feed buddies. They are not coins.', demo: 'stars', isNew: true },
+  { title: 'The Unseen', blurb: 'The Unseen watches between games and sometimes points you somewhere useful. Never a replay of where to press.', demo: 'combo', isNew: true },
+  { title: 'Free buddy', blurb: 'New players pick one welcome buddy free: Lupa, Aquila, or Leo. Yours forever.', demo: 'region', isNew: true },
+  { title: 'Special cards', blurb: 'Clear boards and win the Daily to unlock a special card. Collect it at romansgame.com in the Cards section. The Unseen card will appear there soon.', demo: 'stars', isNew: true },
 ] as const satisfies readonly { title: string; blurb: string; demo: HowDemoId; ms?: number; isNew?: boolean }[]
 
 /** Index of the first card about the replay features (returning players start here). */
@@ -102,8 +103,11 @@ export function HowToPlay({
         <li>Each color also has its own little shape in the tile corner.</li>
         <li>Your buddy flies by during play — tap it for rewards.</li>
         <li>Wild pets try to steal your treat pile on the board. Your pets defend it — tap the 🍖 count to stash treats safe.</li>
-        <li>Every win earns 5 treats. Treats feed and upgrade pets. Swap safe treats for coins anytime.</li>
-        <li>No pets yet? Claim your FREE buddy in the Stable — without defenders your treats are in danger.</li>
+        <li>A win earns 1 field treat, up to 5 a day. Feed a buddy up to 3 times a day. Snack 35, Feast 100, Banquet 250. Treats are not coins.</li>
+        <li>No buddy yet? Claim a free welcome buddy in the Stable: Lupa, Aquila, or Leo.</li>
+        <li>Buying coins needs a sign-in and a 4-digit purchase PIN. A grown-up sets the PIN. The game asks for it every time.</li>
+        <li>Special cards are earned here. Collect them at romansgame.com in the Cards section. The Unseen card will appear there soon.</li>
+        <li>More at <a href="https://romansgame.com/?from=game" target="_blank" rel="noopener noreferrer">romansgame.com</a>.</li>
       </ol>
       <div className="cta-row">
         <button type="button" className="btn primary" onClick={onDone}>

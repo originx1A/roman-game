@@ -12,9 +12,7 @@ import {
   hasPet,
   levelInfo,
   milestonesReached,
-  moodKind,
   nextMilestone,
-  SNACK_COIN_RATE,
   TREATS,
   type TreatId,
   weaponFor,
@@ -29,6 +27,7 @@ import {
   type PetState,
 } from '../game/pets'
 import { PetArt } from './PetArt'
+import { isWelcomeBuddy } from '../game/economy'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const md = (s: string) => `${MONTHS[Number(s.slice(0, 2)) - 1]} ${Number(s.slice(3))}`
@@ -59,8 +58,6 @@ export type StableProps = {
   /** 9.30-m: the free daily pet, and feeding a treat */
   onCare: (id: PetId) => void
   onFeed: (id: PetId, treat: TreatId) => void
-  /** 10.06: swap the safe snack stash for coins */
-  onSwapTreats: () => void
   /** Toronto date, for the once-a-day care */
   today: string
   onEquip: (id: PetId | null) => void
@@ -76,7 +73,7 @@ export type StableProps = {
   giftsOnline: boolean
 }
 
-export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCare, onFeed, onSwapTreats, today, onEquip, onPeek, onRedeem, onShop, onBack, giftCode, giftsOnline }: StableProps) {
+export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCare, onFeed, today, onEquip, onPeek, onRedeem, onShop, onBack, giftCode, giftsOnline }: StableProps) {
   const [code, setCode] = useState(giftCode ?? '')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -160,15 +157,11 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
         </button>
       </div>
 
-      {/* 10.06: treat defense — safe stash (never stealable) + swap snacks for coins */}
       <div className="stable-stash" aria-label="Treat stash">
         <span>
-          🍖 Stash: <strong>{pets.treats.snack}</strong> snacks · <strong>{pets.treats.feast}</strong> feasts
-          <small>safe from wild buddies · field pile: {pets.fieldTreats ?? 0}</small>
+          🍖 Stash: <strong>{pets.treats.snack}</strong> snacks · <strong>{pets.treats.feast}</strong> feasts · <strong>{pets.treats.banquet ?? 0}</strong> banquets
+          <small>Treats feed buddies. They are not coins. Field pile: {pets.fieldTreats ?? 0}</small>
         </span>
-        <button type="button" className="btn tool" onClick={onSwapTreats} disabled={(pets.treats.snack ?? 0) <= 0}>
-          Swap snacks → coins <small>1 🍖 = {SNACK_COIN_RATE} 🪙</small>
-        </button>
       </div>
 
       {pets.trial && pets.trial.until > now ? (
@@ -180,7 +173,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
       {Object.keys(pets.owned).length === 0 && !pets.freePickUsed ? (
         <div className="stable-freepick" role="region" aria-label="Pick your free buddy">
           <p className="stable-freepick-title">🎉 Pick your buddy — FREE!</p>
-          <p className="stable-freepick-sub">Choose one buddy to join you forever. Each has a special perk.</p>
+          <p className="stable-freepick-sub">Choose Lupa, Aquila, or Leo. Invictus and Nox are earned with coins.</p>
         </div>
       ) : null}
 
@@ -197,6 +190,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
           const coupon = !owned && sale ? couponFor(pets, p.id, now) : null
           const cost = priceWith(p.price, coupon)
           const isActive = active === p.id
+          const welcomeFree = freePickMode && isWelcomeBuddy(p.id)
           return (
             <article
               key={p.id}
@@ -210,6 +204,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
                 {trial ? <span className="stable-gift is-trial">Trial · {leftLabel(pets.trial!.until - now)}</span> : null}
               </div>
               <div className="stable-art">
+                <a className="stable-story" href={`https://romansgame.com/defenders/${p.id}.html?from=game`} target="_blank" rel="noopener noreferrer">Story</a>
                 <PetArt id={p.id} size={92} locked={!have} level={lv.level} stars={lv.stars} title={have ? p.name : `${p.name} (locked)`} />
                 {coupon ? (
                   <span className="stable-coupon" data-coupon={coupon.pct} title={`${COUPON_FROM[coupon.source]} coupon`}>
@@ -273,7 +268,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
                           </button>
                         ))}
                       </div>
-                      <small className="stable-treats">{care.maxed ? 'Fully grown!' : `${care.feedsLeft} of 3 treats left today${moodKind(care.mood) === 'happy' ? ' · happy: +coins on wins' : ''}`}</small>
+                      <small className="stable-treats">{care.maxed ? 'Fully grown!' : `${care.feedsLeft} of 3 feeds left today. Happiness fades about 3 points an hour. Abilities stay between 75% and 150%.`}</small>
                     </div>
                   ) : null}
                   <button type="button" className={`btn ${isActive ? 'ghost' : 'primary'} stable-btn`} onClick={() => onEquip(p.id)} disabled={isActive}>
@@ -288,7 +283,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
               ) : sale ? (
                 <>
                   <p className="stable-next">{p.blurb}</p>
-                  {freePickMode ? (
+                  {welcomeFree ? (
                     <>
                       <p className="stable-price is-free">
                         <strong>FREE</strong> 🎉 <small>your first buddy</small>
@@ -308,7 +303,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
                     </>
                   )}
                 </>
-              ) : freePickMode ? (
+              ) : welcomeFree ? (
                 <>
                   <p className="stable-next">{p.blurb}</p>
                   <p className="stable-price is-free">

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { defenseCatchTreats, ECONOMY } from '../game/economy'
 import { PETS, weaponFor, rollStealAmount, type PetId } from '../game/pets'
 import { PetArt } from './PetArt'
 
@@ -180,7 +181,7 @@ export function TreatDefense({ active, defenders, allOwned, levels, fieldTreats,
 
       // reduced motion: resolve instantly, no animation
       if (reduced()) {
-        if (L.defenders.length > 0) L.onCaught(3 + Math.floor(Math.random() * 3))
+        if (L.defenders.length > 0) L.onCaught(defenseCatchTreats())
         else if (L.fieldTreats > 0) L.onStolen(rollStealAmount(L.fieldTreats))
         return
       }
@@ -255,7 +256,7 @@ export function TreatDefense({ active, defenders, allOwned, levels, fieldTreats,
         if (bestD < CATCH_DIST && best >= 0) {
           // caught!
           s.phase = 'resolve'
-          L.onCaught(3 + Math.floor(Math.random() * 3))
+          L.onCaught(defenseCatchTreats())
           window.setTimeout(() => {
             if (!cancelled && sim.current.phase === 'resolve') {
               sim.current.phase = 'flee'
@@ -293,7 +294,7 @@ export function TreatDefense({ active, defenders, allOwned, levels, fieldTreats,
       const s = sim.current
       if (s.phase !== 'approach') return
       s.phase = 'resolve'
-      live.current.onScared(1 + Math.floor(Math.random() * 2))
+      live.current.onScared(ECONOMY.defenseScareTreats)
       window.setTimeout(() => {
         if (!cancelled && sim.current.phase === 'resolve') {
           // the rAF loop is still running from the approach phase; it picks up 'flee' on its next tick

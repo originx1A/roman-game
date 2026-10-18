@@ -1,3 +1,7 @@
+import { ECONOMY } from './economy.ts'
+
+const BADGE_COIN_PCT_CAP = ECONOMY.badgeCoinPctCap
+
 export type PrizeId =
   | 'coins_25'
   | 'coins_50'
@@ -156,7 +160,7 @@ export function badgeRank(wallet: Wallet, id: string): number {
   return Math.max(0, wallet.badgeRanks?.[id] ?? 0)
 }
 
-/** Total coin bonus percent from all badge ranks (unbounded) */
+/** Total coin bonus percent from achievement badge ranks, capped so it cannot snowball. */
 export function totalCoinBonusPercent(wallet: Wallet): number {
   const w = normalizeWallet(wallet)
   let pct = 0
@@ -164,7 +168,7 @@ export function totalCoinBonusPercent(wallet: Wallet): number {
     const r = badgeRank(w, b.id)
     if (r > 0) pct += r * b.bonusPerRank
   }
-  return Math.round(pct * 10) / 10
+  return Math.min(BADGE_COIN_PCT_CAP, Math.round(pct * 10) / 10)
 }
 
 /** Sum of all ranks — “badge power” shown on share / challenges */

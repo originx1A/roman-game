@@ -59,13 +59,13 @@ export function sendPing(body: PingBody, enabled = true): void {
 }
 
 /**
- * 9.32-e: Google Analytics events (gtag is loaded in index.html, web only).
- * Only these anonymous events, and only a board id / level number. Never names, emails or user ids.
+ * Google Analytics stays off unless the player opts in.
+ * Events are a board id or a level number. Never names, emails, or user ids.
  */
 export type GaEvent = 'game_start' | 'game_win' | 'sign_in' | 'daily_puzzle_complete'
 export const GA_ID = 'G-9MYJE42RQ1'
-let gaOn = true
-/** Follows the in-game analytics switch (also stops gtag's own page_view hits). */
+let gaOn = false
+/** Turns event sending on or off. The script itself loads only after consent. */
 export function setGaEnabled(on: boolean): void {
   gaOn = on
   try {
@@ -73,6 +73,25 @@ export function setGaEnabled(on: boolean): void {
   } catch {
     /* no window */
   }
+}
+
+/** Load gtag once, and only when the player has opted in. */
+export function loadGaIfConsented(consent: boolean): void {
+  setGaEnabled(consent)
+  if (!consent || typeof document === 'undefined') return
+  if (document.querySelector('script[data-roman-ga]')) return
+  const w = window as unknown as { dataLayer?: unknown[]; gtag?: (...a: unknown[]) => void }
+  w.dataLayer = w.dataLayer || []
+  w.gtag = function gtag() {
+    w.dataLayer?.push(arguments)
+  }
+  w.gtag('js', new Date())
+  w.gtag('config', GA_ID, { allow_google_signals: false, allow_ad_personalization_signals: false })
+  const s = document.createElement('script')
+  s.async = true
+  s.dataset.romanGa = '1'
+  s.src = `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`
+  document.head.appendChild(s)
 }
 export function gaEvent(name: GaEvent, params?: { board_id?: string | number; level?: number }): void {
   if (!gaOn) return
@@ -89,4 +108,4 @@ export function gaEvent(name: GaEvent, params?: { board_id?: string | number; le
 }
 
 export const PRIVACY_NOTE =
-  'We count how the game is used, without knowing who you are. Each time the game opens, a level is cleared (with its board size and time), someone comes back another day, or you tap 👍/👎 (with a note if you write one), it sends that with a random number made on this device and a rough place (city/region/country) worked out by the server. We do not collect your name, email or exact location, and we do not keep your IP address. You can switch this off below.'
+  'We count how the game is used, without knowing who you are. Each time the game opens, a level is cleared (with its board size and time), someone comes back another day, or you tap 👍/👎 (with a note if you write one), it sends that with a random number made on this device and a rough place (city/region/country) worked out by the server. We do not collect your name, email or exact location, and we do not keep your IP address. You can switch this off below. Google Analytics stays off unless you turn it on separately.'

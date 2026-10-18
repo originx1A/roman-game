@@ -1,4 +1,6 @@
 import { gaEvent } from '../game/analytics'
+import { consentAllowsAccount, nicknameAllowed, parseStoredConsent, type PolicyConsentRecord } from '../game/legalCopy'
+import { adoptCloudProgress, clearDeletedAccountOnDevice, parkCloudProgress } from '../game/storage'
 /**
  * Player accounts + score saving (Supabase, project romans-game).
  *
@@ -7,6 +9,9 @@ import { gaEvent } from '../game/analytics'
  * - Scores: queued locally first, then sent. Offline / Supabase down / not signed in = they wait
  *   in the queue (max 200) and flush on sign-in, on `online`, and after each new game.
  * - supabase-js is loaded lazily, so the game never waits on it and works fully without it.
+ * - One account is meant for romansgame.com and this game. This file still uses magic-link
+ *   implicit flow so a purchase-PIN reset email works without a PKCE verifier. Do not switch
+ *   flowType here. A shared cookie on .romansgame.com is not turned on.
  */
 import type { SupabaseClient, Session } from '@supabase/supabase-js'
 
@@ -26,6 +31,11 @@ export interface ScoreRow {
   puzzle_id?: string
   /** Toronto date (YYYY-MM-DD) of a scored daily puzzle win */
   daily_date?: string
+  /**
+   * Hint, rescue, extra heart, or a paid perk badge. Stored on the device queue.
+   * Omitted from the live insert until the scores.assisted column exists (migration not applied).
+   */
+  assisted?: boolean
   /** ISO time the game ended (kept so queued scores are not re-sent twice) */
   at: string
 }
@@ -49,12 +59,13 @@ export const KIT_FORM_URL = 'https://app.kit.com/forms/10053148/subscriptions'
 export interface Consent {
   age13: boolean
   optIn: boolean
+  /** Set when the Terms and Privacy Policy checkbox is checked. Absent on older saves. */
+  policy?: PolicyConsentRecord
 }
 /** Choices made on the sign-in sheet, kept until the account row is created after the magic link */
 export function loadConsent(): Consent | null {
   try {
-    const c = JSON.parse(localStorage.getItem(CONSENT_KEY) || 'null')
-    return c && typeof c.age13 === 'boolean' ? { age13: c.age13, optIn: !!c.optIn } : null
+    return parseStoredConsent(JSON.parse(localStorage.getItem(CONSENT_KEY) || 'null'))
   } catch {
     return null
   }
@@ -144,6 +155,11 @@ async function loadPlayer(sb: SupabaseClient, session: Session | null) {
     queueOwner = null
     return set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined })
   }
+  try {
+    adoptCloudProgress(session.user.id)
+  } catch {
+    /* a bad save must not block sign-in */
+  }
   if (queueOwner !== session.user.id) {
     queueOwner = session.user.id
     // games played while signed out belong to the player who signs in now
@@ -186,15 +202,24 @@ export async function sendMagicLink(email: string): Promise<{ ok: boolean; error
 }
 
 export async function savePlayerName(name: string, consent: Consent): Promise<{ ok: boolean; error?: string; publicName?: string }> {
-  if (!consent.age13) return { ok: false, error: 'Ask a parent to sign up for you.' }
+  if (!consentAllowsAccount(consent)) {
+    if (!consent.age13 && !consent.policy?.guardian) return { ok: false, error: 'Ask a parent to sign up for you.' }
+    return { ok: false, error: 'Agree to the Terms of Use and Privacy Policy to make an account.' }
+  }
+  const display_name = name.trim().replace(/\s+/g, ' ').slice(0, NAME_MAX)
+  if (consent.policy?.guardian && !nicknameAllowed(display_name, true)) {
+    return { ok: false, error: 'Pick a nickname from the list.' }
+  }
   const sb = await client()
   if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
   const { data } = await sb.auth.getSession()
   const uid = data.session?.user.id
   if (!uid) return { ok: false, error: 'Please sign in first.' }
-  const display_name = name.trim().replace(/\s+/g, ' ').slice(0, NAME_MAX)
   // insert first; if the row already exists, update just the name (players can only write display_name,
-  // so an upsert, which also writes id, is refused by the column grant)
+  // so an upsert, which also writes id, is refused by the column grant).
+  // age_13_plus stays true: the live rule only accepts that. A parent agreeing for a player
+  // under 13 is the guardian flag on the device. Privacy and terms versions are not written
+  // on this insert. Migration 006 (not applied) adds those columns.
   let { data: row, error } = await sb.from('players').insert({ id: uid, display_name, age_13_plus: true, marketing_opt_in: consent.optIn }).select('display_name, public_name').single()
   if (error?.code === '23505') {
     ;({ data: row, error } = await sb.from('players').update({ display_name }).eq('id', uid).select('display_name, public_name').single())
@@ -203,12 +228,145 @@ export async function savePlayerName(name: string, consent: Consent): Promise<{ 
   if (error) return { ok: false, error: "Couldn't save your name. Try again." }
   set({ name: row.display_name, publicName: row.public_name })
   saveConsent(consent)
+  if (consent.policy) void recordPolicyConsent(consent.policy.guardian)
+  if (consent.policy?.guardian) void scheduleParentNotice(consent.policy.nickname)
   if (consent.optIn && data.session?.user.email) void subscribeNews(data.session.user.email)
   void flushScores()
   return { ok: true, publicName: row.public_name }
 }
 
+export async function accessToken(): Promise<string | null> {
+  const sb = await client()
+  if (!sb) return null
+  const { data } = await sb.auth.getSession()
+  return data.session?.access_token ?? null
+}
+
+/**
+ * Asks the server to store the consent time and policy version on the account.
+ * The server writes nothing unless the owner applies migration 006 and turns the ledger flag on.
+ * A failure here does not undo the name save. The device copy is already kept.
+ */
+export async function recordPolicyConsent(guardian: boolean): Promise<void> {
+  try {
+    const token = await accessToken()
+    if (!token) return
+    await fetch('/api/policy-consent', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({ kind: 'signup', guardian: guardian === true }),
+    })
+  } catch {
+    /* Device copy already has the time and version. */
+  }
+}
+
+/**
+ * Schedules the parent confirmation and the day-later follow-up.
+ * The server stores the notice without sending mail unless the ledger flag and Resend key are set.
+ * A failure here does not undo the account.
+ */
+export async function scheduleParentNotice(nickname?: string): Promise<void> {
+  try {
+    const token = await accessToken()
+    if (!token) return
+    await fetch('/api/parent-notice', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({ guardian: true, nickname: nickname ?? null }),
+    })
+  } catch {
+    /* The account exists. The notice can be scheduled the next time Account is opened. */
+  }
+}
+
+export interface ParentNoticeStatus {
+  scheduled: boolean
+  cancelled: boolean
+  followUpAt: number | null
+  mail: boolean
+  confirmSent: boolean
+  followUpSent: boolean
+}
+
+/** The day-later schedule for this account. Null when signed out or the request fails. */
+export async function parentNoticeStatus(): Promise<ParentNoticeStatus | null> {
+  try {
+    const token = await accessToken()
+    if (!token) return null
+    const res = await fetch('/api/parent-notice', { headers: { authorization: `Bearer ${token}` } })
+    if (!res.ok) return null
+    const data = await res.json() as {
+      scheduled?: unknown
+      cancelled?: unknown
+      followUpAt?: unknown
+      mail?: unknown
+      confirmSent?: unknown
+      followUpSent?: unknown
+    }
+    return {
+      scheduled: data.scheduled === true,
+      cancelled: data.cancelled === true,
+      followUpAt: typeof data.followUpAt === 'number' ? data.followUpAt : null,
+      mail: data.mail === true,
+      confirmSent: data.confirmSent === true,
+      followUpSent: data.followUpSent === true,
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Account → Delete account.
+ * Clears this device and signs out only after the server accepts the request.
+ * The server removes the account row only when the ledger flag is on.
+ */
+export async function deleteAccount(): Promise<{ ok: true; database: boolean } | { ok: false; error: string }> {
+  const sb = await client()
+  const session = sb ? (await sb.auth.getSession()).data.session : null
+  const token = session?.access_token ?? null
+  const userId = session?.user.id ?? null
+  if (!token || !userId) return { ok: false, error: 'Sign in first.' }
+  let database = false
+  try {
+    const res = await fetch('/api/delete-account', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}` },
+    })
+    if (res.status === 401) return { ok: false, error: 'Sign in first.' }
+    if (!res.ok) return { ok: false, error: "Couldn't delete the account. Try again." }
+    const data = await res.json() as { database?: unknown }
+    database = data.database === true
+  } catch {
+    return { ok: false, error: "Couldn't delete the account. Try again." }
+  }
+  clearDeletedAccountOnDevice(userId)
+  await signOut()
+  return { ok: true, database }
+}
+
+/** Asks the server to store the Terms of Purchase version. No-ops unless the migration flag is on. */
+export async function recordPurchaseTermsConsent(): Promise<void> {
+  try {
+    const token = await accessToken()
+    if (!token) return
+    await fetch('/api/policy-consent', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({ kind: 'purchase' }),
+    })
+  } catch {
+    /* The device copy of the purchase version is enough until the migration is applied. */
+  }
+}
+
 export async function signOut(): Promise<void> {
+  try {
+    parkCloudProgress()
+  } catch {
+    /* keep the local save either way */
+  }
   const sb = await client()
   // local scope: only this device; this player's unsent scores stay queued under their id
   await sb?.auth.signOut({ scope: 'local' }).catch(() => undefined)
@@ -226,6 +384,7 @@ export function saveScore(row: Omit<ScoreRow, 'at'>): void {
     mode: row.mode,
     puzzle_id: row.puzzle_id?.slice(0, 80),
     ...(row.mode === 'daily' && row.daily_date && /^\d{4}-\d{2}-\d{2}$/.test(row.daily_date) ? { daily_date: row.daily_date } : {}),
+    ...(row.assisted ? { assisted: true } : {}),
     at: new Date().toISOString(),
   }
   writeQueue([...readQueue(), clean])
@@ -246,7 +405,7 @@ export async function flushScores(): Promise<void> {
     if (!sb) return
     // the server only takes a daily_date from the last week; older queued rows still send their score
     const weekAgo = new Date(Date.now() - 6 * 86_400_000).toISOString().slice(0, 10)
-    const rows = q.map(({ at: _at, ...r }) => (r.daily_date && r.daily_date < weekAgo ? { ...r, daily_date: undefined } : r))
+    const rows = q.map(({ at: _at, assisted: _assisted, ...r }) => (r.daily_date && r.daily_date < weekAgo ? { ...r, daily_date: undefined } : r))
     const { data: sess } = await sb.auth.getSession()
     if (sess.session?.user.id !== owner) return // switched player mid-send: leave the queue alone
     const { error } = await sb.from('scores').insert(rows)

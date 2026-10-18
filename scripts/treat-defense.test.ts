@@ -36,16 +36,11 @@ test('claimFieldTreats moves pile to snack stash up to MAX_TREAT_STOCK, leftover
   assert.equal(c2.claimed, 0, 'stash full claims nothing')
 })
 
-test('swapTreatsToCoins converts snacks at the rate, errors when short', () => {
-  const s = { ...P.emptyPets(), treats: { snack: 7, feast: 1 } }
+test('swapTreatsToCoins refuses: treats feed buddies and are not coins', () => {
+  const s = { ...P.emptyPets(), treats: { snack: 7, feast: 1, banquet: 0 } }
   const ok = P.swapTreatsToCoins(s, 100, 7)
-  assert.equal(ok.ok, true)
-  if (ok.ok) {
-    assert.equal(ok.coins, 100 + 7 * P.SNACK_COIN_RATE)
-    assert.equal(ok.gained, 7 * P.SNACK_COIN_RATE)
-    assert.equal(ok.state.treats.snack, 0)
-    assert.equal(ok.state.treats.feast, 1, 'feasts never swapped')
-  }
+  assert.equal(ok.ok, false)
+  if (!ok.ok) assert.match(ok.reason, /not coins/)
   const short = P.swapTreatsToCoins(s, 100, 99)
   assert.equal(short.ok, false)
 })

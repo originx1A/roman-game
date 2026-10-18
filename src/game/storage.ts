@@ -1,3 +1,5 @@
+import { adoptOnSignIn, emptyStoredProgress, forgetAccount, parkOnSignOut, type ProgressBlob as AccountBlob, type StoredProgress } from './accountProgress'
+import { DEVICE_PROGRESS_KEYS } from './accountDelete'
 import { sanitizeTips } from './voiceTips'
 import { sanitizeMeter } from './buddyHunt'
 import { PETS_KEY, sanitizePets, type PetState } from './pets'
@@ -38,6 +40,8 @@ export interface Settings {
   parade?: boolean
   /** Anonymous play counts (9.30-r). Undefined = on. */
   analytics?: boolean
+  /** Google Analytics. Off unless this is exactly true. */
+  analyticsConsent?: boolean
 }
 
 export const PLAYER_NAME_MAX = 16
@@ -206,30 +210,162 @@ export function recordClear(input: {
   return next
 }
 
+function mergeClearLists(a: ClearRecord[], b: ClearRecord[]): ClearRecord[] {
+  const map = new Map<string, ClearRecord>()
+  for (const c of [...a, ...b]) {
+    const prev = map.get(c.puzzleId)
+    if (!prev || c.bestScore > prev.bestScore) map.set(c.puzzleId, { ...c, clears: Math.max(prev?.clears ?? 0, c.clears) })
+    else map.set(c.puzzleId, { ...prev, clears: Math.max(prev.clears, c.clears) })
+  }
+  return [...map.values()]
+}
+
 export function signInWithEmail(email: string, displayName?: string): Profile {
   const normalized = email.trim().toLowerCase()
   const guest = loadGuestProgress()
   const existing = loadProfile()
+  const clears = mergeClearLists(existing?.clears ?? [], guest.clears ?? [])
+  const totalScore = clears.reduce((sum, c) => sum + c.bestScore, 0)
 
-  // Same email → keep; new email merges guest clears if profile empty
+  // Same email keeps the name and the date, and folds in anything played as a guest.
   if (existing && existing.email === normalized) {
-    return existing
+    const profile = { ...existing, clears, totalScore }
+    saveProfile(profile)
+    saveGuestProgress({ clears, totalScore })
+    return profile
   }
 
   const name =
     displayName?.trim() ||
+    existing?.displayName ||
     normalized.split('@')[0].replace(/[._]/g, ' ') ||
     'Player'
 
   const profile: Profile = {
     email: normalized,
     displayName: name.replace(/\b\w/g, (c) => c.toUpperCase()),
-    createdAt: new Date().toISOString(),
-    totalScore: guest.totalScore,
-    clears: guest.clears,
+    createdAt: existing?.createdAt || new Date().toISOString(),
+    totalScore,
+    clears,
   }
   saveProfile(profile)
+  saveGuestProgress({ clears, totalScore })
   return profile
+}
+
+const ACCOUNT_BOOK = 'roman.accountProgress.v1'
+
+function asAccountBlob(): AccountBlob {
+  let wallet: AccountBlob['wallet'] = null
+  let pets: AccountBlob['pets'] = null
+  let records: unknown = null
+  try {
+    wallet = read(KEYS.wallet, null)
+    pets = read(KEYS.pets, null)
+    records = read(KEYS.records, null)
+  } catch {
+    /* keep the nulls */
+  }
+  const progress = getProgress()
+  return { wallet, pets, records, clears: progress.clears ?? [] }
+}
+
+function writeAccountBlob(blob: AccountBlob) {
+  // A different account replaces the device save. A null wallet must not keep the previous player's coins.
+  const wallet = blob.wallet ? ({ ...DEFAULT_WALLET, ...(blob.wallet as unknown as Wallet) } as Wallet) : { ...DEFAULT_WALLET }
+  saveWallet(wallet)
+  write(KEYS.pets, sanitizePets(blob.pets ?? {}))
+  if (blob.records) write(KEYS.records, blob.records)
+  else {
+    try {
+      localStorage.removeItem(KEYS.records)
+    } catch {
+      /* storage blocked */
+    }
+  }
+  const clears = (blob.clears ?? []).map((c) => ({
+    puzzleId: c.puzzleId,
+    bestMs: c.bestMs,
+    bestScore: c.bestScore,
+    clears: c.clears,
+    hintsOnBest: c.hintsOnBest ?? 0,
+    clearedAt: c.clearedAt ?? new Date(0).toISOString(),
+    lastClearedAt: c.lastClearedAt,
+  }))
+  const totalScore = clears.reduce((sum, c) => sum + (c.bestScore || 0), 0)
+  const profile = loadProfile()
+  if (profile) saveProfile({ ...profile, clears, totalScore })
+  else saveGuestProgress({ clears, totalScore })
+}
+
+export function loadAccountBook(): StoredProgress {
+  const raw = read<StoredProgress | null>(ACCOUNT_BOOK, null)
+  if (!raw || typeof raw !== 'object') return emptyStoredProgress()
+  return {
+    owner: typeof raw.owner === 'string' ? raw.owner : null,
+    parked: typeof raw.parked === 'string' ? raw.parked : null,
+    guest: raw.guest ?? emptyStoredProgress().guest,
+    accounts: raw.accounts && typeof raw.accounts === 'object' ? raw.accounts : {},
+  }
+}
+
+export function saveAccountBook(book: StoredProgress) {
+  write(ACCOUNT_BOOK, book)
+}
+
+/** Cloud sign-in. Guest coins, buddies, and clears move onto the account. They are not reset. */
+export function adoptCloudProgress(userId: string): { adoptedGuest: boolean } {
+  const book = loadAccountBook()
+  const result = adoptOnSignIn(book, userId, asAccountBlob())
+  saveAccountBook(result.stored)
+  writeAccountBlob(result.active)
+  try {
+    window.dispatchEvent(new CustomEvent('roman:progress-adopted'))
+  } catch {
+    /* no window in tests */
+  }
+  return { adoptedGuest: result.adoptedGuest }
+}
+
+export function parkCloudProgress() {
+  const book = loadAccountBook()
+  saveAccountBook(parkOnSignOut(book, asAccountBlob()))
+}
+
+/** Delete account on this device. Other accounts' snapshots stay. The player name is cleared. Purchase session ids stay. */
+export function clearDeletedAccountOnDevice(userId: string): void {
+  try {
+    saveAccountBook(forgetAccount(loadAccountBook(), userId))
+  } catch {
+    /* private mode */
+  }
+  for (const key of DEVICE_PROGRESS_KEYS) {
+    try {
+      localStorage.removeItem(key)
+    } catch {
+      /* private mode */
+    }
+  }
+  try {
+    localStorage.removeItem(`rg.cloud.queue.v1.${userId}`)
+  } catch {
+    /* private mode */
+  }
+  try {
+    const settings = loadSettings()
+    if (settings.playerName) {
+      const next = { ...settings }
+      delete next.playerName
+      saveSettings(next)
+    }
+  } catch {
+    /* private mode */
+  }
+  try {
+    window.dispatchEvent(new CustomEvent('roman:progress-adopted'))
+  } catch {
+    /* no window in tests */
+  }
 }
 
 export function signOutKeepDevice() {

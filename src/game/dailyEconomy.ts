@@ -9,6 +9,8 @@
  *  - Parade treasure: 3 parades a day, sharing one daily pot (9.30-t: each takes at most 1/3 of what is left). Buddy Hunt: 3 full prizes a day. Roman's Trial pays 2x three times a day.
  * Stars, new bests, the Daily and buddy XP are never tapered. Pure state in, state out; App saves it.
  */
+import { ECONOMY } from './economy.ts'
+
 export const ECON_KEY = 'roman.econ.v1'
 
 /** wins today (1-based) → % of the win coins paid */
@@ -20,16 +22,16 @@ export const WIN_TIERS: readonly { upTo: number; pct: number }[] = [
   { upTo: Infinity, pct: 0 },
 ]
 export const WIN_FLOOR = 5
-export const SPARK_FULL_CATCHES = 8
+export const SPARK_FULL_CATCHES = ECONOMY.sparkCatchesPerDay
 export const SPIN_CAP_PER_DAY = 1
 export const SPIN_CAPPED_COINS = 20
 export const TREASURE_PARADES_PER_DAY = 3
 /** 9.30-t: one daily treasure pot (in coin-worth: a hint counts 15, a spin 38). Each treasure parade may take at most 1/3 of what is LEFT,
  *  so parade 1 = 50, parade 2 = 33, parade 3 = 22 (105 of the 150 in all, the rest is never paid). */
-export const TREASURE_POT = 150
+export const TREASURE_POT = ECONOMY.paradePot
 export const TREASURE_SHARE = 3
 /** below this a parade cannot fill 5 buddies with real (3+ coin) prizes: the pot counts as empty */
-export const TREASURE_MIN_BUDGET = 15
+export const TREASURE_MIN_BUDGET = ECONOMY.paradeMinBudget
 export const HUNTS_PER_DAY = 3
 export const HUNT_EXTRA_PCT = 25
 export const TRIAL_DOUBLE_PER_DAY = 3

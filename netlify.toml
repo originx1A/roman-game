@@ -6,6 +6,10 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
+# Day-later parent follow-up. Production only. The function sends nothing unless the ledger flag and Resend key are set.
+[functions."parent-notice-send"]
+  schedule = "@hourly"
+
 # `netlify dev` serves dist plus these functions. Run `npm run build` first.
 # Plain `npm run dev` has no functions; the shop then says purchases are unavailable.
 
@@ -23,6 +27,10 @@
   [headers.values]
     Content-Type = "text/plain; charset=utf-8"
     Cache-Control = "public, max-age=3600"
+
+# Apple Pay domain check (owner step, file not in this repo):
+# public/.well-known/apple-developer-merchantid-domain-association
+# The catch-all below does not use force, so that file is served as itself once added.
 
 # Payment API before the single-page fallback. Static hosts ignore this file.
 [[redirects]]

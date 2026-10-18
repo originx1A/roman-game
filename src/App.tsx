@@ -1,5 +1,5 @@
 import { useTapCount } from './components/useTapCount'
-import { loadAnon, openEvents, sendPing, PRIVACY_NOTE, ANON_KEY, gaEvent, setGaEnabled } from './game/analytics'
+import { loadAnon, openEvents, sendPing, PRIVACY_NOTE, ANON_KEY, gaEvent, loadGaIfConsented } from './game/analytics'
 import { OWNER_PATH, OWNER_TAP_WINDOW_MS, OWNER_TAPS } from './game/ownerDoor'
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
@@ -18,10 +18,15 @@ import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './componen
 import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
 import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
-import { CloudScoresButton } from './cloud/CloudScores'
-import { initCloud, saveScore } from './cloud/cloud'
+import { CloudScoresButton, useCloud } from './cloud/CloudScores'
+import { accessToken, initCloud, recordPurchaseTermsConsent, saveScore } from './cloud/cloud'
+import { PurchasePinSheet } from './components/PurchasePinSheet'
+import { LegalPurchases, PurchaseConfirmation } from './components/LegalPurchases'
+import { rememberPurchaseConsent, type LegalSection } from './game/legalCopy'
+import { SpecialCardReveal } from './components/SpecialCardReveal'
+import { UnseenPointer } from './components/UnseenPointer'
 import { UnseenCardTile } from './components/UnseenCard'
-import { noteCardWin } from './game/unseenCard'
+import { CARD_PIECES, noteCardWin } from './game/unseenCard'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
 import { TapButton } from './components/TapButton'
 import { BuddyHunt } from './components/BuddyHunt'
@@ -79,8 +84,13 @@ import {
   claimFieldTreats,
   jackpotFieldTreats,
   MAX_FIELD_TREATS,
-  swapTreatsToCoins,
   stealFieldTreats,} from './game/pets'
+import { ECONOMY, claimDailyGift, claimFountain, defenseStreakBonus, packCadCents, takeFieldTreats, winBaseCoins } from './game/economy'
+import { purchaseGate } from './game/purchaseGate'
+import { perkActive, runIsAssisted } from './game/perkBadges'
+import { loadFountain, loadGiftCalendar, loadPerkState, loadPointerMemory, loadTreatDay, saveFountain, saveGiftCalendar, savePointerMemory, saveTreatDay } from './game/localEconomy'
+import { notePointerRun, pickPointer, type PointerLine, type PointerWhen } from './game/unseenPointers'
+import { WORLD_MENU } from './game/worldLinks'
 import {
   BUDDY_HUNT_PERFECT_WINS,
   applyHuntPrize,
@@ -422,6 +432,25 @@ const MENU_CSS = `
   cursor: pointer;
 }
 .daily-streakbtn:active { transform: scale(0.96); }
+.is-faded { opacity: 0.45; }
+.home-refills { display: flex; flex-wrap: wrap; gap: 0.45rem; margin: 0.6rem 0; }
+.world-menu { margin: 0.4rem 0 0.8rem; }
+.world-menu summary { cursor: pointer; font-weight: 800; }
+.world-menu-links { display: flex; flex-wrap: wrap; gap: 0.45rem 0.8rem; margin-top: 0.4rem; }
+.unseen-pointer { margin: 0.6rem 0; padding: 0.7rem 0.8rem; border-radius: 0.8rem; background: rgba(0,0,0,0.28); }
+.unseen-pointer p { margin: 0 0 0.4rem; }
+.win-world-tip { display: inline-block; margin: 0.4rem 0; font-weight: 800; }
+.stable-story { display: block; font-size: 0.75rem; font-weight: 800; margin-bottom: 0.2rem; }
+.pin-sheet { z-index: 10080; }
+.legal-sheet { z-index: 10120; }
+.legal-card { max-height: min(85vh, 40rem); overflow: auto; text-align: left; }
+.legal-draft { font-weight: 800; color: #ffd166; }
+.legal-jump { display: flex; flex-wrap: wrap; gap: 0.35rem 0.7rem; margin: 0.4rem 0 0.8rem; }
+.legal-link { background: none; border: 0; padding: 0; color: #ffd166; font: inherit; font-weight: 800; text-decoration: underline; cursor: pointer; }
+.product-buy-wrap { display: inline-flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; }
+.buy-agree, .seller-disclosure { margin: 0.4rem 0; font-size: 0.85rem; }
+.seller-disclosure { flex: 1 0 100%; }
+.home-legal { margin: 0.2rem 0 0.8rem; }
 `
 
 export default function App() {
@@ -450,7 +479,7 @@ export default function App() {
     void initCloud()
   }, [])
   useEffect(() => {
-    setGaEnabled(!isStoreBuild() && settingsRef.current.analytics !== false)
+    loadGaIfConsented(!isStoreBuild() && settingsRef.current.analyticsConsent === true)
     if (isStoreBuild() || settingsRef.current.analytics === false) return
     const ls = safeLocalStorage()
     const today = torontoDateKey()
@@ -493,6 +522,64 @@ export default function App() {
   const [wallet, setWallet] = useState<Wallet>(() => loadWallet())
   // 9.30-a: buddies (The Stable)
   const [pets, setPets] = useState<PetState>(() => loadPets())
+  const cloud = useCloud()
+  const [askPack, setAskPack] = useState<CoinPackId | null>(null)
+  const [pinReset, setPinReset] = useState(false)
+  const [legalSection, setLegalSection] = useState<LegalSection | null>(null)
+  const [purchaseNote, setPurchaseNote] = useState<{ coins: number; label: string; total?: string; tax?: string } | null>(null)
+  useEffect(() => {
+    const open = (event: Event) => {
+      const detail = (event as CustomEvent<string>).detail
+      if (detail === 'use' || detail === 'terms' || detail === 'refunds' || detail === 'privacy' || detail === 'parents' || detail === 'contact') {
+        setLegalSection(detail)
+      }
+    }
+    window.addEventListener('roman:open-legal', open)
+    return () => window.removeEventListener('roman:open-legal', open)
+  }, [])
+  const [weekSpent, setWeekSpent] = useState(0)
+  const [fountain, setFountain] = useState(() => loadFountain(Date.now()))
+  const [giftCal, setGiftCal] = useState(() => loadGiftCalendar())
+  const [pointer, setPointer] = useState<PointerLine | null>(null)
+  const [cardReveal, setCardReveal] = useState(false)
+  const pointerWhen = useRef<PointerWhen>('home')
+  useEffect(() => {
+    if (cloud.status !== 'signed-in' || isStoreBuild()) return
+    let cancel = false
+    void accessToken().then(async (token) => {
+      if (!token || cancel) return
+      const { syncAccountCoins } = await import('./game/webCheckout')
+      const got = await syncAccountCoins(token)
+      if (cancel) return
+      setWeekSpent(got.spentCadCents)
+      if (got.coins > 0) {
+        const current = loadWallet()
+        const next = { ...current, coins: current.coins + got.coins }
+        saveWallet(next)
+        setWallet(next)
+        showToast(`+${got.coins} coins from your account`)
+      }
+    })
+    return () => {
+      cancel = true
+    }
+  }, [cloud.status])
+  useEffect(() => {
+    if (screen !== 'home') return
+    setFountain(loadFountain(Date.now()))
+    const today = torontoDateKey()
+    const when = pointerWhen.current
+    pointerWhen.current = 'home'
+    const picked = pickPointer(loadPointerMemory(today), {
+      duringRun: false,
+      when,
+      now: Date.now(),
+      day: today,
+      muted: settings.voice === false && settings.voiceTips === false,
+    })
+    savePointerMemory(picked.memory)
+    if (picked.line) setPointer(picked.line)
+  }, [screen, settings.voice, settings.voiceTips])
   const [petNow, setPetNow] = useState(() => Date.now())
   const [giftPrefill, setGiftPrefill] = useState<string | undefined>(undefined)
   /** Buddy riding along on the board in progress (fixed at the start of the board) */
@@ -613,6 +700,17 @@ export default function App() {
 
   // ---- Replay challenge: bests, ghost pace, combo/undo scoring, stars, Trial, Daily ----
   const [records, setRecords] = useState<RecordsBlob>(() => loadRecords(catalogBoard))
+  useEffect(() => {
+    const onAdopted = () => {
+      setWallet(loadWallet())
+      setPets(loadPets())
+      setProgress(getProgress())
+      setProfile(loadProfile())
+      setRecords(loadRecords(catalogBoard))
+    }
+    window.addEventListener('roman:progress-adopted', onAdopted)
+    return () => window.removeEventListener('roman:progress-adopted', onAdopted)
+  }, [])
   const [cardGain, setCardGain] = useState<{ from: number; to: number } | null>(null)
   /** 9.32-f: the stats popup over the daily card (streak tap) */
   const [showStats, setShowStats] = useState(false)
@@ -776,10 +874,15 @@ export default function App() {
     if (isStoreBuild()) return
     const params = new URLSearchParams(window.location.search)
     const gift = params.get('gift')
-    if (!gift) return
-    setGiftPrefill(normalizeGiftCode(gift))
-    setScreen('stable')
+    const pinResetLink = params.get('purchase-pin') === 'reset'
+    if (!gift && !pinResetLink) return
+    if (gift) {
+      setGiftPrefill(normalizeGiftCode(gift))
+      setScreen('stable')
+    }
+    if (pinResetLink) setPinReset(true)
     params.delete('gift')
+    params.delete('purchase-pin')
     const q = params.toString()
     window.history.replaceState(null, '', window.location.pathname + (q ? `?${q}` : '') + window.location.hash)
   }, [])
@@ -807,13 +910,15 @@ export default function App() {
         clean()
         return
       }
-      const result = await mod.confirmWebCheckout(sessionId)
+      const token = await accessToken()
+      const result = await mod.confirmWebCheckout(sessionId, token)
       if (cancelled) return
-      clean()
       if (!result.ok) {
         showToast(result.reason)
+        if (!/sign in/i.test(result.reason)) clean()
         return
       }
+      clean()
       mod.rememberCheckoutRedeemed(sessionId)
       if (result.alreadyRedeemed || result.coins <= 0) {
         showToast('Those coins are already in your wallet.')
@@ -822,6 +927,14 @@ export default function App() {
       const current = loadWallet()
       persistWallet({ ...current, coins: current.coins + result.coins })
       sfxCoin()
+      rememberPurchaseConsent(Date.now())
+      void recordPurchaseTermsConsent()
+      setPurchaseNote({
+        coins: result.coins,
+        label: result.label,
+        total: result.total,
+        tax: result.tax,
+      })
       showToast(`+${result.coins} coins · ${result.label}`)
     })
     return () => {
@@ -836,6 +949,9 @@ export default function App() {
       if (notice.type === 'granted') {
         setWallet(loadWallet())
         sfxCoin()
+        rememberPurchaseConsent(Date.now())
+        void recordPurchaseTermsConsent()
+        setPurchaseNote({ coins: notice.coins, label: notice.label })
         showToast(`+${notice.coins} coins · ${notice.label}`)
       }
     })
@@ -1162,7 +1278,7 @@ export default function App() {
   }
 
   function saveSettingsPatch(patch: Partial<Settings>) {
-    if (patch.analytics !== undefined) setGaEnabled(patch.analytics !== false)
+    if (patch.analyticsConsent !== undefined) loadGaIfConsented(!isStoreBuild() && patch.analyticsConsent === true)
     setSettings((cur) => {
       const next = { ...cur, ...patch }
       saveSettings(next)
@@ -1697,6 +1813,7 @@ export default function App() {
         const lose = pushBanter('lose')
         setLoseLine(lose.text || 'Out of hearts')
         setAwaitingComeback(true)
+        noteRunForPointer('losses')
       }
     } else if (meta.kind === 'stone') {
       lastProgressRef.current = Date.now()
@@ -1716,8 +1833,7 @@ export default function App() {
       setRunning(false)
       setCelebrate(true)
       sfxWin()
-      // 10.06: every win earns 5 field treats for the pile (999 = jackpot)
-      earnWithJackpot(5)
+      earnWithJackpot(ECONOMY.fieldTreatsPerWin)
       const perfect = hintsUsed === 0
       // Buddy meter: a perfect win (no hints, rescue, wrong buddies or lost hearts) fills a notch
       const flawless = isPerfectWin({ hintsUsed, flawed: flawedRef.current, livesLost: runMaxLives - lives })
@@ -1742,6 +1858,7 @@ export default function App() {
       setLastScore(score)
       // 9.32: save the finished game to the player's account (queued offline / until signed in)
       try {
+        const assisted = runIsAssisted({ hintsUsed, rescuesUsed, perkBadgeActive: perkActive(loadPerkState()) })
         saveScore({
           score,
           level: puzzle.size,
@@ -1750,6 +1867,7 @@ export default function App() {
           mode: dailyRunRef.current ? 'daily' : endlessRef.current ? 'endless' : runMode === 'trial' ? 'trial' : runMode === 'normal' ? 'normal' : 'other',
           puzzle_id: String(puzzle.id),
           daily_date: dailyRunRef.current ?? undefined,
+          assisted,
         })
       } catch {
         /* never block the win */
@@ -1763,7 +1881,8 @@ export default function App() {
         const fullSplits = [...splitsRef.current]
         while (fullSplits.length < puzzle.size) fullSplits.push(elapsedMs)
         if (hasRecords(puzzle.id)) {
-          const out = recordRun(rec, { puzzleId: puzzle.id, mode: runMode, ms: elapsedMs, score, undos: undosRef.current, splits: fullSplits.slice(0, puzzle.size), targets, buddy: runPetRef.current, size: puzzle.size, assisted: hintsUsed > 0 || rescuesUsed > 0 })
+          const assistedRun = runIsAssisted({ hintsUsed, rescuesUsed, perkBadgeActive: perkActive(loadPerkState()) })
+          const out = recordRun(rec, { puzzleId: puzzle.id, mode: runMode, ms: elapsedMs, score, undos: undosRef.current, splits: fullSplits.slice(0, puzzle.size), targets, buddy: runPetRef.current, size: puzzle.size, assisted: assistedRun })
           rec = out.blob
           replay = out.result
         }
@@ -1779,6 +1898,7 @@ export default function App() {
         try {
           const gain = noteCardWin(records, String(puzzle.id), cardDaily)
           setCardGain(gain.after > gain.before ? { from: gain.before, to: gain.after } : null)
+          if (gain.after >= CARD_PIECES && gain.after > gain.before) setCardReveal(true)
         } catch {
           setCardGain(null)
         }
@@ -1790,6 +1910,7 @@ export default function App() {
         /* never block the win */
       }
       const isRecord = !!replay && (replay.newBestTime || replay.newBestScore)
+      noteRunForPointer(isRecord ? 'pb' : replay?.nearMissMs ? 'near' : elapsedMs > 180000 ? 'slow' : 'home')
       // 9.30-a (Tony): won a replayed board without beating the old best = ONE combined line (board
       // cleared + slower than your best), not a cheer followed by a tease. The win sound and banner stay.
       const notBest = !!replay && !replay.firstClear && !replay.newBestTime && !replay.newBestScore && runMode === 'normal' && dailyStreak == null
@@ -1874,7 +1995,7 @@ export default function App() {
       // 9.30-m: daily limits. Full pay for the first 5 wins of the day, then it tapers; repeats of the same board pay less
       const led0 = ledgerNow()
       const trialMult = runMode === 'trial' ? trialMultiplier(led0) : 1
-      const baseCoins = Math.max(20, Math.floor(score / 8)) * trialMult
+      const baseCoins = winBaseCoins(score) * trialMult
       const paid = grantWinCoins(wallet, baseCoins)
       const pay = payWin(led0, paid.gained, { boardId: puzzle.id, newBest: isRecord, daily: dailyStreak != null })
       commitLedger(runMode === 'trial' ? { ...pay.ledger, trialClears: led0.trialClears + 1 } : pay.ledger)
@@ -1884,6 +2005,7 @@ export default function App() {
         ? { coins: Math.max(0, extra0.coins - NEW_BEST_COINS), parts: extra0.parts.filter((x) => !/new best/.test(x)) }
         : extra0
       const dailyBonus = dailyStreak != null ? dailyCoins(dailyStreak) : 0
+      const firstWinBonus = led0.wins === 0 ? ECONOMY.firstWinBonus : 0
       // 9.30-a: buddy perk coins, growth, coupons and a cheer
       const ridePet = runPetRef.current
       const ridePerk = ridePet ? activePerk({ ...loadPets(), active: ridePet }, Date.now()) : null
@@ -1932,6 +2054,7 @@ export default function App() {
       {
         const parts = [...extra.parts]
         if (dailyBonus) parts.push(`+${dailyBonus} daily`)
+        if (firstWinBonus) parts.push(`+${firstWinBonus} first win`)
         if (pay.note) parts.push(pay.note)
         if (petCoins - dayBonus > 0 && ridePet) parts.push(`+${petCoins - dayBonus}\u00a0${petById(ridePet)?.name}`)
         if (dayBonus > 0) parts.push(`+${dayBonus}\u00a0${dayPerkRef.current?.pet ? petById(dayPerkRef.current.pet)?.name : 'Guest'} of the day`)
@@ -1966,7 +2089,7 @@ export default function App() {
       }
       let w: Wallet = {
         ...paid.wallet,
-        coins: paid.wallet.coins - paid.gained + pay.coins + extra.coins + dailyBonus + petCoins,
+        coins: paid.wallet.coins - paid.gained + pay.coins + extra.coins + dailyBonus + firstWinBonus + petCoins,
         totalWins: wallet.totalWins + 1,
         perfectWins: wallet.perfectWins + (perfect ? 1 : 0),
       }
@@ -2392,16 +2515,66 @@ export default function App() {
     const line = pushBanter('win-heckle')
     if (!line.text) showToast(`💨 You scared it off! +${earned} field treats`)
   }
+  function noteRunForPointer(when: PointerWhen) {
+    const today = torontoDateKey()
+    savePointerMemory(notePointerRun(loadPointerMemory(today), today))
+    pointerWhen.current = when
+  }
+  function prevGiftDay(day: string): string {
+    const d = new Date(`${day}T12:00:00Z`)
+    d.setUTCDate(d.getUTCDate() - 1)
+    return d.toISOString().slice(0, 10)
+  }
+  function onClaimFountain() {
+    const now = Date.now()
+    const got = claimFountain(loadFountain(now), now)
+    saveFountain(got.state)
+    setFountain(got.state)
+    if (got.coins <= 0) {
+      showToast('Free coins are not ready yet.')
+      return
+    }
+    const current = loadWallet()
+    persistWallet({ ...current, coins: current.coins + got.coins })
+    sfxCoin()
+    showToast(`+${got.coins} free coins`)
+  }
+  function onClaimGift() {
+    const today = torontoDateKey()
+    const result = claimDailyGift(giftCal, today, prevGiftDay)
+    setGiftCal(result.state)
+    saveGiftCalendar(result.state)
+    if (!result.reward) {
+      showToast(result.already ? 'Daily gift already opened today.' : 'The daily gift is waiting.')
+      return
+    }
+    const current = loadWallet()
+    persistWallet({ ...current, coins: current.coins + result.reward.coins })
+    let nextPets = loadPets()
+    if (result.reward.snack) nextPets = grantTreat(nextPets, 'snack', result.reward.snack)
+    if (result.reward.feast) nextPets = grantTreat(nextPets, 'feast', result.reward.feast)
+    persistPets(nextPets)
+    sfxCoin()
+    showToast(result.paused ? `Gift paused, not reset. +${result.reward.coins} coins.` : `Daily gift +${result.reward.coins} coins.`)
+  }
   /** Earn field treats, checking for the 999 jackpot after. Returns true if jackpot hit. */
   function earnWithJackpot(n: number, isDefense = false): boolean {
-    // defense streak bonus: consecutive successful defenses earn +1 extra per streak level
+    const today = torontoDateKey()
+    const cur = loadPets()
+    let streak = cur.defenseStreak ?? 0
     let bonus = 0
-    let streak = pets.defenseStreak ?? 0
     if (isDefense) {
       streak += 1
-      bonus = Math.min(streak - 1, 10) // +0 first, +1 second, ... capped at +10
+      bonus = defenseStreakBonus(streak)
     }
-    const after = earnFieldTreats({ ...pets, defenseStreak: streak }, n + bonus)
+    const taken = takeFieldTreats(loadTreatDay(today), today, isDefense ? 'defense' : 'win', n + bonus)
+    saveTreatDay(taken.day)
+    const base = { ...cur, defenseStreak: streak }
+    if (taken.granted <= 0) {
+      persistPets(base)
+      return false
+    }
+    const after = earnFieldTreats(base, taken.granted)
     if ((after.fieldTreats ?? 0) >= MAX_FIELD_TREATS) {
       const j = jackpotFieldTreats(after)
       persistPets({ ...j.state, defenseStreak: 0 })
@@ -2432,25 +2605,6 @@ export default function App() {
     sfxCoin()
     showToast(`🍖 Claimed ${r.claimed} treats to the safe stash!`)
   }
-  /** Swap the whole safe snack stash for coins (1 snack = 15 coins). */
-  function handleSwapTreats() {
-    const w = loadWallet()
-    const snacks = loadPets().treats.snack ?? 0
-    if (snacks <= 0) {
-      showToast('No snacks in the stash to swap.')
-      return
-    }
-    const r = swapTreatsToCoins(loadPets(), w.coins, snacks)
-    if (!r.ok) {
-      showToast(r.reason)
-      return
-    }
-    persistPets(r.state)
-    persistWallet({ ...w, coins: r.coins })
-    sfxCoin()
-    showToast(`🔄 Swapped ${r.swapped} snacks → +${r.gained} coins!`)
-  }
-
   function handleCreateChallenge() {
     const target = puzzle ?? PUZZLES[0]
     const clear = getProgress().clears.find((c) => c.puzzleId === target.id)
@@ -2568,12 +2722,32 @@ export default function App() {
     showToast(`${def?.title ?? badgeId} → Rank ${rank} · +${formatBonusPercent(totalCoinBonusPercent(result.wallet))} coins`)
   }
 
-  async function onBuyCoins(packId: CoinPackId) {
+  function gateFor(packId?: string) {
+    return purchaseGate({
+      signedIn: cloud.status === 'signed-in',
+      spentCadCents: weekSpent,
+      priceCadCents: packId ? packCadCents(packId) : packCadCents('coins_500'),
+    })
+  }
+
+  async function finishBuy(packId: CoinPackId, pinGrant: string) {
     unlockAudio()
     if (!isStoreBuild()) {
+      const token = await accessToken()
       const { startWebCheckout } = await import('./game/webCheckout')
-      const started = await startWebCheckout(packId)
+      const started = await startWebCheckout(packId, token ? { token, pinGrant } : undefined)
       if (!started.ok) showToast(started.reason)
+      return
+    }
+    const token = await accessToken()
+    if (!token) {
+      showToast('Sign in to buy')
+      return
+    }
+    const { consumePurchasePinGrant } = await import('./game/purchasePinApi')
+    const used = await consumePurchasePinGrant(token, pinGrant)
+    if (!used.ok) {
+      showToast(used.reason)
       return
     }
     const result = await purchaseCoinPack(packId)
@@ -2585,6 +2759,21 @@ export default function App() {
     else persistWallet({ ...wallet, coins: wallet.coins + result.coins })
     sfxCoin()
     showToast(`+${result.coins} coins · ${result.pack.label}`)
+  }
+
+  async function onBuyCoins(packId: CoinPackId) {
+    const gate = gateFor(packId)
+    if (gate.mode === 'sign-in') {
+      window.dispatchEvent(new CustomEvent('roman:open-sign-in'))
+      showToast('Sign in to buy')
+      return
+    }
+    if (gate.mode === 'capped') {
+      showToast('Weekly spending limit reached (CA$50). Try again next week.')
+      return
+    }
+    setPinReset(false)
+    setAskPack(packId)
   }
 
   async function onRestorePurchases() {
@@ -2884,6 +3073,9 @@ export default function App() {
             <button type="button" className={screen === 'profile' ? 'on' : ''} onClick={() => setScreen('profile')}>
               {profile ? profile.displayName.split(' ')[0] : 'Save'}
             </button>
+            <button type="button" onClick={() => setLegalSection('terms')}>
+              Legal
+            </button>
           </nav>
           <div className="hud-pills">
             <div className="score-pill coin" title="Coins">
@@ -2945,7 +3137,28 @@ export default function App() {
         onBuyCoins={onBuyCoins}
         webPacks={webPacks}
         purchasesUnavailable={webShop === 'unavailable'}
+        buyLabel={gateFor().label}
+        buyFaded={gateFor().faded}
+        onOpenLegal={setLegalSection}
       />
+      <PurchasePinSheet
+        open={askPack != null || pinReset}
+        intent={askPack != null ? 'purchase' : 'reset'}
+        signedIn={cloud.status === 'signed-in'}
+        onClose={() => {
+          setAskPack(null)
+          setPinReset(false)
+        }}
+        onSaved={() => showToast('New purchase PIN saved.')}
+        onOpenLegal={setLegalSection}
+        onGranted={(grant) => {
+          const packId = askPack
+          setAskPack(null)
+          setPinReset(false)
+          if (packId) void finishBuy(packId, grant)
+        }}
+      />
+      <SpecialCardReveal open={cardReveal} onClose={() => setCardReveal(false)} />
 
       {screen === 'home' && (
         <main className="home scroll-pane">
@@ -3019,6 +3232,26 @@ export default function App() {
           </section>
           {dailyCard}
           {remixCard}
+          <UnseenPointer line={pointer} onClose={() => setPointer(null)} />
+          <section className="home-refills" aria-label="Free coins">
+            <button type="button" className="btn ghost" onClick={onClaimFountain} disabled={fountain.stored <= 0}>
+              Free coins +{ECONOMY.fountainCoins} · {fountain.stored} ready
+            </button>
+            <button type="button" className="btn ghost" onClick={onClaimGift} disabled={giftCal.lastClaim === todayKey}>
+              Daily gift {giftCal.lastClaim === todayKey ? 'opened' : `day ${giftCal.next + 1}`}
+            </button>
+          </section>
+          <details className="world-menu">
+            <summary>Roman&rsquo;s World</summary>
+            <div className="world-menu-links">
+              {WORLD_MENU.map((link) => (
+                <a key={link.id} href={link.href} target="_blank" rel="noopener noreferrer">{link.label}</a>
+              ))}
+            </div>
+          </details>
+          <p className="home-legal">
+            <button type="button" className="legal-link" onClick={() => setLegalSection('terms')}>Legal & Purchases</button>
+          </p>
           <section className="stat-strip home-strip">
             <div>
               <strong>{progress.clears.length}</strong>
@@ -3480,13 +3713,15 @@ export default function App() {
           onBuyBundle={onBuyBundle}
           onCare={onCarePet}
           onFeed={onFeedPet}
-          onSwapTreats={handleSwapTreats}
           today={todayKey}
           onEquip={onEquipPet}
           onPeek={onPeekGift}
           onRedeem={onRedeemGift}
           onShop={() => setScreen('rewards')}
-          onBack={() => setScreen('home')}
+          onBack={() => {
+            pointerWhen.current = 'stable'
+            setScreen('home')
+          }}
           giftCode={giftPrefill}
           giftsOnline={!isStoreBuild()}
         />
@@ -3564,6 +3799,9 @@ export default function App() {
                     pack={pack}
                     onBuy={onBuyCoins}
                     priceText={storePrices[pack.productId]}
+                    buyLabel={gateFor(pack.id).label}
+                    buyFaded={gateFor(pack.id).faded}
+                    onOpenLegal={setLegalSection}
                   />
                 ))
               : webShop === 'ready' && webPacks
@@ -3580,6 +3818,9 @@ export default function App() {
                       }}
                       priceText={pack.priceLabel}
                       onBuy={onBuyCoins}
+                      buyLabel={gateFor(pack.id).label}
+                      buyFaded={gateFor(pack.id).faded}
+                      onOpenLegal={setLegalSection}
                     />
                   ))
                 : null}
@@ -3665,6 +3906,9 @@ export default function App() {
           )}
           <section className="settings">
             <h3>Settings</h3>
+            <button type="button" className="btn ghost" onClick={() => setLegalSection('terms')}>
+              Legal & Purchases
+            </button>
             <label className="name-setting">
               Your name on shared scores
               <input
@@ -3752,6 +3996,14 @@ export default function App() {
               <label className="toggle">
                 <input type="checkbox" data-testid="analytics-toggle" checked={settings.analytics !== false} onChange={(e) => saveSettingsPatch({ analytics: e.target.checked })} />
                 Share anonymous play counts
+              </label>
+              <label className="toggle">
+                <input
+                  type="checkbox"
+                  checked={settings.analyticsConsent === true}
+                  onChange={(e) => saveSettingsPatch({ analyticsConsent: e.target.checked })}
+                />
+                Google Analytics (off unless you turn this on)
               </label>
             </div>
             <label className="toggle">
@@ -4018,11 +4270,14 @@ export default function App() {
         </span>
         <span className="foot-links">
           {!isStoreBuild() && settings.analytics !== false ? <FeedbackChip onSend={sendFeedback} /> : null}
+          <button type="button" className="privacy-link legal-link" onClick={() => setLegalSection('privacy')}>
+            Legal & Purchases
+          </button>
           <a className="privacy-link" href="./privacy.html">
             Privacy
           </a>
           <a className="privacy-link jrny-link" data-testid="jrny-link" href="https://jrny.fun" target="_blank">
-            A JRNY project
+            A brand of Funderwood
           </a>
           <button
             type="button"
@@ -4041,6 +4296,17 @@ export default function App() {
       {/* Keep clear of Netlify “Powered by” badge */}
       <div className="netlify-safe" aria-hidden />
       {/* 10.06: Unseen heckler pop-up — visual only, never blocks input */}
+      <LegalPurchases section={legalSection} onClose={() => setLegalSection(null)} />
+      {purchaseNote ? (
+        <PurchaseConfirmation
+          coins={purchaseNote.coins}
+          label={purchaseNote.label}
+          total={purchaseNote.total}
+          tax={purchaseNote.tax}
+          onOpenLegal={setLegalSection}
+          onClose={() => setPurchaseNote(null)}
+        />
+      ) : null}
       <UnseenPopup pop={unseenPop} />
       {/* 10.06: treat defense — wild pets vs the field treat pile (home + play) */}
       <TreatDefense

@@ -4,6 +4,7 @@ import { PetArt } from './PetArt'
 import { CloudScoresButton } from '../cloud/CloudScores'
 import { UnseenCardGain } from './UnseenCard'
 import type { PetId } from '../game/pets'
+import { resultTip } from '../game/worldLinks'
 
 /** Replay challenge extras for this win: stars, a record/near-miss banner, coins earned */
 export type WinReplay = {
@@ -264,6 +265,9 @@ export function WinScreen({
               Home
             </button>
           </div>
+          <a className="win-world-tip" href={resultTip(new Date().getDate()).href} target="_blank" rel="noopener noreferrer">
+            {resultTip(new Date().getDate()).label}
+          </a>
           <a
             className="win-fb-follow"
             href="https://romansgame.com"

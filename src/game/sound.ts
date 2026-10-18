@@ -316,7 +316,7 @@ const FALLBACK_TEXT: Partial<Record<VoiceLineId, string>> = {
   old_lose_nephew: 'The Unseen: My nephew lost like that once. He\'s a lawyer now. Worked out fine.',
   old_lose_deal: 'The Unseen: Fold \'em, kiddo. Deal again.',
   old_idle_mail: 'The Unseen: The mail came faster than your next move.',
-  old_idle_beard: 'The Unseen: I grew a beard waiting for that. Look at it.',
+  old_idle_beard: "The Unseen: I've been watching that square for a while. It's not going anywhere.",
   old_idle_birthday: 'The Unseen: Hurry up. I\'d like to finish before my birthday.',
   old_aside_humming: 'The Unseen: Is that my radio? No? Then who\'s humming?',
   old_aside_pigeons: 'The Unseen: The pigeons out back are plotting something. I can feel it.',
@@ -539,10 +539,10 @@ const FALLBACK_TEXT: Partial<Record<VoiceLineId, string>> = {
   tip_daily_coach_streak: "Come back every day to build your streak and earn more coins.",
   tip_daily_old_glasses: "Daily puzzle. I do one every day too. It's called finding my glasses.",
   tip_daily_old_pills: "Daily puzzle. Same time tomorrow, like my pills.",
-  tip_daily_old_diet: "One try a day. That's more discipline than my diet.",
+  tip_daily_old_diet: 'The Unseen: One try a day. Make it count.',
   tip_daily_old_crossword: "The daily. I treat it like the crossword, except I actually finish this one.",
   tip_daily_old_nap: "New puzzle every morning. It's the only routine I respect besides napping.",
-  tip_daily_old_parking: "One shot, kiddo. No do-overs. Like parking at the grocery store.",
+  tip_daily_old_parking: "The Unseen: One shot at the Daily. No do-overs. I'll be watching.",
   tip_daily_roman_first: "it's the Daily Challenge. Everybody gets this board today. Only your first try counts.",
   tip_daily_roman_streak: "win today, win tomorrow, and your streak grows. Like Roman's ego.",
   tip_stall_coach_combo: "Quick moves keep your combo alive. Even a little X counts!",
@@ -1117,8 +1117,20 @@ function clipObjectUrl(id: string): Promise<string | null> {
  * - While a line is loading or playing, a new line interrupts it only if its priority is higher;
  *   equal/lower priority is skipped (or waits, with waitMs), so lines never stack or overlap.
  */
+const CAPTION_ONLY_VOICE = new Set([
+  'tip_star_old_time',
+  'tip_star_old_barber',
+  'tip_star_old_coffee',
+  'tip_star_old_motel',
+  'old_idle_beard',
+  'tip_daily_old_parking',
+  'tip_daily_old_diet',
+])
+
 export function playVoice(id: string, opts: PlayVoiceOpts = {}) {
   if (muted || !voiceEnabled || !id) return
+  // These clips still say the old lines. Show the new caption and skip the recording.
+  if (CAPTION_ONLY_VOICE.has(id)) return
   const queue = [id, ...(opts.alts ?? [])].filter((clip, i, all) => isPlayableVoiceClip(clip) && all.indexOf(clip) === i).slice(0, 5)
   if (!queue.length) return
   const priority = opts.priority ?? 1

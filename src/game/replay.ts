@@ -3,6 +3,7 @@
  * Roman's Trial and the Daily Challenge. Pure logic (no DOM, no storage) so it can be tested;
  * storage.ts loads/saves the blob under a versioned key.
  */
+import { dailyChallengeCoins } from './economy.ts'
 import type { Puzzle } from './types'
 import { generateRandomPuzzle } from './generatePuzzle'
 
@@ -400,8 +401,10 @@ export function replayCoins(r: RunResult, mode: RunMode): { coins: number; parts
   return { coins, parts }
 }
 
+export { winBaseCoins } from './economy.ts'
+
 export function dailyCoins(streak: number): number {
-  return 40 + 10 * Math.min(Math.max(streak, 1), 6)
+  return dailyChallengeCoins(streak)
 }
 
 // ---------- daily challenge ----------
@@ -551,6 +554,7 @@ export function scoreShareText(o: {
   if (o.stars && o.stars > 0) parts.push(`${o.stars} star${o.stars === 1 ? '' : 's'} ${'⭐'.repeat(Math.min(3, o.stars))}`)
   if (o.newBest) parts.push('New best!')
   parts.push(o.timeMs != null ? `beat my time (${shareTime(o.timeMs)}) in Roman's Game` : "beat my score in Roman's Game")
+  parts.push('https://romansgame.com')
   return parts.join(' — ')
 }
 
@@ -558,6 +562,6 @@ export function scoreShareText(o: {
  * Wordle-style daily share text: "Roman's Daily #23 ✅ 1:42 🔥5"
  */
 export function dailyShareText(o: { n: number; ms: number; streak: number }): string {
-  return `Roman's Daily #${o.n} ✅ ${shareTime(o.ms)} 🔥${o.streak}`
+  return `Roman's Daily #${o.n} ✅ ${shareTime(o.ms)} 🔥${o.streak} https://romansgame.com`
 }
 
