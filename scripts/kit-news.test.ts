@@ -8,6 +8,7 @@ register('./ts-resolve.mjs', import.meta.url)
 
 const time = await import('../netlify/lib/newsTime.ts')
 const source = await import('../netlify/lib/newsSource.ts')
+const links = await import('../netlify/lib/emailLinks.ts')
 const rotation = await import('../netlify/lib/newsRotation.ts')
 const client = await import('../netlify/lib/kitClient.ts')
 const news = await import('../netlify/lib/kitNews.ts')
@@ -33,7 +34,7 @@ function story(id: string, date: string, extra: Partial<source.Story> = {}): sou
     id,
     title: extra.title ?? id,
     excerpt: extra.excerpt ?? `Excerpt for ${id}`,
-    link: `https://romansgame.com/news/${id}/`,
+    link: extra.link ?? `https://romansgame.com/news/${id}/`,
     date,
     image: extra.image,
     sourceIndex: extra.sourceIndex ?? 0,
@@ -145,6 +146,103 @@ test('feed escapes text, orders newest first, and writes RFC 822 pubDate', () =>
   assert.equal(guid?.getAttribute('isPermaLink'), 'false')
   assert.equal(guid?.textContent, 'newer-story')
 })
+
+test('no Amazon host can reach broadcast, welcome, or alert email', () => {
+  const article = 'https://romansgame.com/news/throne-weather-fog-over-the-swamp/'
+  const hosts = [
+    'https://www.amazon.ca/dp/B0FIELD?tag=romans-20',
+    'https://amazon.com/Some-Book/dp/B0COM',
+    'https://smile.amazon.co.uk/dp/B0UK?tag=foo',
+    'https://www.amazon.de/gp/product/B0DE',
+    'https://amazon.com.au/dp/B0AU',
+    'https://amazon.co.jp/dp/B0JP',
+    'http://Amazon.CA/dp/B0CASE',
+    'https://amzn.to/foggy',
+    'https://a.co/d/Ab12Cd',
+    '//www.amazon.com/dp/B0SLASH',
+  ]
+  const excerpt = `Available on Amazon: the field guide at ${hosts.join(' and ')}. Play https://play.romansgame.com or https://notamazon.com/page or https://data.co/x.`
+  const item = story('throne-weather-fog-over-the-swamp', '2026-10-15', {
+    title: 'Fog over https://amazon.com/dp/TITLE?tag=keep',
+    excerpt,
+    image: 'https://www.amazon.com/images/I/book.jpg',
+    link: article,
+  })
+  const rss = source.renderRss([item])
+  assert.match(rss, /www\.amazon\.ca\/dp\/B0FIELD\?tag=romans-20/)
+  assert.match(rss, /amzn\.to\/foggy/)
+
+  const html = source.broadcastHtml(item)
+  const draft = news.broadcastDraft(item, { type: 'tag', id: 3 }, new Date('2026-10-18T13:20:00Z'))
+  const mailed = JSON.stringify(draft)
+  assertNoAmazon(html)
+  assertNoAmazon(mailed)
+  assert.match(html, /the field guide/)
+  assert.match(html, /Available on Amazon:/)
+  assert.match(html, new RegExp(article.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  assert.match(html, /https:\/\/play\.romansgame\.com/)
+  assert.match(html, /https:\/\/notamazon\.com\/page/)
+  assert.match(html, /https:\/\/data\.co\/x/)
+  assert.match(html, /\{\{ unsubscribe_url \}\}/)
+  assert.match(html, /\{\{ address \}\}/)
+  assert.equal(html.includes('<img'), false)
+  assert.equal(draft.thumbnail_url, undefined)
+  assert.match(draft.subject, /Fog over/)
+  assert.equal(draft.subject.includes('amazon.com'), false)
+  assert.match(draft.preview_text, /field guide/)
+  assert.equal(links.canonicalNewsUrl(article), article)
+
+  const anchored = links.sanitizeEmailHtml(
+    '<p>Read <a href="https://www.amazon.ca/dp/B0FIELD?tag=romans-20">the field guide</a> today.</p>',
+    article,
+  )
+  assert.equal(anchored, `<p>Read <a href="${article}">the field guide</a> today.</p>`)
+  const dropped = links.sanitizeEmailHtml(
+    '<p>Read <a href="https://amzn.to/foggy">the field guide</a> today.</p>',
+    null,
+  )
+  assert.equal(dropped, '<p>Read the field guide today.</p>')
+
+  const orphan = story('B0ORPHAN', '2026-10-15', {
+    title: 'No article',
+    excerpt: 'See https://a.co/d/Ab12Cd for the book.',
+    link: 'https://www.amazon.com/dp/B0ORPHAN?tag=x',
+  })
+  const orphanHtml = source.broadcastHtml(orphan)
+  assertNoAmazon(orphanHtml)
+  assert.match(orphanHtml, /Read today's story/)
+  assert.match(orphanHtml, /See for the book\.|See for the book/)
+  assert.equal(source.renderRss([orphan]).includes('a.co/d/Ab12Cd'), true)
+
+  const welcomeMail = welcome.buildWelcomeDelivery({
+    to: 'ada@example.com',
+    unsubscribeUrl: 'https://play.romansgame.com/api/kit-unsubscribe?token=abc',
+    postalAddress: POSTAL,
+    body: 'The field guide is at https://www.amazon.com/dp/B0WELCOME?tag=hi and https://amzn.to/hi. Catch up at https://romansgame.com/news/.',
+  })
+  assertNoAmazon(welcomeMail.text)
+  assertNoAmazon(welcomeMail.html)
+  assert.match(welcomeMail.text, /The field guide is at/)
+  assert.match(welcomeMail.html, /The field guide is at/)
+  assert.match(welcomeMail.text, /https:\/\/romansgame\.com\/news\//)
+  assert.match(welcomeMail.html, /href="https:\/\/play\.romansgame\.com\/api\/kit-unsubscribe\?token=abc"/)
+  assert.match(welcomeMail.text, new RegExp(POSTAL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+
+  const alert = news.supportAlertMessage(`Story failed. Detail https://www.amazon.ca/dp/B0ALERT?tag=z and https://a.co/d/alert.`)
+  assertNoAmazon(alert.text)
+  assertNoAmazon(alert.html)
+  assert.match(alert.text, /Story failed/)
+  assert.match(alert.html, /Story failed/)
+  assert.equal(news.newsletterEnabled({}), false)
+})
+
+function assertNoAmazon(value: string): void {
+  const found = value.match(/(?:https?:)?\/\/[^\s"'<>]+|(?<![@/a-z0-9-])(?:[a-z0-9-]+\.)*(?:amazon(?:\.[a-z]{2,}){1,2}|amzn\.to|a\.co)\b[^\s"'<>]*/gi) ?? []
+  for (const token of found) {
+    const core = token.replace(/[.,;:!?)\]]+$/, '').replace(/&amp;/g, '&')
+    assert.equal(links.isAmazonUrl(core), false, core)
+  }
+}
 
 test('public/_redirects sends the feed and the Kit APIs to functions before the SPA fallback', () => {
   const rules = readFileSync(new URL('../public/_redirects', import.meta.url), 'utf8')

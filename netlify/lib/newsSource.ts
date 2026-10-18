@@ -8,6 +8,7 @@
  * last deployed. This module reads that published index so the feed and the
  * morning email stay current without a second copy of the stories.
  */
+import { canonicalNewsUrl, sanitizeEmailHtml } from './emailLinks.ts'
 import { editionInstant, rfc822Utc } from './newsTime.ts'
 
 export const NEWS_INDEX_URL = 'https://romansgame.com/news/'
@@ -158,12 +159,14 @@ export function renderRss(stories: Story[], selfUrl = `${NEWS_INDEX_URL}feed.xml
  * The liquid tags are required so the send still has an unsubscribe link
  * and a postal address if the template does not inject them.
  * They are left unescaped on purpose.
+ * Amazon hosts are rewritten to this story's romansgame.com/news/ URL
+ * (or dropped when the story link is not one). See emailLinks.ts.
  */
 export function broadcastHtml(story: Story): string {
   const image = story.image
     ? `<p><img src="${xmlEscape(story.image)}" alt="${xmlEscape(story.title)}"></p>`
     : ''
-  return [
+  const html = [
     `<h1>${xmlEscape(story.title)}</h1>`,
     `<p>${xmlEscape(story.excerpt)}</p>`,
     image,
@@ -172,6 +175,7 @@ export function broadcastHtml(story: Story): string {
     '<p><a href="{{ unsubscribe_url }}">Unsubscribe</a></p>',
     '<p>{{ address }}</p>',
   ].filter(Boolean).join('\n')
+  return sanitizeEmailHtml(html, canonicalNewsUrl(story.link))
 }
 
 export async function loadPublishedStories(fetchImpl: typeof fetch, indexUrl = NEWS_INDEX_URL): Promise<Story[]> {

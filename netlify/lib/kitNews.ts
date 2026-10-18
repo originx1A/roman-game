@@ -4,6 +4,7 @@
  * KIT_DRY_RUN=true or ?dryRun=1 builds the payload and does not send.
  */
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
+import { canonicalNewsUrl, isAmazonUrl, sanitizeEmailText } from './emailLinks.ts'
 import { json } from './http.ts'
 import {
   type BroadcastDraft,
@@ -223,21 +224,29 @@ async function claimBroadcast(store: JsonStore, storyId: string, now: number, fo
 
 export function broadcastDraft(story: Story, target: { type: 'segment' | 'tag'; id: number }, sendAt: Date): BroadcastDraft {
   const published = new Date(`${story.date}T13:07:00.000Z`)
+  const article = canonicalNewsUrl(story.link)
   const draft: BroadcastDraft = {
-    subject: story.title,
-    preview_text: story.excerpt.slice(0, 140),
-    description: story.excerpt.slice(0, 500),
+    subject: sanitizeEmailText(story.title, article).slice(0, 200),
+    preview_text: sanitizeEmailText(story.excerpt, article).slice(0, 140),
+    description: sanitizeEmailText(story.excerpt, article).slice(0, 500),
     content: broadcastHtml(story),
     public: false,
     published_at: Number.isNaN(published.getTime()) ? sendAt.toISOString() : published.toISOString(),
     send_at: new Date(sendAt.getTime() + 60_000).toISOString(),
     subscriber_filter: subscriberFilter(target),
   }
-  if (story.image) {
+  if (story.image && !isAmazonUrl(story.image)) {
     draft.thumbnail_url = story.image
-    draft.thumbnail_alt = story.title.slice(0, 140)
+    draft.thumbnail_alt = sanitizeEmailText(story.title, article).slice(0, 140)
   }
   return draft
+}
+
+/** Support / failure mail. No article, so an Amazon host in the detail is dropped. */
+export function supportAlertMessage(text: string): { text: string; html: string } {
+  const clean = sanitizeEmailText(text, null)
+  const safe = clean.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return { text: clean, html: `<p>${safe}</p>` }
 }
 
 async function resolveTarget(deps: Deps, kit: KitApi): Promise<{ type: 'segment' | 'tag'; id: number; name: string }> {
@@ -257,12 +266,13 @@ async function alertSupport(deps: Deps, subject: string, text: string): Promise<
     return
   }
   try {
+    const message = supportAlertMessage(text)
     const sent = await sendResend(apiKey, {
       from: NEWS_FROM,
       to: SUPPORT_EMAIL,
-      subject,
-      text,
-      html: `<p>${text.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</p>`,
+      subject: sanitizeEmailText(subject, null),
+      text: message.text,
+      html: message.html,
     }, deps.fetchImpl)
     if (!sent.ok) logNews({ level: 'error', msg: 'ERROR support alert rejected', status: sent.status, subject })
   } catch (err) {
