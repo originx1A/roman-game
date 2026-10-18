@@ -88,7 +88,7 @@ The morning edition is the static site at [romansgame.com/news](https://romansga
 
 There is an optional pool in Netlify Blobs (`story-pool`). It is empty unless someone writes one. If it exists, the next story is the oldest unused (`addedAt`, then id). A story with `usedOn` set is never selected again. When fewer than 14 unused stories remain, the morning job emails support@romansgame.com once that Toronto day (needs `RESEND_API_KEY` and a production deploy).
 
-`/news/feed.xml` is RSS 2.0 from that index. `/news/` includes `<link rel="alternate" type="application/rss+xml" href="/news/feed.xml">`. Item `guid` is the story slug (`isPermaLink="false"`). `pubDate` is 09:07 America/Toronto on the card's date, written in UTC.
+`/news/feed.xml` is RSS 2.0 from that index. `/news/` includes `<link rel="alternate" type="application/rss+xml" href="/news/feed.xml">`. Item `guid` is the story slug (`isPermaLink="false"`). `pubDate` is 09:07 America/Toronto on the card's date, written in UTC. The rewrite lives in `public/_redirects`, ahead of `/* /index.html 200`. Netlify applies that file before `netlify.toml`, so a feed rule only in the toml is skipped and the game shell is served instead.
 
 The scheduled function `kit-daily-news` runs at 13:20 and 14:20 UTC. It sends only when the Toronto clock is 09:20 or later in the 9 o'clock hour, so one of those two runs acts in both EDT and EST, including the March and November changeover days. It sends today's newest published story to Kit. If that date has no story, it logs and exits.
 

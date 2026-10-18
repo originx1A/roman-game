@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { register } from 'node:module'
 import { test } from 'node:test'
+import { DOMParser } from '@xmldom/xmldom'
 
 register('./ts-resolve.mjs', import.meta.url)
 
@@ -120,6 +121,39 @@ test('feed escapes text, orders newest first, and writes RFC 822 pubDate', () =>
   assert.doesNotMatch(xml, /&amp;amp;/)
   assert.equal(source.storyForDate(parsed, '2026-10-16')?.id, 'newer-story')
   assert.equal(source.storyForDate(parsed, '2026-10-18'), null)
+
+  const errors: string[] = []
+  const doc = new DOMParser({
+    onError(level, message) {
+      if (level === 'error' || level === 'fatalError') errors.push(`${level}: ${message}`)
+    },
+  }).parseFromString(xml, 'text/xml')
+  assert.deepEqual(errors, [])
+  const rss = doc.documentElement
+  assert.equal(rss?.nodeName, 'rss')
+  assert.equal(rss?.getAttribute('version'), '2.0')
+  const channel = doc.getElementsByTagName('channel')[0]
+  assert.equal(channel?.getElementsByTagName('title')[0]?.textContent, "Roman's World News")
+  assert.equal(channel?.getElementsByTagName('link')[0]?.textContent, 'https://romansgame.com/news/')
+  const parsedItems = [...doc.getElementsByTagName('item')]
+  assert.equal(parsedItems.length, 3)
+  assert.equal(parsedItems[0]?.getElementsByTagName('title')[0]?.textContent, 'A & B <C>')
+  assert.equal(parsedItems[0]?.getElementsByTagName('description')[0]?.textContent, 'x "y"')
+  assert.equal(parsedItems[0]?.getElementsByTagName('link')[0]?.textContent, 'https://romansgame.com/news/newer-story/')
+  assert.equal(parsedItems[0]?.getElementsByTagName('pubDate')[0]?.textContent, 'Fri, 16 Oct 2026 13:07:00 +0000')
+  const guid = parsedItems[0]?.getElementsByTagName('guid')[0]
+  assert.equal(guid?.getAttribute('isPermaLink'), 'false')
+  assert.equal(guid?.textContent, 'newer-story')
+})
+
+test('public/_redirects sends the feed and the Kit APIs to functions before the SPA fallback', () => {
+  const rules = readFileSync(new URL('../public/_redirects', import.meta.url), 'utf8')
+  const feed = rules.search(/^\/news\/feed\.xml\s+\/\.netlify\/functions\/news-feed\s+200!/m)
+  const api = rules.search(/^\/api\/\*\s+\/\.netlify\/functions\/:splat\s+200!/m)
+  const spa = rules.search(/^\/\*\s+\/index\.html\s+200/m)
+  assert.ok(feed >= 0, 'feed rewrite')
+  assert.ok(api >= 0, 'api rewrite')
+  assert.ok(spa > feed && spa > api, 'SPA catch-all is last')
 })
 
 test('edition time is 09:07 Toronto in both EST and EDT', () => {

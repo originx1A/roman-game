@@ -36,6 +36,9 @@
   status = 200
   force = true
 
+# The live rule is public/_redirects. Netlify applies that file first, so this
+# copy never runs while /* -> /index.html is in _redirects. Kept so the toml
+# still names the route.
 [[redirects]]
   from = "/news/feed.xml"
   to = "/.netlify/functions/news-feed"
