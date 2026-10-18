@@ -109,6 +109,15 @@ export function formatCad(cents: number): string {
   return `CA$${(cents / 100).toFixed(2)}`
 }
 
+/** Spoken length on every card: 45m under an hour, otherwise 1h 06m. */
+export function formatRuntime(totalMinutes: number): string {
+  const minutes = Math.max(0, Math.round(totalMinutes))
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  if (hours === 0) return `${rest}m`
+  return `${hours}h ${String(rest).padStart(2, '0')}m`
+}
+
 export type AudioFiles = {
   /** Full master in the private bucket. Paid masters need a purchase token. */
   master: string
@@ -119,11 +128,17 @@ export type AudioFiles = {
 export type AudioProduct = {
   slug: string
   title: string
+  /** Spoken length in whole minutes. Cards show this through formatRuntime. */
+  runtimeMinutes: number
   /** Spoken length, for the card. */
   runtime: string
-  /** 0 means free. No Stripe checkout. */
+  /** 0 means free. No Stripe checkout, and no sample player. */
   priceCents: number
   group: 'many-thrones' | null
+}
+
+function audioProduct(product: Omit<AudioProduct, 'runtime'> & { runtimeMinutes: number }): AudioProduct {
+  return { ...product, runtime: formatRuntime(product.runtimeMinutes) }
 }
 
 /**
@@ -140,27 +155,37 @@ function standardAudioFiles(slug: string): AudioFiles {
 }
 
 export const AUDIO_PRODUCTS: AudioProduct[] = [
-  { slug: 'tales-of-the-empty-throne', title: 'Tales of the Empty Throne', runtime: '1h 31m', priceCents: 0, group: null },
-  { slug: 'the-first-five', title: 'The First Five', runtime: '45m', priceCents: 599, group: null },
-  { slug: 'many-thrones-1-carvings', title: 'Many Thrones, Book 1: Carvings', runtime: '52m', priceCents: 599, group: 'many-thrones' },
-  { slug: 'many-thrones-2-root', title: 'Many Thrones, Book 2: Root', runtime: '51m', priceCents: 599, group: 'many-thrones' },
-  { slug: 'many-thrones-3-diver', title: 'Many Thrones, Book 3: Diver', runtime: '50m', priceCents: 599, group: 'many-thrones' },
-  { slug: 'many-thrones-4-hollow', title: 'Many Thrones, Book 4: Hollow', runtime: '57m', priceCents: 599, group: 'many-thrones' },
-  { slug: 'many-thrones-5-map', title: 'Many Thrones, Book 5: Map', runtime: '56m', priceCents: 599, group: 'many-thrones' },
-  { slug: 'many-thrones-6-wont-go', title: "Many Thrones, Book 6: Won't Go", runtime: '51m', priceCents: 599, group: 'many-thrones' },
-  { slug: 'many-thrones-7-invite', title: 'Many Thrones, Book 7: Invite', runtime: '57m', priceCents: 599, group: 'many-thrones' },
-  { slug: 'the-unseen', title: 'The Unseen', runtime: '1h 30m', priceCents: 799, group: null },
-  { slug: 'the-face-of-the-unseen', title: 'The Face of the Unseen', runtime: '1h 10m', priceCents: 799, group: null },
-  { slug: 'the-lost-keeper', title: 'The Lost Keeper', runtime: '1h 06m', priceCents: 799, group: null },
-  { slug: 'the-choice', title: 'The Choice', runtime: '1h 06m', priceCents: 799, group: null },
+  audioProduct({ slug: 'tales-of-the-empty-throne', title: 'Tales of the Empty Throne', runtimeMinutes: 91, priceCents: 0, group: null }),
+  audioProduct({ slug: 'the-first-five', title: 'The First Five', runtimeMinutes: 45, priceCents: 599, group: null }),
+  audioProduct({ slug: 'many-thrones-1-carvings', title: 'Many Thrones, Book 1: Carvings', runtimeMinutes: 52, priceCents: 599, group: 'many-thrones' }),
+  audioProduct({ slug: 'many-thrones-2-root', title: 'Many Thrones, Book 2: Root', runtimeMinutes: 51, priceCents: 599, group: 'many-thrones' }),
+  audioProduct({ slug: 'many-thrones-3-diver', title: 'Many Thrones, Book 3: Diver', runtimeMinutes: 50, priceCents: 599, group: 'many-thrones' }),
+  audioProduct({ slug: 'many-thrones-4-hollow', title: 'Many Thrones, Book 4: Hollow', runtimeMinutes: 57, priceCents: 599, group: 'many-thrones' }),
+  audioProduct({ slug: 'many-thrones-5-map', title: 'Many Thrones, Book 5: Map', runtimeMinutes: 56, priceCents: 599, group: 'many-thrones' }),
+  audioProduct({ slug: 'many-thrones-6-wont-go', title: "Many Thrones, Book 6: Won't Go", runtimeMinutes: 51, priceCents: 599, group: 'many-thrones' }),
+  audioProduct({ slug: 'many-thrones-7-invite', title: 'Many Thrones, Book 7: Invite', runtimeMinutes: 57, priceCents: 599, group: 'many-thrones' }),
+  audioProduct({ slug: 'the-unseen', title: 'The Unseen', runtimeMinutes: 90, priceCents: 799, group: null }),
+  audioProduct({ slug: 'the-face-of-the-unseen', title: 'The Face of the Unseen', runtimeMinutes: 70, priceCents: 799, group: null }),
+  audioProduct({ slug: 'the-lost-keeper', title: 'The Lost Keeper', runtimeMinutes: 66, priceCents: 799, group: null }),
+  audioProduct({ slug: 'the-choice', title: 'The Choice', runtimeMinutes: 66, priceCents: 799, group: null }),
 ]
 
 export const AUDIO_BUNDLE = {
   slug: 'all-13',
   title: 'All 13 Audiobooks',
   priceCents: 2999,
-  summary: 'The 12 paid audiobooks together. Tales of the Empty Throne stays free.',
+  summary: 'Includes all 13 audiobooks (6 sagas + 7 Many Thrones books). Tales of the Empty Throne stays free.',
 } as const
+
+/** What the 13 titles cost one by one. The free saga adds nothing. */
+export function separateAudioCents(): number {
+  return AUDIO_PRODUCTS.reduce((sum, product) => sum + product.priceCents, 0)
+}
+
+/** Bundle price against buying every title on its own. */
+export function bundleSavingsCents(): number {
+  return separateAudioCents() - AUDIO_BUNDLE.priceCents
+}
 
 export const AUDIO_FILES: Record<string, AudioFiles> = Object.fromEntries(
   [...AUDIO_PRODUCTS.map((product) => product.slug), AUDIO_BUNDLE.slug].map((slug) => [slug, standardAudioFiles(slug)]),

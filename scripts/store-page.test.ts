@@ -84,6 +84,7 @@ test('Amazon Associates tags are appended per shop, and an empty tag leaves the 
   assert.equal(html.split(AMAZON_ASSOCIATE_DISCLOSURE).length - 1, 2)
   assert.doesNotMatch(html, /As an Amazon Associate we earn/)
   assert.match(html, /coloring-book-cover\.webp/)
-  assert.match(html, /shelf-banner/)
+  assert.doesNotMatch(html, /shelf-banner|og-image\.png/)
+  assert.match(html, /class="brand"/)
   assert.doesNotMatch(html, /tag=jrny06-20[\s\S]*tag=jrny06-20/)
 })

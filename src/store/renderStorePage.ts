@@ -4,7 +4,9 @@ import {
   AUDIO_BUNDLE,
   AUDIO_PRODUCTS,
   audioFiles,
+  bundleSavingsCents,
   formatCad,
+  separateAudioCents,
   STORE_INTRO,
   STORE_NAV,
   STORE_NOTIFY,
@@ -112,6 +114,7 @@ function audioCover(slug: string, title: string): string {
 }
 
 function audioSample(product: AudioProduct): string {
+  if (product.priceCents === 0) return ''
   const files = audioFiles(product.slug)
   return `<p class="sample-label">5-minute sample</p>
         <audio class="sample" controls preload="none" data-sample="${escapeHtml(files?.sample ?? '')}" aria-label="5-minute sample of ${escapeHtml(product.title)}" hidden></audio>`
@@ -154,22 +157,30 @@ function manyThrones(products: AudioProduct[]): string {
 }
 
 function bundleCard(): string {
-  return `<article class="audio-card audio-bundle" id="audio-${escapeHtml(AUDIO_BUNDLE.slug)}">
+  const savings = bundleSavingsCents()
+  const saving = savings > 0
+    ? `<span class="bundle-save">Save ${escapeHtml(formatCad(savings))} versus buying them separately (${escapeHtml(formatCad(separateAudioCents()))}).</span>`
+    : ''
+  return `<article class="bundle-banner" id="audio-${escapeHtml(AUDIO_BUNDLE.slug)}">
       ${audioCover(AUDIO_BUNDLE.slug, AUDIO_BUNDLE.title)}
       <div class="audio-copy">
-        <h2>${escapeHtml(AUDIO_BUNDLE.title)}</h2>
-        <p>${escapeHtml(AUDIO_BUNDLE.summary)}</p>
-        <p class="audio-meta"><span class="price">${escapeHtml(formatCad(AUDIO_BUNDLE.priceCents))}</span></p>
+        <p class="bundle-kicker">Bundle</p>
+        <h3>${escapeHtml(AUDIO_BUNDLE.title)}</h3>
+        <p class="bundle-includes">${escapeHtml(AUDIO_BUNDLE.summary)}</p>
+        <p class="bundle-offer">
+          <span class="price">${escapeHtml(formatCad(AUDIO_BUNDLE.priceCents))}</span>
+          ${saving}
+          <span class="status status-soon" data-soon>Coming soon</span>
+        </p>
         <p class="actions">
           <button type="button" class="btn" data-buy="${escapeHtml(AUDIO_BUNDLE.slug)}" aria-label="Buy ${escapeHtml(AUDIO_BUNDLE.title)}" hidden>Buy</button>
         </p>
-        <p class="status status-soon" data-soon>Coming soon</p>
         <p class="fine buy-error" data-buy-error role="status"></p>
       </div>
     </article>`
 }
 
-/** Free story, standalone titles, the Many Thrones group, then the bundle. */
+/** Free story, standalone titles, and the Many Thrones group. The bundle sits in its own section. */
 function audiobookShelf(): string {
   const parts: string[] = []
   let grouped = false
@@ -183,8 +194,11 @@ function audiobookShelf(): string {
     }
     parts.push(audioCard(product))
   }
-  parts.push(bundleCard())
-  return `<div class="audio-shelf">\n      ${parts.join('\n      ')}\n    </div>`
+  return `<div class="audio-shelf">\n      ${parts.join('\n      ')}\n    </div>
+    <section class="audio-collection" aria-labelledby="audio-collection-heading">
+      <h2 id="audio-collection-heading">Get the whole collection</h2>
+      ${bundleCard()}
+    </section>`
 }
 
 /** Full store document. Edit src/store/catalog.ts, then regenerate this. */
@@ -239,7 +253,6 @@ export function renderStorePage(): string {
       <ul class="nav-links" id="site-nav">${nav}</ul>
     </div>
   </header>
-  <img class="shelf-banner" src="../og-image.png" alt="Roman’s Game board with glossy tiles, a yellow buddy, and a gold coin" width="1200" height="630">
   <main class="wrap" id="store">
     <h1>${escapeHtml(STORE_TITLE)}</h1>
     <p class="intro">${escapeHtml(STORE_INTRO)}</p>

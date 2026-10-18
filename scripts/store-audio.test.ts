@@ -7,9 +7,12 @@ import {
   AUDIO_FILES,
   AUDIO_PRODUCTS,
   audioFiles,
+  bundleSavingsCents,
   formatCad,
+  formatRuntime,
   paidAudioProducts,
   purchaseBySlug,
+  separateAudioCents,
 } from '../src/store/catalog.ts'
 import {
   claimDownload,
@@ -59,8 +62,18 @@ test('catalog prices are the 13 audiobooks plus the all-13 bundle', () => {
   assert.equal(formatCad(599), 'CA$5.99')
   assert.equal(formatCad(799), 'CA$7.99')
   assert.equal(formatCad(2999), 'CA$29.99')
+  assert.equal(formatRuntime(45), '45m')
+  assert.equal(formatRuntime(60), '1h 00m')
+  assert.equal(formatRuntime(66), '1h 06m')
+  assert.equal(formatRuntime(91), '1h 31m')
+  for (const product of AUDIO_PRODUCTS) {
+    assert.equal(product.runtime, formatRuntime(product.runtimeMinutes))
+    assert.match(product.runtime, /^(?:\d+h \d{2}m|\d{1,2}m)$/)
+  }
   assert.equal(AUDIO_PRODUCTS.find((product) => product.slug === 'tales-of-the-empty-throne')?.runtime, '1h 31m')
   assert.equal(AUDIO_PRODUCTS.find((product) => product.slug === 'the-choice')?.runtime, '1h 06m')
+  assert.equal(separateAudioCents(), 7988)
+  assert.equal(bundleSavingsCents(), 4989)
   assert.equal(AUDIO_PRODUCTS.find((product) => product.slug === 'many-thrones-1-carvings')?.title, 'Many Thrones, Book 1: Carvings')
 
   const bundle = purchaseBySlug('all-13')
@@ -86,6 +99,20 @@ test('catalog prices are the 13 audiobooks plus the all-13 bundle', () => {
   assert.match(page, /data-free="masters\/tales-of-the-empty-throne\.mp3"/)
   assert.doesNotMatch(page, /data-free="tales-of-the-empty-throne\.mp3"/)
   assert.match(page, /data-cover="covers\/all-13\.jpg"/)
+  const freeCard = page.slice(page.indexOf('id="audio-tales-of-the-empty-throne"'), page.indexOf('id="audio-the-first-five"'))
+  assert.match(freeCard, />1h 31m</)
+  assert.doesNotMatch(freeCard, /5-minute sample|sample-label|data-sample/)
+  assert.doesNotMatch(page, /samples\/tales-of-the-empty-throne-sample\.mp3/)
+  assert.match(page, /data-sample="samples\/the-first-five-sample\.mp3"/)
+  assert.equal(page.match(/data-sample="/g)?.length, 12)
+  const shelf = page.slice(page.indexOf('class="audio-shelf"'), page.indexOf('class="audio-collection"'))
+  assert.doesNotMatch(shelf, /audio-all-13|Get the whole collection/)
+  assert.match(page, /id="audio-collection-heading">Get the whole collection/)
+  assert.match(page, /class="bundle-kicker">Bundle/)
+  assert.match(page, /Includes all 13 audiobooks \(6 sagas \+ 7 Many Thrones books\)\. Tales of the Empty Throne stays free\./)
+  assert.match(page, /Save CA\$49\.89 versus buying them separately \(CA\$79\.88\)\./)
+  assert.match(page, /data-buy="all-13"/)
+  assert.doesNotMatch(page, /shelf-banner|og-image\.png/)
 })
 
 function paid(slug: string, amount = purchaseBySlug(slug)?.priceCents ?? 0, extra: Partial<PaidSession> = {}): PaidSession {

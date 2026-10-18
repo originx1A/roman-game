@@ -26,7 +26,6 @@
       <ul class="nav-links" id="site-nav"><li><a href="https://romansgame.com/">Home</a></li><li><a href="https://romansgame.com/play/">Play</a></li><li><a href="https://romansgame.com/lore">Lore</a></li><li><a href="https://romansgame.com/defenders/">Defenders</a></li><li><a href="https://romansgame.com/watch">Watch</a></li><li><a href="https://romansgame.com/music/">Music</a></li><li><a href="https://romansgame.com/wallpapers/">Wallpapers</a></li><li><a href="https://romansgame.com/stories/">Stories</a></li><li><a href="https://romansgame.com/stories/cards/">Cards</a></li><li><a href="/store/" aria-current="page">Store</a></li><li><a href="https://romansgame.com/news/">News</a></li><li><a href="https://romansgame.com/support">Support</a></li></ul>
     </div>
   </header>
-  <img class="shelf-banner" src="../og-image.png" alt="Roman’s Game board with glossy tiles, a yellow buddy, and a gold coin" width="1200" height="630">
   <main class="wrap" id="store">
     <h1>Store</h1>
     <p class="intro">One shelf for the books, stories, and music of Roman’s world. The coloring book is on Amazon. Audiobooks are listed here. Songs are still on the way.</p>
@@ -78,8 +77,7 @@
       <div class="audio-copy">
         <h2>Tales of the Empty Throne</h2>
         <p class="audio-meta"><span>1h 31m</span> · <span class="price">Free</span></p>
-        <p class="sample-label">5-minute sample</p>
-        <audio class="sample" controls preload="none" data-sample="samples/tales-of-the-empty-throne-sample.mp3" aria-label="5-minute sample of Tales of the Empty Throne" hidden></audio>
+        
         <p class="actions">
           <a class="btn" data-free="masters/tales-of-the-empty-throne.mp3" hidden>Listen or download</a>
         </p>
@@ -287,22 +285,29 @@
         <p class="fine buy-error" data-buy-error role="status"></p>
       </div>
     </article>
-      <article class="audio-card audio-bundle" id="audio-all-13">
+    </div>
+    <section class="audio-collection" aria-labelledby="audio-collection-heading">
+      <h2 id="audio-collection-heading">Get the whole collection</h2>
+      <article class="bundle-banner" id="audio-all-13">
       <div class="audio-cover">
         <img data-cover="covers/all-13.jpg" alt="Cover of All 13 Audiobooks" width="72" height="72" hidden>
       </div>
       <div class="audio-copy">
-        <h2>All 13 Audiobooks</h2>
-        <p>The 12 paid audiobooks together. Tales of the Empty Throne stays free.</p>
-        <p class="audio-meta"><span class="price">CA$29.99</span></p>
+        <p class="bundle-kicker">Bundle</p>
+        <h3>All 13 Audiobooks</h3>
+        <p class="bundle-includes">Includes all 13 audiobooks (6 sagas + 7 Many Thrones books). Tales of the Empty Throne stays free.</p>
+        <p class="bundle-offer">
+          <span class="price">CA$29.99</span>
+          <span class="bundle-save">Save CA$49.89 versus buying them separately (CA$79.88).</span>
+          <span class="status status-soon" data-soon>Coming soon</span>
+        </p>
         <p class="actions">
           <button type="button" class="btn" data-buy="all-13" aria-label="Buy All 13 Audiobooks" hidden>Buy</button>
         </p>
-        <p class="status status-soon" data-soon>Coming soon</p>
         <p class="fine buy-error" data-buy-error role="status"></p>
       </div>
     </article>
-    </div>
+    </section>
     </section>
 
     <section class="panel" id="music" role="tabpanel" data-store-panel aria-labelledby="tab-music" tabindex="0">
