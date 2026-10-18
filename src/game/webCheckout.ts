@@ -34,13 +34,14 @@ export function rememberCheckoutRedeemed(sessionId: string): void {
   localStorage.setItem(REDEEMED_KEY, JSON.stringify(ids.slice(-200)))
 }
 
-/** Send the player to hosted Checkout. Never call this from the native app. Requires a signed-in token and a passed grown-up check. */
+/** Send the player to hosted Checkout. Never call this from the native app. Requires a signed-in token and a one-time PIN grant. */
 export async function startWebCheckout(
   packId: CoinPackId,
-  auth?: { token: string; grownUp: true },
+  auth?: { token: string; pinGrant: string },
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
   if (isStoreBuild()) return { ok: false, reason: 'Purchases are unavailable right now.' }
-  if (!auth?.token || auth.grownUp !== true) return { ok: false, reason: 'Sign in to buy' }
+  if (!auth?.token) return { ok: false, reason: 'Sign in to buy' }
+  if (!auth.pinGrant) return { ok: false, reason: 'Enter the purchase PIN.' }
   try {
     const res = await fetch('/api/create-checkout', {
       method: 'POST',
@@ -49,7 +50,7 @@ export async function startWebCheckout(
         accept: 'application/json',
         authorization: `Bearer ${auth.token}`,
       },
-      body: JSON.stringify({ packId, grownUp: true }),
+      body: JSON.stringify({ packId, pinGrant: auth.pinGrant }),
     })
     const data = (await res.json().catch(() => null)) as { url?: unknown; error?: unknown } | null
     if (!res.ok) {

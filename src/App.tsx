@@ -20,7 +20,7 @@ import { TreatDefense } from './components/TreatDefense'
 import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
 import { CloudScoresButton, useCloud } from './cloud/CloudScores'
 import { accessToken, initCloud, saveScore } from './cloud/cloud'
-import { ParentalGate } from './components/ParentalGate'
+import { PurchasePinSheet } from './components/PurchasePinSheet'
 import { SpecialCardReveal } from './components/SpecialCardReveal'
 import { UnseenPointer } from './components/UnseenPointer'
 import { UnseenCardTile } from './components/UnseenCard'
@@ -84,7 +84,7 @@ import {
   MAX_FIELD_TREATS,
   stealFieldTreats,} from './game/pets'
 import { ECONOMY, claimDailyGift, claimFountain, defenseStreakBonus, packCadCents, takeFieldTreats, winBaseCoins } from './game/economy'
-import { grownUpStillOk, purchaseGate } from './game/purchaseGate'
+import { purchaseGate } from './game/purchaseGate'
 import { perkActive, runIsAssisted } from './game/perkBadges'
 import { loadFountain, loadGiftCalendar, loadPerkState, loadPointerMemory, loadTreatDay, saveFountain, saveGiftCalendar, savePointerMemory, saveTreatDay } from './game/localEconomy'
 import { notePointerRun, pickPointer, type PointerLine, type PointerWhen } from './game/unseenPointers'
@@ -511,8 +511,8 @@ export default function App() {
   // 9.30-a: buddies (The Stable)
   const [pets, setPets] = useState<PetState>(() => loadPets())
   const cloud = useCloud()
-  const [grownUpAt, setGrownUpAt] = useState<number | null>(null)
   const [askPack, setAskPack] = useState<CoinPackId | null>(null)
+  const [pinReset, setPinReset] = useState(false)
   const [weekSpent, setWeekSpent] = useState(0)
   const [fountain, setFountain] = useState(() => loadFountain(Date.now()))
   const [giftCal, setGiftCal] = useState(() => loadGiftCalendar())
@@ -850,10 +850,15 @@ export default function App() {
     if (isStoreBuild()) return
     const params = new URLSearchParams(window.location.search)
     const gift = params.get('gift')
-    if (!gift) return
-    setGiftPrefill(normalizeGiftCode(gift))
-    setScreen('stable')
+    const pinResetLink = params.get('purchase-pin') === 'reset'
+    if (!gift && !pinResetLink) return
+    if (gift) {
+      setGiftPrefill(normalizeGiftCode(gift))
+      setScreen('stable')
+    }
+    if (pinResetLink) setPinReset(true)
     params.delete('gift')
+    params.delete('purchase-pin')
     const q = params.toString()
     window.history.replaceState(null, '', window.location.pathname + (q ? `?${q}` : '') + window.location.hash)
   }, [])
@@ -2685,19 +2690,29 @@ export default function App() {
   function gateFor(packId?: string) {
     return purchaseGate({
       signedIn: cloud.status === 'signed-in',
-      grownUpOk: grownUpStillOk(grownUpAt, Date.now()),
       spentCadCents: weekSpent,
       priceCadCents: packId ? packCadCents(packId) : packCadCents('coins_500'),
     })
   }
 
-  async function finishBuy(packId: CoinPackId) {
+  async function finishBuy(packId: CoinPackId, pinGrant: string) {
     unlockAudio()
     if (!isStoreBuild()) {
       const token = await accessToken()
       const { startWebCheckout } = await import('./game/webCheckout')
-      const started = await startWebCheckout(packId, token ? { token, grownUp: true } : undefined)
+      const started = await startWebCheckout(packId, token ? { token, pinGrant } : undefined)
       if (!started.ok) showToast(started.reason)
+      return
+    }
+    const token = await accessToken()
+    if (!token) {
+      showToast('Sign in to buy')
+      return
+    }
+    const { consumePurchasePinGrant } = await import('./game/purchasePinApi')
+    const used = await consumePurchasePinGrant(token, pinGrant)
+    if (!used.ok) {
+      showToast(used.reason)
       return
     }
     const result = await purchaseCoinPack(packId)
@@ -2722,11 +2737,8 @@ export default function App() {
       showToast('Weekly spending limit reached (CA$50). Try again next week.')
       return
     }
-    if (gate.mode === 'grown-up') {
-      setAskPack(packId)
-      return
-    }
-    await finishBuy(packId)
+    setPinReset(false)
+    setAskPack(packId)
   }
 
   async function onRestorePurchases() {
@@ -3090,14 +3102,20 @@ export default function App() {
         buyLabel={gateFor().label}
         buyFaded={gateFor().faded}
       />
-      <ParentalGate
-        open={askPack != null}
-        onClose={() => setAskPack(null)}
-        onPass={() => {
-          const packId = askPack
-          setGrownUpAt(Date.now())
+      <PurchasePinSheet
+        open={askPack != null || pinReset}
+        intent={askPack != null ? 'purchase' : 'reset'}
+        signedIn={cloud.status === 'signed-in'}
+        onClose={() => {
           setAskPack(null)
-          if (packId) void finishBuy(packId)
+          setPinReset(false)
+        }}
+        onSaved={() => showToast('New purchase PIN saved.')}
+        onGranted={(grant) => {
+          const packId = askPack
+          setAskPack(null)
+          setPinReset(false)
+          if (packId) void finishBuy(packId, grant)
         }}
       />
       <SpecialCardReveal open={cardReveal} onClose={() => setCardReveal(false)} />

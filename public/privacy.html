@@ -109,13 +109,17 @@
 
       <h2>Coin purchases</h2>
       <p>
-        Buying coins requires a sign-in. Before the payment page opens, a grown-up answers a short
-        question. The website also stops new coin purchases for an account after CA$50 in a rolling
-        week. Stripe hosts the payment page and processes the card. The game does not see or store
-        your card number. After you pay, the site asks Stripe whether that payment succeeded, then
-        adds the coins. A purchase record (the pack, the amount, the time, and a short reference,
-        not your card) is stored on the game server and tied to the signed-in account so the same
-        payment is not counted twice.
+        Buying coins requires a sign-in. The account holder sets a 4-digit purchase PIN the first
+        time, and types it before every payment page. The game stores a scrambled copy of that PIN
+        on the server, not the digits themselves. A reset link can be emailed to the sign-in
+        address. Five wrong tries lock purchases for 15 minutes. The website also stops new coin
+        purchases for an account after CA$50 in a rolling week. Stripe hosts the payment page.
+        That page can offer Apple Pay or Google Pay, which use the phone&apos;s Face ID or
+        fingerprint, or a card typed in for that purchase. The game does not save the card for a
+        one-tap buy later, and it does not see or store the card number. After you pay, the site
+        asks Stripe whether that payment succeeded, then adds the coins. A purchase record (the
+        pack, the amount, the time, and a short reference, not your card) is stored on the game
+        server and tied to the signed-in account so the same payment is not counted twice.
       </p>
       <p>
         In the iPhone and Android apps, buying coins uses Apple (App Store) or Google (Google Play),
@@ -157,7 +161,7 @@
       <p>
         The game is made for a general audience, including children. It does not knowingly collect
         information for an advertising profile. Guests can play every mode. Buying coins needs a
-        sign-in and a grown-up at the screen. A parent can also use the store's Ask to Buy / family
+        sign-in and the purchase PIN. A parent can also use the store's Ask to Buy / family
         payment approval. Coins are added only when the payment finishes.
       </p>
 

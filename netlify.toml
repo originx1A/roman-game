@@ -24,6 +24,10 @@
     Content-Type = "text/plain; charset=utf-8"
     Cache-Control = "public, max-age=3600"
 
+# Apple Pay domain check (owner step, file not in this repo):
+# public/.well-known/apple-developer-merchantid-domain-association
+# The catch-all below does not use force, so that file is served as itself once added.
+
 # Payment API before the single-page fallback. Static hosts ignore this file.
 [[redirects]]
   from = "/api/*"

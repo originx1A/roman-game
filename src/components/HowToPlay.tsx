@@ -105,6 +105,7 @@ export function HowToPlay({
         <li>Wild pets try to steal your treat pile on the board. Your pets defend it — tap the 🍖 count to stash treats safe.</li>
         <li>A win earns 1 field treat, up to 5 a day. Feed a buddy up to 3 times a day. Snack 35, Feast 100, Banquet 250. Treats are not coins.</li>
         <li>No buddy yet? Claim a free welcome buddy in the Stable: Lupa, Aquila, or Leo.</li>
+        <li>Buying coins needs a sign-in and a 4-digit purchase PIN. A grown-up sets the PIN. The game asks for it every time.</li>
         <li>Special cards are earned here. Collect them at romansgame.com in the Cards section. The Unseen card will appear there soon.</li>
         <li>More at <a href="https://romansgame.com/?from=game" target="_blank" rel="noopener noreferrer">romansgame.com</a>.</li>
       </ol>

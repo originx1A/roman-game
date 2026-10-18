@@ -14,7 +14,14 @@ export function bearerToken(req: Request): string | null {
   return token
 }
 
-export async function userIdFromRequest(req: Request): Promise<string | null> {
+export interface AuthUser {
+  id: string
+  /** Sign-in address. Empty when the token has none. Never log this. */
+  email: string
+  lastSignInAt: number | null
+}
+
+export async function userFromRequest(req: Request): Promise<AuthUser | null> {
   const token = bearerToken(req)
   if (!token) return null
   try {
@@ -22,11 +29,42 @@ export async function userIdFromRequest(req: Request): Promise<string | null> {
       headers: { apikey: SUPABASE_KEY, authorization: `Bearer ${token}` },
     })
     if (!res.ok) return null
-    const data = (await res.json()) as { id?: unknown }
-    if (typeof data.id !== 'string') return null
-    if (!/^[0-9a-f-]{16,80}$/i.test(data.id)) return null
-    return data.id
+    const data = (await res.json()) as { id?: unknown; email?: unknown; last_sign_in_at?: unknown }
+    if (typeof data.id !== 'string' || !/^[0-9a-f-]{16,80}$/i.test(data.id)) return null
+    const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
+    const parsed = typeof data.last_sign_in_at === 'string' ? Date.parse(data.last_sign_in_at) : NaN
+    return {
+      id: data.id,
+      email: email.includes('@') && email.length <= 320 ? email : '',
+      lastSignInAt: Number.isFinite(parsed) ? parsed : null,
+    }
   } catch {
     return null
+  }
+}
+
+export async function userIdFromRequest(req: Request): Promise<string | null> {
+  const user = await userFromRequest(req)
+  return user?.id ?? null
+}
+
+/**
+ * Sends the existing sign-in email (magic link) to this account only.
+ * Uses the publishable key, the same way the game already signs people in.
+ * Does not log the address or the response body.
+ */
+export async function sendSignInLink(email: string, redirectTo: string): Promise<boolean> {
+  if (!email || !redirectTo.startsWith('https://')) return false
+  try {
+    const url = new URL(`${SUPABASE_URL}/auth/v1/otp`)
+    url.searchParams.set('redirect_to', redirectTo)
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { apikey: SUPABASE_KEY, 'content-type': 'application/json' },
+      body: JSON.stringify({ email, create_user: false, data: {} }),
+    })
+    return res.ok
+  } catch {
+    return false
   }
 }
