@@ -2,6 +2,7 @@ import { ShortfallSheet, type ShortfallAction } from './ShortfallSheet'
 import { isStoreBuild, type CoinPack } from '../game/iap'
 import type { CoinPackId } from '../game/iap'
 import type { WebPackOffer } from '../game/webPacks'
+import type { LegalSection } from '../game/legalCopy'
 
 export interface ShortfallSheetHostProps {
   open: boolean
@@ -17,6 +18,7 @@ export interface ShortfallSheetHostProps {
   purchasesUnavailable?: boolean
   buyLabel?: string
   buyFaded?: boolean
+  onOpenLegal?: (section: LegalSection) => void
 }
 
 /** App-owned shortfall sheet. Native buys from the store. The website buys a web pack. */
@@ -33,6 +35,7 @@ export function ShortfallSheetHost({
   purchasesUnavailable = false,
   buyLabel,
   buyFaded = false,
+  onOpenLegal,
 }: ShortfallSheetHostProps) {
   const store = isStoreBuild()
   const canBuy = store || (!store && !!webPacks && webPacks.length > 0)
@@ -49,6 +52,7 @@ export function ShortfallSheetHost({
       purchasesUnavailable={store ? false : purchasesUnavailable}
       buyLabel={buyLabel}
       buyFaded={buyFaded}
+      onOpenLegal={onOpenLegal}
       onBuyPack={
         canBuy
           ? (pack: CoinPack) => {

@@ -2,6 +2,8 @@ import { useEffect, useId } from 'react'
 import { createPortal } from 'react-dom'
 import { cheapestPackForGap, isStoreBuild, packValueBlurb, type CoinPack } from '../game/iap'
 import { cheapestWebPack, type WebPackOffer } from '../game/webPacks'
+import { LegalBuyLink } from './LegalPurchases'
+import type { LegalSection } from '../game/legalCopy'
 
 export type ShortfallAction = 'hint' | 'rescue' | 'revive' | 'upgrade'
 
@@ -29,6 +31,7 @@ export interface ShortfallSheetProps {
   /** Guest and capped offers use this label and look faded. */
   buyLabel?: string
   buyFaded?: boolean
+  onOpenLegal?: (section: LegalSection) => void
 }
 
 export function ShortfallSheet({
@@ -44,6 +47,7 @@ export function ShortfallSheet({
   purchasesUnavailable = false,
   buyLabel,
   buyFaded = false,
+  onOpenLegal,
 }: ShortfallSheetProps) {
   const titleId = useId()
   const short = Math.max(0, need - have)
@@ -90,28 +94,34 @@ export function ShortfallSheet({
             Play for coins
           </button>
           {store && onBuyPack ? (
-            <button type="button" className={`btn ghost${buyFaded ? ' is-faded' : ''}`} onClick={() => onBuyPack(pack)}>
-              {buyLabel && buyLabel !== 'Buy' ? buyLabel : `Buy ${pack.label} · +${pack.coins} (${pack.priceHint})`}
-            </button>
+            <span className="product-buy-wrap">
+              <button type="button" className={`btn ghost${buyFaded ? ' is-faded' : ''}`} onClick={() => onBuyPack(pack)}>
+                {buyLabel && buyLabel !== 'Buy' ? buyLabel : `Buy ${pack.label} · +${pack.coins} (${pack.priceHint})`}
+              </button>
+              {onOpenLegal ? <LegalBuyLink onOpen={onOpenLegal} /> : null}
+            </span>
           ) : null}
           {!store && webOffer && onBuyPack ? (
-            <button
-              type="button"
-              className={`btn ghost${buyFaded ? ' is-faded' : ''}`}
-              onClick={() =>
-                onBuyPack({
-                  id: webOffer.id,
-                  productId: webOffer.productId,
-                  label: webOffer.label,
-                  coins: webOffer.coins,
-                  priceHint: webOffer.priceLabel,
-                })
-              }
-            >
-              {buyLabel && buyLabel !== 'Buy'
-                ? buyLabel
-                : `Buy ${webOffer.label} · +${webOffer.coins} (${webOffer.priceLabel})`}
-            </button>
+            <span className="product-buy-wrap">
+              <button
+                type="button"
+                className={`btn ghost${buyFaded ? ' is-faded' : ''}`}
+                onClick={() =>
+                  onBuyPack({
+                    id: webOffer.id,
+                    productId: webOffer.productId,
+                    label: webOffer.label,
+                    coins: webOffer.coins,
+                    priceHint: webOffer.priceLabel,
+                  })
+                }
+              >
+                {buyLabel && buyLabel !== 'Buy'
+                  ? buyLabel
+                  : `Buy ${webOffer.label} · +${webOffer.coins} (${webOffer.priceLabel})`}
+              </button>
+              {onOpenLegal ? <LegalBuyLink onOpen={onOpenLegal} /> : null}
+            </span>
           ) : null}
           <button type="button" className="btn shortfall-dismiss" onClick={onClose}>
             Not now

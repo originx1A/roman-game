@@ -11,6 +11,7 @@ import {
 import { sendSignInLink, userFromRequest } from '../lib/supabaseUser.ts'
 
 const SIGN_IN = 'Sign in to buy'
+const VERIFY_EMAIL = 'Confirm the sign-in email before using a purchase PIN.'
 
 /**
  * Purchase PIN for the signed-in account.
@@ -23,7 +24,7 @@ export default async function purchasePin(req: Request): Promise<Response> {
   if (req.method === 'GET') {
     try {
       const status = await pinStatus(user.id, user.lastSignInAt)
-      return json(status)
+      return json({ ...status, emailVerified: user.emailVerified })
     } catch (err) {
       console.error('purchase-pin read failed', err instanceof Error ? err.message : 'error')
       return json({ error: PURCHASES_UNAVAILABLE }, 503)
@@ -47,6 +48,9 @@ export default async function purchasePin(req: Request): Promise<Response> {
   }
 
   try {
+    if (!user.emailVerified && (action === 'create' || action === 'reset' || action === 'verify')) {
+      return json({ error: VERIFY_EMAIL }, 403)
+    }
     if (action === 'create') {
       const result = await createPurchasePin(user.id, pin, again)
       return pinResponse(result)

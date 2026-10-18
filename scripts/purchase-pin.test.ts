@@ -17,6 +17,11 @@ test('a purchase PIN is 4 digits, locks after 5 misses, and a reset needs the em
   assert.equal(P.isFourDigitPin('123'), false)
   assert.equal(P.isFourDigitPin('12a4'), false)
   assert.equal(P.isFourDigitPin('12345'), false)
+  assert.equal(P.emailIsVerified('parent@example.com', null, '2026-10-18T12:00:00.000Z'), true)
+  assert.equal(P.emailIsVerified('parent@example.com', '2026-10-18T12:00:00.000Z', null), true)
+  assert.equal(P.emailIsVerified('parent@example.com', null, null), false)
+  assert.equal(P.emailIsVerified('not-an-email', '2026-10-18T12:00:00.000Z', null), false)
+  assert.equal(P.emailIsVerified('', null, '2026-10-18T12:00:00.000Z'), false)
 
   const now = 1_000_000
   let state = P.emptyPinFails()
@@ -60,6 +65,8 @@ test('checkout asks for the PIN grant and does not save a card or turn on Link',
   assert.equal('customer' in W.CHECKOUT_WALLETS, false)
   assert.match(checkout, /CHECKOUT_WALLETS/)
   assert.match(pinFn, /sendSignInLink/)
+  assert.match(pinFn, /emailVerified/)
+  assert.match(pinFn, /Confirm the sign-in email/)
   assert.match(sheet, /Email a reset link/)
   assert.doesNotMatch(sheet, /ParentalGate|grownUpQuestion/)
 })

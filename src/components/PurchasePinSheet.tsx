@@ -10,6 +10,8 @@ import {
   type PinStatus,
 } from '../game/purchasePinApi'
 import { isFourDigitPin, lockMessage } from '../game/purchasePin'
+import { PurchaseAgreeLine, LegalBuyLink } from './LegalPurchases'
+import type { LegalSection } from '../game/legalCopy'
 
 /**
  * Parent-set 4-digit PIN. Shown before every coin purchase.
@@ -22,6 +24,7 @@ export function PurchasePinSheet({
   onClose,
   onGranted,
   onSaved,
+  onOpenLegal,
 }: {
   open: boolean
   /** purchase asks for the PIN. reset is the page opened from the email. */
@@ -30,6 +33,7 @@ export function PurchasePinSheet({
   onClose: () => void
   onGranted: (grant: string) => void
   onSaved?: () => void
+  onOpenLegal: (section: LegalSection) => void
 }) {
   const [status, setStatus] = useState<PinStatus | null>(null)
   const [pin, setPin] = useState('')
@@ -73,9 +77,10 @@ export function PurchasePinSheet({
   if (!open || typeof document === 'undefined') return null
 
   const locked = status?.locked === true
-  const creating = intent === 'purchase' && status?.hasPin === false
-  const settingNew = intent === 'reset' && status?.resetReady === true
-  const entering = intent === 'purchase' && status?.hasPin === true && !locked
+  const unverified = status?.emailVerified === false
+  const creating = intent === 'purchase' && status?.hasPin === false && !unverified
+  const settingNew = intent === 'reset' && status?.resetReady === true && !unverified
+  const entering = intent === 'purchase' && status?.hasPin === true && !locked && !unverified
   const showFields = creating || settingNew || entering
 
   async function onSubmit(e: FormEvent) {
@@ -148,7 +153,7 @@ export function PurchasePinSheet({
 
   const title = creating ? 'Set a purchase PIN' : settingNew ? 'New purchase PIN' : 'Purchase PIN'
   const node = (
-    <div className="start-sheet parental-gate" role="dialog" aria-modal="true" aria-label={title}>
+    <div className="start-sheet pin-sheet" role="dialog" aria-modal="true" aria-label={title}>
       <div className="start-sheet-scrim" onClick={onClose} />
       <form className="start-sheet-card" onSubmit={(e) => void onSubmit(e)}>
         <h3>{title}</h3>
@@ -163,6 +168,9 @@ export function PurchasePinSheet({
         ) : (
           <p className="start-sheet-tip">Enter the purchase PIN. The payment page opens after it matches.</p>
         )}
+        {unverified ? (
+          <p className="cloud-err" role="alert">Open the link in the sign-in email. A purchase PIN can be set or reset only after that email is verified.</p>
+        ) : null}
         {locked && intent !== 'reset' ? (
           <p className="cloud-err" role="alert">{lockMessage(status?.retryInMs ?? 0)}</p>
         ) : null}
@@ -203,11 +211,13 @@ export function PurchasePinSheet({
         ) : null}
         {error ? <p className="cloud-err" role="alert">{error}</p> : null}
         {info ? <p className="start-sheet-tip">{info}</p> : null}
+        {intent === 'purchase' && !unverified ? <PurchaseAgreeLine onOpen={onOpenLegal} /> : null}
         {showFields ? (
           <button type="submit" className="btn primary" disabled={busy}>
             {creating || settingNew ? 'Save PIN' : 'Continue'}
           </button>
         ) : null}
+        <LegalBuyLink onOpen={onOpenLegal} />
         {status?.hasPin && intent === 'purchase' ? (
           <button type="button" className="btn ghost" disabled={busy} onClick={() => void onForgot()}>
             Email a reset link

@@ -21,6 +21,8 @@ import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
 import { CloudScoresButton, useCloud } from './cloud/CloudScores'
 import { accessToken, initCloud, saveScore } from './cloud/cloud'
 import { PurchasePinSheet } from './components/PurchasePinSheet'
+import { LegalPurchases } from './components/LegalPurchases'
+import type { LegalSection } from './game/legalCopy'
 import { SpecialCardReveal } from './components/SpecialCardReveal'
 import { UnseenPointer } from './components/UnseenPointer'
 import { UnseenCardTile } from './components/UnseenCard'
@@ -439,6 +441,15 @@ const MENU_CSS = `
 .unseen-pointer p { margin: 0 0 0.4rem; }
 .win-world-tip { display: inline-block; margin: 0.4rem 0; font-weight: 800; }
 .stable-story { display: block; font-size: 0.75rem; font-weight: 800; margin-bottom: 0.2rem; }
+.pin-sheet { z-index: 10080; }
+.legal-sheet { z-index: 10120; }
+.legal-card { max-height: min(85vh, 40rem); overflow: auto; text-align: left; }
+.legal-draft { font-weight: 800; color: #ffd166; }
+.legal-jump { display: flex; flex-wrap: wrap; gap: 0.35rem 0.7rem; margin: 0.4rem 0 0.8rem; }
+.legal-link { background: none; border: 0; padding: 0; color: #ffd166; font: inherit; font-weight: 800; text-decoration: underline; cursor: pointer; }
+.product-buy-wrap { display: inline-flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; }
+.buy-agree { margin: 0.4rem 0; font-size: 0.85rem; }
+.home-legal { margin: 0.2rem 0 0.8rem; }
 `
 
 export default function App() {
@@ -513,6 +524,7 @@ export default function App() {
   const cloud = useCloud()
   const [askPack, setAskPack] = useState<CoinPackId | null>(null)
   const [pinReset, setPinReset] = useState(false)
+  const [legalSection, setLegalSection] = useState<LegalSection | null>(null)
   const [weekSpent, setWeekSpent] = useState(0)
   const [fountain, setFountain] = useState(() => loadFountain(Date.now()))
   const [giftCal, setGiftCal] = useState(() => loadGiftCalendar())
@@ -3038,6 +3050,9 @@ export default function App() {
             <button type="button" className={screen === 'profile' ? 'on' : ''} onClick={() => setScreen('profile')}>
               {profile ? profile.displayName.split(' ')[0] : 'Save'}
             </button>
+            <button type="button" onClick={() => setLegalSection('terms')}>
+              Legal
+            </button>
           </nav>
           <div className="hud-pills">
             <div className="score-pill coin" title="Coins">
@@ -3101,6 +3116,7 @@ export default function App() {
         purchasesUnavailable={webShop === 'unavailable'}
         buyLabel={gateFor().label}
         buyFaded={gateFor().faded}
+        onOpenLegal={setLegalSection}
       />
       <PurchasePinSheet
         open={askPack != null || pinReset}
@@ -3111,6 +3127,7 @@ export default function App() {
           setPinReset(false)
         }}
         onSaved={() => showToast('New purchase PIN saved.')}
+        onOpenLegal={setLegalSection}
         onGranted={(grant) => {
           const packId = askPack
           setAskPack(null)
@@ -3209,6 +3226,9 @@ export default function App() {
               ))}
             </div>
           </details>
+          <p className="home-legal">
+            <button type="button" className="legal-link" onClick={() => setLegalSection('terms')}>Legal & Purchases</button>
+          </p>
           <section className="stat-strip home-strip">
             <div>
               <strong>{progress.clears.length}</strong>
@@ -3758,6 +3778,7 @@ export default function App() {
                     priceText={storePrices[pack.productId]}
                     buyLabel={gateFor(pack.id).label}
                     buyFaded={gateFor(pack.id).faded}
+                    onOpenLegal={setLegalSection}
                   />
                 ))
               : webShop === 'ready' && webPacks
@@ -3776,6 +3797,7 @@ export default function App() {
                       onBuy={onBuyCoins}
                       buyLabel={gateFor(pack.id).label}
                       buyFaded={gateFor(pack.id).faded}
+                      onOpenLegal={setLegalSection}
                     />
                   ))
                 : null}
@@ -3861,6 +3883,9 @@ export default function App() {
           )}
           <section className="settings">
             <h3>Settings</h3>
+            <button type="button" className="btn ghost" onClick={() => setLegalSection('terms')}>
+              Legal & Purchases
+            </button>
             <label className="name-setting">
               Your name on shared scores
               <input
@@ -4222,6 +4247,9 @@ export default function App() {
         </span>
         <span className="foot-links">
           {!isStoreBuild() && settings.analytics !== false ? <FeedbackChip onSend={sendFeedback} /> : null}
+          <button type="button" className="privacy-link legal-link" onClick={() => setLegalSection('privacy')}>
+            Legal & Purchases
+          </button>
           <a className="privacy-link" href="./privacy.html">
             Privacy
           </a>
@@ -4245,6 +4273,7 @@ export default function App() {
       {/* Keep clear of Netlify “Powered by” badge */}
       <div className="netlify-safe" aria-hidden />
       {/* 10.06: Unseen heckler pop-up — visual only, never blocks input */}
+      <LegalPurchases section={legalSection} onClose={() => setLegalSection(null)} />
       <UnseenPopup pop={unseenPop} />
       {/* 10.06: treat defense — wild pets vs the field treat pile (home + play) */}
       <TreatDefense

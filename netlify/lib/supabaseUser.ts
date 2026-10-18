@@ -3,6 +3,8 @@
  * Uses the publishable key only. Never logs the token or the response body.
  * This is a read of the auth API at request time. It is not a database migration.
  */
+import { emailIsVerified } from '../../src/game/purchasePin.ts'
+
 const SUPABASE_URL = 'https://oelsglmfkpzbueqysvdm.supabase.co'
 const SUPABASE_KEY = 'sb_publishable_-lwtjOa1ekpRv6bdjOoTmg_lL3Tmne8'
 
@@ -18,6 +20,8 @@ export interface AuthUser {
   id: string
   /** Sign-in address. Empty when the token has none. Never log this. */
   email: string
+  /** True only after the player has opened the sign-in email. */
+  emailVerified: boolean
   lastSignInAt: number | null
 }
 
@@ -29,13 +33,21 @@ export async function userFromRequest(req: Request): Promise<AuthUser | null> {
       headers: { apikey: SUPABASE_KEY, authorization: `Bearer ${token}` },
     })
     if (!res.ok) return null
-    const data = (await res.json()) as { id?: unknown; email?: unknown; last_sign_in_at?: unknown }
+    const data = (await res.json()) as {
+      id?: unknown
+      email?: unknown
+      last_sign_in_at?: unknown
+      confirmed_at?: unknown
+      email_confirmed_at?: unknown
+    }
     if (typeof data.id !== 'string' || !/^[0-9a-f-]{16,80}$/i.test(data.id)) return null
     const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
     const parsed = typeof data.last_sign_in_at === 'string' ? Date.parse(data.last_sign_in_at) : NaN
+    const safeEmail = email.includes('@') && email.length <= 320 ? email : ''
     return {
       id: data.id,
-      email: email.includes('@') && email.length <= 320 ? email : '',
+      email: safeEmail,
+      emailVerified: emailIsVerified(safeEmail, data.confirmed_at, data.email_confirmed_at),
       lastSignInAt: Number.isFinite(parsed) ? parsed : null,
     }
   } catch {

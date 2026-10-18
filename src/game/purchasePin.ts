@@ -18,6 +18,17 @@ export function isFourDigitPin(pin: string): boolean {
   return typeof pin === 'string' && /^\d{4}$/.test(pin)
 }
 
+/**
+ * A purchase PIN can be set or reset only after the sign-in email is verified.
+ * Magic-link sign-in sets this when the player opens the email.
+ */
+export function emailIsVerified(email: string, confirmedAt: unknown, emailConfirmedAt: unknown): boolean {
+  if (typeof email !== 'string' || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return false
+  const raw = typeof emailConfirmedAt === 'string' && emailConfirmedAt ? emailConfirmedAt : confirmedAt
+  if (typeof raw !== 'string' || !raw) return false
+  return Number.isFinite(Date.parse(raw))
+}
+
 export interface PinFailState {
   fails: number
   lockedUntil: number | null

@@ -7,6 +7,7 @@ export interface PinStatus {
   locked: boolean
   retryInMs: number
   resetReady: boolean
+  emailVerified: boolean
 }
 
 export type PinCall = { ok: true; grant?: string } | { ok: false; reason: string }
@@ -44,6 +45,7 @@ export async function fetchPinStatus(token: string): Promise<PinStatus | null> {
       locked: data.locked === true,
       retryInMs: typeof data.retryInMs === 'number' ? data.retryInMs : 0,
       resetReady: data.resetReady === true,
+      emailVerified: data.emailVerified === true,
     }
   } catch {
     return null
