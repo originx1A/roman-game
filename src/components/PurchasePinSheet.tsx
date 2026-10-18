@@ -10,7 +10,7 @@ import {
   type PinStatus,
 } from '../game/purchasePinApi'
 import { isFourDigitPin, lockMessage } from '../game/purchasePin'
-import { PurchaseAgreeLine, LegalBuyLink } from './LegalPurchases'
+import { PurchaseAgreeLine, LegalBuyLink, SellerDisclosure } from './LegalPurchases'
 import type { LegalSection } from '../game/legalCopy'
 
 /**
@@ -211,7 +211,12 @@ export function PurchasePinSheet({
         ) : null}
         {error ? <p className="cloud-err" role="alert">{error}</p> : null}
         {info ? <p className="start-sheet-tip">{info}</p> : null}
-        {intent === 'purchase' && !unverified ? <PurchaseAgreeLine onOpen={onOpenLegal} /> : null}
+        {intent === 'purchase' ? (
+          <>
+            <SellerDisclosure />
+            <PurchaseAgreeLine onOpen={onOpenLegal} />
+          </>
+        ) : null}
         {showFields ? (
           <button type="submit" className="btn primary" disabled={busy}>
             {creating || settingNew ? 'Save PIN' : 'Continue'}

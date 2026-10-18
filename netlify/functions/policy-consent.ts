@@ -1,7 +1,7 @@
 import { json } from '../lib/http.ts'
 import { writePolicyConsent } from '../lib/policyConsentStore.ts'
 import { userFromRequest } from '../lib/supabaseUser.ts'
-import { POLICY_VERSION } from '../../src/game/legalCopy.ts'
+import { PRIVACY_VERSION, PURCHASE_TERMS_VERSION, TERMS_VERSION } from '../../src/game/legalCopy.ts'
 
 /**
  * Records Terms + Privacy consent on the account.
@@ -12,12 +12,20 @@ export default async function policyConsent(req: Request): Promise<Response> {
   const user = await userFromRequest(req)
   if (!user) return json({ error: 'Sign in first.' }, 401)
   let guardian = false
+  let kind: 'signup' | 'purchase' = 'signup'
   try {
-    const body = (await req.json()) as { guardian?: unknown }
+    const body = (await req.json()) as { guardian?: unknown; kind?: unknown }
     guardian = body.guardian === true
+    if (body.kind === 'purchase') kind = 'purchase'
   } catch {
     guardian = false
   }
-  const stored = await writePolicyConsent(user.id, guardian)
-  return json({ ok: true, stored, policyVersion: POLICY_VERSION })
+  const stored = await writePolicyConsent(user.id, guardian, kind)
+  return json({
+    ok: true,
+    stored,
+    privacyVersion: PRIVACY_VERSION,
+    termsVersion: TERMS_VERSION,
+    purchaseTermsVersion: PURCHASE_TERMS_VERSION,
+  })
 }

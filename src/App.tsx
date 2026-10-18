@@ -19,10 +19,10 @@ import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
 import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
 import { CloudScoresButton, useCloud } from './cloud/CloudScores'
-import { accessToken, initCloud, saveScore } from './cloud/cloud'
+import { accessToken, initCloud, recordPurchaseTermsConsent, saveScore } from './cloud/cloud'
 import { PurchasePinSheet } from './components/PurchasePinSheet'
-import { LegalPurchases } from './components/LegalPurchases'
-import type { LegalSection } from './game/legalCopy'
+import { LegalPurchases, PurchaseConfirmation } from './components/LegalPurchases'
+import { rememberPurchaseConsent, type LegalSection } from './game/legalCopy'
 import { SpecialCardReveal } from './components/SpecialCardReveal'
 import { UnseenPointer } from './components/UnseenPointer'
 import { UnseenCardTile } from './components/UnseenCard'
@@ -448,7 +448,8 @@ const MENU_CSS = `
 .legal-jump { display: flex; flex-wrap: wrap; gap: 0.35rem 0.7rem; margin: 0.4rem 0 0.8rem; }
 .legal-link { background: none; border: 0; padding: 0; color: #ffd166; font: inherit; font-weight: 800; text-decoration: underline; cursor: pointer; }
 .product-buy-wrap { display: inline-flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; }
-.buy-agree { margin: 0.4rem 0; font-size: 0.85rem; }
+.buy-agree, .seller-disclosure { margin: 0.4rem 0; font-size: 0.85rem; }
+.seller-disclosure { flex: 1 0 100%; }
 .home-legal { margin: 0.2rem 0 0.8rem; }
 `
 
@@ -525,6 +526,7 @@ export default function App() {
   const [askPack, setAskPack] = useState<CoinPackId | null>(null)
   const [pinReset, setPinReset] = useState(false)
   const [legalSection, setLegalSection] = useState<LegalSection | null>(null)
+  const [purchaseNote, setPurchaseNote] = useState<{ coins: number; label: string; total?: string; tax?: string } | null>(null)
   useEffect(() => {
     const open = (event: Event) => {
       const detail = (event as CustomEvent<string>).detail
@@ -925,6 +927,14 @@ export default function App() {
       const current = loadWallet()
       persistWallet({ ...current, coins: current.coins + result.coins })
       sfxCoin()
+      rememberPurchaseConsent(Date.now())
+      void recordPurchaseTermsConsent()
+      setPurchaseNote({
+        coins: result.coins,
+        label: result.label,
+        total: result.total,
+        tax: result.tax,
+      })
       showToast(`+${result.coins} coins · ${result.label}`)
     })
     return () => {
@@ -939,6 +949,9 @@ export default function App() {
       if (notice.type === 'granted') {
         setWallet(loadWallet())
         sfxCoin()
+        rememberPurchaseConsent(Date.now())
+        void recordPurchaseTermsConsent()
+        setPurchaseNote({ coins: notice.coins, label: notice.label })
         showToast(`+${notice.coins} coins · ${notice.label}`)
       }
     })
@@ -4264,7 +4277,7 @@ export default function App() {
             Privacy
           </a>
           <a className="privacy-link jrny-link" data-testid="jrny-link" href="https://jrny.fun" target="_blank">
-            A JRNY project
+            A brand of Funderwood
           </a>
           <button
             type="button"
@@ -4284,6 +4297,16 @@ export default function App() {
       <div className="netlify-safe" aria-hidden />
       {/* 10.06: Unseen heckler pop-up — visual only, never blocks input */}
       <LegalPurchases section={legalSection} onClose={() => setLegalSection(null)} />
+      {purchaseNote ? (
+        <PurchaseConfirmation
+          coins={purchaseNote.coins}
+          label={purchaseNote.label}
+          total={purchaseNote.total}
+          tax={purchaseNote.tax}
+          onOpenLegal={setLegalSection}
+          onClose={() => setPurchaseNote(null)}
+        />
+      ) : null}
       <UnseenPopup pop={unseenPop} />
       {/* 10.06: treat defense — wild pets vs the field treat pile (home + play) */}
       <TreatDefense

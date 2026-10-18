@@ -8,6 +8,8 @@ export interface WebCheckoutCredit {
   coins: number
   label: string
   alreadyRedeemed: boolean
+  total?: string
+  tax?: string
 }
 
 export type WebCheckoutResult = WebCheckoutCredit | { ok: false; reason: string }
@@ -88,6 +90,8 @@ export async function confirmWebCheckout(sessionId: string, token?: string | nul
       coins?: unknown
       label?: unknown
       alreadyRedeemed?: unknown
+      total?: unknown
+      tax?: unknown
       reason?: unknown
       error?: unknown
     } | null
@@ -110,6 +114,8 @@ export async function confirmWebCheckout(sessionId: string, token?: string | nul
       coins,
       label: typeof data.label === 'string' ? data.label : 'Coin pack',
       alreadyRedeemed: data.alreadyRedeemed === true || coins === 0,
+      total: typeof data.total === 'string' ? data.total : undefined,
+      tax: typeof data.tax === 'string' ? data.tax : undefined,
     }
   } catch {
     return { ok: false, reason: 'Purchases are unavailable right now. If you paid, open the return link again.' }

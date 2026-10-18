@@ -1,6 +1,6 @@
 import { packValueBlurb, isStoreBuild, type CoinPack } from '../game/iap'
 import type { CoinPackId } from '../game/iap'
-import { LegalBuyLink } from './LegalPurchases'
+import { LegalBuyLink, PurchaseAgreeLine, SellerDisclosure } from './LegalPurchases'
 import type { LegalSection } from '../game/legalCopy'
 
 export interface CoinPackCardProps {
@@ -34,6 +34,12 @@ export function CoinPackCard({ pack, onBuy, priceText, webBuy = false, buyLabel 
             </button>
             {onOpenLegal ? <LegalBuyLink onOpen={onOpenLegal} /> : null}
           </span>
+        ) : null}
+        {showBuy && onOpenLegal ? (
+          <>
+            <SellerDisclosure />
+            <PurchaseAgreeLine onOpen={onOpenLegal} />
+          </>
         ) : null}
       </div>
     </article>

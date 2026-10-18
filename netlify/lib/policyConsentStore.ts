@@ -4,7 +4,7 @@
  * supabase/migration-006-policy-consent.sql, which is NOT APPLIED.
  * Do not turn the flag on until that file has been applied.
  */
-import { POLICY_VERSION } from '../../src/game/legalCopy.ts'
+import { PRIVACY_VERSION, PURCHASE_TERMS_VERSION, TERMS_VERSION } from '../../src/game/legalCopy.ts'
 
 const SUPABASE_URL = 'https://oelsglmfkpzbueqysvdm.supabase.co'
 
@@ -17,10 +17,19 @@ export function policyConsentWriteEnabled(flag: string | undefined, hasKey: bool
  * Returns false without calling Supabase when the flag is off or the key is missing.
  * Never logs the key or the token.
  */
-export async function writePolicyConsent(userId: string, guardian: boolean): Promise<boolean> {
+export async function writePolicyConsent(userId: string, guardian: boolean, kind: 'signup' | 'purchase' = 'signup'): Promise<boolean> {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!policyConsentWriteEnabled(process.env.ACCOUNT_LEDGER_ENABLED, !!key) || !key) return false
   if (!/^[0-9a-f-]{36}$/i.test(userId)) return false
+  const body = kind === 'purchase'
+    ? { purchase_terms_version: PURCHASE_TERMS_VERSION }
+    : {
+        privacy_version: PRIVACY_VERSION,
+        terms_version: TERMS_VERSION,
+        policy_consented_at: new Date().toISOString(),
+        guardian_consent: guardian === true,
+        consent_type: guardian ? 'terms_privacy_parent' : 'terms_privacy_13plus',
+      }
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/players?id=eq.${encodeURIComponent(userId)}`, {
       method: 'PATCH',
@@ -30,11 +39,7 @@ export async function writePolicyConsent(userId: string, guardian: boolean): Pro
         'content-type': 'application/json',
         prefer: 'return=minimal',
       },
-      body: JSON.stringify({
-        policy_version: POLICY_VERSION,
-        policy_consented_at: new Date().toISOString(),
-        guardian_consent: guardian === true,
-      }),
+      body: JSON.stringify(body),
     })
     return res.ok
   } catch {

@@ -2,7 +2,7 @@ import { useEffect, useId } from 'react'
 import { createPortal } from 'react-dom'
 import { cheapestPackForGap, isStoreBuild, packValueBlurb, type CoinPack } from '../game/iap'
 import { cheapestWebPack, type WebPackOffer } from '../game/webPacks'
-import { LegalBuyLink } from './LegalPurchases'
+import { LegalBuyLink, PurchaseAgreeLine, SellerDisclosure } from './LegalPurchases'
 import type { LegalSection } from '../game/legalCopy'
 
 export type ShortfallAction = 'hint' | 'rescue' | 'revive' | 'upgrade'
@@ -88,6 +88,12 @@ export function ShortfallSheet({
         <p className="shortfall-body">A win pays about 45 coins. Free coins come back every 6 hours.</p>
         {!store && purchasesUnavailable ? (
           <p className="shortfall-body shortfall-web-note">Purchases are unavailable right now.</p>
+        ) : null}
+        {onOpenLegal && (store || webOffer) ? (
+          <>
+            <SellerDisclosure />
+            <PurchaseAgreeLine onOpen={onOpenLegal} />
+          </>
         ) : null}
         <div className="shortfall-actions">
           <button type="button" className="btn primary" onClick={onPlay}>

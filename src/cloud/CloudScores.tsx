@@ -2,7 +2,20 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { isProfane } from './profanity'
 import { NAME_MAX, loadConsent, saveConsent, onCloud, savePlayerName, sendMagicLink, signOut, type CloudState } from './cloud'
-import { policyConsentRecord, POLICY_VERSION, SHARED_PRIVACY_URL, SHARED_TERMS_URL, signupAgreeLabel, type PolicyConsentRecord } from '../game/legalCopy'
+import {
+  policyConsentRecord,
+  PRESET_NICKNAMES,
+  PRIVACY_VERSION,
+  SHARED_PRIVACY_URL,
+  SHARED_TERMS_URL,
+  SIGNUP_ACCOUNT_NOTE,
+  SIGNUP_CHILD_NOTE,
+  SIGNUP_NEWS,
+  SIGNUP_PARENT_NOTE,
+  TERMS_VERSION,
+  signupAgreeLabel,
+  type PolicyConsentRecord,
+} from '../game/legalCopy'
 
 /**
  * "Save my scores" button + sheets: email magic-link sign-in, then a one-time name prompt.
@@ -23,43 +36,96 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
   const [name, setName] = useState(suggestedName ?? '')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
-  const [age13, setAge13] = useState(() => loadConsent()?.age13 ?? false)
-  const [optIn, setOptIn] = useState(() => loadConsent()?.optIn ?? false)
-  const [policyOn, setPolicyOn] = useState(() => !!loadConsent()?.policy)
-  function openLegal(section: 'use' | 'privacy') {
+  const stored = loadConsent()
+  const [who, setWho] = useState<'13' | 'parent' | 'child' | null>(() => {
+    if (!stored?.policy) return null
+    return stored.age13 ? '13' : stored.policy.guardian ? 'parent' : null
+  })
+  const [optIn, setOptIn] = useState(() => stored?.optIn ?? false)
+  const [policyOn, setPolicyOn] = useState(false)
+  const [nickname, setNickname] = useState(() => stored?.policy?.nickname ?? PRESET_NICKNAMES[0])
+  const age13 = who === '13'
+  function openLegal(section: 'use' | 'privacy' | 'parents') {
     window.dispatchEvent(new CustomEvent('roman:open-legal', { detail: section }))
   }
   function agreedPolicy(): PolicyConsentRecord | null {
+    if (who !== '13' && who !== 'parent') return null
     if (!policyOn) return null
+    const guardian = who === 'parent'
+    if (guardian && !(PRESET_NICKNAMES as readonly string[]).includes(nickname)) return null
     const existing = loadConsent()?.policy
-    if (existing && existing.guardian === !age13 && existing.policyVersion === POLICY_VERSION) return existing
-    return policyConsentRecord(Date.now(), !age13)
+    if (
+      existing &&
+      existing.guardian === guardian &&
+      existing.privacyVersion === PRIVACY_VERSION &&
+      existing.termsVersion === TERMS_VERSION &&
+      (!guardian || existing.nickname === nickname)
+    ) {
+      return existing
+    }
+    return policyConsentRecord(Date.now(), guardian, guardian ? nickname : undefined)
   }
   const consentChecks = (
     <div className="cloud-checks">
-      <label className="cloud-check">
-        <input type="checkbox" checked={age13} onChange={(e) => setAge13(e.target.checked)} />
-        <span>I'm 13 or older</span>
-      </label>
-      <label className="cloud-check">
-        <input type="checkbox" checked={policyOn} onChange={(e) => setPolicyOn(e.target.checked)} />
-        <span aria-label={signupAgreeLabel(!age13)}>
-          {age13 ? 'I agree to the ' : 'I am the parent or guardian and I agree to the '}
-          <button type="button" className="legal-link" onClick={(e) => { e.preventDefault(); e.stopPropagation(); openLegal('use') }}>Terms</button>
-          {' and '}
-          <button type="button" className="legal-link" onClick={(e) => { e.preventDefault(); e.stopPropagation(); openLegal('privacy') }}>Privacy Policy</button>
-        </span>
-      </label>
+      <fieldset className="cloud-checks">
+        <legend className="start-sheet-tip">Who's signing up?</legend>
+        <label className="cloud-check">
+          <input type="radio" name="signup-who" checked={who === '13'} onChange={() => setWho('13')} />
+          <span>I'm 13 or older</span>
+        </label>
+        <label className="cloud-check">
+          <input type="radio" name="signup-who" checked={who === 'parent'} onChange={() => setWho('parent')} />
+          <span>I'm a parent or guardian setting this up for a child under 13</span>
+        </label>
+        <label className="cloud-check">
+          <input type="radio" name="signup-who" checked={who === 'child'} onChange={() => setWho('child')} />
+          <span>I'm under 13</span>
+        </label>
+      </fieldset>
+      {who === 'parent' ? (
+        <label className="cloud-check">
+          <span>Child's nickname</span>
+          <select aria-label="Child's nickname" value={nickname} onChange={(e) => setNickname(e.target.value)}>
+            {PRESET_NICKNAMES.map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      {who === '13' || who === 'parent' ? (
+        <label className="cloud-check">
+          <input type="checkbox" checked={policyOn} onChange={(e) => setPolicyOn(e.target.checked)} />
+          <span aria-label={signupAgreeLabel(who === 'parent')}>
+            {who === 'parent' ? (
+              <>
+                I'm this child's parent or legal guardian. I agree to the{' '}
+                <button type="button" className="legal-link" onClick={(e) => { e.preventDefault(); e.stopPropagation(); openLegal('use') }}>Terms of Use</button>
+                {' '}and{' '}
+                <button type="button" className="legal-link" onClick={(e) => { e.preventDefault(); e.stopPropagation(); openLegal('privacy') }}>Privacy Policy</button>
+                {' '}for them, and I consent to jrny.fun collecting and using my child's game progress, preset nickname and purchase history as described in the Privacy Policy.
+              </>
+            ) : (
+              <>
+                I agree to the{' '}
+                <button type="button" className="legal-link" onClick={(e) => { e.preventDefault(); e.stopPropagation(); openLegal('use') }}>Terms of Use</button>
+                {' '}and{' '}
+                <button type="button" className="legal-link" onClick={(e) => { e.preventDefault(); e.stopPropagation(); openLegal('privacy') }}>Privacy Policy</button>.
+              </>
+            )}
+          </span>
+        </label>
+      ) : null}
       <p className="start-sheet-tip">
         <a className="legal-link" href={SHARED_TERMS_URL} target="_blank" rel="noopener noreferrer">romansgame.com/terms</a>
         {' · '}
         <a className="legal-link" href={SHARED_PRIVACY_URL} target="_blank" rel="noopener noreferrer">romansgame.com/privacy</a>
       </p>
-      <label className="cloud-check">
-        <input type="checkbox" checked={optIn} onChange={(e) => setOptIn(e.target.checked)} />
-        <span>Get Roman's World News: the story behind this game. Unsubscribe anytime.</span>
-      </label>
-      {/* Kit newsletter only: unsubscribing there never touches the game account */}
+      {who === '13' ? (
+        <label className="cloud-check">
+          <input type="checkbox" checked={optIn} onChange={(e) => setOptIn(e.target.checked)} />
+          <span>{SIGNUP_NEWS}</span>
+        </label>
+      ) : null}
     </div>
   )
 
@@ -89,7 +155,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
     await signOut()
     setEmail('')
     setName('')
-    setAge13(false)
+    setWho(null)
     setOptIn(false)
     setPolicyOn(false)
     saveConsent({ age13: false, optIn: false })
@@ -125,13 +191,12 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 className="start-sheet-card"
                 onSubmit={async (e) => {
                   e.preventDefault()
+                  if (who === 'child') return setSheet('parent')
+                  if (!who) return setErr('Choose who is signing up.')
                   const policy = agreedPolicy()
-                  if (!policy) {
-                    if (!age13) return setSheet('parent')
-                    return setErr('Agree to the Terms and Privacy Policy to make an account.')
-                  }
+                  if (!policy) return setErr('Agree to the Terms of Use and Privacy Policy to make an account.')
                   if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setErr('Type a full email address.')
-                  saveConsent({ age13, optIn, policy })
+                  saveConsent({ age13, optIn: who === '13' && optIn, policy })
                   setBusy(true)
                   const r = await sendMagicLink(email)
                   setBusy(false)
@@ -141,7 +206,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
               >
                 <h3>Save your scores</h3>
                 <p className="start-sheet-tip">
-                  Get on the leaderboard and keep your scores on any device. One account covers romansgame.com and this game. We'll email you a sign-in link. No password.
+                  Get on the leaderboard and keep your scores on any device. One account works on romansgame.com and play.romansgame.com. We'll email you a sign-in link. No password.
                 </p>
                 <input className="name-input" type="email" inputMode="email" autoComplete="email" placeholder="Email address" aria-label="Email address" value={email} onChange={(e) => setEmail(e.target.value)} />
                 {consentChecks}
@@ -149,6 +214,13 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 <button type="submit" className="btn primary" disabled={busy}>
                   {busy ? 'Sending…' : 'Email me a sign-in link'}
                 </button>
+                {who === '13' ? <p className="start-sheet-tip">{SIGNUP_ACCOUNT_NOTE}</p> : null}
+                {who === 'parent' ? (
+                  <p className="start-sheet-tip">
+                    {SIGNUP_PARENT_NOTE}{' '}
+                    <button type="button" className="legal-link" onClick={() => openLegal('parents')}>Parents' page</button>
+                  </p>
+                ) : null}
                 <button type="button" className="btn ghost" onClick={() => setSheet(null)}>
                   Not now
                 </button>
@@ -170,14 +242,15 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 className="start-sheet-card"
                 onSubmit={async (e) => {
                   e.preventDefault()
-                  if (!name.trim() || nameProblem) return
-                  const policy = agreedPolicy()
+                  const policy = agreedPolicy() ?? loadConsent()?.policy ?? null
+                  const chosen = policy?.guardian ? (policy.nickname || nickname) : name
+                  if (!policy?.guardian && (!name.trim() || nameProblem)) return
                   if (!policy) {
-                    if (!age13) return setSheet('parent')
-                    return setErr('Agree to the Terms and Privacy Policy to make an account.')
+                    if (who === 'child') return setSheet('parent')
+                    return setErr('Agree to the Terms of Use and Privacy Policy to make an account.')
                   }
                   setBusy(true)
-                  const r = await savePlayerName(name, { age13, optIn, policy })
+                  const r = await savePlayerName(chosen, { age13: policy.guardian ? false : age13, optIn: policy.guardian ? false : optIn, policy })
                   setBusy(false)
                   if (r.ok) setSheet(r.publicName && r.publicName !== name.trim() ? 'account' : null)
                   else setErr(r.error ?? 'Something went wrong.')
@@ -187,10 +260,14 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 <p className="start-sheet-tip">
                   This name will be shown publicly on the leaderboard, so don't use your full real name. If someone already has it, we'll add a number (like {name.trim() && !nameProblem ? `${name.trim()}02` : 'Mike02'}). You only do this once.
                 </p>
-                <input className="name-input" type="text" maxLength={NAME_MAX} autoComplete="nickname" placeholder="Your name" aria-label="Your name" value={name} onChange={(e) => setName(e.target.value)} />
+                {loadConsent()?.policy?.guardian ? (
+                  <p className="start-sheet-tip">Leaderboard nickname: <b>{loadConsent()?.policy?.nickname || nickname}</b></p>
+                ) : (
+                  <input className="name-input" type="text" maxLength={NAME_MAX} autoComplete="nickname" placeholder="Your name" aria-label="Your name" value={name} onChange={(e) => setName(e.target.value)} />
+                )}
                 {(!loadConsent()?.policy || !loadConsent()?.age13) && consentChecks}
                 {(nameProblem || err) && <p className="cloud-err" role="alert">{nameProblem || err}</p>}
-                <button type="submit" className="btn primary" disabled={busy || !name.trim() || !!nameProblem}>
+                <button type="submit" className="btn primary" disabled={busy || (loadConsent()?.policy?.guardian ? !(loadConsent()?.policy?.nickname || nickname) : (!name.trim() || !!nameProblem))}>
                   {busy ? 'Saving…' : 'Save name'}
                 </button>
               </form>
@@ -198,10 +275,8 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
             {sheet === 'parent' && (
               <div className="start-sheet-card">
                 <h3>Ask a parent or guardian</h3>
-                <p className="start-sheet-tip">
-                  A player under 13 needs a parent or guardian to agree to the Terms and Privacy Policy. The parent uses their email for the shared account and checks “I am the parent or guardian and I agree to the Terms and Privacy Policy.” You can keep playing without an account. Scores stay on this device.
-                </p>
-                <button type="button" className="btn primary" onClick={() => setSheet('email')}>
+                <p className="start-sheet-tip">{SIGNUP_CHILD_NOTE}</p>
+                <button type="button" className="btn primary" onClick={() => { setWho('parent'); setSheet('email') }}>
                   A parent is here
                 </button>
                 <button type="button" className="btn ghost" onClick={() => setSheet(null)}>

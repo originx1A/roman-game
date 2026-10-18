@@ -1,5 +1,5 @@
 import { gaEvent } from '../game/analytics'
-import { consentAllowsAccount, parseStoredConsent, type PolicyConsentRecord } from '../game/legalCopy'
+import { consentAllowsAccount, nicknameAllowed, parseStoredConsent, type PolicyConsentRecord } from '../game/legalCopy'
 import { adoptCloudProgress, parkCloudProgress } from '../game/storage'
 /**
  * Player accounts + score saving (Supabase, project romans-game).
@@ -204,19 +204,22 @@ export async function sendMagicLink(email: string): Promise<{ ok: boolean; error
 export async function savePlayerName(name: string, consent: Consent): Promise<{ ok: boolean; error?: string; publicName?: string }> {
   if (!consentAllowsAccount(consent)) {
     if (!consent.age13 && !consent.policy?.guardian) return { ok: false, error: 'Ask a parent to sign up for you.' }
-    return { ok: false, error: 'Agree to the Terms and Privacy Policy to make an account.' }
+    return { ok: false, error: 'Agree to the Terms of Use and Privacy Policy to make an account.' }
+  }
+  const display_name = name.trim().replace(/\s+/g, ' ').slice(0, NAME_MAX)
+  if (consent.policy?.guardian && !nicknameAllowed(display_name, true)) {
+    return { ok: false, error: 'Pick a nickname from the list.' }
   }
   const sb = await client()
   if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
   const { data } = await sb.auth.getSession()
   const uid = data.session?.user.id
   if (!uid) return { ok: false, error: 'Please sign in first.' }
-  const display_name = name.trim().replace(/\s+/g, ' ').slice(0, NAME_MAX)
   // insert first; if the row already exists, update just the name (players can only write display_name,
   // so an upsert, which also writes id, is refused by the column grant).
   // age_13_plus stays true: the live rule only accepts that. A parent agreeing for a player
-  // under 13 is the guardian flag on the device. policy_version and policy_consented_at are
-  // not columns on the live table. Do not send them. Migration 006 (not applied) adds them.
+  // under 13 is the guardian flag on the device. Privacy and terms versions are not written
+  // on this insert. Migration 006 (not applied) adds those columns.
   let { data: row, error } = await sb.from('players').insert({ id: uid, display_name, age_13_plus: true, marketing_opt_in: consent.optIn }).select('display_name, public_name').single()
   if (error?.code === '23505') {
     ;({ data: row, error } = await sb.from('players').update({ display_name }).eq('id', uid).select('display_name, public_name').single())
@@ -250,10 +253,25 @@ export async function recordPolicyConsent(guardian: boolean): Promise<void> {
     await fetch('/api/policy-consent', {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-      body: JSON.stringify({ guardian: guardian === true }),
+      body: JSON.stringify({ kind: 'signup', guardian: guardian === true }),
     })
   } catch {
     /* Device copy already has the time and version. */
+  }
+}
+
+/** Asks the server to store the Terms of Purchase version. No-ops unless the migration flag is on. */
+export async function recordPurchaseTermsConsent(): Promise<void> {
+  try {
+    const token = await accessToken()
+    if (!token) return
+    await fetch('/api/policy-consent', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({ kind: 'purchase' }),
+    })
+  } catch {
+    /* The device copy of the purchase version is enough until the migration is applied. */
   }
 }
 

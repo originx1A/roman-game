@@ -7,6 +7,13 @@ import { packCadCents } from '../../src/game/economy.ts'
 import { isCheckoutSessionId, readStripeKey, stripeClient } from '../lib/stripeServer.ts'
 import { userIdFromRequest } from '../lib/supabaseUser.ts'
 
+function formatMoney(cents: number, currency: string): string {
+  const dollars = (Math.max(0, cents) / 100).toFixed(2)
+  if (currency === 'CAD') return `CA$${dollars}`
+  if (currency === 'USD') return `US$${dollars}`
+  return `${currency} ${dollars}`
+}
+
 
 /**
  * Looks up the Checkout Session at Stripe. Coins are returned only when Stripe
@@ -77,12 +84,17 @@ export default async function confirmCheckout(req: Request): Promise<Response> {
         console.error('coin ledger write failed', err instanceof Error ? err.message : 'error')
       }
     }
+    const amount = session.amount_total
+    const currency = (session.currency || pack.currency || 'usd').toUpperCase()
+    const taxCents = session.total_details?.amount_tax
     return json({
       ok: true,
       alreadyRedeemed: false,
       coins: pack.coins,
       label: pack.label,
       packId: pack.id,
+      total: typeof amount === 'number' ? formatMoney(amount, currency) : undefined,
+      tax: typeof taxCents === 'number' ? `Tax: ${formatMoney(taxCents, currency)}` : undefined,
     })
   } catch (err) {
     console.error('confirm-checkout failed', err instanceof Error ? err.message : 'error')
