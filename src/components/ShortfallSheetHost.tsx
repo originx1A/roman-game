@@ -15,6 +15,8 @@ export interface ShortfallSheetHostProps {
   /** Website catalog. Leave unset in the native app. */
   webPacks?: WebPackOffer[] | null
   purchasesUnavailable?: boolean
+  buyLabel?: string
+  buyFaded?: boolean
 }
 
 /** App-owned shortfall sheet. Native buys from the store. The website buys a web pack. */
@@ -29,6 +31,8 @@ export function ShortfallSheetHost({
   onBuyCoins,
   webPacks,
   purchasesUnavailable = false,
+  buyLabel,
+  buyFaded = false,
 }: ShortfallSheetHostProps) {
   const store = isStoreBuild()
   const canBuy = store || (!store && !!webPacks && webPacks.length > 0)
@@ -43,6 +47,8 @@ export function ShortfallSheetHost({
       onPlay={onPlay}
       webPacks={store ? null : webPacks}
       purchasesUnavailable={store ? false : purchasesUnavailable}
+      buyLabel={buyLabel}
+      buyFaded={buyFaded}
       onBuyPack={
         canBuy
           ? (pack: CoinPack) => {

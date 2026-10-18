@@ -31,9 +31,12 @@ export function treasureIcon(t: Treasure): string {
  *  Every coin drop is at least 3, so a later parade is smaller but never empty. Index-aligned with the buddies. */
 export const TREASURE_MIN_COIN = 3
 export function makeTreasure(slots: number, rand: () => number = Math.random, budget = 50, allowSpin = true): Treasure[] {
-  const n = Math.max(0, Math.min(TREASURE_DROPS, Math.floor(slots)))
+  const asked = Math.max(0, Math.min(TREASURE_DROPS, Math.floor(slots)))
+  const budgetFloor = Math.max(0, Math.floor(budget))
+  // Never spend more than the pot share. A small parade funds fewer drops instead of going over.
+  const n = Math.min(asked, Math.floor(budgetFloor / TREASURE_MIN_COIN))
   if (n === 0) return []
-  let left = Math.max(n * TREASURE_MIN_COIN, Math.floor(budget))
+  let left = budgetFloor
   const kinds: ('coins' | 'hint' | 'spin')[] = Array.from({ length: n }, () => 'coins')
   const put = (k: 'hint' | 'spin', value: number) => {
     // keep at least 3 coins for every other buddy

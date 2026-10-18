@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { onCardProgress, type CardProgress } from '../cloud/cloud'
 import { CARD_PIECES, localCard } from '../game/unseenCard'
+import { CARD_REVEAL } from '../game/worldLinks'
 import type { RecordsBlob } from '../game/replay'
 
 /** Server count when signed in, this device's count otherwise */
@@ -61,7 +62,7 @@ export function UnseenCardTile({ records }: { records?: RecordsBlob }) {
         <UnseenCardArt pieces={earned ? CARD_PIECES : pieces} />
         <span className="unseen-tile-text">
           <b>{earned ? 'Unseen card earned!' : `Unseen card: ${pieces} of ${CARD_PIECES}`}</b>
-          <small>{earned ? 'It’s in your collection.' : 'Exclusive. Only earned in the game.'}</small>
+          <small>{earned ? 'It will appear in your card collection at romansgame.com soon.' : 'Exclusive. Only earned in the game.'}</small>
         </span>
       </button>
       {open ? createPortal(
@@ -69,12 +70,15 @@ export function UnseenCardTile({ records }: { records?: RecordsBlob }) {
           <div className="unseen-modal-body" onClick={(e) => e.stopPropagation()}>
             <UnseenCardArt pieces={earned ? CARD_PIECES : pieces} size="lg" />
             <h3>{earned ? 'The Unseen is yours' : `Unseen card: ${pieces} of ${CARD_PIECES}`}</h3>
-            <p>{earned ? 'The card has turned. The Unseen is yours.' : 'Each piece brings the card closer. Collect them all and it turns over.'}</p>
+            <p>{earned ? CARD_REVEAL.body : 'Each piece brings the card closer. Collect them all and it turns over.'}</p>
             <ul>
               <li>Clear a board for the first time: 1 piece (20 boards)</li>
               <li>Win the daily puzzle: 1 piece a day (30 days)</li>
             </ul>
             <p className="unseen-note">Sign in to save the card to your account.</p>
+            {earned ? (
+              <a className="btn primary" href={CARD_REVEAL.href} target="_blank" rel="noopener noreferrer">{CARD_REVEAL.button}</a>
+            ) : null}
             <button type="button" className="btn primary" onClick={() => setOpen(false)}>OK</button>
           </div>
         </div>,

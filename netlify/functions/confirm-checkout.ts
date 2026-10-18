@@ -1,15 +1,18 @@
 import { getStore } from '@netlify/blobs'
 import { webPackById } from '../lib/coinPacks.ts'
 import { json, PURCHASES_UNAVAILABLE } from '../lib/http.ts'
+import { markSpendPaid, writeLedgerCredit } from '../lib/accountMoney.ts'
 import { buildPurchaseRecord, PURCHASE_STORE } from '../lib/purchases.ts'
+import { packCadCents } from '../../src/game/economy.ts'
 import { isCheckoutSessionId, readStripeKey, stripeClient } from '../lib/stripeServer.ts'
+import { userIdFromRequest } from '../lib/supabaseUser.ts'
 
 
 /**
  * Looks up the Checkout Session at Stripe. Coins are returned only when Stripe
  * says the payment is paid, and only once per session id.
- * A webhook is not used: coins live on the device, so they can only be added
- * when the player comes back to this browser.
+ * Sessions created for an account must be confirmed by that same account.
+ * Older sessions with no account id still credit the device that returns.
  */
 export default async function confirmCheckout(req: Request): Promise<Response> {
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
@@ -41,6 +44,14 @@ export default async function confirmCheckout(req: Request): Promise<Response> {
       return json({ ok: false, reason: 'Payment did not match this pack. No coins were added.' })
     }
 
+    const accountId = typeof session.metadata?.userId === 'string' ? session.metadata.userId : ''
+    if (accountId) {
+      const caller = await userIdFromRequest(req)
+      if (!caller || caller !== accountId) {
+        return json({ ok: false, reason: 'Sign in to finish adding these coins.' }, 401)
+      }
+    }
+
     const store = getStore({ name: PURCHASE_STORE, consistency: 'strong' })
     const { modified } = await store.setJSON(
       session.id,
@@ -49,6 +60,22 @@ export default async function confirmCheckout(req: Request): Promise<Response> {
     )
     if (!modified) {
       return json({ ok: true, alreadyRedeemed: true, coins: 0, label: pack.label, packId: pack.id })
+    }
+    if (accountId) {
+      try {
+        await writeLedgerCredit({
+          sessionId: session.id,
+          userId: accountId,
+          packId: pack.id,
+          coins: pack.coins,
+          at: new Date().toISOString(),
+          cadCents: packCadCents(pack.id),
+          usdCents: session.amount_total ?? pack.unitAmount,
+        })
+        await markSpendPaid(accountId, session.id, pack.id)
+      } catch (err) {
+        console.error('coin ledger write failed', err instanceof Error ? err.message : 'error')
+      }
     }
     return json({
       ok: true,

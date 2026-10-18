@@ -1,4 +1,5 @@
 import { gaEvent } from '../game/analytics'
+import { adoptCloudProgress, parkCloudProgress } from '../game/storage'
 /**
  * Player accounts + score saving (Supabase, project romans-game).
  *
@@ -26,6 +27,11 @@ export interface ScoreRow {
   puzzle_id?: string
   /** Toronto date (YYYY-MM-DD) of a scored daily puzzle win */
   daily_date?: string
+  /**
+   * Hint, rescue, extra heart, or a paid perk badge. Stored on the device queue.
+   * Omitted from the live insert until the scores.assisted column exists (migration not applied).
+   */
+  assisted?: boolean
   /** ISO time the game ended (kept so queued scores are not re-sent twice) */
   at: string
 }
@@ -144,6 +150,11 @@ async function loadPlayer(sb: SupabaseClient, session: Session | null) {
     queueOwner = null
     return set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined })
   }
+  try {
+    adoptCloudProgress(session.user.id)
+  } catch {
+    /* a bad save must not block sign-in */
+  }
   if (queueOwner !== session.user.id) {
     queueOwner = session.user.id
     // games played while signed out belong to the player who signs in now
@@ -208,7 +219,19 @@ export async function savePlayerName(name: string, consent: Consent): Promise<{ 
   return { ok: true, publicName: row.public_name }
 }
 
+export async function accessToken(): Promise<string | null> {
+  const sb = await client()
+  if (!sb) return null
+  const { data } = await sb.auth.getSession()
+  return data.session?.access_token ?? null
+}
+
 export async function signOut(): Promise<void> {
+  try {
+    parkCloudProgress()
+  } catch {
+    /* keep the local save either way */
+  }
   const sb = await client()
   // local scope: only this device; this player's unsent scores stay queued under their id
   await sb?.auth.signOut({ scope: 'local' }).catch(() => undefined)
@@ -226,6 +249,7 @@ export function saveScore(row: Omit<ScoreRow, 'at'>): void {
     mode: row.mode,
     puzzle_id: row.puzzle_id?.slice(0, 80),
     ...(row.mode === 'daily' && row.daily_date && /^\d{4}-\d{2}-\d{2}$/.test(row.daily_date) ? { daily_date: row.daily_date } : {}),
+    ...(row.assisted ? { assisted: true } : {}),
     at: new Date().toISOString(),
   }
   writeQueue([...readQueue(), clean])
@@ -246,7 +270,7 @@ export async function flushScores(): Promise<void> {
     if (!sb) return
     // the server only takes a daily_date from the last week; older queued rows still send their score
     const weekAgo = new Date(Date.now() - 6 * 86_400_000).toISOString().slice(0, 10)
-    const rows = q.map(({ at: _at, ...r }) => (r.daily_date && r.daily_date < weekAgo ? { ...r, daily_date: undefined } : r))
+    const rows = q.map(({ at: _at, assisted: _assisted, ...r }) => (r.daily_date && r.daily_date < weekAgo ? { ...r, daily_date: undefined } : r))
     const { data: sess } = await sb.auth.getSession()
     if (sess.session?.user.id !== owner) return // switched player mid-send: leave the queue alone
     const { error } = await sb.from('scores').insert(rows)

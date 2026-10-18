@@ -26,6 +26,9 @@ export interface ShortfallSheetProps {
   webPacks?: WebPackOffer[] | null
   /** Website shop could not reach the payment functions. */
   purchasesUnavailable?: boolean
+  /** Guest and capped offers use this label and look faded. */
+  buyLabel?: string
+  buyFaded?: boolean
 }
 
 export function ShortfallSheet({
@@ -39,6 +42,8 @@ export function ShortfallSheet({
   onBuyPack,
   webPacks,
   purchasesUnavailable = false,
+  buyLabel,
+  buyFaded = false,
 }: ShortfallSheetProps) {
   const titleId = useId()
   const short = Math.max(0, need - have)
@@ -76,7 +81,7 @@ export function ShortfallSheet({
           {actionLabel} costs {need} · you have {have} · need {short}
         </p>
         <p className="shortfall-body">{packValueBlurb(100)}</p>
-        <p className="shortfall-body">Win a board for ~90–200 coins</p>
+        <p className="shortfall-body">A win pays about 45 coins. Free coins come back every 6 hours.</p>
         {!store && purchasesUnavailable ? (
           <p className="shortfall-body shortfall-web-note">Purchases are unavailable right now.</p>
         ) : null}
@@ -85,14 +90,14 @@ export function ShortfallSheet({
             Play for coins
           </button>
           {store && onBuyPack ? (
-            <button type="button" className="btn ghost" onClick={() => onBuyPack(pack)}>
-              Buy {pack.label} · +{pack.coins} ({pack.priceHint})
+            <button type="button" className={`btn ghost${buyFaded ? ' is-faded' : ''}`} onClick={() => onBuyPack(pack)}>
+              {buyLabel && buyLabel !== 'Buy' ? buyLabel : `Buy ${pack.label} · +${pack.coins} (${pack.priceHint})`}
             </button>
           ) : null}
           {!store && webOffer && onBuyPack ? (
             <button
               type="button"
-              className="btn ghost"
+              className={`btn ghost${buyFaded ? ' is-faded' : ''}`}
               onClick={() =>
                 onBuyPack({
                   id: webOffer.id,
@@ -103,7 +108,9 @@ export function ShortfallSheet({
                 })
               }
             >
-              Buy {webOffer.label} · +{webOffer.coins} ({webOffer.priceLabel})
+              {buyLabel && buyLabel !== 'Buy'
+                ? buyLabel
+                : `Buy ${webOffer.label} · +${webOffer.coins} (${webOffer.priceLabel})`}
             </button>
           ) : null}
           <button type="button" className="btn shortfall-dismiss" onClick={onClose}>

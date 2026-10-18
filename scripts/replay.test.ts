@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict'
+import { register } from 'node:module'
 import { test } from 'node:test'
-import {
+
+register('./ts-resolve.mjs', import.meta.url)
+const {
   comboMove, dailyIndex, emptyRecords, finishDaily, ghostProgress, ghostSplits, liveStreak, migrateRecords, newCombo,
   paceDelta, prevDateKey, recordRun, replayCoins, scoreRunV2, starsFor, startDaily, targetsFor, torontoDateKey, trialUnlocked,
-  UNDO_COST, type Targets,
-} from '../src/game/replay.ts'
+  UNDO_COST,
+} = await import('../src/game/replay.ts')
+type Targets = import('../src/game/replay.ts').Targets
 
 const T5 = targetsFor({ size: 5, difficulty: 'easy' })
 
@@ -142,7 +146,7 @@ test('daily: Toronto date, same board all day, first attempt only, streak', () =
 test('share text uses the player name or "I scored", never "Roman\'s score"', async () => {
   const { scoreShareText } = await import('../src/game/replay.ts')
   const a = scoreShareText({ name: 'Tony', score: 12400, levelLabel: 'Level 7 (Summit)', stars: 3, timeMs: 42000, newBest: true })
-  assert.equal(a, "Tony scored 12,400 on Level 7 (Summit) — 3 stars ⭐⭐⭐ — New best! — beat my time (0:42) in Roman's Game")
+  assert.equal(a, "Tony scored 12,400 on Level 7 (Summit) — 3 stars ⭐⭐⭐ — New best! — beat my time (0:42) in Roman's Game — https://romansgame.com")
   const b = scoreShareText({ score: 1840, levelLabel: 'Level 1 (Dawn)' })
   assert.ok(b.startsWith('I scored 1,840 on Level 1 (Dawn)'))
   assert.ok(!/Roman's score/.test(a + b))

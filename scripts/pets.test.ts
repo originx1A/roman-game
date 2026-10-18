@@ -12,14 +12,14 @@ const DAY = P.DAY_MS
 
 test('economy: prices sit where the spec wants them, measured from the reward code', () => {
   const e = P.estimateEconomy()
-  assert.ok(e.perWin >= 150 && e.perWin <= 320, `per win ${e.perWin}`)
-  assert.ok(e.net >= 900 && e.net <= 1600, `net/day ${e.net}`)
+  assert.ok(e.perWin >= 35 && e.perWin <= 60, `per win ${e.perWin}`)
+  assert.ok(e.net >= 250 && e.net <= 400, `net/day ${e.net}`)
   const days = (id: string) => P.daysToAfford(P.petById(id)!.price, e.net)
-  assert.ok(days('lupa') >= 2 && days('lupa') <= 4, `common ${days('lupa')} days`)
+  assert.ok(days('lupa') >= 6 && days('lupa') <= 12, `common ${days('lupa')} days`)
   assert.ok(days('aquila') > days('lupa') && days('leo') > days('aquila'))
-  assert.ok(days('invictus') >= 14, `legendary ${days('invictus')} days`)
-  // a casual player (3 wins/day) still gets a common inside a week
-  assert.ok(P.daysToAfford(3600, P.estimateEconomy({ winsPerDay: 3 }).net) <= 7)
+  assert.ok(days('invictus') >= 30, `legendary ${days('invictus')} days`)
+  // a casual player (3 wins/day) still gets Lupa inside three weeks
+  assert.ok(P.daysToAfford(P.petById('lupa')!.price, P.estimateEconomy({ winsPerDay: 3 }).net) <= 16)
 })
 
 test('perks: one small perk each, growing modestly with level', () => {
@@ -56,8 +56,9 @@ test('levels: growth bar, max level 30', () => {
 test('buying: coins only, owned forever, auto-equips, no double buy', () => {
   let s = P.emptyPets()
   assert.equal(P.buyPet(s, 100, 'lupa', NOW).ok, false)
+  const price = P.petById('lupa')!.price
   const b = P.buyPet(s, 4000, 'lupa', NOW)
-  assert.ok(b.ok && b.coins === 400 && b.spent === 3600)
+  assert.ok(b.ok && b.coins === 4000 - price && b.spent === price)
   s = b.state
   assert.equal(P.activePet(s, NOW), 'lupa')
   assert.equal(P.buyPet(s, 99999, 'lupa', NOW).ok, false)
@@ -79,9 +80,10 @@ test('coupons: 20% streak, 30% trial clear, best one used, one per purchase, the
   assert.equal(tc.coupon?.pct, 30)
   s = tc.state
   assert.equal(P.couponFor(s, 'lupa', NOW)?.pct, 30, 'best coupon wins')
-  const b = P.buyPet(s, 3600, 'lupa', NOW)
+  const lupa = P.petById('lupa')!.price
+  const b = P.buyPet(s, lupa, 'lupa', NOW)
   assert.ok(b.ok)
-  assert.equal(b.spent, 2520)
+  assert.equal(b.spent, P.priceWith(lupa, { pct: 30, pet: 'lupa', source: 'trial-clear', expires: NOW + DAY, id: 'x' }))
   assert.equal(b.state.coupons.length, 1, 'only one coupon used')
   assert.equal(b.state.coupons[0].pct, 20)
   // expiry
@@ -198,7 +200,7 @@ test('applying gifts: buddy with Gift tag, coins, coupon; owned buddy turns into
   assert.equal(a.state.active, 'leo')
   assert.ok(a.state.redeemed.includes('ROMA-AAAA'))
   const dup = P.applyGift(a.state, 100, { kind: 'pet', pet: 'leo' }, 'ROMA-BBBB', NOW)
-  assert.equal(dup.coins, 1050)
+  assert.equal(dup.coins, 100 + Math.round(P.petById('leo')!.price / 10))
   s = P.applyGift(s, 0, { kind: 'coupon', pct: 40, pet: null, days: 3 }, 'ROMA-CCCC', NOW).state
   assert.equal(P.couponFor(s, 'invictus', NOW)?.pct, 40)
   assert.equal(P.couponFor(s, 'invictus', NOW + 4 * DAY), null)
@@ -275,9 +277,10 @@ test('9.30-b packs: All buddies pack (holiday optional), custom pack validation,
   assert.deepEqual(Object.keys(out.state.owned).sort(), ['aquila', 'invictus', 'leo', 'lupa'])
   assert.equal(out.state.owned.lupa?.gift, true)
   assert.equal(out.state.owned.aquila?.gift, undefined)
-  assert.equal(out.coins, 100 + 600)
+  const dup = Math.round(P.petById('aquila')!.price / 10)
+  assert.equal(out.coins, 100 + dup)
   assert.equal(out.state.active, 'lupa')
-  assert.equal(out.message, 'Gift from Roman: Lupa, Leo and Invictus joined your Stable, +600 coins (you already had Aquila)! "For Roman"')
+  assert.equal(out.message, `Gift from Roman: Lupa, Leo and Invictus joined your Stable, +${dup.toLocaleString('en-US')} coins (you already had Aquila)! "For Roman"`)
   assert.deepEqual(out.state.redeemed, [code])
   const c = P.applyGift(P.emptyPets(), 0, custom as never, 'ROMA-BBBB', NOW)
   assert.equal(c.message, 'Gift from Roman: Lupa joined your Stable, +1,000 coins, 30% off any buddy!')
@@ -287,28 +290,29 @@ test('9.30-b packs: All buddies pack (holiday optional), custom pack validation,
 
 test('9.30-b bundles: coin prices (15% / 20% off), only missing buddies, coins only, no coupon stacking', () => {
   const s0 = P.emptyPets()
+  const price = (id: string) => P.petById(id)!.price
   const starter = P.bundleQuote(s0, 'starter', NOW)
-  assert.equal(starter.full, 3600 + 6000)
-  assert.equal(starter.price, 8160)
-  assert.equal(starter.save, 1440)
+  assert.equal(starter.full, price('lupa') + price('aquila'))
+  assert.equal(starter.price, Math.round((starter.full * 0.85) / 10) * 10)
+  assert.equal(starter.save, starter.full - starter.price)
   const full = P.bundleQuote(s0, 'full', NOW)
-  assert.equal(full.full, 3600 + 6000 + 9500 + 25000)
-  assert.equal(full.price, 35280)
+  assert.equal(full.full, price('lupa') + price('aquila') + price('leo') + price('invictus'))
+  assert.equal(full.price, Math.round((full.full * 0.8) / 10) * 10)
   for (const b of P.BUNDLES) assert.ok(!b.pets.some((id) => P.petById(id)!.limited), 'no holiday buddies in bundles')
   // own Lupa: Starter isn't offered (one left), Full prices the other 3
   const withLupa = P.buyPet(s0, 99999, 'lupa', NOW).state as typeof s0
   assert.equal(P.bundleQuote(withLupa, 'starter', NOW).available, false)
   const f2 = P.bundleQuote(withLupa, 'full', NOW)
   assert.deepEqual(f2.missing, ['aquila', 'leo', 'invictus'])
-  assert.equal(f2.price, Math.round(((6000 + 9500 + 25000) * 0.8) / 10) * 10)
+  assert.equal(f2.price, Math.round(((price('aquila') + price('leo') + price('invictus')) * 0.8) / 10) * 10)
   // buying
-  assert.deepEqual(P.buyBundle(s0, 8159, 'starter', NOW), { ok: false, reason: 'Need 1 more coins' })
+  assert.deepEqual(P.buyBundle(s0, starter.price - 1, 'starter', NOW), { ok: false, reason: 'Need 1 more coins' })
   const coupon = P.awardStreakCoupon(s0, 7, NOW).state
-  const r = P.buyBundle(coupon, 9000, 'starter', NOW)
+  const r = P.buyBundle(coupon, starter.price + 100, 'starter', NOW)
   assert.ok(r.ok)
   if (r.ok) {
-    assert.equal(r.coins, 840)
-    assert.equal(r.spent, 8160)
+    assert.equal(r.coins, 100)
+    assert.equal(r.spent, starter.price)
     assert.deepEqual(r.got, ['lupa', 'aquila'])
     assert.equal(r.state.active, 'aquila')
     assert.equal(r.state.coupons.length, coupon.coupons.length, 'coupon is kept, not used')

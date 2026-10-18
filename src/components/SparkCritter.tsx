@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { sparkCoinReward } from '../game/economy'
 import { sfxSpark } from '../game/sound'
 import {
   CRITTER_TICK_CAP_MS,
@@ -160,7 +161,7 @@ export function SparkCritter({ active, onCatch }: Props) {
     const roll = Math.random()
     if (roll < 0.35) onCatch({ type: 'heart' })
     else if (roll < 0.55) onCatch({ type: 'hint' })
-    else onCatch({ type: 'coins', amount: 10 + Math.floor(Math.random() * 16) })
+    else onCatch({ type: 'coins', amount: sparkCoinReward() })
   }
 
   return (

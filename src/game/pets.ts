@@ -8,7 +8,8 @@
  *
  * Everything in here is pure (state in, state out) so it is unit-tested; App saves the state.
  */
-import { dailyCoins, NEW_BEST_COINS, PERFECT_BONUS, scoreRunV2, STAR_COINS, targetsFor } from './replay'
+import { BUDDY_PRICES, ECONOMY, isWelcomeBuddy, moodTier, scaleAbility, TREAT_OFFERS } from './economy.ts'
+import { dailyCoins, NEW_BEST_COINS, PERFECT_BONUS, scoreRunV2, STAR_COINS, targetsFor, winBaseCoins } from './replay'
 
 export type PetId = 'lupa' | 'aquila' | 'leo' | 'invictus' | 'nox'
 export type PetTier = 'common' | 'rare' | 'epic' | 'legendary' | 'limited'
@@ -28,16 +29,16 @@ export interface PetDef {
 }
 
 export const PETS: readonly PetDef[] = [
-  { id: 'lupa', name: 'Lupa', species: 'Wolf Pup', tier: 'common', price: 3600, perk: 'coins', blurb: 'Raised on the seven hills. Sniffs out loose coins.' },
-  { id: 'aquila', name: 'Aquila', species: 'Eagle', tier: 'rare', price: 6000, perk: 'hint', blurb: 'The legion eagle. Sees the right square from up high.' },
-  { id: 'leo', name: 'Leo', species: 'Lion Cub', tier: 'epic', price: 9500, perk: 'heart', blurb: 'Brave little lion. Lends you an extra heart.' },
-  { id: 'invictus', name: 'Invictus', species: 'War Horse', tier: 'legendary', price: 25000, perk: 'coinPct', blurb: "Caesar's own charger. Every win pays more." },
+  { id: 'lupa', name: 'Lupa', species: 'Wolf Pup', tier: 'common', price: BUDDY_PRICES.lupa, perk: 'coins', blurb: 'Raised on the seven hills. Sniffs out loose coins.' },
+  { id: 'aquila', name: 'Aquila', species: 'Eagle', tier: 'rare', price: BUDDY_PRICES.aquila, perk: 'hint', blurb: 'The legion eagle. Sees the right square from up high.' },
+  { id: 'leo', name: 'Leo', species: 'Lion Cub', tier: 'epic', price: BUDDY_PRICES.leo, perk: 'heart', blurb: 'Brave little lion. Lends you an extra heart.' },
+  { id: 'invictus', name: 'Invictus', species: 'War Horse', tier: 'legendary', price: BUDDY_PRICES.invictus, perk: 'coinPct', blurb: "Caesar's own charger. Every win pays more." },
   {
     id: 'nox',
     name: 'Nox',
     species: 'Halloween Owl',
     tier: 'limited',
-    price: 5000,
+    price: BUDDY_PRICES.nox,
     perk: 'rescue',
     blurb: 'Hoots once a year. Swoops in to rescue a bad buddy.',
     limited: { from: '10-15', to: '11-02', label: 'Halloween' },
@@ -146,12 +147,12 @@ export function cosmeticsFor(level: number, stars = 0): { hat: 'none' | 'laurel'
 export const MOOD_START = 50
 export const MOOD_FLOOR = 20
 export const MOOD_MAX = 100
-export const MOOD_DECAY_PER_HOUR = 2
+export const MOOD_DECAY_PER_HOUR = ECONOMY.moodDecayPerHour
 export const HAPPY_AT = 60
 /** a win with your buddy cheers it up a little */
 export const WIN_MOOD = 6
 /** a happy buddy adds this many coins to each win (tapered on busy days like all win coins) */
-export const HAPPY_COINS = 4
+export const HAPPY_COINS = ECONOMY.happyCoins
 export type MoodKind = 'happy' | 'okay' | 'hungry'
 export function moodNow(o: { mood?: number; moodAt?: number } | undefined, now: number): number {
   if (!o) return MOOD_START
@@ -281,7 +282,9 @@ export interface PetState {
   /** Last daily streak that paid a coupon */
   streakCouponAt: number
   /** 9.30-m: free Snacks and Feasts earned by playing (Daily, Buddy Hunt, streaks) */
-  treats: { snack: number; feast: number }
+  treats: { snack: number; feast: number; banquet: number }
+  /** Toronto date of the last Royal Banquet (one a day). */
+  banquetDay?: string
   /** 10.06: treat defense — earned treats sitting in the vulnerable outdoor pile (wild pets can steal these; claimed/bought treats can't) */
   fieldTreats: number
   /** 10.06: consecutive successful defenses (catches/scares) without a steal — bonus treats scale with streak */
@@ -293,13 +296,13 @@ export const DAY_MS = 86_400_000
 export const TRIAL_MS = DAY_MS
 export const COUPON_DAYS = 7
 export const MAX_COUPONS = 4
-export const MAX_FEEDS_PER_DAY = 2
+export const MAX_FEEDS_PER_DAY = ECONOMY.maxFeedsPerDay
 export const STREAK_COUPON_PCT = 20
 export const TRIAL_CLEAR_COUPON_PCT = 30
 export const TRIAL_END_COUPON_PCT = 25
 
 export function emptyPets(): PetState {
-  return { v: 1, owned: {}, active: null, freePickUsed: false, trial: null, coupons: [], redeemed: [], streakCouponAt: 0, treats: { snack: 0, feast: 0 }, fieldTreats: 0, defenseStreak: 0 }
+  return { v: 1, owned: {}, active: null, freePickUsed: false, trial: null, coupons: [], redeemed: [], streakCouponAt: 0, treats: { snack: 0, feast: 0, banquet: 0 }, fieldTreats: 0, defenseStreak: 0 }
 }
 
 const num = (x: unknown, d = 0) => (typeof x === 'number' && Number.isFinite(x) ? x : d)
@@ -343,7 +346,9 @@ export function sanitizePets(raw: unknown): PetState {
   out.freePickUsed = r.freePickUsed === true
   out.streakCouponAt = Math.max(0, num(r.streakCouponAt))
   const tr = (r.treats && typeof r.treats === 'object' ? r.treats : {}) as Record<string, unknown>
-  out.treats = { snack: Math.max(0, Math.floor(num(tr.snack))), feast: Math.max(0, Math.floor(num(tr.feast))) }
+  const stock = (v: unknown) => Math.max(0, Math.min(99, Math.floor(num(v))))
+  out.treats = { snack: stock(tr.snack), feast: stock(tr.feast), banquet: stock(tr.banquet) }
+  if (typeof r.banquetDay === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.banquetDay)) out.banquetDay = r.banquetDay
   out.fieldTreats = Math.max(0, Math.min(MAX_FIELD_TREATS, Math.floor(num(r.fieldTreats))))
   out.defenseStreak = Math.max(0, Math.floor(num((r as Record<string, unknown>).defenseStreak)))
   const a = r.active
@@ -369,11 +374,19 @@ export function activePerk(s: PetState, now: number): Perk | null {
   if (!id) return null
   const lv = levelInfo(petXp(s, id))
   const perk = perkFor(id, lv.level, lv.stars)
-  // 9.30-m: a happy owned buddy adds a few coins to each win (a hungry one just gives its normal perk)
-  if (s.owned[id] && moodKind(moodNow(s.owned[id], now)) === 'happy') {
-    return { ...perk, coins: perk.coins + HAPPY_COINS, label: `${perk.label} · happy +${HAPPY_COINS}` }
+  if (!s.owned[id]) return perk
+  const tier = moodTier(moodNow(s.owned[id], now))
+  const scale = (n: number) => scaleAbility(n, tier.strength)
+  const coins = scale(perk.coins) + tier.extraCoins
+  return {
+    ...perk,
+    coins,
+    coinPct: scale(perk.coinPct),
+    hints: scale(perk.hints),
+    hearts: scale(perk.hearts),
+    rescues: scale(perk.rescues),
+    label: tier.extraCoins ? `${perk.label} · ${tier.name.toLowerCase()} +${tier.extraCoins}` : perk.label,
   }
-  return perk
 }
 
 export function equip(s: PetState, id: PetId | null, now: number): PetState {
@@ -477,6 +490,7 @@ export function claimFreePet(s: PetState, id: PetId, now: number): { ok: true; s
   const p = petById(id)
   if (!p) return { ok: false, reason: 'Unknown buddy' }
   if (s.freePickUsed) return { ok: false, reason: 'Free buddy already claimed' }
+  if (!isWelcomeBuddy(id)) return { ok: false, reason: 'Your free buddy is Lupa, Aquila, or Leo' }
   if (s.owned[id]) return { ok: false, reason: 'Already in your Stable' }
   if (Object.keys(s.owned).length > 0) return { ok: false, reason: 'Free buddy is for new players' }
   const state: PetState = {
@@ -556,7 +570,7 @@ export function addPetXp(s: PetState, id: PetId | null, xp: number, now: number)
 }
 
 // ---------- care: pet, feed, mood (9.30-m) ----------
-export type TreatId = 'snack' | 'feast'
+export type TreatId = 'snack' | 'feast' | 'banquet'
 export interface TreatDef {
   id: TreatId
   name: string
@@ -564,10 +578,11 @@ export interface TreatDef {
   xp: number
   mood: number
 }
-/** Treats are the coin sink for growth: a snack is 1 XP per coin, a feast about 1.3. Max 3 a day per buddy. */
+/** Treats are the coin sink. Snack 35, Feast 100, Royal Banquet 250 (one a day). Up to 3 feeds a day per buddy. */
 export const TREATS: readonly TreatDef[] = [
-  { id: 'snack', name: 'Snack', cost: 30, xp: 30, mood: 20 },
-  { id: 'feast', name: 'Feast', cost: 90, xp: 120, mood: 45 },
+  { id: 'snack', name: 'Snack', cost: TREAT_OFFERS.snack.cost, xp: TREAT_OFFERS.snack.xp, mood: TREAT_OFFERS.snack.mood },
+  { id: 'feast', name: 'Feast', cost: TREAT_OFFERS.feast.cost, xp: TREAT_OFFERS.feast.xp, mood: TREAT_OFFERS.feast.mood },
+  { id: 'banquet', name: 'Royal Banquet', cost: TREAT_OFFERS.banquet.cost, xp: TREAT_OFFERS.banquet.xp, mood: TREAT_OFFERS.banquet.mood },
 ]
 export const CARE_XP = 15
 export const CARE_MOOD = 25
@@ -626,13 +641,14 @@ export function feedPet(s: PetState, coins: number, id: PetId, treat: TreatId, n
   const info = careInfo(s, id, now, today)
   if (info.maxed) return { ok: false, reason: 'Fully grown! Nothing left to feed' }
   if (info.feedsLeft <= 0) return { ok: false, reason: 'Full for today. Treats again tomorrow' }
+  if (treat === 'banquet' && s.banquetDay === today) return { ok: false, reason: 'One Royal Banquet a day' }
   const useStock = (s.treats[treat] ?? 0) > 0
   if (!useStock && coins < t.cost) return { ok: false, reason: `Need ${t.cost - coins} more coins` }
   const before = levelInfo(o.xp)
   const fed = o.feedDay === today ? o.fedToday ?? 0 : 0
   const next: OwnedPet = { ...withMood(o, t.mood, now), xp: o.xp + t.xp, feedDay: today, fedToday: fed + 1 }
   const treats = useStock ? { ...s.treats, [treat]: s.treats[treat] - 1 } : s.treats
-  const state: PetState = { ...s, treats, owned: { ...s.owned, [id]: next } }
+  const state: PetState = { ...s, treats, owned: { ...s.owned, [id]: next }, banquetDay: treat === 'banquet' ? today : s.banquetDay }
   const after = levelInfo(next.xp)
   return {
     ok: true,
@@ -646,9 +662,12 @@ export function feedPet(s: PetState, coins: number, id: PetId, treat: TreatId, n
   }
 }
 
-/** Free treats from play (Daily, Buddy Hunt, streaks). No cap — the safe stash is unlimited. */
+/** Free treats from play (Daily, Buddy Hunt, streaks). The safe stash stops at MAX_TREAT_STOCK. */
 export function grantTreat(s: PetState, treat: TreatId, n = 1): PetState {
-  return { ...s, treats: { ...s.treats, [treat]: (s.treats[treat] ?? 0) + Math.max(0, n) } }
+  const have = s.treats[treat] ?? 0
+  const add = Math.min(Math.max(0, MAX_TREAT_STOCK - have), Math.max(0, Math.floor(n)))
+  if (!add) return s
+  return { ...s, treats: { ...s.treats, [treat]: have + add } }
 }
 
 // ---------- field treats: the vulnerable pile (10.06 treat defense) ----------
@@ -657,8 +676,8 @@ export function grantTreat(s: PetState, treat: TreatId, n = 1): PetState {
  * pets can steal them. Claimed or bought treats (the safe snack/feast stash) are never at risk.
  */
 export const MAX_FIELD_TREATS = 999
-/** 1 safe-stash snack swaps for this many coins */
-export const SNACK_COIN_RATE = 15
+/** Snacks are not coins. Kept so older calls fail closed instead of printing money. */
+export const SNACK_COIN_RATE = 0
 
 /** Add earned treats to the vulnerable field pile (wild-pet catches, bonuses). */
 export function earnFieldTreats(s: PetState, n: number): PetState {
@@ -671,9 +690,11 @@ export function earnFieldTreats(s: PetState, n: number): PetState {
 export function claimFieldTreats(s: PetState): { state: PetState; claimed: number } {
   const pile = Math.max(0, Math.floor(s.fieldTreats ?? 0))
   if (!pile) return { state: s, claimed: 0 }
+  const room = Math.max(0, MAX_TREAT_STOCK - (s.treats.snack ?? 0))
+  const claimed = Math.min(pile, room)
   return {
-    state: { ...s, fieldTreats: 0, treats: { ...s.treats, snack: (s.treats.snack ?? 0) + pile } },
-    claimed: pile,
+    state: { ...s, fieldTreats: pile - claimed, treats: { ...s.treats, snack: (s.treats.snack ?? 0) + claimed } },
+    claimed,
   }
 }
 
@@ -693,7 +714,8 @@ export function rollStealAmount(pile: number): number {
 }
 
 /** 999 jackpot: pile hits max → auto-save everything to the stash + bonus. */
-export const JACKPOT_BONUS = 100
+export const JACKPOT_BONUS = ECONOMY.jackpotBonusSnacks
+export const TREAT_GUARDIAN_BADGE = 'treat_guardian'
 export function jackpotFieldTreats(s: PetState): { state: PetState; saved: number; bonus: number } {
   const pile = Math.max(0, Math.floor(s.fieldTreats ?? 0))
   const saved = pile
@@ -707,20 +729,13 @@ export function jackpotFieldTreats(s: PetState): { state: PetState; saved: numbe
 
 export type SwapResult = { ok: true; state: PetState; coins: number; swapped: number; gained: number } | { ok: false; reason: string }
 
-/** Swap safe-stash snacks for coins (1 snack = SNACK_COIN_RATE coins). Field treats and feasts can't be swapped. */
-export function swapTreatsToCoins(s: PetState, coins: number, n: number): SwapResult {
+/** Treats feed buddies. They are not a coin printer. */
+export function swapTreatsToCoins(s: PetState, _coins: number, n: number): SwapResult {
   const want = Math.max(0, Math.floor(n))
   if (want <= 0) return { ok: false, reason: 'Nothing to swap' }
   const have = s.treats.snack ?? 0
   if (have < want) return { ok: false, reason: `Only ${have} snack${have === 1 ? '' : 's'} in the stash` }
-  const gained = want * SNACK_COIN_RATE
-  return {
-    ok: true,
-    state: { ...s, treats: { ...s.treats, snack: have - want } },
-    coins: coins + gained,
-    swapped: want,
-    gained,
-  }
+  return { ok: false, reason: 'Treats feed buddies. They are not coins.' }
 }
 
 /** A wild pet steals from the field pile (never more than what's there; the safe stash is untouched). */
@@ -896,8 +911,8 @@ export function petLabel(id: string | null | undefined): string | null {
 
 // ---------- economy (measured from the reward code) ----------
 /**
- * Typical coins per day, from the real payout code: win coins = max(20, score/8) with badge
- * bonus, plus star / new-best coins, plus the Daily bonus and the odd prize spin.
+ * Typical coins per day, from the real payout code: win coins = clamp(score/40, 10, 80) with a
+ * capped badge bonus, plus star / new-best coins, plus the Daily bonus and the odd prize spin.
  * "Normal play" = 5 boards a day (about 15-20 minutes), one of them the Daily.
  */
 export function estimateEconomy(o: { winsPerDay?: number; badgeBonusPct?: number; spendShare?: number } = {}) {
@@ -910,7 +925,7 @@ export function estimateEconomy(o: { winsPerDay?: number; badgeBonusPct?: number
     const score = scoreRunV2({ size, targetMs: t.timeMs, elapsedMs: t.timeMs, hintsUsed: 0.33, perfect: false, comboPoints: size * 40 * 0.2 })
     const perfectScore = score + PERFECT_BONUS
     const avgScore = 0.6 * score + 0.4 * perfectScore
-    return Math.floor(Math.max(20, Math.floor(avgScore / 8)) * (1 + badge / 100))
+    return Math.floor(winBaseCoins(avgScore) * (1 + Math.min(badge, 25) / 100))
   })
   const perWin = perSize.reduce((a, b) => a + b, 0) / perSize.length
   // stars and new bests: early boards pay stars, later a new best now and then

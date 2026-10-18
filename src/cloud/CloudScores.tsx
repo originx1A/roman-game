@@ -38,6 +38,15 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
     </div>
   )
 
+  useEffect(() => {
+    const open = () => {
+      setErr('')
+      setSheet(cloud.status === 'signed-in' ? (cloud.name ? 'account' : 'name') : 'email')
+    }
+    window.addEventListener('roman:open-sign-in', open)
+    return () => window.removeEventListener('roman:open-sign-in', open)
+  }, [cloud.status, cloud.name])
+
   // Signed in from the magic link but no name yet: ask once
   useEffect(() => {
     if (cloud.status === 'signed-in' && cloud.name === null) setSheet((s) => (s === 'account' ? s : 'name'))

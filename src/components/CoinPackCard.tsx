@@ -8,9 +8,11 @@ export interface CoinPackCardProps {
   priceText?: string
   /** Website card. The native app never sets this. */
   webBuy?: boolean
+  buyLabel?: string
+  buyFaded?: boolean
 }
 
-export function CoinPackCard({ pack, onBuy, priceText, webBuy = false }: CoinPackCardProps) {
+export function CoinPackCard({ pack, onBuy, priceText, webBuy = false, buyLabel = 'Buy', buyFaded = false }: CoinPackCardProps) {
   const store = isStoreBuild()
   const showBuy = store || (webBuy && !store)
   return (
@@ -23,8 +25,8 @@ export function CoinPackCard({ pack, onBuy, priceText, webBuy = false }: CoinPac
       <div className="product-card-foot">
         <span className="product-price">{priceText || pack.priceHint}</span>
         {showBuy ? (
-          <button type="button" className="btn ghost product-buy" onClick={() => onBuy(pack.id)}>
-            Buy
+          <button type="button" className={`btn ghost product-buy${buyFaded ? ' is-faded' : ''}`} onClick={() => onBuy(pack.id)}>
+            {buyLabel}
           </button>
         ) : null}
       </div>
