@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Your audiobooks — Roman's Game</title>
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="icon" href="https://romansgame.com/assets/icons/favicon.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/store/store.css">
+</head>
+<body>
+  <a class="skip" href="#thanks">Skip to your audiobooks</a>
+  <header class="site-header">
+    <div class="nav-inner">
+      <a class="brand" href="https://romansgame.com/">ROMAN&rsquo;S GAME<span>JRNYfun</span></a>
+      <a href="/store/#audiobooks">Back to the store</a>
+    </div>
+  </header>
+  <main class="wrap" id="thanks">
+    <h1>Your audiobooks</h1>
+    <p id="thanks-status">Checking your purchase…</p>
+    <ul class="thanks-list" id="thanks-list"></ul>
+    <noscript><p>Turn on JavaScript to see your download buttons, or open the link in this email again in a browser that has it on.</p></noscript>
+  </main>
+  <footer class="site-footer">
+    <div>A <strong>JRNYfun</strong> production</div>
+  </footer>
+  <script>
+    (function () {
+      var status = document.getElementById('thanks-status')
+      var list = document.getElementById('thanks-list')
+      var sessionId = new URLSearchParams(location.search).get('session_id') || ''
+      if (!/^cs_(test|live)_[A-Za-z0-9]+$/.test(sessionId)) {
+        status.textContent = 'This page needs the link from your purchase.'
+        return
+      }
+      fetch('/api/store-thanks?session_id=' + encodeURIComponent(sessionId), { headers: { accept: 'application/json' } })
+        .then(function (res) {
+          return res.json().then(function (body) { return { ok: res.ok, body: body || {} } })
+        })
+        .then(function (result) {
+          if (!result.ok) {
+            status.textContent = typeof result.body.error === 'string' ? result.body.error : 'We could not confirm this purchase.'
+            return
+          }
+          if (result.body.expired) {
+            status.textContent = 'This download link has expired. Links last 48 hours.'
+            return
+          }
+          if (typeof result.body.token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(result.body.token)) {
+            status.textContent = 'We could not confirm this purchase.'
+            return
+          }
+          status.textContent = result.body.title + ' is ready. Each story can be downloaded 10 times. These links last 48 hours.'
+          ;(result.body.items || []).forEach(function (item) {
+            if (!item || !/^[a-z0-9-]+$/.test(item.slug)) return
+            var li = document.createElement('li')
+            var a = document.createElement('a')
+            a.className = 'btn'
+            a.href = '/api/store-download?token=' + encodeURIComponent(result.body.token) + '&slug=' + encodeURIComponent(item.slug)
+            a.textContent = 'Download ' + (item.title || 'audiobook')
+            var meta = document.createElement('p')
+            meta.className = 'fine'
+            var left = Number(item.downloadsRemaining)
+            meta.textContent = (item.runtime ? item.runtime + ' · ' : '') + (left === 1 ? '1 download left' : left + ' downloads left')
+            li.appendChild(a)
+            li.appendChild(meta)
+            list.appendChild(li)
+          })
+        })
+        .catch(function () {
+          status.textContent = 'We could not confirm this purchase. Please try the link again.'
+        })
+    })()
+  </script>
+</body>
+</html>

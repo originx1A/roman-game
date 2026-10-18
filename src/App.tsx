@@ -2884,6 +2884,7 @@ export default function App() {
             <button type="button" className={screen === 'profile' ? 'on' : ''} onClick={() => setScreen('profile')}>
               {profile ? profile.displayName.split(' ')[0] : 'Save'}
             </button>
+            {!isStoreBuild() && <a href="/store/">Store</a>}
           </nav>
           <div className="hud-pills">
             <div className="score-pill coin" title="Coins">
