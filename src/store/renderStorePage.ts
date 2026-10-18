@@ -1,4 +1,13 @@
-import { STORE_INTRO, STORE_NAV, STORE_NOTIFY, STORE_SECTIONS, STORE_TITLE, type StoreLink } from './catalog.ts'
+import {
+  amazonAssociateDisclosure,
+  amazonHref,
+  STORE_INTRO,
+  STORE_NAV,
+  STORE_NOTIFY,
+  STORE_SECTIONS,
+  STORE_TITLE,
+  type StoreLink,
+} from './catalog.ts'
 
 const PAGE_URL = 'https://play.romansgame.com/store/'
 
@@ -11,14 +20,20 @@ function escapeHtml(value: string): string {
 }
 
 function safeHref(href: string): string {
-  if (href.startsWith('/') || href.startsWith('#') || href.startsWith('https://') || href.startsWith('http://')) {
+  if (
+    href.startsWith('/') ||
+    href.startsWith('#') ||
+    href.startsWith('./') ||
+    href.startsWith('https://') ||
+    href.startsWith('http://')
+  ) {
     return escapeHtml(href)
   }
   return '#'
 }
 
 function linkAttrs(link: StoreLink): string {
-  const parts = [`href="${safeHref(link.href)}"`]
+  const parts = [`href="${safeHref(amazonHref(link.href))}"`]
   if (link.sponsored) parts.push('target="_blank"', 'rel="noopener sponsored"')
   return parts.join(' ')
 }
@@ -43,7 +58,8 @@ function itemCard(sectionId: string, item: (typeof STORE_SECTIONS)[number]['item
   const price = item.priceNote ? `<p class="price">${escapeHtml(item.priceNote)}</p>` : ''
   const actions = links ? `<div class="actions">\n          ${links}\n        </div>` : ''
   const art = cover(item.id, item.title, item.image)
-  return `<article class="product${art ? '' : ' product-text'}">
+  const classes = ['product', item.status === 'soon' ? 'product-soon' : '', art ? '' : 'product-text'].filter(Boolean).join(' ')
+  return `<article class="${classes}">
       ${art}
       <div class="product-copy">
         <p class="status status-${item.status}">${escapeHtml(item.statusLabel)}</p>
@@ -66,6 +82,9 @@ export function renderStorePage(): string {
     (section, index) =>
       `<button type="button" role="tab" id="tab-${escapeHtml(section.id)}" data-store-tab="${escapeHtml(section.id)}" aria-controls="${escapeHtml(section.id)}" aria-selected="${index === 0 ? 'true' : 'false'}" tabindex="${index === 0 ? '0' : '-1'}">${escapeHtml(section.label)}</button>`,
   ).join('\n        ')
+
+  const disclosure = amazonAssociateDisclosure()
+  const disclosureHtml = disclosure ? `\n    <p class="associate">${escapeHtml(disclosure)}</p>` : ''
 
   const panels = STORE_SECTIONS.map((section) => {
     const cards = section.items.map((item) => itemCard(section.id, item)).join('\n      ')
@@ -103,6 +122,7 @@ export function renderStorePage(): string {
       <ul class="nav-links" id="site-nav">${nav}</ul>
     </div>
   </header>
+  <img class="shelf-banner" src="../og-image.png" alt="Roman’s Game board with glossy tiles, a yellow buddy, and a gold coin" width="1200" height="630">
   <main class="wrap" id="store">
     <h1>${escapeHtml(STORE_TITLE)}</h1>
     <p class="intro">${escapeHtml(STORE_INTRO)}</p>
@@ -119,7 +139,7 @@ export function renderStorePage(): string {
   </main>
   <footer class="site-footer">
     <div>A <strong>JRNYfun</strong> production</div>
-    <p><a href="https://romansgame.com/privacy">Privacy Policy</a> · <a href="https://romansgame.com/terms">Terms of Service</a> · <a href="https://romansgame.com/support">Contact</a></p>
+    <p><a href="https://romansgame.com/privacy">Privacy Policy</a> · <a href="https://romansgame.com/terms">Terms of Service</a> · <a href="https://romansgame.com/support">Contact</a></p>${disclosureHtml}
   </footer>
   <script src="./store.js"></script>
 </body>

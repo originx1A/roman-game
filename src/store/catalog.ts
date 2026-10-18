@@ -13,6 +13,34 @@ export type StoreLink = {
   sponsored?: boolean
 }
 
+/**
+ * Amazon Associates ids. An empty string leaves that shop's links untagged.
+ * amazon.ca uses amazonTagCA. amazon.com uses amazonTagUS.
+ */
+export const amazonTagCA = 'jrny06-20'
+export const amazonTagUS = 'jrny00-20'
+
+export const AMAZON_ASSOCIATE_DISCLOSURE = 'As an Amazon Associate we earn from qualifying purchases.'
+
+export function amazonHref(href: string, tags: { ca: string; us: string } = { ca: amazonTagCA, us: amazonTagUS }): string {
+  let url: URL
+  try {
+    url = new URL(href)
+  } catch {
+    return href
+  }
+  const host = url.hostname.toLowerCase().replace(/^www\./, '')
+  const tag = host === 'amazon.ca' ? tags.ca.trim() : host === 'amazon.com' ? tags.us.trim() : ''
+  if (!tag) return href
+  url.searchParams.set('tag', tag)
+  return url.toString()
+}
+
+/** Shown in the footer when either Associates id is set. */
+export function amazonAssociateDisclosure(tags: { ca: string; us: string } = { ca: amazonTagCA, us: amazonTagUS }): string {
+  return tags.ca.trim() || tags.us.trim() ? AMAZON_ASSOCIATE_DISCLOSURE : ''
+}
+
 export type StoreImage = {
   src: string
   alt: string
@@ -26,10 +54,7 @@ export type StoreItem = {
   statusLabel: string
   /** Plain sentence. Never a made-up price. */
   priceNote?: string
-  /**
-   * Cover art. TODO: the Tales of the Empty Throne coloring-book cover is not
-   * in this repo. Set `image` when a real file is added, and remove the placeholder.
-   */
+  /** Cover art. `null` shows the book placeholder. Omit it when the item has no cover. */
   image?: StoreImage | null
   links?: StoreLink[]
 }
@@ -97,7 +122,10 @@ export const STORE_SECTIONS: StoreSection[] = [
         status: 'live',
         statusLabel: 'Available now',
         priceNote: 'See price on Amazon',
-        image: null,
+        image: {
+          src: './coloring-book-cover.webp',
+          alt: "Cover of Roman's Game: Tales of the Empty Throne Coloring Book. A boy and five defenders stand before a stone archway.",
+        },
         links: [
           {
             label: 'Buy on Amazon.ca',

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { readFileSync } from 'node:fs'
-import { STORE_SECTIONS } from '../src/store/catalog.ts'
+import { AMAZON_ASSOCIATE_DISCLOSURE, amazonAssociateDisclosure, amazonHref, amazonTagCA, amazonTagUS, STORE_SECTIONS } from '../src/store/catalog.ts'
 import { renderStorePage } from '../src/store/renderStorePage.ts'
 
 const html = renderStorePage()
@@ -45,4 +45,21 @@ test('store page links Amazon in a new tab, points at the existing newsletter, a
 test('the game nav and sitemap point at /store/', () => {
   assert.match(app, /href="\/store\/"/)
   assert.match(sitemap, /<loc>https:\/\/play\.romansgame\.com\/store\/<\/loc>/)
+})
+
+test('Amazon Associates tags are appended per shop, and an empty tag leaves the link alone', () => {
+  assert.equal(amazonTagCA, 'jrny06-20')
+  assert.equal(amazonTagUS, 'jrny00-20')
+  assert.equal(amazonHref('https://www.amazon.ca/dp/B0HNDZ96N5'), 'https://www.amazon.ca/dp/B0HNDZ96N5?tag=jrny06-20')
+  assert.equal(amazonHref('https://www.amazon.com/dp/B0HNDZ96N5'), 'https://www.amazon.com/dp/B0HNDZ96N5?tag=jrny00-20')
+  assert.equal(amazonHref('https://www.amazon.ca/dp/B0HNDZ96N5', { ca: '', us: 'jrny00-20' }), 'https://www.amazon.ca/dp/B0HNDZ96N5')
+  assert.equal(amazonHref('https://www.amazon.com/dp/B0HNDZ96N5', { ca: 'jrny06-20', us: '' }), 'https://www.amazon.com/dp/B0HNDZ96N5')
+  assert.equal(amazonAssociateDisclosure(), AMAZON_ASSOCIATE_DISCLOSURE)
+  assert.equal(amazonAssociateDisclosure({ ca: '', us: '' }), '')
+  assert.match(html, /amazon\.ca\/dp\/B0HNDZ96N5\?tag=jrny06-20/)
+  assert.match(html, /amazon\.com\/dp\/B0HNDZ96N5\?tag=jrny00-20/)
+  assert.match(html, /As an Amazon Associate we earn from qualifying purchases\./)
+  assert.match(html, /coloring-book-cover\.webp/)
+  assert.match(html, /shelf-banner/)
+  assert.doesNotMatch(html, /tag=jrny06-20[\s\S]*tag=jrny06-20/)
 })
