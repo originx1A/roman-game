@@ -20,7 +20,7 @@ const migration = readFileSync(new URL('../supabase/migration-006-policy-consent
 const text = L.LEGAL_BLOCKS.map((b) => L.legalBlockText(b)).join('\n')
 
 test('Funderwood policies replace JRNY as the business and keep purchase terms game-only', () => {
-  assert.equal(L.CONTACT_EMAIL, '{{CONTACT_EMAIL}}')
+  assert.equal(L.CONTACT_EMAIL, 'support@romansgame.com')
   assert.equal(L.BUSINESS_ADDRESS, '{{BUSINESS_ADDRESS}}')
   assert.equal(L.BUSINESS_PHONE, '{{BUSINESS_PHONE}}')
   assert.equal(L.SELLER_AS, "Tony D'Emilio, operating as Funderwood")
@@ -33,7 +33,8 @@ test('Funderwood policies replace JRNY as the business and keep purchase terms g
   assert.match(text, /1001782322/)
   assert.match(text, /\{\{BUSINESS_ADDRESS\}\}/)
   assert.match(text, /\{\{BUSINESS_PHONE\}\}/)
-  assert.match(text, /\{\{CONTACT_EMAIL\}\}/)
+  assert.match(text, /support@romansgame\.com/)
+  assert.doesNotMatch(text, /\{\{CONTACT_EMAIL\}\}/)
   assert.match(text, /no cash value/)
   assert.match(text, /Canadian dollars \(CA\$\)/)
   assert.match(text, /US dollars \(US\$\)/)
@@ -51,7 +52,8 @@ test('Funderwood policies replace JRNY as the business and keep purchase terms g
   for (const file of [page, privacy]) {
     assert.doesNotMatch(file, /DRAFT for owner review/)
     assert.match(file, /Funderwood/)
-    assert.match(file, /\{\{CONTACT_EMAIL\}\}/)
+    assert.match(file, /support@romansgame\.com/)
+    assert.doesNotMatch(file, /\{\{CONTACT_EMAIL\}\}/)
     assert.doesNotMatch(file, /hello@jrny\.fun/)
     assert.doesNotMatch(file, /made by JRNY|operating as JRNY/i)
   }

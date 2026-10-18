@@ -11,8 +11,8 @@ export const SELLER_AS = `${SELLER_NAME}, operating as ${BUSINESS_NAME}`
 export const BUSINESS_ADDRESS = '{{BUSINESS_ADDRESS}}'
 /** Not decided. Replace this one string when the business phone is chosen. */
 export const BUSINESS_PHONE = '{{BUSINESS_PHONE}}'
-/** Not decided. Replace this one string when the contact email is chosen. */
-export const CONTACT_EMAIL = '{{CONTACT_EMAIL}}'
+/** Forwards to the owner. Tested Oct 18, 2026. */
+export const CONTACT_EMAIL = 'support@romansgame.com'
 
 export const GST_HST = '765678172RT0001'
 export const ONTARIO_BIN = '1001782322'
