@@ -6,6 +6,11 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
+# 13:20 UTC is 09:20 in EDT. 14:20 UTC is 09:20 in EST.
+# kit-daily-news sends on only the run whose Toronto clock is 09:20 or later in that hour.
+[functions."kit-daily-news"]
+  schedule = "20 13,14 * * *"
+
 # `netlify dev` serves dist plus these functions. Run `npm run build` first.
 # Plain `npm run dev` has no functions; the shop then says purchases are unavailable.
 
@@ -28,6 +33,12 @@
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/news/feed.xml"
+  to = "/.netlify/functions/news-feed"
   status = 200
   force = true
 
