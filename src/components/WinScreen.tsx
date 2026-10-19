@@ -49,6 +49,8 @@ export type WinScreenProps = {
   replay?: WinReplay
   /** 9.32-b: this win added an Unseen card piece */
   cardGain?: { from: number; to: number }
+  /** Local share-card name, offered as a starting leaderboard name if they sign in from here */
+  suggestedName?: string
 }
 
 export function WinScreen({
@@ -78,6 +80,7 @@ export function WinScreen({
   onBuddyHunt,
   replay,
   cardGain,
+  suggestedName,
 }: WinScreenProps) {
   const [entered, setEntered] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -240,30 +243,55 @@ export function WinScreen({
             {nextLabel ?? 'Next board'}
           </button>
           {cardGain ? <UnseenCardGain from={cardGain.from} to={cardGain.to} /> : null}
-          <CloudScoresButton compact />
-          <div className="win-screen-row">
-            <button type="button" className="btn ghost win-cta" onClick={onReplay}>
-              Play again
-            </button>
-            {onDuel ? (
-              <button type="button" className="btn ghost win-cta" onClick={onDuel}>
-                Head-to-head
-              </button>
-            ) : null}
-            {spins > 0 && onSpin ? (
-              <button type="button" className="btn ghost win-cta win-spin" onClick={onSpin}>
-                Spin prize ({spins})
-              </button>
-            ) : null}
-          </div>
-          <div className="win-screen-secondary">
-            <button type="button" className="btn tool" onClick={onLevels}>
-              Levels
-            </button>
-            <button type="button" className="btn tool" onClick={onHome}>
-              Home
-            </button>
-          </div>
+          <CloudScoresButton suggestedName={suggestedName}>
+            {(cloud) => (
+              <>
+                <div className="win-screen-row">
+                  <button type="button" className="btn ghost win-cta" onClick={onReplay}>
+                    Play again
+                  </button>
+                  {cloud.saving ? (
+                    <button type="button" className="btn ghost win-cta" data-testid="win-switch" onClick={cloud.switchPlayer}>
+                      Switch player
+                    </button>
+                  ) : null}
+                </div>
+                {onDuel || (spins > 0 && onSpin) ? (
+                  <div className="win-screen-row">
+                    {onDuel ? (
+                      <button type="button" className="btn ghost win-cta" onClick={onDuel}>
+                        Head-to-head
+                      </button>
+                    ) : null}
+                    {spins > 0 && onSpin ? (
+                      <button type="button" className="btn ghost win-cta win-spin" onClick={onSpin}>
+                        Spin prize ({spins})
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+                <div className="win-screen-secondary">
+                  <button type="button" className="btn tool" onClick={onLevels}>
+                    Levels
+                  </button>
+                  <button type="button" className="btn tool" onClick={onHome}>
+                    Home
+                  </button>
+                </div>
+                {cloud.saving ? (
+                  <p className="win-save-note" role="status" data-testid="win-saved">
+                    {cloud.pending && typeof navigator !== 'undefined' && navigator.onLine === false
+                      ? `Saved on this phone${cloud.publicName ? ` as ${cloud.publicName}` : ''}. It sends when you're back online.`
+                      : `Score saved${cloud.publicName ? ` as ${cloud.publicName}` : ''}`}
+                  </p>
+                ) : (
+                  <button type="button" className="win-save-link" data-testid="win-signin" onClick={cloud.openSignIn}>
+                    {cloud.needsName ? 'Add a name to save this score' : 'Sign in to save this score'}
+                  </button>
+                )}
+              </>
+            )}
+          </CloudScoresButton>
           <a
             className="win-fb-follow"
             href="https://romansgame.com"

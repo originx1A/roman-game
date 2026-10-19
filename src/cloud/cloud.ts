@@ -28,6 +28,11 @@ export interface ScoreRow {
   daily_date?: string
   /** ISO time the game ended (kept so queued scores are not re-sent twice) */
   at: string
+  /**
+   * Local only — never sent. The same key is queued at most once, so a re-render
+   * of the same win cannot save a second copy.
+   */
+  dedupeKey?: string
 }
 
 export interface CloudState {
@@ -99,6 +104,11 @@ export async function subscribeNews(email: string): Promise<boolean> {
 }
 const MAX_QUEUE = 200
 let clientP: Promise<SupabaseClient | null> | null = null
+// Must be initialized before `state`: that line calls readQueue(), whose default
+// argument reads queueOwner. A `let` below that call is still in the temporal dead
+// zone in dev (native ESM) and the game white-screens. The production bundle
+// rewrites this to `var`, which is why the live site still boots.
+let queueOwner: string | null = null
 let state: CloudState = { status: 'off', pending: readQueue().length }
 const listeners = new Set<(s: CloudState) => void>()
 
@@ -121,7 +131,6 @@ export function onCloud(fn: (s: CloudState) => void): () => void {
  * "Switch player" signs out, so player A's unsent scores stay under A's id and only send when A
  * signs in again; they are never mixed into player B.
  */
-let queueOwner: string | null = null
 function queueKey(owner: string | null = queueOwner): string {
   return owner ? `${QUEUE_KEY}.${owner}` : QUEUE_KEY
 }
@@ -235,8 +244,44 @@ export async function signOut(): Promise<void> {
   set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined })
 }
 
-/** Queue a finished game and try to send everything queued. Safe to call offline. */
+const DEDUPE_STORE = 'rg.cloud.dedupe.v1'
+const seenDedupe = new Set<string>()
+
+function dedupeSeen(key: string): boolean {
+  if (seenDedupe.has(key)) return true
+  try {
+    const prev = JSON.parse(sessionStorage.getItem(DEDUPE_STORE) || '[]')
+    if (Array.isArray(prev) && prev.includes(key)) {
+      seenDedupe.add(key)
+      return true
+    }
+  } catch {
+    /* private mode: the queue check below still blocks a second copy */
+  }
+  return readQueue().some((r) => r.dedupeKey === key)
+}
+
+function rememberDedupe(key: string) {
+  seenDedupe.add(key)
+  try {
+    const prev = JSON.parse(sessionStorage.getItem(DEDUPE_STORE) || '[]')
+    const list = Array.isArray(prev) ? prev.filter((x): x is string => typeof x === 'string') : []
+    if (!list.includes(key)) list.push(key)
+    sessionStorage.setItem(DEDUPE_STORE, JSON.stringify(list.slice(-80)))
+  } catch {
+    /* the in-memory set still covers this page */
+  }
+}
+
+/** Rows ready for insert. Local-only fields (queued-at time, dedupe key) stay off the server. */
+export function scoreRowsForServer(q: ScoreRow[], now = Date.now()): Array<Omit<ScoreRow, 'at' | 'dedupeKey'>> {
+  const weekAgo = new Date(now - 6 * 86_400_000).toISOString().slice(0, 10)
+  return q.map(({ at: _at, dedupeKey: _dedupe, ...r }) => (r.daily_date && r.daily_date < weekAgo ? { ...r, daily_date: undefined } : r))
+}
+
+/** Queue a finished game and try to send everything queued. Safe to call offline. Same dedupeKey is stored once. */
 export function saveScore(row: Omit<ScoreRow, 'at'>): void {
+  if (row.dedupeKey && dedupeSeen(row.dedupeKey)) return
   const clean: ScoreRow = {
     score: Math.max(0, Math.min(1_000_000, Math.round(row.score) || 0)),
     level: Math.max(1, Math.min(100, Math.round(row.level) || 1)),
@@ -246,8 +291,10 @@ export function saveScore(row: Omit<ScoreRow, 'at'>): void {
     puzzle_id: row.puzzle_id?.slice(0, 80),
     ...(row.mode === 'daily' && row.daily_date && /^\d{4}-\d{2}-\d{2}$/.test(row.daily_date) ? { daily_date: row.daily_date } : {}),
     at: new Date().toISOString(),
+    ...(row.dedupeKey ? { dedupeKey: row.dedupeKey.slice(0, 160) } : {}),
   }
   writeQueue([...readQueue(), clean])
+  if (clean.dedupeKey) rememberDedupe(clean.dedupeKey)
   set({})
   void flushScores()
 }
@@ -264,8 +311,7 @@ export async function flushScores(): Promise<void> {
     const sb = await client()
     if (!sb) return
     // the server only takes a daily_date from the last week; older queued rows still send their score
-    const weekAgo = new Date(Date.now() - 6 * 86_400_000).toISOString().slice(0, 10)
-    const rows = q.map(({ at: _at, ...r }) => (r.daily_date && r.daily_date < weekAgo ? { ...r, daily_date: undefined } : r))
+    const rows = scoreRowsForServer(q)
     const { data: sess } = await sb.auth.getSession()
     if (sess.session?.user.id !== owner) return // switched player mid-send: leave the queue alone
     const { error } = await sb.from('scores').insert(rows)

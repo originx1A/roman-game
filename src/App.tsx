@@ -604,6 +604,8 @@ export default function App() {
   const pendingStartRef = useRef<{ p: Puzzle; opts: { mode?: RunMode; daily?: boolean; endless?: boolean } } | null>(null)
   const [howStart, setHowStart] = useState(0)
   const recordedRef = useRef(false)
+  /** Stable id for the win currently on screen, so that result is saved once. */
+  const winSaveKeyRef = useRef<string | null>(null)
   /** Latest board plus undo/redo stacks. Updated on every move, not on the next render. */
   const historyRef = useRef(createHistory([] as CellState[]))
   /** Bumped whenever the board is replaced rather than drawn on (Undo, Redo, Reset, new or resumed board). */
@@ -1560,6 +1562,7 @@ export default function App() {
     const themeId = p.theme ?? themeForPuzzle(p.id, p.difficulty)
     setPuzzle({ ...p, theme: themeId })
     recordedRef.current = false
+    winSaveKeyRef.current = null
     setCelebrate(false)
     setDefeated(false)
     setWinLine('')
@@ -1742,6 +1745,10 @@ export default function App() {
       setLastScore(score)
       // 9.32: save the finished game to the player's account (queued offline / until signed in)
       try {
+        if (!winSaveKeyRef.current) {
+          // One id for this result. Play again clears it; a re-render of this win does not.
+          winSaveKeyRef.current = `win:${puzzle.id}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`
+        }
         saveScore({
           score,
           level: puzzle.size,
@@ -1750,6 +1757,7 @@ export default function App() {
           mode: dailyRunRef.current ? 'daily' : endlessRef.current ? 'endless' : runMode === 'trial' ? 'trial' : runMode === 'normal' ? 'normal' : 'other',
           puzzle_id: String(puzzle.id),
           daily_date: dailyRunRef.current ?? undefined,
+          dedupeKey: winSaveKeyRef.current,
         })
       } catch {
         /* never block the win */
@@ -2158,6 +2166,7 @@ export default function App() {
     flawedRef.current = false
     setLastScore(null)
     recordedRef.current = false
+    winSaveKeyRef.current = null
     setWinReplay(null)
     setRunning(true)
     setLives(runMaxLives)
@@ -3397,6 +3406,7 @@ export default function App() {
               onBuddyHunt={openBuddyHunt}
               onShare={() => shareWinAsChallenge()}
               onDuel={duel && activeChallenge?.puzzleId === puzzle.id ? openDuelShare : undefined}
+              suggestedName={playerName}
             />
           )}
 
