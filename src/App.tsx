@@ -1468,14 +1468,8 @@ export default function App() {
   }
 
   function startPuzzle(p: Puzzle, resume = false, opts: { mode?: RunMode; daily?: boolean; endless?: boolean } = {}) {
-    // First board ever: How to play opens first (returning players start at the new cards)
-    if (!resume && !settingsRef.current.howSeen) {
-      pendingStartRef.current = { p, opts }
-      setStartSheet(null)
-      setHowStart(progress.clears.length > 0 ? HOW_NEW_START : 0)
-      setScreen('how')
-      return
-    }
+    // 2026-10-19: No auto-tutorial. Play goes straight to the game. New players see a "New here?" link.
+    // (Old behavior showed How to Play on first tap, which was annoying and broke on preview URLs.)
     unlockAudio()
     dropWaitingVoice()
     sfxWhoosh()
@@ -2967,7 +2961,7 @@ export default function App() {
           <section className="hero no-callout">
             <p className="eyebrow">Logic puzzle</p>
             <h1 className="logo-hero no-callout" {...ownerDoor}>
-              Roman
+              Roman's Game
             </h1>
             <p className="lede">
               Drop animated buddies — one per row, column, and region. They hate cuddling (even corners).
@@ -2991,13 +2985,12 @@ export default function App() {
                   Play
                 </button>
               )}
-              <button type="button" className="btn ghost" onClick={() => setScreen('how')}>
+              <button type="button" className="btn ghost btn-sm" onClick={() => setScreen('how')}>
                 How to play
               </button>
-              <button type="button" className="btn ghost" onClick={() => setScreen('bug')}>
+              <button type="button" className="btn ghost btn-sm" onClick={() => setScreen('bug')}>
                 🐛 Report a bug
               </button>
-              <CloudScoresButton suggestedName={playerName} />
               <UnseenCardTile records={records} />
             </div>
           </section>
