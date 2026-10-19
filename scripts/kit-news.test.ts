@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { register } from 'node:module'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { test } from 'node:test'
 import { DOMParser } from '@xmldom/xmldom'
 
@@ -597,6 +599,210 @@ test('signup paths: in-game opt-in, /news/ bar, and the alternate feed link', ()
   assert.match(page, /action="\/api\/kit-subscribe"/)
   const toml = readFileSync(new URL('../netlify.toml', import.meta.url), 'utf8')
   assert.match(toml, /schedule = "20 13,14 \* \* \*"/)
+})
+
+test('production deploy context sends, and preview, branch, dev, and a disabled flag never do', async () => {
+  const baked = await import('../netlify/lib/bakedDeployContext.ts')
+  assert.equal(baked.BAKED_DEPLOY_CONTEXT, '')
+
+  const item = story('nox-dawn-bakery', '2026-10-19', { title: 'Nox at dawn' })
+  const now = new Date('2026-10-19T13:20:00Z')
+  const production = news.envForDeploy(
+    {
+      KIT_SEND_ENABLED: 'true',
+      KIT_API_KEY: 'kit-test-key',
+      KIT_ADMIN_SECRET: 'admin-test-secret',
+      RESEND_API_KEY: 'resend-test-key',
+      NEWS_POSTAL_ADDRESS: POSTAL,
+      URL: 'https://play.romansgame.com',
+    },
+    'production',
+  )
+  assert.equal(production.CONTEXT, undefined)
+  assert.equal(production.DEPLOY_CONTEXT, 'production')
+  assert.equal(news.newsletterEnabled(production), true)
+
+  const kit = fakeKit()
+  const sent = await news.deliverStory(
+    { env: production, store: news.memoryJsonStore(), kit: kit.api, fetchImpl: quietFetch(), now },
+    item,
+    { dryRun: false, force: false },
+  )
+  assert.equal(sent.action, 'sent')
+  assert.equal(sent.storyId, 'nox-dawn-bakery')
+  assert.equal(kit.calls.filter((call) => call.name === 'broadcast').length, 1)
+
+  const dryKit = fakeKit()
+  const dry = await news.deliverStory(
+    { env: production, store: news.memoryJsonStore(), kit: dryKit.api, fetchImpl: quietFetch(), now },
+    item,
+    { dryRun: true, force: false },
+  )
+  assert.equal(dry.action, 'dry-run')
+  assert.equal(dry.dryRun, true)
+  assert.equal(dryKit.calls.length, 0)
+
+  for (const deployContext of ['deploy-preview', 'branch-deploy', 'dev']) {
+    const blocked = fakeKit()
+    const env = news.envForDeploy(enabled({ KIT_SEND_ENABLED: 'true' }), deployContext)
+    const result = await news.deliverStory(
+      { env, store: news.memoryJsonStore(), kit: blocked.api, fetchImpl: quietFetch(), now },
+      item,
+      { dryRun: false, force: false },
+    )
+    assert.equal(result.reason, 'send disabled', deployContext)
+    assert.equal(blocked.calls.length, 0, deployContext)
+    assert.equal(news.newsletterEnabled(env), false, deployContext)
+  }
+
+  for (const flag of [undefined, '', 'false', '0', 'no', 'off', 'enabled', 'truee', '"false"']) {
+    const blocked = fakeKit()
+    const env = news.envForDeploy(enabled({ CONTEXT: undefined, KIT_SEND_ENABLED: flag }), 'production')
+    const result = await news.deliverStory(
+      { env, store: news.memoryJsonStore(), kit: blocked.api, fetchImpl: quietFetch(), now },
+      item,
+      { dryRun: false, force: false },
+    )
+    assert.equal(result.reason, 'send disabled', String(flag))
+    assert.equal(blocked.calls.length, 0, String(flag))
+  }
+
+  for (const flag of ['true', 'TRUE', ' True ', '1', 'yes', 'YES', 'on', ' on ', '"true"', "'yes'"]) {
+    assert.equal(news.truthy(flag), true, flag)
+    assert.equal(
+      news.newsletterEnabled(news.envForDeploy(enabled({ CONTEXT: undefined, KIT_SEND_ENABLED: flag }), 'production')),
+      true,
+      flag,
+    )
+  }
+  assert.equal(news.truthy(undefined), false)
+  assert.equal(news.truthy('"false"'), false)
+
+  assert.equal(news.newsletterEnabled({ KIT_SEND_ENABLED: 'true', KIT_API_KEY: 'kit-test-key' }, 'production'), true)
+  assert.equal(news.newsletterEnabled({ KIT_SEND_ENABLED: 'true', KIT_API_KEY: 'kit-test-key' }, 'deploy-preview'), false)
+  assert.equal(news.newsletterEnabled({ KIT_SEND_ENABLED: 'true', KIT_API_KEY: 'kit-test-key' }, 'branch-deploy'), false)
+  assert.equal(news.newsletterEnabled({ KIT_SEND_ENABLED: 'true', KIT_API_KEY: 'kit-test-key' }, 'dev'), false)
+  assert.equal(news.isProductionDeploy({ CONTEXT: 'dev' }, 'production'), false)
+  assert.equal(news.isProductionDeploy({ DEPLOY_CONTEXT: 'deploy-preview', CONTEXT: 'production' }, 'production'), false)
+  const spoofed = news.envForDeploy(
+    { DEPLOY_CONTEXT: 'production', CONTEXT: undefined, KIT_SEND_ENABLED: 'true', KIT_API_KEY: 'kit-test-key' },
+    undefined,
+  )
+  assert.equal(news.newsletterEnabled(spoofed), false)
+
+  const previewSub = fakeKit()
+  const subscribed = await news.enrollSubscriber(
+    { env: news.envForDeploy(enabled(), 'deploy-preview'), store: news.memoryJsonStore(), kit: previewSub.api, fetchImpl: quietFetch() },
+    'ada@example.com',
+    { dryRun: false, explicit: true },
+  )
+  assert.equal(subscribed.reason, 'send disabled')
+  assert.equal(previewSub.calls.length, 0)
+
+  const branchStore = news.memoryJsonStore()
+  const token = 'cd'.repeat(32)
+  await branchStore.setJSON(`unsub/${token}`, { email: 'ada@example.com', subscriberId: 11 })
+  const branchKit = fakeKit()
+  const unsub = await news.unsubscribeByToken(
+    { env: news.envForDeploy(enabled(), 'branch-deploy'), store: branchStore, kit: branchKit.api },
+    token,
+  )
+  assert.equal(unsub.ok, true)
+  assert.equal(branchKit.calls.some((call) => call.name === 'unsubscribe'), false)
+})
+
+test('send-now can send today outside the 9 AM Toronto hour, and the 10:20 backup cron cannot', async () => {
+  const html = '<a class="ncard" href="nox-dawn-bakery/"><h2>Nox at dawn</h2><div class="nex">The bakery opens</div><div class="nmeta">2026-10-19</div></a>'
+  const fetchImpl = (async (url: string) => {
+    const target = String(url)
+    if (target === 'https://romansgame.com/news' || target === 'https://romansgame.com/news/') {
+      return new Response(html, { status: 200, headers: { 'content-type': 'text/html' } })
+    }
+    return new Response('no', { status: 404 })
+  }) as typeof fetch
+  const env = news.envForDeploy(enabled({ CONTEXT: undefined }), 'production')
+  const late = new Date('2026-10-19T14:20:00Z')
+  const morning = new Date('2026-10-19T13:20:00Z')
+  assert.equal(time.torontoShouldSend(morning), true)
+  assert.equal(time.torontoShouldSend(late), false)
+
+  const cronKit = fakeKit()
+  const backup = await news.runDaily(
+    { env, store: news.memoryJsonStore(), kit: cronKit.api, fetchImpl, now: late },
+    { dryRun: false },
+  )
+  assert.equal(backup.reason, 'schedule')
+  assert.equal(cronKit.calls.length, 0)
+
+  const morningKit = fakeKit()
+  const scheduled = await news.runDaily(
+    { env, store: news.memoryJsonStore(), kit: morningKit.api, fetchImpl, now: morning },
+    { dryRun: false },
+  )
+  assert.equal(scheduled.action, 'sent')
+  assert.equal(scheduled.storyId, 'nox-dawn-bakery')
+
+  const lateKit = fakeKit()
+  const store = news.memoryJsonStore()
+  const request = new Request('https://play.romansgame.com/api/kit-send-now?storyId=nox-dawn-bakery', {
+    method: 'POST',
+    headers: { 'x-kit-admin-secret': 'admin-test-secret' },
+  })
+  const first = await news.handleSendNow(request, { env, store, kit: lateKit.api, fetchImpl, now: late })
+  assert.equal(first.status, 200)
+  const body = await first.json() as { action: string; storyId: string }
+  assert.equal(body.action, 'sent')
+  assert.equal(body.storyId, 'nox-dawn-bakery')
+  const second = await news.handleSendNow(request, { env, store, kit: lateKit.api, fetchImpl, now: late })
+  const again = await second.json() as { reason?: string }
+  assert.equal(again.reason, 'already-sent')
+  assert.equal(lateKit.calls.filter((call) => call.name === 'broadcast').length, 1)
+
+  const dry = await news.handleSendNow(
+    new Request('https://play.romansgame.com/api/kit-send-now?dryRun=1', {
+      method: 'POST',
+      headers: { 'x-kit-admin-secret': 'admin-test-secret' },
+    }),
+    { env, store: news.memoryJsonStore(), kit: fakeKit().api, fetchImpl, now: late },
+  )
+  const dryBody = await dry.json() as { action: string; dryRun?: boolean }
+  assert.equal(dryBody.action, 'dry-run')
+  assert.equal(dryBody.dryRun, true)
+})
+
+test('kit functions pass the runtime deploy context into the send gate', () => {
+  for (const file of ['kit-daily-news.ts', 'kit-send-now.ts', 'kit-subscribe.ts', 'kit-unsubscribe.ts', 'kit-webhook.ts']) {
+    const src = readFileSync(new URL(`../netlify/functions/${file}`, import.meta.url), 'utf8')
+    assert.match(src, /envForDeploy\(/)
+    assert.match(src, /context\?\.deploy\?\.context/)
+    assert.doesNotMatch(src, /env:\s*process\.env/)
+  }
+})
+
+test('bake script records Netlify CONTEXT and does nothing off Netlify', async () => {
+  const bake = await import('./bake-deploy-context.mjs') as {
+    bakedContextValue: (env: Record<string, string | undefined>) => string | null
+    bakeDeployContextFile: (env: Record<string, string | undefined>, file: string) => { wrote: boolean; context: string }
+  }
+  assert.equal(bake.bakedContextValue({}), null)
+  assert.equal(bake.bakedContextValue({ NETLIFY: 'true', CONTEXT: 'production' }), 'production')
+  assert.equal(bake.bakedContextValue({ NETLIFY: 'true', CONTEXT: 'deploy-preview' }), 'deploy-preview')
+  assert.equal(bake.bakedContextValue({ NETLIFY: 'true', CONTEXT: 'branch-deploy' }), 'branch-deploy')
+  assert.equal(bake.bakedContextValue({ NETLIFY: 'true', CONTEXT: 'dev' }), 'dev')
+  assert.equal(bake.bakedContextValue({ NETLIFY: 'true' }), '')
+  assert.equal(bake.bakedContextValue({ NETLIFY: 'true', CONTEXT: 'not a context' }), '')
+  const dir = mkdtempSync(join(tmpdir(), 'bake-context-'))
+  const file = join(dir, 'bakedDeployContext.ts')
+  try {
+    const wrote = bake.bakeDeployContextFile({ NETLIFY: 'true', CONTEXT: 'production' }, file)
+    assert.equal(wrote.wrote, true)
+    assert.equal(wrote.context, 'production')
+    assert.match(readFileSync(file, 'utf8'), /export const BAKED_DEPLOY_CONTEXT = "production"/)
+    const skipped = bake.bakeDeployContextFile({ CONTEXT: 'production' }, file)
+    assert.equal(skipped.wrote, false)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 function createFetch(next: () => Response): typeof fetch {

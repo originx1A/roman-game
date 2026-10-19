@@ -1,6 +1,8 @@
 /**
  * Daily Kit broadcast, welcome letter, and unsubscribe.
- * Real newsletter sends require KIT_SEND_ENABLED and Netlify CONTEXT=production.
+ * Real newsletter sends require KIT_SEND_ENABLED and a production deploy.
+ * Netlify's CONTEXT variable is build-only, so production is the function
+ * Context's deploy.context, or that same value baked into the bundle.
  * KIT_DRY_RUN=true or ?dryRun=1 builds the payload and does not send.
  */
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
@@ -25,6 +27,7 @@ import {
 import { torontoDateKey, torontoParts, torontoShouldSend } from './newsTime.ts'
 import { sendResend } from './resendMail.ts'
 import { NEWS_FROM, SUPPORT_EMAIL, WELCOME_TAG, buildWelcomeDelivery } from './welcomeCopy.ts'
+import { BAKED_DEPLOY_CONTEXT } from './bakedDeployContext.ts'
 
 export const KIT_NEWS_STORE = 'kit-news'
 export const DEFAULT_FORM_ID = 10053148
@@ -48,7 +51,13 @@ export interface NewsEnv {
   RESEND_API_KEY?: string
   NEWS_POSTAL_ADDRESS?: string
   NEWS_SOURCE_URL?: string
+  /** Build-time Netlify CONTEXT. Unset when a function is invoked. */
   CONTEXT?: string
+  /**
+   * Runtime deploy context from the function Context object.
+   * Set only by envForDeploy. A Netlify env var of this name is ignored.
+   */
+  DEPLOY_CONTEXT?: string
   URL?: string
   DEPLOY_PRIME_URL?: string
 }
@@ -76,8 +85,43 @@ export function logNews(entry: Record<string, unknown>): void {
   console.log(JSON.stringify({ ts: new Date().toISOString(), component: 'kit-news', ...entry }))
 }
 
+/** `1`, `true`, `yes`, or `on`, any case. Surrounding space and one pair of quotes are ignored. */
 export function truthy(value: string | undefined): boolean {
-  return /^(1|true|yes|on)$/i.test(value?.trim() ?? '')
+  const trimmed = value?.trim() ?? ''
+  const unquoted = trimmed.replace(/^(['"])(.*)\1$/, '$2').trim()
+  return /^(1|true|yes|on)$/i.test(unquoted)
+}
+
+/**
+ * Production is decided in this order:
+ * 1. The deploy context Netlify passes on the function invocation.
+ * 2. process.env.CONTEXT, which Netlify injects for `netlify dev` and tests set,
+ *    and which is absent when a deployed function runs.
+ * 3. The context baked into the bundle during the Netlify build.
+ * Anything other than `production` (preview, branch, dev, unset) cannot send.
+ */
+export function deployContextOf(env: NewsEnv, baked = BAKED_DEPLOY_CONTEXT): string {
+  const runtime = env.DEPLOY_CONTEXT?.trim()
+  if (runtime) return runtime
+  const fromEnv = env.CONTEXT?.trim()
+  if (fromEnv) return fromEnv
+  return baked.trim()
+}
+
+export function isProductionDeploy(env: NewsEnv, baked = BAKED_DEPLOY_CONTEXT): boolean {
+  return deployContextOf(env, baked) === 'production'
+}
+
+/** Copy the platform deploy context onto env. Clears a spoofed DEPLOY_CONTEXT env var. */
+export function envForDeploy(base: NewsEnv, deployContext: string | undefined): NewsEnv {
+  const env: NewsEnv = { ...base, DEPLOY_CONTEXT: undefined }
+  const deployed = deployContext?.trim()
+  if (!deployed) return env
+  return { ...env, DEPLOY_CONTEXT: deployed }
+}
+
+function loggedContext(env: NewsEnv): string {
+  return deployContextOf(env) || 'unset'
 }
 
 export function formIdOf(env: NewsEnv): number {
@@ -90,8 +134,8 @@ export function formTagName(env: NewsEnv): string {
   return `form-${formIdOf(env)}`
 }
 
-export function newsletterEnabled(env: NewsEnv): boolean {
-  return env.CONTEXT === 'production' && truthy(env.KIT_SEND_ENABLED) && Boolean(env.KIT_API_KEY?.trim())
+export function newsletterEnabled(env: NewsEnv, baked = BAKED_DEPLOY_CONTEXT): boolean {
+  return isProductionDeploy(env, baked) && truthy(env.KIT_SEND_ENABLED) && Boolean(env.KIT_API_KEY?.trim())
 }
 
 export function isDryRun(env: NewsEnv, url?: URL): boolean {
@@ -123,7 +167,7 @@ export function safeEqual(provided: string, expected: string | undefined): boole
 }
 
 export function siteOrigin(env: NewsEnv): string {
-  const raw = env.CONTEXT === 'production' ? env.URL || env.DEPLOY_PRIME_URL : env.DEPLOY_PRIME_URL || env.URL
+  const raw = isProductionDeploy(env) ? env.URL || env.DEPLOY_PRIME_URL : env.DEPLOY_PRIME_URL || env.URL
   return (raw || 'http://localhost:8888').replace(/\/$/, '')
 }
 
@@ -261,7 +305,7 @@ async function resolveTarget(deps: Deps, kit: KitApi): Promise<{ type: 'segment'
 
 async function alertSupport(deps: Deps, subject: string, text: string): Promise<void> {
   const apiKey = deps.env.RESEND_API_KEY?.trim()
-  if (deps.env.CONTEXT !== 'production' || !apiKey) {
+  if (!isProductionDeploy(deps.env) || !apiKey) {
     logNews({ level: 'error', msg: 'ERROR support alert not sent', subject, detail: text })
     return
   }
@@ -331,7 +375,7 @@ export async function deliverStory(deps: Deps, story: Story, opts: { dryRun: boo
   }
 
   if (!newsletterEnabled(deps.env)) {
-    logNews({ level: 'info', msg: 'send disabled', job: 'broadcast', storyId: full.id })
+    logNews({ level: 'info', msg: 'send disabled', job: 'broadcast', storyId: full.id, deployContext: loggedContext(deps.env) })
     return { ok: true, action: 'skipped', reason: 'send disabled', storyId: full.id }
   }
 
@@ -350,7 +394,7 @@ export async function deliverStory(deps: Deps, story: Story, opts: { dryRun: boo
   try {
     const target = await resolveTarget(deps, kit)
     const payload = broadcastDraft(full, target, now)
-    logNews({ level: 'info', msg: 'sending broadcast', storyId: full.id, filter: target.name })
+    logNews({ level: 'info', msg: 'sending broadcast', storyId: full.id, filter: target.name, deployContext: loggedContext(deps.env) })
     const broadcastId = await kit.createBroadcast(payload)
     await deps.store.setJSON(broadcastKey(full.id), {
       status: 'sent',
@@ -515,7 +559,7 @@ export async function sendWelcome(deps: Deps, email: string, subscriberId: numbe
   if (!newsletterEnabled(deps.env)) {
     await deps.store.setJSON(key, { status: 'pending', at: new Date().toISOString(), email: normalized })
     await rememberPending(deps.store, normalized)
-    logNews({ level: 'info', msg: 'send disabled', job: 'welcome', emailHash: emailHash(normalized).slice(0, 12) })
+    logNews({ level: 'info', msg: 'send disabled', job: 'welcome', emailHash: emailHash(normalized).slice(0, 12), deployContext: loggedContext(deps.env) })
     return { ok: true, action: 'skipped', reason: 'send disabled' }
   }
   if (!address) {
@@ -584,20 +628,22 @@ export async function enrollSubscriber(deps: Deps, emailRaw: string, opts: { dry
     }
     await deps.store.delete(suppressedKey(email))
   }
-  const productionKey = deps.env.CONTEXT === 'production' && Boolean(deps.env.KIT_API_KEY?.trim())
+  const production = isProductionDeploy(deps.env)
+  const productionKey = production && Boolean(deps.env.KIT_API_KEY?.trim())
   if (opts.dryRun || !productionKey) {
     logNews({
       level: 'info',
       msg: opts.dryRun ? 'dry-run' : 'send disabled',
       job: 'subscribe',
       emailHash: emailHash(email).slice(0, 12),
+      deployContext: loggedContext(deps.env),
     })
     return {
       ok: !opts.dryRun ? false : true,
       action: opts.dryRun ? 'dry-run' : 'skipped',
       reason: opts.dryRun ? 'dry-run' : 'send disabled',
       dryRun: opts.dryRun,
-      fallback: !opts.dryRun && deps.env.CONTEXT === 'production' && !deps.env.KIT_API_KEY?.trim(),
+      fallback: !opts.dryRun && production && !deps.env.KIT_API_KEY?.trim(),
       status: 200,
     }
   }
@@ -635,10 +681,10 @@ export async function unsubscribeByToken(deps: Deps, token: string): Promise<{ o
   if (!record) return { ok: false, status: 404 }
   const email = record.email
   await deps.store.setJSON(suppressedKey(email), { at: new Date().toISOString(), email })
-  const kitReady = deps.env.CONTEXT === 'production' && Boolean(deps.env.KIT_API_KEY?.trim())
+  const kitReady = isProductionDeploy(deps.env) && Boolean(deps.env.KIT_API_KEY?.trim())
   if (!kitReady) {
     await queuePendingUnsub(deps.store, email, record.subscriberId)
-    logNews({ level: 'info', msg: 'send disabled', job: 'unsubscribe', emailHash: emailHash(email).slice(0, 12) })
+    logNews({ level: 'info', msg: 'send disabled', job: 'unsubscribe', emailHash: emailHash(email).slice(0, 12), deployContext: loggedContext(deps.env) })
     return { ok: true, status: 200 }
   }
   try {
