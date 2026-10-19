@@ -15,7 +15,7 @@ export function useCloud(): CloudState {
 
 type Sheet = null | 'email' | 'sent' | 'name' | 'account' | 'parent'
 
-export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: string; compact?: boolean }) {
+export function CloudScoresButton({ suggestedName, compact, mode }: { suggestedName?: string; compact?: boolean; mode?: 'full' | 'save-only' | 'switch-only' }) {
   const cloud = useCloud()
   const [sheet, setSheet] = useState<Sheet>(null)
   const [email, setEmail] = useState('')
@@ -64,19 +64,26 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
 
   const nameProblem = !name.trim() ? '' : isProfane(name) ? "Let's pick a different name. Keep it friendly!" : ''
 
+  const isSignedIn = cloud.status === 'signed-in' && cloud.name
+  const showSave = mode !== 'switch-only' && !(mode === 'save-only' && isSignedIn)
+  const showSwitch = mode !== 'save-only' && isSignedIn
+
+  // Tony 2026-10-18: when signed in, scores save automatically — no manual save button needed
   return (
     <>
-      <button
-        type="button"
-        className={`btn ghost cloud-btn${compact ? ' is-compact' : ''}`}
-        onClick={() => {
-          setErr('')
-          setSheet(cloud.status === 'signed-in' ? (cloud.name ? 'account' : 'name') : 'email')
-        }}
-      >
-        {label}
-      </button>
-      {cloud.status === 'signed-in' && cloud.name && (
+      {showSave && (
+        <button
+          type="button"
+          className={`btn ghost cloud-btn${compact ? ' is-compact' : ''}`}
+          onClick={() => {
+            setErr('')
+            setSheet(cloud.status === 'signed-in' ? (cloud.name ? 'account' : 'name') : 'email')
+          }}
+        >
+          {label}
+        </button>
+      )}
+      {showSwitch && (
         <button type="button" className={`btn ghost cloud-switch${compact ? ' is-compact' : ''}`} onClick={() => void switchPlayer()}>
           Switch player
         </button>

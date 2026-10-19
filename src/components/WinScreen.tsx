@@ -240,11 +240,12 @@ export function WinScreen({
             {nextLabel ?? 'Next board'}
           </button>
           {cardGain ? <UnseenCardGain from={cardGain.from} to={cardGain.to} /> : null}
-          <CloudScoresButton compact />
+          <CloudScoresButton compact mode="save-only" />
           <div className="win-screen-row">
             <button type="button" className="btn ghost win-cta" onClick={onReplay}>
               Play again
             </button>
+            <CloudScoresButton compact mode="switch-only" />
             {onDuel ? (
               <button type="button" className="btn ghost win-cta" onClick={onDuel}>
                 Head-to-head
