@@ -19,6 +19,7 @@ import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
 import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
 import { CloudScoresButton } from './cloud/CloudScores'
+import { KeyboardNameSheet, NameEntry, useKeyboardNameEntry } from './components/KeyboardNameSheet'
 import { initCloud, saveScore } from './cloud/cloud'
 import { UnseenCardTile } from './components/UnseenCard'
 import { noteCardWin } from './game/unseenCard'
@@ -666,6 +667,7 @@ export default function App() {
   const playerName = cleanPlayerName(settings.playerName)
   const [namePrompt, setNamePrompt] = useState<null | { then?: () => void }>(null)
   const [nameDraft, setNameDraft] = useState('')
+  const touchName = useKeyboardNameEntry()
   const comboRef = useRef<ComboState>(newCombo())
   const undosRef = useRef(0)
   const splitsRef = useRef<number[]>([])
@@ -1179,6 +1181,8 @@ export default function App() {
   }
 
   function closeNamePrompt(save: boolean) {
+    const active = document.activeElement
+    if (active instanceof HTMLElement) active.blur()
     const name = save ? cleanPlayerName(nameDraft) : ''
     saveSettingsPatch({ namePrompted: true, ...(name ? { playerName: name } : {}) })
     const then = namePrompt?.then
@@ -2897,39 +2901,7 @@ export default function App() {
       {/* On a live board the toast text shows in the play caption slot instead (never over the board) */}
       {toast && (screen !== 'play' || celebrate || defeated) && <div className="toast">{toast}</div>}
 
-      {namePrompt &&
-        createPortal(
-          <div className="start-sheet name-prompt" role="dialog" aria-modal="true" aria-label="Your name">
-            <div className="start-sheet-scrim" />
-            <form
-              className="start-sheet-card"
-              onSubmit={(e) => {
-                e.preventDefault()
-                closeNamePrompt(true)
-              }}
-            >
-              <h3>What should we call you?</h3>
-              <p className="start-sheet-tip">Your name goes on the scores you share, like “{cleanPlayerName(nameDraft) || 'Sam'} scored 1,840 on Level 1”. It stays on this device. You can change it later in Save &amp; settings.</p>
-              <input
-                className="name-input"
-                type="text"
-                value={nameDraft}
-                maxLength={PLAYER_NAME_MAX + 8}
-                placeholder="Your name"
-                autoComplete="nickname"
-                aria-label="Your name"
-                onChange={(e) => setNameDraft(e.target.value.slice(0, PLAYER_NAME_MAX + 8))}
-              />
-              <button type="submit" className="btn primary" disabled={!cleanPlayerName(nameDraft)}>
-                Save
-              </button>
-              <button type="button" className="btn ghost" onClick={() => closeNamePrompt(false)}>
-                Skip (share as “I scored…”)
-              </button>
-            </form>
-          </div>,
-          document.body,
-        )}
+      {namePrompt && <NamePromptSheet touch={touchName} nameDraft={nameDraft} setNameDraft={setNameDraft} onClose={closeNamePrompt} />}
 
       <ShortfallSheetHost
         open={!!shortfall}
@@ -3658,7 +3630,16 @@ export default function App() {
               </label>
               <label>
                 Display name
-                <input type="text" value={nameInput} onChange={(e) => setNameInput(e.target.value)} />
+                <NameEntry
+                  value={nameInput}
+                  onChange={setNameInput}
+                  onCommit={setNameInput}
+                  ariaLabel="Display name"
+                  placeholder="Your name"
+                  sheetTitle="Display name"
+                  sheetHint="This is the name saved with your email on this device."
+                  testId="display-name"
+                />
               </label>
               <button type="submit" className="btn primary">Save with email</button>
             </form>
@@ -3667,14 +3648,16 @@ export default function App() {
             <h3>Settings</h3>
             <label className="name-setting">
               Your name on shared scores
-              <input
-                type="text"
+              <NameEntry
                 value={settings.playerName ?? ''}
                 maxLength={PLAYER_NAME_MAX}
                 placeholder="Blank = “I scored…”"
-                aria-label="Your name on shared scores"
-                onChange={(e) => saveSettingsPatch({ playerName: e.target.value.slice(0, PLAYER_NAME_MAX), namePrompted: true })}
-                onBlur={(e) => saveSettingsPatch({ playerName: cleanPlayerName(e.target.value) })}
+                ariaLabel="Your name on shared scores"
+                sheetTitle="Your name on shared scores"
+                sheetHint="Leave this blank to share as “I scored…”. It stays on this device."
+                testId="player-name"
+                onChange={(v) => saveSettingsPatch({ playerName: v.slice(0, PLAYER_NAME_MAX), namePrompted: true })}
+                onCommit={(v) => saveSettingsPatch({ playerName: cleanPlayerName(v) })}
               />
             </label>
             <label className="toggle">
@@ -4056,6 +4039,62 @@ export default function App() {
         onStolen={handleDefenseStolen}
       />
     </div>
+  )
+}
+
+/** First-share name. On a phone the card is pinned above the keyboard; desktop stays centered. */
+function NamePromptSheet({
+  touch,
+  nameDraft,
+  setNameDraft,
+  onClose,
+}: {
+  touch: boolean
+  nameDraft: string
+  setNameDraft: (value: string) => void
+  onClose: (save: boolean) => void
+}) {
+  const form = (
+    <form
+      className="start-sheet-card"
+      onSubmit={(e) => {
+        e.preventDefault()
+        onClose(true)
+      }}
+    >
+      <div className="kb-name-copy">
+        <h3>What should we call you?</h3>
+        <p className="start-sheet-tip">
+          Your name goes on the scores you share, like “{cleanPlayerName(nameDraft) || 'Sam'} scored 1,840 on Level 1”. It stays on this device. You can change it later in Save &amp; settings.
+        </p>
+      </div>
+      <input
+        className="name-input"
+        type="text"
+        value={nameDraft}
+        maxLength={PLAYER_NAME_MAX + 8}
+        placeholder="Your name"
+        autoComplete="nickname"
+        enterKeyHint="done"
+        aria-label="Your name"
+        data-testid="share-name-input"
+        onChange={(e) => setNameDraft(e.target.value.slice(0, PLAYER_NAME_MAX + 8))}
+      />
+      <button type="submit" className="btn primary" disabled={!cleanPlayerName(nameDraft)}>
+        Save
+      </button>
+      <button type="button" className="btn ghost" onClick={() => onClose(false)}>
+        Skip (share as “I scored…”)
+      </button>
+    </form>
+  )
+  if (touch) return <KeyboardNameSheet label="Your name">{form}</KeyboardNameSheet>
+  return createPortal(
+    <div className="start-sheet name-prompt" role="dialog" aria-modal="true" aria-label="Your name">
+      <div className="start-sheet-scrim" />
+      {form}
+    </div>,
+    document.body,
   )
 }
 

@@ -845,6 +845,7 @@ html[data-motion='reduce'] .cell.pressed .cell-fill {
 }
 
 .auth-form input,
+.auth-form .name-face,
 .challenge input,
 .challenge select,
 .profile input {
@@ -4540,7 +4541,8 @@ html.play-locked #root {
   }
 }
 .name-input,
-.name-setting input {
+.name-setting input,
+.name-setting .name-face {
   width: 100%;
   box-sizing: border-box;
   font: inherit;
