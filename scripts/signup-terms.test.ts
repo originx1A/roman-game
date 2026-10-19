@@ -16,3 +16,11 @@ test('sign-up sheet requires Terms and Privacy, and leaves the news box unchecke
   assert.doesNotMatch(sheet, /oelsglmfkpzbueqysvdm/)
   assert.match(cloud, /https:\/\/oelsglmfkpzbueqysvdm\.supabase\.co/)
 })
+
+test('sign-in sheet keeps the magic link and accepts the 6-digit code', () => {
+  assert.match(sheet, /Tap the link in your email, or enter the 6-digit code/)
+  assert.match(sheet, /aria-label="6-digit code"/)
+  assert.match(sheet, /verifyEmailCode\(email, code\)/)
+  assert.match(cloud, /verifyOtp\(\{ email: email\.trim\(\), token: code, type: 'email' \}\)/)
+  assert.match(cloud, /signInWithOtp/)
+})

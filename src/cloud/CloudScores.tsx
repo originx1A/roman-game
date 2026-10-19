@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { isProfane } from './profanity'
-import { NAME_MAX, loadConsent, saveConsent, onCloud, savePlayerName, sendMagicLink, signOut, type CloudState } from './cloud'
+import { NAME_MAX, loadConsent, saveConsent, onCloud, savePlayerName, sendMagicLink, signOut, verifyEmailCode, type CloudState } from './cloud'
 
 /**
- * "Save my scores" button + sheets: email magic-link sign-in, then a one-time name prompt.
+ * "Save my scores" button + sheets: email magic link or the 6-digit code from that email, then a one-time name prompt.
  * The whole chosen name is shown publicly (the server adds 02, 03... if it's taken); bad words are rejected on the spot.
  */
 export function useCloud(): CloudState {
@@ -19,6 +19,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
   const cloud = useCloud()
   const [sheet, setSheet] = useState<Sheet>(null)
   const [email, setEmail] = useState('')
+  const [code, setCode] = useState('')
   const [name, setName] = useState(suggestedName ?? '')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
@@ -52,9 +53,11 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
     </div>
   )
 
-  // Signed in from the magic link but no name yet: ask once
+  // Signed in from the link or the code. No name yet: ask once. Code sign-in of a named player: show the account.
   useEffect(() => {
-    if (cloud.status === 'signed-in' && cloud.name === null) setSheet((s) => (s === 'account' ? s : 'name'))
+    if (cloud.status !== 'signed-in') return
+    if (cloud.name === null) setSheet((s) => (s === 'account' ? s : 'name'))
+    else setSheet((s) => (s === 'sent' ? 'account' : s))
   }, [cloud.status, cloud.name])
 
   const label =
@@ -68,6 +71,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
   async function switchPlayer() {
     await signOut()
     setEmail('')
+    setCode('')
     setName('')
     setAge13(false)
     setOptIn(false)
@@ -118,7 +122,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
               >
                 <h3>Save your scores</h3>
                 <p className="start-sheet-tip">
-                  Get on the leaderboard and keep your scores on any device. We'll email you a sign-in link. No password.
+                  Get on the leaderboard and keep your scores on any device. We'll email you a sign-in link and a 6-digit code. No password.
                 </p>
                 <input className="name-input" type="email" inputMode="email" autoComplete="email" placeholder="Email address" aria-label="Email address" value={email} onChange={(e) => setEmail(e.target.value)} />
                 {consentChecks}
@@ -132,15 +136,42 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
               </form>
             )}
             {sheet === 'sent' && (
-              <div className="start-sheet-card">
+              <form
+                className="start-sheet-card"
+                onSubmit={async (e) => {
+                  e.preventDefault()
+                  if (!/^\d{6}$/.test(code)) return setErr('Enter the 6-digit code from the email.')
+                  setBusy(true)
+                  const r = await verifyEmailCode(email, code)
+                  setBusy(false)
+                  if (!r.ok) setErr(r.error ?? 'Something went wrong.')
+                }}
+              >
                 <h3>Check your email</h3>
                 <p className="start-sheet-tip">
-                  We sent a link to <b>{email.trim()}</b>. Open it on this device and you're in. Your scores keep saving here until then.
+                  We sent it to <b>{email.trim()}</b>. Tap the link in your email, or enter the 6-digit code.
                 </p>
-                <button type="button" className="btn primary" onClick={() => setSheet(null)}>
-                  OK
+                <input
+                  className="name-input cloud-code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  placeholder="6-digit code"
+                  aria-label="6-digit code"
+                  value={code}
+                  onChange={(e) => {
+                    setCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                    setErr('')
+                  }}
+                />
+                {err && <p className="cloud-err" role="alert">{err}</p>}
+                <button type="submit" className="btn primary" disabled={busy || code.length !== 6}>
+                  {busy ? 'Checking…' : 'Sign in with code'}
                 </button>
-              </div>
+                <button type="button" className="btn ghost" onClick={() => setSheet(null)}>
+                  Not now
+                </button>
+              </form>
             )}
             {sheet === 'name' && (
               <form
