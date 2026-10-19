@@ -6395,3 +6395,275 @@ html[data-motion='reduce'] .td-invader {
 .unseen-gain { display: flex; align-items: center; gap: 12px; margin: 8px auto; padding: 8px 12px; border-radius: 12px; background: rgba(10,12,24,.8); border: 1px solid rgba(255,160,60,.55); color: #f3e6c4; animation: unseen-pop .5s ease-out; max-width: 340px; text-align: left; }
 .unseen-gain span { display: flex; flex-direction: column; }
 @keyframes unseen-pop { from { transform: scale(.9); opacity: 0 } to { transform: none; opacity: 1 } }
+
+/* ===== Compact victory sheet =====
+   The solved board stays on screen. Win info sits in a short bottom sheet
+   (the old navy/gold card: Victory, stars, New best, time / score / hearts,
+   Next board, Play again, Share). Everything else is behind More. */
+html:not([data-layout='wide']) .shell-play.shell-celebrate .play-fixed {
+  --win-reserve: calc(13.5rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: var(--win-reserve);
+}
+html:not([data-layout='wide']) .shell-celebrate .play-toolbar,
+html:not([data-layout='wide']) .shell-celebrate .play-fixed > .build-tag {
+  display: none;
+}
+@media (max-height: 520px) {
+  html:not([data-layout='wide']) .shell-play.shell-celebrate .play-fixed {
+    --win-reserve: calc(10.75rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+.win-screen.win-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  height: auto;
+  padding: 0;
+  background: none;
+  overflow: visible;
+  pointer-events: none;
+  transform: none;
+}
+.win-screen.win-sheet.in {
+  transform: none;
+}
+.win-screen.win-sheet .win-screen-sparkles {
+  z-index: 0;
+}
+.win-sheet-wrap {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 560px;
+  pointer-events: none;
+}
+.win-screen.win-sheet .win-screen-card {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  width: 100%;
+  max-height: min(68dvh, 480px);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  text-align: center;
+  border-radius: 22px 22px 0 0;
+  border: 1px solid rgba(255, 209, 102, 0.5);
+  border-bottom: 0;
+  background: linear-gradient(180deg, rgba(16, 36, 78, 0.98) 0%, rgba(7, 18, 42, 0.98) 100%);
+  box-shadow: 0 -14px 36px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 209, 102, 0.2);
+  animation: winSheetIn 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes winSheetIn {
+  from { opacity: 0; transform: translateY(36px); }
+  to { opacity: 1; transform: none; }
+}
+.win-screen.win-sheet .win-pet {
+  top: -1.45rem;
+  left: 0.7rem;
+  z-index: 3;
+}
+.win-sheet-main {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.32rem;
+  padding: 0.4rem 0.7rem calc(0.45rem + env(safe-area-inset-bottom, 0px));
+}
+.win-sheet-handle {
+  width: 2.5rem;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 209, 102, 0.55);
+}
+.win-sheet-main.has-pet .win-sheet-head {
+  padding-left: 2.5rem;
+}
+.win-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 1.65rem;
+}
+.win-screen.win-sheet .win-screen-title {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1;
+  text-shadow: 0 2px 0 #c48900, 0 6px 14px rgba(255, 209, 102, 0.35);
+}
+.win-screen.win-sheet .win-stars {
+  font-size: 1.28rem;
+  margin: 0;
+}
+.win-screen.win-sheet .win-record,
+.win-screen.win-sheet .win-perfect {
+  display: inline-block;
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+}
+.win-screen.win-sheet .win-stats {
+  width: 100%;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin: 0;
+}
+.win-screen.win-sheet .win-stat {
+  padding: 0.28rem 0.15rem 0.32rem;
+  border-radius: 12px;
+}
+.win-screen.win-sheet .win-stat-label {
+  font-size: 0.58rem;
+  margin-bottom: 0.05rem;
+}
+.win-screen.win-sheet .win-stat-value {
+  font-size: 1.02rem;
+}
+.win-sheet-actions {
+  display: flex;
+  width: 100%;
+  gap: 0.35rem;
+}
+.win-screen.win-sheet .win-sheet-actions .win-cta {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0.4rem 0.25rem;
+  font-size: clamp(0.72rem, 3.2vw, 0.92rem);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.win-screen.win-sheet .win-sheet-actions .btn.primary {
+  flex: 1.2 1 0;
+}
+.win-more-toggle {
+  appearance: none;
+  border: 0;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--foam);
+  font-weight: 800;
+  font-size: 0.8rem;
+  border-radius: 999px;
+  min-height: 32px;
+  padding: 0.12rem 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.win-more-toggle.has-hunt {
+  padding-right: 0.28rem;
+}
+.win-more-hunt {
+  font-style: normal;
+  background: linear-gradient(135deg, var(--mint), var(--sun));
+  color: #143024;
+  border-radius: 999px;
+  padding: 0.1rem 0.48rem;
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+.win-more {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.45rem;
+  min-height: 0;
+  max-height: min(28dvh, 200px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 0.65rem 0.75rem 0.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.win-more[hidden] {
+  display: none !important;
+}
+.win-more .win-roman-says {
+  margin: 0;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.82rem;
+}
+.win-more .win-sheet-kicker,
+.win-more .win-mode-note,
+.win-more .next-parade-hint,
+.win-more .win-replay-detail,
+.win-more .win-sheet-extra {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: rgba(244, 251, 255, 0.82);
+}
+.win-more .win-sheet-kicker .win-screen-board {
+  font-size: inherit;
+  color: var(--foam);
+}
+.win-more .btn {
+  min-height: 42px;
+  padding: 0.45rem 0.7rem;
+}
+.win-more .win-cta {
+  width: 100%;
+}
+.win-more .cloud-btn,
+.win-more .cloud-switch {
+  width: 100%;
+  white-space: normal;
+  line-height: 1.25;
+  text-align: center;
+}
+.win-more .win-fb-follow {
+  margin-top: 0.1rem;
+  font-size: 0.75rem;
+  padding: 0.4rem 0.7rem;
+}
+.win-more .unseen-gain {
+  margin: 0;
+  max-width: none;
+}
+.win-more .buddy-meter {
+  margin: 0;
+}
+
+html[data-layout='wide'] .win-screen.win-sheet {
+  justify-content: flex-end;
+  align-items: flex-end;
+  padding: max(0.75rem, env(safe-area-inset-bottom, 0px)) max(0.75rem, env(safe-area-inset-right, 0px))
+    max(0.75rem, env(safe-area-inset-bottom, 0px)) max(0.75rem, env(safe-area-inset-left, 0px));
+}
+html[data-layout='wide'] .win-sheet-wrap {
+  width: min(340px, 28vw);
+}
+html[data-layout='wide'] .win-screen.win-sheet .win-screen-card {
+  border-radius: 22px;
+  border-bottom: 1px solid rgba(255, 209, 102, 0.5);
+}
+html[data-layout='wide'] .win-sheet-main {
+  padding-bottom: 0.55rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .win-screen.win-sheet .win-screen-card {
+    animation: none;
+  }
+  .win-screen.win-sheet .win-spark {
+    animation: none;
+    opacity: 0.35;
+  }
+}

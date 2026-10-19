@@ -3364,7 +3364,7 @@ export default function App() {
               cardGain={cardGain ?? undefined}
               nextLabel={endlessRef.current ? 'Next Endless board' : parseRemixId(puzzle.id) ? 'Next Remix board' : 'Next board'}
               paradeHint={settings.parade === false ? undefined : paradeHint(paradeRef.current).text}
-              modeNote={endlessRef.current ? `Endless mode · ${endless.cleared} cleared. Levels list and Home are below.` : parseRemixId(puzzle.id) ? boardKindNote(puzzle.id) : undefined}
+              modeNote={endlessRef.current ? `Endless mode · ${endless.cleared} cleared. Levels and Home are under More.` : parseRemixId(puzzle.id) ? boardKindNote(puzzle.id) : undefined}
               onNext={() => maybeParade(() => {
                 // 9.30-i: Remix → the next uncleared board of the live set; Endless → another fresh board
                 const rm = parseRemixId(puzzle.id)
