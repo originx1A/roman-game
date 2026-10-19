@@ -24,11 +24,25 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
   const [busy, setBusy] = useState(false)
   const [age13, setAge13] = useState(() => loadConsent()?.age13 ?? false)
   const [optIn, setOptIn] = useState(() => loadConsent()?.optIn ?? false)
+  const [terms, setTerms] = useState(false)
   const consentChecks = (
     <div className="cloud-checks">
       <label className="cloud-check">
         <input type="checkbox" checked={age13} onChange={(e) => setAge13(e.target.checked)} />
         <span>I'm 13 or older</span>
+      </label>
+      <label className="cloud-check">
+        <input type="checkbox" checked={terms} onChange={(e) => setTerms(e.target.checked)} />
+        <span>
+          I agree to the{' '}
+          <a href="https://romansgame.com/terms" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+            Terms
+          </a>{' '}
+          and{' '}
+          <a href="./privacy.html" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+            Privacy
+          </a>
+        </span>
       </label>
       <label className="cloud-check">
         <input type="checkbox" checked={optIn} onChange={(e) => setOptIn(e.target.checked)} />
@@ -57,6 +71,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
     setName('')
     setAge13(false)
     setOptIn(false)
+    setTerms(false)
     saveConsent({ age13: false, optIn: false })
     setErr('')
     setSheet('email')
@@ -91,6 +106,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 onSubmit={async (e) => {
                   e.preventDefault()
                   if (!age13) return setSheet('parent')
+                  if (!terms) return setErr('Please agree to the Terms and Privacy.')
                   if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setErr('Type a full email address.')
                   saveConsent({ age13, optIn })
                   setBusy(true)
@@ -133,6 +149,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                   e.preventDefault()
                   if (!name.trim() || nameProblem) return
                   if (!age13) return setSheet('parent')
+                  if (!loadConsent()?.age13 && !terms) return setErr('Please agree to the Terms and Privacy.')
                   setBusy(true)
                   const r = await savePlayerName(name, { age13, optIn })
                   setBusy(false)
