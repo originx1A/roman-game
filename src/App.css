@@ -6274,6 +6274,140 @@ html[data-motion='reduce'] .unseen-pop.is-leaving {
   animation-timing-function: ease;
 }
 
+/* ——— The Unseen GUIDE pop-up (Tony 2026-10-19, PR #53 batch 2) ——— */
+/* Same entrance as the heckler pop-up, but TAPPABLE: taps open the linked page.
+   Color-coded indicator dot: red blinking = urgent, green = opportunity, gold = progress. */
+.unseen-guide {
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 76; /* above the heckler pop-up (75): the tappable guide wins ties */
+}
+.unseen-guide .unseen-bubble { padding-right: 1.6rem; }
+.unseen-indicator {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2.5px solid #111;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+.unseen-indicator.is-urgent { background: #e5484d; animation: unseenBlink 0.9s steps(2, start) infinite; }
+.unseen-indicator.is-opportunity { background: #30a46c; }
+.unseen-indicator.is-progress { background: #f5b942; }
+@keyframes unseenBlink { 50% { opacity: 0.2; } }
+.unseen-dismiss {
+  position: absolute;
+  top: 44px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid #111;
+  background: #fffdf5;
+  color: #15121c;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 2;
+}
+.unseen-cta {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #8a6d3b;
+}
+
+/* ——— Silent pet pop-outs (Tony 2026-10-19, PR #53 batch 2) ——— */
+/* Pets pop out bottom-left like the Unseen — no dialogue, just visual:
+   red tint/glow when hungry, droopy sway when unhappy, mini meter bar under them. */
+.pet-pop {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  z-index: 74; /* below the Unseen guide (75) */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  user-select: none;
+  -webkit-user-select: none;
+  will-change: transform, opacity;
+}
+.pet-pop.is-entering { animation: petPopIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.pet-pop.is-leaving { animation: petPopOut 0.4s cubic-bezier(0.55, 0.06, 0.68, 0.19) both; }
+@keyframes petPopIn {
+  from { transform: translateX(-120%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes petPopOut {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(-120%); opacity: 0; }
+}
+.pet-pop-tap {
+  background: none;
+  border: 0;
+  padding: 0 0 0 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.pet-pop-art { display: block; }
+.pet-pop-art svg { display: block; }
+/* hungry: red tint + glow */
+.is-pet-hungry .pet-pop-art {
+  filter: sepia(0.55) saturate(2.4) hue-rotate(-48deg) drop-shadow(0 0 14px rgba(255, 45, 45, 0.9));
+}
+/* unhappy: droopy side-to-side sag */
+.pet-pop-art.is-droop { animation: petDroop 2.6s ease-in-out infinite; transform-origin: 50% 18%; }
+@keyframes petDroop {
+  0%, 100% { transform: rotate(-5deg) translateY(3px); }
+  50% { transform: rotate(5deg) translateY(7px); }
+}
+.pet-pop-meter {
+  display: block;
+  width: 72px;
+  height: 7px;
+  border-radius: 4px;
+  background: rgba(10, 8, 16, 0.72);
+  border: 1.5px solid #111;
+  overflow: hidden;
+}
+.pet-pop-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #e5484d, #f5b942);
+}
+.pet-pop-x {
+  position: absolute;
+  top: 2px;
+  left: 78px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid #111;
+  background: #fffdf5;
+  color: #15121c;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+html[data-motion='reduce'] .pet-pop.is-entering,
+html[data-motion='reduce'] .pet-pop.is-leaving,
+html[data-motion='reduce'] .pet-pop-art.is-droop,
+html[data-motion='reduce'] .unseen-indicator.is-urgent {
+  animation-duration: 0.2s;
+  animation-iteration-count: 1;
+  animation-timing-function: ease;
+}
+
 /* 10.06: treat defense — wild pets vs the field treat pile */
 .treat-defense {
   position: fixed;

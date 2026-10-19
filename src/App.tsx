@@ -18,9 +18,12 @@ import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './componen
 import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
 import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
+/* PR #53 batch 2 (Tony 2026-10-19): the Unseen as guide character + silent pet pop-outs */
+import { UnseenGuide, PetPopout, type GuideItem, type PetPopoutInfo } from './components/UnseenGuide'
 import { initCloud, saveScore } from './cloud/cloud'
 import { UnseenCardTile } from './components/UnseenCard'
-import { noteCardWin } from './game/unseenCard'
+import { noteCardWin, localCard, CARD_PIECES } from './game/unseenCard'
+import { guideCandidates, petPopoutPick, type GuideTarget } from './game/unseenGuide'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
 import { TapButton } from './components/TapButton'
 import { BuddyHunt } from './components/BuddyHunt'
@@ -538,6 +541,35 @@ export default function App() {
     if (!line.speak || line.silent || !line.text || !isUnseenClip(line.clip)) return
     unseenKey.current += 1
     setUnseenPop({ text: line.text, key: unseenKey.current })
+  }
+  // PR #53 batch 2 (Tony 2026-10-19): the Unseen as guide character.
+  // Visual-only (his guide lines have no recorded audio); tappable deep-links.
+  // Appearing never touches the timer — he's a distraction mid-board; the timer
+  // only pauses via the existing navigation behavior when the player taps through.
+  const [guide, setGuide] = useState<GuideItem | null>(null)
+  const [petPop, setPetPop] = useState<PetPopoutInfo | null>(null)
+  const guideKey = useRef(0)
+  const petPopKey = useRef(0)
+  // Frequency caps (per session): max 1 warning, max 1 opportunity, progress
+  // tags once each; never interrupt the same board twice (boardSeqRef below).
+  const guideWarnShownRef = useRef(false)
+  const guideOppShownRef = useRef(false)
+  const guideProgressFiredRef = useRef<Set<string>>(new Set())
+  const petPopFiredRef = useRef<Set<PetId>>(new Set())
+  const boardSeqRef = useRef(0)
+  const guideBoardRef = useRef(-1)
+  /** Don't stack notifications: at least 45 s between guide/pop-out appearances. */
+  const guideLastAtRef = useRef(0)
+  // PR #53 batch 2: deep-link target for the guide / pet pop-out — opens the
+  // Stable with a specific pet's detail page selected.
+  const [stableFocus, setStableFocus] = useState<{ id: PetId; key: number } | null>(null)
+  const stableFocusKey = useRef(0)
+  function goGuideTarget(t: GuideTarget) {
+    if (t.pet) {
+      stableFocusKey.current += 1
+      setStableFocus({ id: t.pet, key: stableFocusKey.current })
+    }
+    setScreen(t.screen)
   }
   const [shortfall, setShortfall] = useState<null | { action: ShortfallAction; need: number; detail?: string }>(null)
   const [incoming, setIncoming] = useState<Challenge | null>(null)
@@ -1574,6 +1606,7 @@ export default function App() {
         setHintsUsed(d.hintsUsed)
         flawedRef.current = d.flawed === true || d.hintsUsed > 0
         setRunning(true)
+        boardSeqRef.current += 1 // PR #53 batch 2: a fresh board started (guide frequency caps)
         setScreen('play')
         return
       }
@@ -1585,6 +1618,7 @@ export default function App() {
     setHintsUsed(0)
     setRescuesUsed(0)
     setRunning(true)
+    boardSeqRef.current += 1 // PR #53 batch 2: a fresh board started (guide frequency caps)
     setScreen('play')
     saveDraft({
       puzzleId: p.id,
@@ -2617,6 +2651,59 @@ export default function App() {
   )
   const dailyToday = records.daily.days[todayKey]
   const dailyStreakNow = liveStreak(records.daily, todayKey)
+
+  // PR #53 batch 2 (Tony 2026-10-19): Unseen guide + pet pop-out triggers.
+  // Evaluates ~2s after relevant state settles; the highest-priority candidate
+  // wins. Caps: 1 warning/session, 1 opportunity/session, progress tags once
+  // each, never interrupt the same board twice. Appearing never pauses the
+  // timer — the existing navigation behavior covers the tap-through case.
+  useEffect(() => {
+    if (guide || petPop) return
+    if (celebrate || defeated || showWheel || shortfall || parade || showHunt) return
+    if (screen === 'play' && guideBoardRef.current === boardSeqRef.current) return
+    const t = window.setTimeout(() => {
+      if (Date.now() - guideLastAtRef.current < 45_000) return
+      const snapshot = {
+        now: petNow,
+        today: todayKey,
+        pets,
+        wallet,
+        pieces: localCard(records).pieces,
+        piecesTotal: CARD_PIECES,
+        streak: dailyStreakNow,
+      }
+      const pick = guideCandidates(snapshot).find((c) =>
+        c.category === 'warning'
+          ? !guideWarnShownRef.current
+          : c.category === 'opportunity'
+            ? !guideOppShownRef.current
+            : !guideProgressFiredRef.current.has(c.tag),
+      )
+      if (pick) {
+        if (pick.category === 'warning') guideWarnShownRef.current = true
+        else if (pick.category === 'opportunity') guideOppShownRef.current = true
+        else guideProgressFiredRef.current.add(pick.tag)
+        guideBoardRef.current = boardSeqRef.current
+        guideLastAtRef.current = Date.now()
+        guideKey.current += 1
+        setGuide({ kind: pick.kind, text: pick.text, target: pick.target, key: guideKey.current })
+        return
+      }
+      // No guide: silent pet pop-out (lowest-mood pet needing care), once per
+      // pet per session, never mid-board.
+      if (screen === 'play') return
+      const needy = petPopoutPick(snapshot)
+      if (needy && !petPopFiredRef.current.has(needy.id)) {
+        petPopFiredRef.current.add(needy.id)
+        guideBoardRef.current = boardSeqRef.current
+        guideLastAtRef.current = Date.now()
+        petPopKey.current += 1
+        setPetPop({ id: needy.id, kind: needy.kind, mood: needy.mood, key: petPopKey.current })
+      }
+    }, 2000)
+    return () => window.clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, pets, petNow, wallet.coins, records, celebrate, defeated, showWheel, shortfall, parade, showHunt, guide, petPop])
   const dailyDateLabel = new Date(`${todayKey}T12:00:00Z`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })
   function buildRemix(size: RemixSize, openAfter = false) {
     const set = remixSet
@@ -3490,6 +3577,7 @@ export default function App() {
           onRedeem={onRedeemGift}
           onShop={() => setScreen('rewards')}
           onBack={() => setScreen('home')}
+          focusPet={stableFocus}
           giftCode={giftPrefill}
           giftsOnline={!isStoreBuild()}
           isSignedIn={!!profile}
@@ -4021,6 +4109,19 @@ export default function App() {
       <div className="netlify-safe" aria-hidden />
       {/* 10.06: Unseen heckler pop-up — visual only, never blocks input */}
       <UnseenPopup pop={unseenPop} />
+      {/* PR #53 batch 2 (Tony 2026-10-19): the Unseen as guide character + silent pet pop-outs */}
+      <UnseenGuide
+        guide={guide}
+        onGo={goGuideTarget}
+        onDismiss={() => setGuide(null)}
+        onDone={() => setGuide(null)}
+      />
+      <PetPopout
+        pop={petPop}
+        onGo={() => { if (petPop) goGuideTarget({ screen: 'stable', pet: petPop.id }) }}
+        onDismiss={() => setPetPop(null)}
+        onDone={() => setPetPop(null)}
+      />
       {/* 10.06: treat defense — wild pets vs the field treat pile (home + play) */}
       <TreatDefense
         active={screen === 'play' && !celebrate && !defeated && !showWheel && !rotatePaused}

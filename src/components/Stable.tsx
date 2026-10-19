@@ -273,18 +273,28 @@ export type StableProps = {
   onBack: () => void
   /** Redeem link (?gift=CODE) prefill */
   giftCode?: string
+  /** PR #53 batch 2: deep-link from the Unseen guide — opens this pet's detail page */
+  focusPet?: { id: PetId; key: number } | null
   /** Owner gift codes need the website's functions */
   giftsOnline: boolean
   /** Hide gift code box from guests (2026-10-19: registered players only) */
   isSignedIn: boolean
 }
 
-export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCare, onFeed, onSwapTreats, today, onEquip, onPeek, onRedeem, onShop, onBack, giftCode, giftsOnline, isSignedIn }: StableProps) {
+export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCare, onFeed, onSwapTreats, today, onEquip, onPeek, onRedeem, onShop, onBack, giftCode, focusPet, giftsOnline, isSignedIn }: StableProps) {
   const [code, setCode] = useState(giftCode ?? '')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   /** PR #53 batch 2: pet detail page navigation lives inside Stable — no App.tsx changes. */
   const [selectedPet, setSelectedPet] = useState<PetId | null>(null)
+  // PR #53 batch 2: the Unseen guide can deep-link to a pet's detail page.
+  const focusKeyRef = useRef(0)
+  useEffect(() => {
+    if (focusPet && focusPet.key !== focusKeyRef.current) {
+      focusKeyRef.current = focusPet.key
+      setSelectedPet(focusPet.id)
+    }
+  }, [focusPet])
   const active = pets.active && hasPet(pets, pets.active, now) ? pets.active : null
   /** 10.06: new player hasn't claimed their free buddy yet */
   const freePickMode = Object.keys(pets.owned).length === 0 && !pets.freePickUsed
