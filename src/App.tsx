@@ -4,7 +4,7 @@ import { OWNER_PATH, OWNER_TAP_WINDOW_MS, OWNER_TAPS } from './game/ownerDoor'
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Board } from './components/Board'
-import { HowToPlay, HOW_NEW_START } from './components/HowToPlay'
+import { HowToPlay } from './components/HowToPlay'
 import { BugReport } from './components/BugReport'
 import { PrizeWheel } from './components/PrizeWheel'
 import { ResultOverlay } from './components/ResultOverlay'
@@ -18,7 +18,6 @@ import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './componen
 import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
 import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
-import { CloudScoresButton } from './cloud/CloudScores'
 import { initCloud, saveScore } from './cloud/cloud'
 import { UnseenCardTile } from './components/UnseenCard'
 import { noteCardWin } from './game/unseenCard'
@@ -1155,10 +1154,6 @@ export default function App() {
   function analyticsClear(size: number, ms: number) {
     if (isStoreBuild() || settingsRef.current.analytics === false) return
     sendPing({ id: loadAnon(safeLocalStorage()).id, ev: 'level_clear', size, ms: Math.round(ms) })
-  }
-  function sendFeedback(vote: 'up' | 'down', note: string) {
-    if (isStoreBuild() || settingsRef.current.analytics === false) return
-    sendPing({ id: loadAnon(safeLocalStorage()).id, ev: 'feedback', vote, note: note.slice(0, 200) })
   }
 
   function saveSettingsPatch(patch: Partial<Settings>) {
@@ -4040,29 +4035,6 @@ export default function App() {
         onStolen={handleDefenseStolen}
       />
     </div>
-  )
-}
-
-/** 9.30-r: small 👍/👎 in the footer; tapping one opens a one-line optional note */
-function FeedbackChip({ onSend }: { onSend: (vote: 'up' | 'down', note: string) => void }) {
-  const [vote, setVote] = useState<'up' | 'down' | null>(null)
-  const [note, setNote] = useState('')
-  const [sent, setSent] = useState(false)
-  if (sent) return <span className="fb-thanks" data-testid="fb-thanks">Thanks! 💛</span>
-  if (!vote)
-    return (
-      <span className="fb-chip" data-testid="fb-chip">
-        <button type="button" className="fb-btn" data-testid="fb-up" aria-label="Thumbs up: I like the game" onClick={() => setVote('up')}>👍</button>
-        <button type="button" className="fb-btn" data-testid="fb-down" aria-label="Thumbs down: something is wrong" onClick={() => setVote('down')}>👎</button>
-      </span>
-    )
-  return (
-    <span className="fb-form" data-testid="fb-form">
-      <span aria-hidden>{vote === 'up' ? '👍' : '👎'}</span>
-      <input value={note} maxLength={200} placeholder="Add a short note (optional)" aria-label="Optional note" data-testid="fb-note" onChange={(e) => setNote(e.target.value)} />
-      <button type="button" className="fb-send" data-testid="fb-send" onClick={() => { onSend(vote, note); setSent(true) }}>Send</button>
-      <button type="button" className="fb-btn" aria-label="Cancel" onClick={() => setVote(null)}>✕</button>
-    </span>
   )
 }
 
