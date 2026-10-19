@@ -110,23 +110,120 @@ main,
   flex-shrink: 0;
 }
 
+/* —— Slim topbar (Tony 2026-10-19): one slim bar, ~25px tall ——
+   Every control keeps a ≥40px-tall touch target via invisible vertical
+   tap slop (::after, or padding + negative margin where overflow:hidden
+   would clip the ::after), so the bar shrinks without hurting usability. */
+.topbar-slim {
+  padding: 0.15rem 0.6rem;
+  gap: 0.4rem;
+  flex-wrap: nowrap;
+}
+
+.topbar-slim .brand {
+  position: relative;
+  flex: 0 0 auto;
+  gap: 0.3rem;
+}
+
 .topbar-slim .brand-name {
-  font-size: 1.05rem;
+  font-size: 0.8125rem; /* 13px — minimum for brand text */
+  line-height: 1.15;
+  white-space: nowrap;
 }
 
 .topbar-slim .brand-mark {
-  width: 0.95rem;
-  height: 0.95rem;
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.topbar-slim .nav {
+  gap: 0.25rem;
+  margin-left: auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  min-width: 0;
 }
 
 .topbar-slim .nav button {
-  padding: 0.28rem 0.55rem;
-  font-size: 0.82rem;
+  position: relative;
+  flex: 0 0 auto;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.75rem; /* 12px — minimum for secondary text */
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+/* Player-name button: truncates with an ellipsis instead of forcing a
+   second row. Hit-slop via padding + negative margin (::after would be
+   clipped by overflow:hidden); the active pill is clipped to the text so
+   the bar stays slim. Tap target ≈41px tall. */
+.topbar-slim .nav > button:last-child {
+  flex: 0 1 auto;
+  min-width: 2.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-top: 0.8rem;
+  padding-bottom: 0.8rem;
+  margin-top: -0.8rem;
+  margin-bottom: -0.8rem;
+}
+.topbar-slim .nav > button:last-child.on,
+.topbar-slim .nav > button:last-child:hover {
+  background-clip: content-box;
+}
+
+.topbar-slim .hud-pills {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.topbar-slim .site-link {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.9rem;
+  line-height: 1;
+  text-decoration: none;
 }
 
 .topbar-slim .score-pill {
-  padding: 0.28rem 0.55rem;
-  font-size: 0.85rem;
+  position: relative;
+  flex: 0 0 auto;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.75rem; /* 12px */
+  line-height: 1.25;
+  gap: 0.25rem;
+  cursor: pointer;
+}
+
+.topbar-slim .score-pill span {
+  font-size: 0.75rem;
+}
+
+/* Invisible vertical tap slop — ≥40px touch targets on a ~25px bar:
+   brand 41px, nav buttons 42px, castle 40px, coin pill 42px. */
+.topbar-slim .brand::after,
+.topbar-slim .nav > button:not(:last-child)::after,
+.topbar-slim .site-link::after,
+.topbar-slim .score-pill::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -13px;
+  bottom: -13px;
+}
+.topbar-slim .nav > button:not(:last-child)::after {
+  top: -11px;
+  bottom: -11px;
+}
+.topbar-slim .score-pill::after {
+  top: -10px;
+  bottom: -10px;
 }
 
 .shell-immersive .topbar {
@@ -1108,6 +1205,32 @@ html[data-motion='reduce'] *::after {
   .stat-strip div:last-child,
   .home-strip div:last-child { border-bottom: 0; }
   .logo-hero { font-size: clamp(3.6rem, 20vw, 5.2rem); }
+}
+
+/* Slim topbar stays ONE row on phones: override the two-row fallback
+   above. The brand text collapses to the tappable sun mark (still goes
+   home) so Play / Rewards / Stable / Share / name + castle + coins all
+   fit on a single 360px line, the player name truncating if needed. */
+@media (max-width: 640px) {
+  .topbar-slim {
+    flex-wrap: nowrap;
+    gap: 0.3rem;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+  .topbar-slim .nav {
+    order: 0;
+    width: auto;
+    margin-left: auto;
+    flex-wrap: nowrap;
+  }
+  .topbar-slim .nav button {
+    padding-left: 0.3rem;
+    padding-right: 0.3rem;
+  }
+  .topbar-slim .brand-name {
+    display: none;
+  }
 }
 
 /* Stationary play shell */
