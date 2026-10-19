@@ -684,6 +684,22 @@ export const WARM_COACH_CLIPS = [
   'nice',
 ] as const
 
+/**
+ * Clips to fetch in the background, Roman first. A line that is still on the
+ * network when its moment arrives misses the iOS gesture and stays silent.
+ */
+export function preloadClipIds(): readonly string[] {
+  const warm = WARM_COACH_CLIPS as readonly string[]
+  const roman: string[] = []
+  const other: string[] = []
+  for (const id of Object.keys(VOICE_LINES)) {
+    if (!isPlayableVoiceClip(id) || warm.includes(id)) continue
+    if (id.startsWith('roman_') || (id.startsWith('tip_') && id.split('_')[2] === 'roman')) roman.push(id)
+    else other.push(id)
+  }
+  return [...warm, ...roman, ...other]
+}
+
 export type VoiceMood = 'excited' | 'happy' | 'neutral' | 'soft' | 'disappointed'
 
 export type VoiceRole = 'coach' | 'roman' | 'oldtimer' | 'buddy'
