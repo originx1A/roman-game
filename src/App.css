@@ -3838,6 +3838,48 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
   grid-column: 1 / -1;
 }
 
+/* Tony 2026-10-18: victory screen declutter — smaller buttons, tighter spacing */
+.win-screen-actions {
+  gap: 0.25rem;
+}
+.win-screen-actions .win-cta {
+  min-height: 34px;
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
+  font-size: 0.85rem;
+}
+.win-screen-row .win-cta,
+.win-screen-row .cloud-switch {
+  font-size: 0.78rem;
+  min-height: 30px;
+  padding-top: 0.22rem;
+  padding-bottom: 0.22rem;
+}
+.win-screen-secondary .btn {
+  min-height: 26px;
+  padding-top: 0.18rem;
+  padding-bottom: 0.18rem;
+  font-size: 0.75rem;
+}
+.win-fb-follow {
+  margin-top: 0.3rem;
+  padding: 0.28rem 0.6rem;
+  font-size: 0.68rem;
+  gap: 0.25rem;
+}
+.win-fb-icon {
+  width: 11px;
+  height: 11px;
+}
+/* Buddy meter: no label needed, thinner bar */
+.buddy-meter {
+  padding: 0.3rem 0.5rem;
+  gap: 0.2rem;
+}
+.buddy-meter-hint {
+  font-size: 0.68rem;
+}
+
 /* ——— Still play screen on iPhone (build 9.26-e) ———
    While a board is up the document itself cannot scroll, bounce or pinch-zoom: html/body are
    pinned, overscroll is off, and the play layer takes no pan/zoom gestures. Taps still work.
