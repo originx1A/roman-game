@@ -74,9 +74,11 @@ export type StableProps = {
   giftCode?: string
   /** Owner gift codes need the website's functions */
   giftsOnline: boolean
+  /** Hide gift code box from guests (2026-10-19: registered players only) */
+  isSignedIn: boolean
 }
 
-export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCare, onFeed, onSwapTreats, today, onEquip, onPeek, onRedeem, onShop, onBack, giftCode, giftsOnline }: StableProps) {
+export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCare, onFeed, onSwapTreats, today, onEquip, onPeek, onRedeem, onShop, onBack, giftCode, giftsOnline, isSignedIn }: StableProps) {
   const [code, setCode] = useState(giftCode ?? '')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -367,6 +369,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
         </section>
       ) : null}
 
+      {isSignedIn ? (
       <section className="stable-redeem" aria-label="Gift code">
         <h3>Got a gift code?</h3>
         {giftsOnline ? (
@@ -429,6 +432,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
         ) : null}
         {msg ? <p className={`stable-msg ${msg.ok ? 'is-ok' : 'is-bad'}`}>{msg.text}</p> : null}
       </section>
+      ) : null}
 
       <p className="stable-note">
         Coins only, no random boxes. Win boards to earn coins, or grab more in the <button type="button" className="linkish" onClick={onShop}>Shop</button>. Coupons:

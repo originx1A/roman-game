@@ -2866,7 +2866,7 @@ export default function App() {
             }}
           >
             <span className="brand-mark" />
-            <span className="brand-name">Roman</span>
+            <span className="brand-name">Roman's Game</span>
           </button>
           <nav className="nav">
             <button type="button" className={screen === 'levels' ? 'on' : ''} onClick={() => setScreen('levels')}>
@@ -2886,10 +2886,25 @@ export default function App() {
             </button>
           </nav>
           <div className="hud-pills">
-            <div className="score-pill coin" title="Coins">
+            <a
+              className="site-link"
+              href="https://romansgame.com"
+              target="_blank"
+              rel="noopener"
+              title="romansgame.com"
+              aria-label="Visit romansgame.com"
+            >
+              🏰
+            </a>
+            <button
+              type="button"
+              className="score-pill coin"
+              title="Coins — tap to get more"
+              onClick={() => setScreen('rewards')}
+            >
               {wallet.coins}
               <span>¢</span>
-            </div>
+            </button>
           </div>
         </header>
       )}
@@ -3489,6 +3504,7 @@ export default function App() {
           onBack={() => setScreen('home')}
           giftCode={giftPrefill}
           giftsOnline={!isStoreBuild()}
+          isSignedIn={!!profile}
         />
       )}
 
@@ -4012,32 +4028,7 @@ export default function App() {
         onClose={() => setShowWheel(false)}
       />
 
-      <footer className={`foot ${screen === 'play' ? 'foot-hidden' : ''}`}>
-        <span>
-          Roman's Game <span className="build-tag build-tag-foot">{BUILD_TAG}</span>
-        </span>
-        <span className="foot-links">
-          {!isStoreBuild() && settings.analytics !== false ? <FeedbackChip onSend={sendFeedback} /> : null}
-          <a className="privacy-link" href="./privacy.html">
-            Privacy
-          </a>
-          <a className="privacy-link jrny-link" data-testid="jrny-link" href="https://jrny.fun" target="_blank">
-            A JRNY project
-          </a>
-          <button
-            type="button"
-            className="mute"
-            onClick={() => {
-              const next = { ...settings, sound: !settings.sound }
-              setSettings(next)
-              saveSettings(next)
-              setMuted(!next.sound)
-            }}
-          >
-            {settings.sound ? 'Sound on' : 'Sound off'}
-          </button>
-        </span>
-      </footer>
+      {/* Footer removed 2026-10-19: sound, version, feedback, privacy, legal all moved to About section */}
       {/* Keep clear of Netlify “Powered by” badge */}
       <div className="netlify-safe" aria-hidden />
       {/* 10.06: Unseen heckler pop-up — visual only, never blocks input */}
