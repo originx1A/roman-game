@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Roman's World News</title>
+    <link rel="alternate" type="application/rss+xml" title="Roman's World News" href="/news/feed.xml" />
+    <meta name="description" content="Daily news from the world of Roman's Game." />
+    <style>
+      body { margin: 0; font-family: Georgia, serif; background: #14141c; color: #f4fbff; }
+      main { max-width: 36rem; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+      a { color: #e0b84d; }
+      form { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }
+      input, button { font: inherit; padding: 0.6rem 0.8rem; }
+      input { flex: 1; min-width: 12rem; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Roman's World News</h1>
+      <p>Stories are published at <a href="https://romansgame.com/news/">romansgame.com/news</a>. This page is the signup on the game site.</p>
+      <p><a href="/news/feed.xml">RSS feed</a></p>
+      <h2>Get the morning story</h2>
+      <form action="/api/kit-subscribe" method="post">
+        <label>
+          Email
+          <input type="email" name="email_address" autocomplete="email" required />
+        </label>
+        <button type="submit">Subscribe</button>
+      </form>
+      <p>Free. One welcome note, then the morning edition. Unsubscribe in one click. A parent signs up for a child under 13.</p>
+    </main>
+  </body>
+</html>

@@ -81,3 +81,67 @@ node scripts/generate-puzzles.mjs   # regenerate puzzle set
 ## Stack
 
 Vite · React · TypeScript · Web Audio API
+
+## Roman's World News (Kit)
+
+The morning edition is the static site at [romansgame.com/news](https://romansgame.com/news/). This repo does not contain a story pool or a 9:07 publisher. Posts there are hand-built HTML deployed together. As of 2026-10-18 the index had two posts, both dated 2026-10-15, with no used-flag and no queue. The RSS feed and the Kit broadcast read that published index, so a new deploy shows up without a second copy of the stories.
+
+There is an optional pool in Netlify Blobs (`story-pool`). It is empty unless someone writes one. If it exists, the next story is the oldest unused (`addedAt`, then id). A story with `usedOn` set is never selected again. When fewer than 14 unused stories remain, the morning job emails support@romansgame.com once that Toronto day (needs `RESEND_API_KEY` and a production deploy).
+
+`/news/feed.xml` is RSS 2.0 from that index. `/news/` includes `<link rel="alternate" type="application/rss+xml" href="/news/feed.xml">`. Item `guid` is the story slug (`isPermaLink="false"`). `pubDate` is 09:07 America/Toronto on the card's date, written in UTC. The rewrite lives in `public/_redirects`, ahead of `/* /index.html 200`. Netlify applies that file before `netlify.toml`, so a feed rule only in the toml is skipped and the game shell is served instead.
+
+The scheduled function `kit-daily-news` runs at 13:20 and 14:20 UTC. It sends only when the Toronto clock is 09:20 or later in the 9 o'clock hour, so one of those two runs acts in both EDT and EST, including the March and November changeover days. It sends today's newest published story to Kit. If that date has no story, it logs and exits.
+
+Kit v4 broadcasts can target a **segment or a tag**, not a form id. Set `KIT_SEGMENT_ID` to a segment of form 10053148 when you have one. Until then the broadcast uses the tag `form-10053148`, which this server applies when it adds someone to the form. The marketing-site signup bar posts straight to Kit and is not in this repo. Give Kit a webhook to `POST /api/kit-webhook` with header `X-Kit-Webhook-Secret` so those subscribers get the same tag and welcome.
+
+Amazon Associates forbids affiliate links in email. The daily broadcast, the welcome letter, and support alerts drop every `amazon.*`, `amzn.to`, and `a.co` URL (tagged or not). In the broadcast those links are rewritten to that post's `https://romansgame.com/news/` article. The welcome and the alerts have no article, so the link is removed and the sentence stays. The RSS feed and the pages on romansgame.com are left as published. Sends stay off until `KIT_SEND_ENABLED` is set on a production deploy.
+
+Kit's free plan has broadcasts, not a one-person send (sequences and visual automations are paid). The welcome letter is sent with Resend from support@romansgame.com. The draft copy is `netlify/lib/welcomeCopy.ts`. It is one-time per address (a Blobs record plus the Kit tag `welcome-sent`). The letter includes a one-click unsubscribe link, `List-Unsubscribe` and `List-Unsubscribe-Post` headers, and a mailing-address line. That link cancels the subscriber in Kit and records the address so no further welcome is sent. A later signup is new consent and puts them back on the form, without a second welcome. Kit broadcasts keep `{{ unsubscribe_url }}` and `{{ address }}` so Kit's own footer still works.
+
+Real sends (daily, manual, welcome) happen only when `KIT_SEND_ENABLED` is true **and** Netlify `CONTEXT` is `production`. Anything else logs `send disabled`. Deploy previews do not send. `KIT_DRY_RUN=true` or `?dryRun=1` builds the payload and does not send.
+
+### Environment
+
+| Name | Purpose |
+| --- | --- |
+| `KIT_API_KEY` | Kit v4 key. Read only from this variable. Tony adds it in Netlify. |
+| `KIT_SEND_ENABLED` | `true` / `1` / `yes` / `on` allows real sends. Unset or anything else does not. |
+| `KIT_DRY_RUN` | `true` logs the payload and does not send. |
+| `KIT_ADMIN_SECRET` | Required header `X-Kit-Admin-Secret` for send-now. Compared in constant time. |
+| `KIT_FORM_ID` | `10053148` |
+| `RESEND_API_KEY` | Welcome mail and failure / low-stock alerts to support@romansgame.com. |
+| `NEWS_POSTAL_ADDRESS` | Physical mailing address printed on the Resend welcome (CASL / CAN-SPAM). Welcome mail is not sent while this is empty. |
+| `KIT_SEGMENT_ID` | Optional segment id whose members are form 10053148. Preferred broadcast target. |
+| `KIT_WEBHOOK_SECRET` | Header `X-Kit-Webhook-Secret` for `POST /api/kit-webhook`. |
+
+### Dry run
+
+Open the scheduled function with `?dryRun=1`, or:
+
+```bash
+curl -X POST "$SITE/api/kit-send-now?dryRun=1" -H "X-Kit-Admin-Secret: $KIT_ADMIN_SECRET"
+```
+
+The response and the function log show the payload. Nothing is sent.
+
+### Send now
+
+```bash
+curl -X POST "$SITE/api/kit-send-now" -H "X-Kit-Admin-Secret: $KIT_ADMIN_SECRET"
+```
+
+That sends today's story once. It is idempotent. To send a published story again:
+
+```bash
+curl -X POST "$SITE/api/kit-send-now?force=1&storyId=STORY-SLUG" -H "X-Kit-Admin-Secret: $KIT_ADMIN_SECRET"
+```
+
+`force=1` does nothing unless a story id is included. A missing or wrong secret is 401.
+
+### Switch it on
+
+1. In Kit, confirm a verified sending address and either create a segment of form 10053148 (`KIT_SEGMENT_ID`) or let the tag `form-10053148` stand in.
+2. Set `KIT_API_KEY`, `KIT_ADMIN_SECRET`, `KIT_FORM_ID=10053148`, `RESEND_API_KEY`, `NEWS_POSTAL_ADDRESS`, and `KIT_WEBHOOK_SECRET`.
+3. Dry-run send-now and read the log.
+4. Set `KIT_SEND_ENABLED=true` on the **production** site only. Previews stay dark even if the flag is copied there, because `CONTEXT` is not `production`.
+5. Point a Kit webhook at `https://play.romansgame.com/api/kit-webhook` for the marketing-site form.

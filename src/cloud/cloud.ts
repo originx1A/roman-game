@@ -67,13 +67,32 @@ export function saveConsent(c: Consent): void {
   }
 }
 
-/** Add the email to the Roman's World News list (Kit). Never throws; Kit sends its own confirm email. */
-export async function subscribeNews(email: string): Promise<boolean> {
+/** Public Kit form. Used only when this site's API says the key is not configured yet. */
+async function subscribeNewsViaKitForm(email: string): Promise<boolean> {
   try {
     const body = new FormData()
     body.append('email_address', email)
     const r = await fetch(KIT_FORM_URL, { method: 'POST', body, headers: { Accept: 'application/json' } })
     return r.ok
+  } catch {
+    return false
+  }
+}
+
+/**
+ * In-game opt-in. The server puts the address on Kit form 10053148 and sends the one-time welcome.
+ * Never throws. A preview deploy does not fall through to Kit.
+ */
+export async function subscribeNews(email: string): Promise<boolean> {
+  try {
+    const r = await fetch('/api/kit-subscribe', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ email, source: 'game' }),
+    })
+    const data = (await r.json().catch(() => null)) as { ok?: boolean; fallback?: boolean } | null
+    if (data?.fallback) return subscribeNewsViaKitForm(email)
+    return r.ok && data?.ok !== false
   } catch {
     return false
   }
