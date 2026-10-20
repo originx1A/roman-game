@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { isProfane } from './profanity'
-import { NAME_MAX, loadConsent, saveConsent, onCloud, renamePlayer, savePlayerName, sendMagicLink, signOut, type CloudState } from './cloud'
+import { NAME_MAX, loadConsent, saveConsent, onCloud, renamePlayer, savePlayerName, sendMagicLink, signOut, verifyEmailCode, type CloudState } from './cloud'
 
 /**
- * "Save my scores" button + sheets: email magic-link sign-in, then a one-time name prompt.
+ * "Save my scores" button + sheets: email magic link or the code from that email, then a one-time name prompt.
  * The whole chosen name is shown publicly (the server adds 02, 03... if it's taken); bad words are rejected on the spot.
  * Switching player is a separate choice. Opening that sheet, or tapping Not now, never signs the current player out.
  */
@@ -20,6 +20,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
   const cloud = useCloud()
   const [sheet, setSheet] = useState<Sheet>(null)
   const [email, setEmail] = useState('')
+  const [code, setCode] = useState('')
   const [name, setName] = useState(suggestedName ?? '')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
@@ -44,10 +45,13 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
     </div>
   )
 
-  // Signed in from the magic link but no name yet: ask once. Never steal the sheet during an explicit switch.
+  // Signed in from the link or the code. No name yet: ask once. A named player: close the code sheet.
+  // Never steal the sheet during an explicit switch.
   useEffect(() => {
     if (switching || nameDismissed) return
-    if (cloud.status === 'signed-in' && cloud.name === null) setSheet((s) => (s === 'account' ? s : 'name'))
+    if (cloud.status !== 'signed-in') return
+    if (cloud.name === null) setSheet((s) => (s === 'account' ? s : 'name'))
+    else setSheet((s) => (s === 'sent' ? null : s))
   }, [cloud.status, cloud.name, switching, nameDismissed])
 
   const signedIn = cloud.status === 'signed-in' && !!cloud.name
@@ -73,6 +77,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
     setEditing(false)
     setErr('')
     setEmail('')
+    setCode('')
     if (cloud.status === 'signed-in') setAge13(true)
     setSheet('email')
   }
@@ -117,6 +122,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                     setSwitchedAway(true)
                   }
                   setSwitching(false)
+                  setCode('')
                   setSheet('sent')
                 }}
               >
@@ -124,7 +130,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 <p className="start-sheet-tip">
                   {switching
                     ? `You're signed in as ${cloud.publicName ?? cloud.name ?? cloud.email}. Not now keeps this player. We'll only switch after the new sign-in link is sent.`
-                    : "Get on the leaderboard and keep your scores on any device. We'll email you a sign-in link. No password."}
+                    : "Get on the leaderboard and keep your scores on any device. We'll email you a sign-in link and the code from your email. No password."}
                 </p>
                 <input className="name-input" type="email" inputMode="email" autoComplete="email" placeholder="Email address" aria-label="Email address" value={email} onChange={(e) => setEmail(e.target.value)} />
                 {consentChecks}
@@ -138,17 +144,53 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
               </form>
             )}
             {sheet === 'sent' && (
-              <div className="start-sheet-card">
+              <form
+                className="start-sheet-card"
+                onSubmit={async (e) => {
+                  e.preventDefault()
+                  if (!/^\d{6,8}$/.test(code)) return setErr('Enter the code from your email.')
+                  setBusy(true)
+                  const r = await verifyEmailCode(email, code)
+                  setBusy(false)
+                  if (!r.ok) setErr(r.error ?? 'Something went wrong.')
+                  // A good code signs them in. The listener closes this sheet, or asks for a name once.
+                }}
+              >
                 <h3>Check your email</h3>
                 <p className="start-sheet-tip">
                   {switchedAway
-                    ? <>We sent a link to <b>{email.trim()}</b>. Open it on this device to finish switching. This device stays signed out until then.</>
-                    : <>We sent a link to <b>{email.trim()}</b>. Open it on this device and you're in. Your scores keep saving here until then.</>}
+                    ? <>We sent it to <b>{email.trim()}</b>. Tap the link, or enter the code from your email, to finish switching. This device stays signed out until then.</>
+                    : <>We sent it to <b>{email.trim()}</b>. Tap the link in your email, or enter the code from your email.</>}
                 </p>
-                <button type="button" className="btn primary" onClick={closeSheet}>
-                  OK
+                <input
+                  className="name-input cloud-code"
+                  data-testid="signin-code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={8}
+                  placeholder="the code from your email"
+                  aria-label="the code from your email"
+                  value={code}
+                  onPaste={(e) => {
+                    const text = e.clipboardData.getData('text').replace(/\s/g, '').replace(/\D/g, '').slice(0, 8)
+                    if (!text) return
+                    e.preventDefault()
+                    setCode(text)
+                    setErr('')
+                  }}
+                  onChange={(e) => {
+                    setCode(e.target.value.replace(/\s/g, '').replace(/\D/g, '').slice(0, 8))
+                    setErr('')
+                  }}
+                />
+                {err && <p className="cloud-err" role="alert">{err}</p>}
+                <button type="submit" className="btn primary" data-testid="signin-code-submit" disabled={busy || code.length < 6}>
+                  {busy ? 'Checking…' : 'Sign in with code'}
                 </button>
-              </div>
+                <button type="button" className="btn ghost" data-testid="cloud-not-now" onClick={closeSheet}>
+                  Not now
+                </button>
+              </form>
             )}
             {sheet === 'name' && (
               <form
