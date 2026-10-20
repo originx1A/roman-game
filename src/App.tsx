@@ -18,6 +18,7 @@ import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './componen
 import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
 import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
+import { HomeUnseenReminder } from './components/UnseenReminder'
 import { CloudScoresButton, useCloud } from './cloud/CloudScores'
 import { Leaderboard } from './cloud/Leaderboard'
 import { NAME_MAX, initCloud, loadPublicScores, renamePlayer, saveScore, signOut as cloudSignOut } from './cloud/cloud'
@@ -79,11 +80,17 @@ import {
   type PetId,
   type PetState,
   claimFreePet,
+  couponFor,
   earnFieldTreats,
   claimFieldTreats,
   jackpotFieldTreats,
+  lockedForSale,
   MAX_FIELD_TREATS,
+  moodKind,
+  moodNow,
+  priceWith,
   swapTreatsToCoins,
+  TREATS,
   stealFieldTreats,} from './game/pets'
 import {
   BUDDY_HUNT_PERFECT_WINS,
@@ -429,6 +436,30 @@ const MENU_CSS = `
 .daily-streakbtn:active { transform: scale(0.96); }
 `
 
+function anyHungryPet(pets: PetState, now: number): boolean {
+  return (Object.keys(pets.owned) as PetId[]).some((id) => moodKind(moodNow(pets.owned[id], now)) === 'hungry')
+}
+
+/** A treat, a buddy, or a badge upgrade they can pay for from Home. A 15-coin hint does not count. */
+function canSpendCoins(coins: number, pets: PetState, wallet: Wallet, now: number): boolean {
+  const today = torontoDateKey(new Date(now))
+  const snack = TREATS.find((t) => t.id === 'snack')?.cost ?? 30
+  const canTreat =
+    coins >= snack &&
+    (Object.keys(pets.owned) as PetId[]).some((id) => {
+      const info = careInfo(pets, id, now, today)
+      return !info.maxed && info.feedsLeft > 0
+    })
+  const buddy = lockedForSale(pets, now)[0]
+  const canBuddy = !!buddy && coins >= priceWith(buddy.price, couponFor(pets, buddy.id, now))
+  const power = totalBadgePower(wallet)
+  const canBadge = BADGES.some((b) => {
+    const rank = badgeRank(wallet, b.id)
+    return rank >= 1 && coins >= upgradeBadgeCost(b.id, rank, power)
+  })
+  return canTreat || canBuddy || canBadge
+}
+
 export default function App() {
   const [screen, setScreen] = useState<Screen>('home')
   const [{ layout }, setLayoutInfo] = useState(() => readLayout())
@@ -525,6 +556,8 @@ export default function App() {
   /** Set the moment a board is won or lost (before any state update lands), cleared for the next
    *  board. Voice lines check it so nothing from the live board speaks after the result. */
   const boardOverRef = useRef<BoardOutcome>(null)
+  /** Set when a board is won or lost. Home reads it once, then a new board clears it. */
+  const afterGameRef = useRef(false)
   const [winLine, setWinLine] = useState('')
   const [loseLine, setLoseLine] = useState('')
   const [lives, setLives] = useState(MAX_LIVES)
@@ -1017,6 +1050,7 @@ export default function App() {
     if (mode !== 'trial' || !running || !puzzle || celebrate || defeated || boardOverRef.current) return
     if (elapsedMs < trialTimeLimitMs(targetsFor(puzzle))) return
     boardOverRef.current = 'lost'
+    afterGameRef.current = true
     cancelVoiceBelow(VOICE_PRIORITY.lose)
     setRunning(false)
     setDefeated(true)
@@ -1565,6 +1599,7 @@ export default function App() {
     // A new board is live play: drop a scoreboard tease so it never sits over the grid.
     window.clearTimeout(teaseTimer.current)
     teaseGen.current += 1
+    afterGameRef.current = false
     setUnseenPop(null)
     // First board ever: How to play opens first (returning players start at the new cards)
     if (!resume && !settingsRef.current.howSeen) {
@@ -1787,6 +1822,7 @@ export default function App() {
       persistWallet(w)
       if (nextLives <= 0) {
         boardOverRef.current = 'lost'
+    afterGameRef.current = true
         cancelVoiceBelow(VOICE_PRIORITY.lose)
         setDefeated(true)
         setRunning(false)
@@ -1809,6 +1845,7 @@ export default function App() {
     if (puzzle && isSolved(puzzle, next) && !recordedRef.current) {
       recordedRef.current = true
       boardOverRef.current = 'won'
+      afterGameRef.current = true
       // Drop anything queued from the live board (wrong move, stall, tip, Unseen) before the win line
       cancelVoiceBelow(VOICE_PRIORITY.win)
       setRunning(false)
@@ -2288,6 +2325,7 @@ export default function App() {
     setLives(runMaxLives)
     setDefeated(false)
     setRunning(true)
+    afterGameRef.current = false
     showToast('Revived!')
   }
 
@@ -3063,6 +3101,24 @@ export default function App() {
             <p className="lede">
               Drop animated buddies — one per row, column, and region. They hate cuddling (even corners).
             </p>
+            <HomeUnseenReminder
+              facts={{
+                now: Date.now(),
+                today: torontoDateKey(),
+                cloudKnown: cloud.status === 'signed-in' || cloud.status === 'signed-out',
+                signedIn,
+                afterGame: afterGameRef.current,
+                sessionSignIns: 0,
+                hungryPet: anyHungryPet(pets, Date.now()),
+                canSpend: canSpendCoins(wallet.coins, pets, wallet, Date.now()),
+                dailyPlayed: records.daily.days[torontoDateKey()]?.status === 'won',
+                streakAtRisk: liveStreak(records.daily, torontoDateKey()) > 0 && records.daily.lastWon !== torontoDateKey(),
+                remixSet,
+              }}
+              onConsumed={() => {
+                afterGameRef.current = false
+              }}
+            />
             <div className="cta-row">
               {draftPuzzle ? (
                 <button type="button" className="btn primary" onClick={() => startPuzzle(draftPuzzle, true)}>
