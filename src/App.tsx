@@ -632,9 +632,12 @@ export default function App() {
           previousRank: seen?.rank ?? null,
           lastSituation: seen?.situation ?? null,
         })
-        if (!tease.text || boardOverRef.current !== 'won') return
-        // No recording matches this tease, so it stays off the screen.
+        if (!tease.text || !tease.situation || boardOverRef.current !== 'won') return
         if (tease.rank != null) saveBoardSeen(you, tease.rank, tease.situation)
+        const clip = `old_tease_${tease.situation}`
+        playVoice(clip, { priority: 2, waitMs: 500 })
+        unseenKey.current += 1
+        setUnseenPop({ text: tease.text, key: unseenKey.current, clip })
       })
     }, 7500)
   }
@@ -1071,6 +1074,7 @@ export default function App() {
   useEffect(() => {
     const was = rotatePausedRef.current
     rotatePausedRef.current = rotatePaused
+    if (!was && rotatePaused) playVoice('narrator_rotate', { priority: 3, waitMs: 500 })
     if (was && !rotatePaused) {
       // back upright: the pause doesn't count as stalling
       const now = Date.now()
@@ -2210,12 +2214,25 @@ export default function App() {
         persistPets(ps)
         if (ridePet) {
           const p = petById(ridePet)!
+          const levelUp = grown.levelUp
+          const buddyClip = isRecord
+            ? 'buddy_win_best'
+            : levelUp
+              ? levelUp >= 2 && levelUp <= 30
+                ? `buddy_win_level_${levelUp}`
+                : null
+              : grown.starUp
+                ? 'buddy_win_star'
+                : runMode === 'trial'
+                  ? 'buddy_win_victory'
+                  : 'buddy_win_ave'
           petCheer = {
             id: ridePet,
             name: p.name,
-            text: isRecord ? 'New best!' : grown.levelUp ? `Level ${grown.levelUp}!` : grown.starUp ? 'New star!' : runMode === 'trial' ? 'Victory!' : 'Ave!',
-            cheer: isRecord || !!grown.levelUp,
+            text: isRecord ? 'New best!' : levelUp ? `Level ${levelUp}!` : grown.starUp ? 'New star!' : runMode === 'trial' ? 'Victory!' : 'Ave!',
+            cheer: isRecord || !!levelUp,
           }
+          if (buddyClip) playVoice(buddyClip, { priority: 2, waitMs: 500 })
           // A little giggle for a record, only when Roman isn't talking
           if (isRecord) window.setTimeout(() => petGiggle({ quietOnly: true }), 3200)
           if (grown.levelUp) {
@@ -3013,7 +3030,7 @@ export default function App() {
         guideKey.current += 1
         const clip = guideVoiceClip(pick.tag)
         setGuide({ kind: pick.kind, text: pick.text, target: pick.target, key: guideKey.current, clip: clip ?? undefined })
-        if (clip) playVoice(clip, { priority: 2 })
+        if (clip) playVoice(clip, { priority: 2, waitMs: 500 })
         return
       }
       // No guide: silent pet pop-out (lowest-mood pet needing care), once per

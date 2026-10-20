@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { KeyboardNameSheet, useKeyboardNameEntry } from '../components/KeyboardNameSheet'
 import { LegalLine } from '../components/LegalLine'
+import { playVoice } from '../game/sound'
 import { isProfane } from './profanity'
 import { NAME_MAX, cloudState, loadConsent, saveConsent, onCloud, renamePlayer, savePlayerName, scoreSaveLabel, sendMagicLink, signInCode, signInEmail, signOut, verifyEmailCode, type CloudState } from './cloud'
 
@@ -121,6 +122,10 @@ export function CloudScoresButton({
       setFrame(null)
     }
   }, [sheet])
+
+  useEffect(() => {
+    if (sheet === 'email' && !switching) playVoice('narrator_signin_sheet', { priority: 2, waitMs: 500 })
+  }, [sheet, switching])
 
   const signedIn = cloud.status === 'signed-in'
   const label = scoreSaveLabel(cloud)

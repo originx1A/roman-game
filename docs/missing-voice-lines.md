@@ -224,7 +224,7 @@ Same rows as `docs/missing-voice-lines.csv`. Speaker is who should record it. St
 ### old_guide_card_01
 
 - Speaker: Unseen
-- Line: You're 1 pieces from my card. One. Even you can't mess this up.
+- Line: You're 1 piece from my card. One. Even you can't mess this up. The file on disk still says "1 pieces" and needs a new recording.
 - Trigger: Card-progress guide, hidden. 50-piece card, 49 pieces (90% or more). Tag card-90. Left of 1 also cannot be the 80% line, because 90% wins.
 - Target: `public/voices/old_guide_card_01.mp3`
 - Status: hidden

@@ -6,10 +6,8 @@
  * holds the PURE trigger evaluation — App.tsx wires state, frequency caps and
  * rendering around it.
  *
- * Voice: the guide lines have no recorded audio. The voice pipeline
- * (sound.ts playVoice) only plays catalog clips and stays silent for unknown
- * ids, so guides are visual + text until Tony records/approves TTS lines.
- * No fake voice system is invented here.
+ * Voice: each guide plays its own catalog clip through the shared speech queue.
+ * A guide with no clip stays hidden.
  */
 
 import {
@@ -97,12 +95,21 @@ function limitedDaysLeft(p: PetDef, now: number): number {
   return 0
 }
 
-/** A catalog clip for this guide, or null when no recording exists (those guides stay hidden). */
+/** The recorded clip for this guide tag, or null when that line has no file. */
 export function guideVoiceClip(tag: string): string | null {
-  if (tag.startsWith('card-')) return null
-  if (tag.startsWith('hungry-') || tag.startsWith('drowsy-') || tag.startsWith('meh-')) return 'old_remind_pets'
-  if (tag.startsWith('streak-')) return 'old_remind_streak'
-  return 'old_remind_coins'
+  if (tag.startsWith('hungry-')) return `old_guide_hungry_${tag.slice('hungry-'.length)}`
+  if (tag.startsWith('meh-')) return `old_guide_meh_${tag.slice('meh-'.length)}`
+  if (tag.startsWith('drowsy-')) return 'old_guide_drowsy'
+  if (tag === 'nox-expiring') return 'old_guide_nox'
+  if (tag.startsWith('afford-')) return 'old_guide_afford'
+  if (tag === 'badge-rankup') return 'old_guide_badge'
+  if (tag.startsWith('coins-')) return `old_guide_coins_${tag.slice('coins-'.length)}`
+  if (tag.startsWith('streak-')) return 'old_guide_streak'
+  if (tag.startsWith('card-')) {
+    const left = Number(tag.slice('card-'.length))
+    if (left >= 1 && left <= 10) return `old_guide_card_${String(left).padStart(2, '0')}`
+  }
+  return null
 }
 
 /**
@@ -194,11 +201,12 @@ export function guideCandidates(s: GuideSnapshot): GuideCandidate[] {
     for (const t of [90, 80]) {
       if (s.pieces / s.piecesTotal >= t / 100) {
         const left = s.piecesTotal - s.pieces
+        const piece = left === 1 ? 'piece' : 'pieces'
         out.push({
           category: 'progress',
-          tag: `card-${t}`,
+          tag: `card-${left}`,
           kind: 'progress',
-          text: `You're ${left} pieces from my card. ${numWord(left)}. Even you can't mess this up.`,
+          text: `You're ${left} ${piece} from my card. ${numWord(left)}. Even you can't mess this up.`,
           target: { screen: 'home' },
         })
         break // highest crossed threshold only
@@ -213,7 +221,7 @@ export function guideCandidates(s: GuideSnapshot): GuideCandidate[] {
         category: 'progress',
         tag: `coins-${cheapest.id}`,
         kind: 'progress',
-        text: `${remaining.toLocaleString('en-US')} more coins and ${cheapest.name} is yours. That's... what, a week of mediocre play?`,
+        text: `Just a few more coins and ${cheapest.name} is yours. That's... what, a week of mediocre play?`,
         target: { screen: 'stable', pet: cheapest.id },
       })
     }

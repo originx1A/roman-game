@@ -1,8 +1,18 @@
 import { useRef, useState } from 'react'
 import { cosmeticsFor, levelInfo, petById, type MoodKind, type PetId } from '../game/pets'
+import { playVoice } from '../game/sound'
 import { PetArt } from './PetArt'
 
-const TAP_LINES = ['Ave!', 'Again!', 'Hee hee!', 'Let’s play!', 'Roma!', 'Pat pat!', 'One more board?', 'Best buddy!']
+const TAP_LINES = [
+  { text: 'Ave!', clip: 'buddy_tap_ave' },
+  { text: 'Again!', clip: 'buddy_tap_again' },
+  { text: 'Hee hee!', clip: 'buddy_tap_heehee' },
+  { text: 'Let’s play!', clip: 'buddy_tap_play' },
+  { text: 'Roma!', clip: 'buddy_tap_roma' },
+  { text: 'Pat pat!', clip: 'buddy_tap_pat' },
+  { text: 'One more board?', clip: 'buddy_tap_more' },
+  { text: 'Best buddy!', clip: 'buddy_tap_best' },
+]
 
 /** 9.30-a: the active buddy lives on the home screen and reacts to taps. */
 export function HomePet({ id, xp, mood, canPet, onTap, onStable }: { id: PetId | null; xp: number; mood?: MoodKind; canPet?: boolean; onTap: () => void; onStable: () => void }) {
@@ -27,7 +37,8 @@ export function HomePet({ id, xp, mood, canPet, onTap, onStable }: { id: PetId |
     let i = Math.floor(Math.random() * TAP_LINES.length)
     if (i === last.current) i = (i + 1) % TAP_LINES.length
     last.current = i
-    setLine(TAP_LINES[i])
+    setLine(TAP_LINES[i].text)
+    playVoice(TAP_LINES[i].clip, { priority: 2, waitMs: 500 })
     setHop((h) => h + 1)
     onTap()
     window.clearTimeout(timer.current)

@@ -1,7 +1,7 @@
 import { rankScores, type PublicScore } from './leaderboard.ts'
 
 /**
- * Text-only Unseen lines that point at the leaderboard. No voice clips.
+ * Unseen lines that point at the leaderboard. Each one has its own recording.
  * Tony reviews this wording. The low-rank line is his sentence.
  */
 export const LEADERBOARD_TEASE = {

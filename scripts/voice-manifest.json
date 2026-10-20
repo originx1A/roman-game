@@ -3614,5 +3614,519 @@
     "pitch": "-16Hz",
     "post": "rasp-v1",
     "text": "No hints, no mercy. Just like my old gym teacher."
-  }
+  },
+    "old_guide_hungry_lupa": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "Your wolf pup is starving. I can hear its stomach from the void. Embarrassing."
+    },
+    "old_guide_hungry_aquila": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "Your eagle is starving. I can hear its stomach from the void. Embarrassing."
+    },
+    "old_guide_hungry_leo": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "Your lion cub is starving. I can hear its stomach from the void. Embarrassing."
+    },
+    "old_guide_hungry_invictus": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "Your war horse is starving. I can hear its stomach from the void. Embarrassing."
+    },
+    "old_guide_hungry_nox": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "Your halloween owl is starving. I can hear its stomach from the void. Embarrassing."
+    },
+    "old_guide_drowsy": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "Your defender's about to fall asleep on the job. Feed it. Or don't. I enjoy watching failure."
+    },
+    "old_guide_meh_lupa": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "Your wolf pup looks miserable. Have you tried... playing better?"
+    },
+    "old_guide_meh_aquila": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "Your eagle looks miserable. Have you tried... playing better?"
+    },
+    "old_guide_meh_leo": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "Your lion cub looks miserable. Have you tried... playing better?"
+    },
+    "old_guide_meh_invictus": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "Your war horse looks miserable. Have you tried... playing better?"
+    },
+    "old_guide_meh_nox": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "Your halloween owl looks miserable. Have you tried... playing better?"
+    },
+    "old_guide_nox": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "That Halloween owl won't be here forever. Unlike me. I'm always here."
+    },
+    "old_guide_afford": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "You've got coins just... sitting there. The Stable has something with your name on it."
+    },
+    "old_guide_badge": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "You could be earning more coins per win. But sure, leave money on the table."
+    },
+    "old_guide_card_01": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "You're 1 piece from my card. One. Even you can't mess this up."
+    },
+    "old_guide_card_02": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "You're 2 pieces from my card. Two. Even you can't mess this up."
+    },
+    "old_guide_card_03": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "You're 3 pieces from my card. Three. Even you can't mess this up."
+    },
+    "old_guide_card_04": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "You're 4 pieces from my card. Four. Even you can't mess this up."
+    },
+    "old_guide_card_05": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "You're 5 pieces from my card. Five. Even you can't mess this up."
+    },
+    "old_guide_card_06": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "You're 6 pieces from my card. Six. Even you can't mess this up."
+    },
+    "old_guide_card_07": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "You're 7 pieces from my card. Seven. Even you can't mess this up."
+    },
+    "old_guide_card_08": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "You're 8 pieces from my card. Eight. Even you can't mess this up."
+    },
+    "old_guide_card_09": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "You're 9 pieces from my card. Nine. Even you can't mess this up."
+    },
+    "old_guide_card_10": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "You're 10 pieces from my card. Ten. Even you can't mess this up."
+    },
+    "old_guide_coins_lupa": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "Just a few more coins and Lupa is yours. That's... what, a week of mediocre play?"
+    },
+    "old_guide_coins_aquila": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "Just a few more coins and Aquila is yours. That's... what, a week of mediocre play?"
+    },
+    "old_guide_coins_leo": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "Just a few more coins and Leo is yours. That's... what, a week of mediocre play?"
+    },
+    "old_guide_coins_invictus": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "Just a few more coins and Invictus is yours. That's... what, a week of mediocre play?"
+    },
+    "old_guide_coins_nox": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "Just a few more coins and Nox is yours. That's... what, a week of mediocre play?"
+    },
+    "old_guide_streak": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "Win tomorrow and that's {days} days. Don't choke."
+    },
+    "old_tease_low": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "Go check out your score on the scoreboard. Scroll down... further down... more down."
+    },
+    "old_tease_best": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "New best. Don't frame it yet. Go see if the scoreboard even noticed."
+    },
+    "old_tease_top": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "Top ten. Your name is up where people can see it. Go look before someone sits on it."
+    },
+    "old_tease_passed": {
+      "voice": "en-AU-WilliamMultilingualNeural",
+      "rate": "-20%",
+      "pitch": "-16Hz",
+      "post": "rasp-v1",
+      "text": "Someone just walked past you on the scoreboard. I watched. It was a little rude. Go look."
+    },
+    "buddy_win_ave": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Ave!"
+    },
+    "buddy_win_best": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "New best!"
+    },
+    "buddy_win_level_2": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 2!"
+    },
+    "buddy_win_level_3": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 3!"
+    },
+    "buddy_win_level_4": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 4!"
+    },
+    "buddy_win_level_5": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 5!"
+    },
+    "buddy_win_level_6": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 6!"
+    },
+    "buddy_win_level_7": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 7!"
+    },
+    "buddy_win_level_8": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 8!"
+    },
+    "buddy_win_level_9": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 9!"
+    },
+    "buddy_win_level_10": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 10!"
+    },
+    "buddy_win_level_11": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 11!"
+    },
+    "buddy_win_level_12": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 12!"
+    },
+    "buddy_win_level_13": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 13!"
+    },
+    "buddy_win_level_14": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 14!"
+    },
+    "buddy_win_level_15": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 15!"
+    },
+    "buddy_win_level_16": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 16!"
+    },
+    "buddy_win_level_17": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 17!"
+    },
+    "buddy_win_level_18": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 18!"
+    },
+    "buddy_win_level_19": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 19!"
+    },
+    "buddy_win_level_20": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 20!"
+    },
+    "buddy_win_level_21": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 21!"
+    },
+    "buddy_win_level_22": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 22!"
+    },
+    "buddy_win_level_23": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 23!"
+    },
+    "buddy_win_level_24": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 24!"
+    },
+    "buddy_win_level_25": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 25!"
+    },
+    "buddy_win_level_26": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 26!"
+    },
+    "buddy_win_level_27": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 27!"
+    },
+    "buddy_win_level_28": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 28!"
+    },
+    "buddy_win_level_29": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 29!"
+    },
+    "buddy_win_level_30": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Level 30!"
+    },
+    "buddy_win_star": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "New star!"
+    },
+    "buddy_win_victory": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Victory!"
+    },
+    "buddy_tap_ave": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Ave!"
+    },
+    "buddy_tap_again": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Again!"
+    },
+    "buddy_tap_heehee": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Hee hee!"
+    },
+    "buddy_tap_play": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Let’s play!"
+    },
+    "buddy_tap_roma": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Roma!"
+    },
+    "buddy_tap_pat": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Pat pat!"
+    },
+    "buddy_tap_more": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "One more board?"
+    },
+    "buddy_tap_best": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+18%",
+      "pitch": "+22Hz",
+      "text": "Best buddy!"
+    },
+    "narrator_nudge_home": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+10%",
+      "pitch": "+6Hz",
+      "text": "Tap Share, then Add to Home Screen."
+    },
+    "narrator_nudge_ping": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+10%",
+      "pitch": "+6Hz",
+      "text": "Get a ping when friends challenge you?"
+    },
+    "narrator_nudge_account": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+10%",
+      "pitch": "+6Hz",
+      "text": "You can keep this player from Account whenever you want."
+    },
+    "narrator_signin_sheet": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+10%",
+      "pitch": "+6Hz",
+      "text": "Get on the leaderboard and keep your scores on any device. We'll email you a sign-in link and the code from your email. No password."
+    },
+    "narrator_rotate": {
+      "voice": "en-US-JennyNeural",
+      "rate": "+10%",
+      "pitch": "+6Hz",
+      "text": "Turn the phone upright. The board is paused."
+    }
 }

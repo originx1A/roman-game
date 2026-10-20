@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { playVoice } from '../game/sound'
 import { enablePush } from '../social/push'
 
 const KEY = 'rg.nudge.dismissed'
@@ -24,6 +25,15 @@ export function PlayNudge({ home }: { home: boolean }) {
     setIos(iosBrowser())
     setShow(home)
   }, [home])
+  useEffect(() => {
+    if (!show) return
+    const clip = ios
+      ? 'narrator_nudge_home'
+      : typeof Notification !== 'undefined'
+        ? 'narrator_nudge_ping'
+        : 'narrator_nudge_account'
+    playVoice(clip, { priority: 1, waitMs: 500 })
+  }, [show, ios])
   if (!home || !show) return null
 
   function dismiss() {
