@@ -1,6 +1,6 @@
 /**
  * Website shop prices. Canadian dollars, in cents.
- * PROPOSED until Tony approves them. Checkout refuses a live Stripe key.
+ * Approved. Checkout still refuses a live Stripe key until test-only mode is turned off.
  * The native store list in iap.ts is unchanged.
  *
  * Savings use the Large pack rate (C$9.99 / 3,200 coins) for buddies and treats,

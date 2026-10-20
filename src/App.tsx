@@ -46,6 +46,7 @@ import { guideCandidates, guideVoiceClip, petPopoutPick, type GuideTarget } from
 import { ThemeBackdrop } from './components/ThemeBackdrop'
 import { TapButton } from './components/TapButton'
 import { BuddyHunt } from './components/BuddyHunt'
+import { BuddyMeterStrip } from './components/BuddyMeterStrip'
 import { PetArt } from './components/PetArt'
 import { Stable } from './components/Stable'
 import { RemixScreen } from './components/RemixScreen'
@@ -3747,6 +3748,12 @@ export default function App() {
 
 
           <div className="play-side">
+          <BuddyMeterStrip
+            notches={buddyMeter.notches}
+            goal={BUDDY_HUNT_PERFECT_WINS}
+            pending={buddyMeter.pending}
+            variant="play"
+          />
           <div className="toolbar play-toolbar">
             <TapButton className="btn tool" onTap={undo} disabled={!history.length || celebrate || defeated || mode === 'trial'}>
               {mode === 'trial' ? 'No undo' : 'Undo'}
@@ -3810,7 +3817,6 @@ export default function App() {
               <p>
                 {celebrate ? 'Victory' : 'Out of hearts'} · {formatMs(elapsedMs)} · {lastScore ?? 0} pts · {lives} hearts
               </p>
-              <p className="play-dock-buddy">Buddy meter {buddyMeter.notches}/{BUDDY_HUNT_PERFECT_WINS}</p>
               <button type="button" className="btn primary" onClick={goNextBoard}>Next board</button>
               <button type="button" className="btn ghost" onClick={resetBoard}>Play again</button>
               <button type="button" className="btn ghost" onClick={() => setScreen('leaderboard')}>Leaderboard</button>
@@ -3990,7 +3996,7 @@ export default function App() {
           <section className="shop-block" data-testid="shop" aria-label="Shop">
             <h2>Shop <HelpMark id="shop" onOpen={openHelp} /></h2>
             <p className="coin-explain">Coins are earned by playing or bought here. They are not real money.</p>
-            <p className="shop-proposed" data-testid="shop-proposed">Prices are in Canadian dollars. Proposed until approved.</p>
+            <p className="shop-proposed" data-testid="shop-proposed">Prices are in Canadian dollars.</p>
             <section className="pay-real" aria-label="Real money" data-testid="real-money">
               <h3><span className="pay-mark" aria-hidden="true">💳</span> Real money</h3>
               <div className="coin-shop">

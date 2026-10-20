@@ -3,6 +3,7 @@ import { CRITTER_STASH_GOAL } from './SparkCritter'
 import { PetArt } from './PetArt'
 import { CloudScoresButton } from '../cloud/CloudScores'
 import { UnseenCardGain } from './UnseenCard'
+import { BuddyMeterStrip } from './BuddyMeterStrip'
 import type { PetId } from '../game/pets'
 
 /** Replay challenge extras for this win: stars, a record/near-miss banner, coins earned */
@@ -117,36 +118,6 @@ export function WinScreen({
 
         <div className="win-screen-card">
           <div className="win-more win-screen-body" id="win-more" hidden={!more}>
-            {huntReady ? (
-              <button type="button" className="btn primary win-cta win-hunt" onClick={onBuddyHunt}>
-                Buddy Hunt!
-              </button>
-            ) : null}
-
-            {buddyMeter ? (
-              <div
-                className={`buddy-meter ${buddyMeter.pending ? 'is-full' : ''}`}
-                aria-label={`Buddy meter ${buddyMeter.pending ? buddyMeter.goal : buddyMeter.notches} of ${buddyMeter.goal}`}
-                data-meter={buddyMeter.pending ? buddyMeter.goal : buddyMeter.notches}
-              >
-                <span className="buddy-meter-notches">
-                  {Array.from({ length: buddyMeter.goal }, (_, i) => (
-                    <i
-                      key={i}
-                      className={
-                        buddyMeter.pending || i < buddyMeter.notches
-                          ? `on ${buddyMeter.perfect && (buddyMeter.pending ? i === buddyMeter.goal - 1 : i === buddyMeter.notches - 1) ? 'new' : ''}`
-                          : ''
-                      }
-                    />
-                  ))}
-                </span>
-                <span className="buddy-meter-hint">
-                  {buddyMeter.pending ? 'Full!' : buddyMeter.perfect ? 'Perfect win +1' : 'Perfect wins fill it'}
-                </span>
-              </div>
-            ) : null}
-
             {romanSaying ? <p className="win-roman-says">{romanSaying}</p> : null}
 
             <p className="win-sheet-kicker">
@@ -248,6 +219,22 @@ export function WinScreen({
               </div>
             </div>
 
+            {buddyMeter ? (
+              <BuddyMeterStrip
+                notches={buddyMeter.notches}
+                goal={buddyMeter.goal}
+                pending={buddyMeter.pending}
+                perfect={buddyMeter.perfect}
+                variant="win"
+              />
+            ) : null}
+
+            {huntReady ? (
+              <button type="button" className="btn primary win-cta win-hunt" onClick={onBuddyHunt}>
+                Buddy Hunt!
+              </button>
+            ) : null}
+
             <div className="win-sheet-actions">
               <button type="button" className="btn primary win-cta" onClick={onNext}>
                 {nextLabel ?? 'Next board'}
@@ -280,13 +267,12 @@ export function WinScreen({
 
             <button
               type="button"
-              className={`win-more-toggle ${huntReady ? 'has-hunt' : ''}`}
+              className="win-more-toggle"
               aria-expanded={more}
               aria-controls="win-more"
               onClick={() => setMore((open) => !open)}
             >
               {more ? 'Less' : 'More'}
-              {huntReady && !more ? <span className="win-more-hunt">Buddy Hunt!</span> : null}
             </button>
           </div>
         </div>

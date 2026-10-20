@@ -43,6 +43,8 @@ test('shop splits real money from coin spending and confirms treat conversion', 
   assert.match(shop, /formatCad/)
   assert.match(shop, /SHOP_OFFERS/)
   assert.match(shop, /data-testid="shop-proposed"/)
+  assert.match(shop, /Prices are in Canadian dollars\./)
+  assert.doesNotMatch(shop, /Proposed until approved/)
   assert.match(shop, /LegalLine/)
   assert.doesNotMatch(shop, /Coming soon/)
   assert.match(shop, /SNACK_COIN_RATE/)
