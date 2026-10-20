@@ -71,8 +71,8 @@ export function HomeUnseenReminder({ facts, onConsumed }: { facts: ReminderFacts
 }
 
 /**
- * A dismissible Unseen note on Home. Not the in-game voice pop-up.
- * That one plays during a board. This one never does.
+ * A dismissible Unseen note on Home. It plays its recording here.
+ * A live board never mounts this, and the corner pop-up stays off until the board is over.
  */
 export function UnseenReminder({ text, onDismiss }: { text: string; onDismiss: () => void }) {
   return (

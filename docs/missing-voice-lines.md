@@ -6,7 +6,7 @@ A computer is a fine pointer on a window at least 900px wide (`(pointer: fine)` 
 
 ## Home reminders
 
-These play only on Home, at most one per visit, never during a board. The same line plays on phones, tablets, and computers.
+These play only on Home, at most one per visit, never during a board. The corner pop-up stays off while a board is still being played. The same line plays on phones, tablets, and computers, except the sign-in line, which swaps to the computer recording.
 
 ### old_remind_pets
 

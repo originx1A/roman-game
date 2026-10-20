@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { getPlayerName, isUnsetAccountName } from '../src/game/playerName.ts'
 import { clipAudible, DESKTOP_PHONE_JAB, desktopCaption, HANDHELD_MAX_WIDTH_PX, isComputerDevice, spokenClip } from '../src/game/lineCaption.ts'
@@ -73,4 +74,16 @@ test('phone lines stay on phones and tablets, and computers get the computer lin
   assert.equal(reminderText('signin', true), COMPUTER_SIGNIN_LINE)
   assert.match(COMPUTER_SIGNIN_LINE, /this computer/)
   assert.equal(reminderText('pets', true).includes('computer'), false)
+})
+
+test('reminder clips play with the Home Unseen, and a live board gets no pop-up', () => {
+  const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8')
+  const home = app.slice(app.indexOf("{screen === 'home'"), app.indexOf("{screen === 'how'"))
+  assert.match(home, /HomeUnseenReminder/)
+  assert.match(readFileSync(new URL('../src/components/UnseenReminder.tsx', import.meta.url), 'utf8'), /playReminderLine/)
+  const pop = app.slice(app.indexOf('function maybeUnseenPop'), app.indexOf('const teaseTimer'))
+  assert.match(pop, /playBanterClip/)
+  assert.match(pop, /if \(liveBoard\(\)\) return/)
+  const guide = app.slice(app.indexOf('Unseen guide + pet pop-out'), app.indexOf('const dailyDateLabel'))
+  assert.match(guide, /screen === 'play' && running && !celebrate && !defeated/)
 })

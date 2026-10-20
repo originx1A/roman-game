@@ -25,7 +25,10 @@ const STEPS = [
   { title: 'Remix boards', blurb: 'New boards every 3 days, the same set for everyone, so you can compare scores. Want more? Endless mode makes unlimited new boards.', demo: 'remix', isNew: true },
   { title: 'Buddy flyby', blurb: 'Your active buddy swoops across the board every couple of minutes. Tap it for a reward — coins, hints, hearts, even rescues!', demo: 'critter', isNew: true },
   { title: 'Treat defense', blurb: 'Wild pets sneak onto the board trying to steal your treat pile! Your pets chase them off automatically (+3-5 treats). Or tap the invader yourself (+1-2). Tap the 🍖 count up top to stash your treats safe.', demo: 'hunt', isNew: true },
-  { title: 'Treats & coins', blurb: 'Every win earns 5 field treats. Treats feed and upgrade your pets. Buy treats and animals with coins. Bought treats can never be stolen.', demo: 'stars', isNew: true },
+  { title: 'Treats & coins', blurb: 'Every win earns 5 field treats. Treats feed your buddies. Safe snacks can convert into coins. Bought treats can never be stolen.', demo: 'stars', isNew: true },
+  { title: 'Shop', blurb: 'Real money buys coin packs and the starter pack, each with a price. A separate Spend coins section uses a coin icon. Coins are earned or bought in the game. They are not cash.', demo: 'stars', isNew: true },
+  { title: 'Convert treats', blurb: 'Turn safe snacks into coins. You confirm first. The rate is set in the game. Nothing converts back to real money.', demo: 'hunt', isNew: true },
+  { title: 'Scores & friends', blurb: 'A name keeps scores on this device. Sign in and finished games save to your account. Share a board so a friend can beat your time. Star players on the Board to follow them.', demo: 'daily', isNew: true },
   { title: 'The Unseen', blurb: 'A faceless hooded figure watches you play. He creeps up from the corner and points at the board with a jab when he speaks.', demo: 'combo', isNew: true },
   { title: 'Free buddy', blurb: 'New players pick one buddy FREE — Lupa, Aquila, Leo, Invictus, or Nox. Yours forever.', demo: 'region', isNew: true },
 ] as const satisfies readonly { title: string; blurb: string; demo: HowDemoId; ms?: number; isNew?: boolean }[]
@@ -67,16 +70,24 @@ export function HowToPlay({
       </div>
       <p className="sub how-sub">The short version. The pictures below walk through the same ideas.</p>
       <section className="how-plain" aria-label="How the game works">
-        <h3>The board</h3>
-        <p>One buddy in every row, every column, and every colored region. They cannot touch, not even at a corner. Swipe to mark an X. Tap an X to place a buddy.</p>
-        <h3>Scoring</h3>
-        <p>Faster clears and fewer hints score more. Quick good moves build a combo. Each undo costs 25 points. Stars: finish, beat the time, then beat the time and the score with no undos.</p>
+        <h3>Rules and levels</h3>
+        <p>One buddy in every row, every column, and every colored region. They cannot touch, even at a corner. Swipe an X. Tap an X to place a buddy. Levels run easy, medium, hard, and expert. Stars: finish, beat the time, then beat the time and the score with no undos.</p>
+        <h3>Hints and revives</h3>
+        <p>Three mistakes cost a heart. A hint or a revive spends coins, or a free hint if you have one. Undo costs 25 points and breaks a combo.</p>
         <h3>Coins</h3>
-        <p>Wins pay coins. Spend them on hints, treats, and animals. Real money buys coin packs and the starter pack only.</p>
-        <h3>Pets</h3>
-        <p>Buddies live in the Stable. Feed them treats, and one can ride along for a perk. A hungry buddy needs a treat.</p>
-        <h3>Challenges</h3>
-        <p>Share a score and a friend gets the same board, to beat your time. The Daily is one board a day. Remix boards change every three days.</p>
+        <p>You earn coins by playing. You can also buy them. Coins are not real money and cannot be cashed out.</p>
+        <h3>Treats</h3>
+        <p>Wins earn field treats. Claim them safe, then feed buddies or convert snacks into coins. You confirm before converting. Feasts and field treats are not converted. Nothing turns back into cash.</p>
+        <h3>Shop</h3>
+        <p>Real money is its own section: coin packs and the starter pack, each with a card icon and a price. Spend coins is separate, with a coin icon, for animals, treats, and badge upgrades.</p>
+        <h3>Buddies</h3>
+        <p>Buddies live in the Stable. Feed them, and one can ride along. New players can claim one buddy free.</p>
+        <h3>Rewards</h3>
+        <p>Badges, streaks, and daily prizes come from playing. Upgrade a badge with coins.</p>
+        <h3>Scores and account</h3>
+        <p>A name saves scores on this device. Sign in and finished games upload to your account.</p>
+        <h3>Friends</h3>
+        <p>Share a board so a friend can beat your time. Star players on the Board to keep a friends list. The Daily is one board a day. Remix boards change every three days.</p>
       </section>
       <div className="how-stage" data-demo={current.demo}>
         <HowDemo key={current.demo} demo={current.demo} />
@@ -114,7 +125,9 @@ export function HowToPlay({
         <li>Each color also has its own little shape in the tile corner.</li>
         <li>Your buddy flies by during play — tap it for rewards.</li>
         <li>Wild pets try to steal your treat pile on the board. Your pets defend it — tap the 🍖 count to stash treats safe.</li>
-        <li>Every win earns 5 treats. Treats feed and upgrade pets. Buy treats and animals with coins.</li>
+        <li>Every win earns 5 treats. Feed buddies, or convert safe snacks into coins after you confirm. No cash-out.</li>
+        <li>Real money buys coin packs and the starter pack. Spend coins on animals, treats, and badge upgrades.</li>
+        <li>Sign in to save scores to your account. Share a board with a friend, or star players on the Board.</li>
         <li>No pets yet? Claim your FREE buddy in the Stable — without defenders your treats are in danger.</li>
       </ol>
       <div className="cta-row">

@@ -12,6 +12,7 @@ import { WinScreen, type WinReplay } from './components/WinScreen'
 import { type ShortfallAction } from './components/ShortfallSheet'
 import { ShortfallSheetHost } from './components/ShortfallSheetHost'
 import { CoinPackCard } from './components/CoinPackCard'
+import { STARTER_PACK_PRICE } from './game/starterPack'
 import './styles/store-layer.css'
 import { ShareBar } from './components/ShareBar'
 import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './components/SparkCritter'
@@ -87,6 +88,8 @@ import {
   couponFor,
   earnFieldTreats,
   claimFieldTreats,
+  swapTreatsToCoins,
+  SNACK_COIN_RATE,
   jackpotFieldTreats,
   lockedForSale,
   MAX_FIELD_TREATS,
@@ -464,6 +467,8 @@ function canSpendCoins(coins: number, pets: PetState, wallet: Wallet, now: numbe
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('home')
+  const [navOpen, setNavOpen] = useState(false)
+  const [convertAsk, setConvertAsk] = useState(false)
   const [{ layout }, setLayoutInfo] = useState(() => readLayout())
   const [profile, setProfile] = useState<Profile | null>(() => loadProfile())
   const cloud = useCloud()
@@ -577,10 +582,16 @@ export default function App() {
     if (!clip) return false
     return clip.startsWith('old_') || (clip.startsWith('tip_') && clip.includes('_old_'))
   }
+  /** A board the player is still solving. Win, lose, and menus are not active play. */
+  function liveBoard(): boolean {
+    return screen === 'play' && running && !celebrate && !defeated
+  }
   function maybeUnseenPop(line: { text?: string; clip?: string; speak?: boolean; silent?: boolean; voiceMood?: Parameters<typeof playBanterClip>[1]; alts?: readonly string[]; priority?: number; waitMs?: number }) {
     // Allowed moments only: callers already passed the voice gate (between turns, not mid-gesture).
     if (!line.speak || line.silent || !line.text || !line.clip || !isUnseenClip(line.clip)) return
     playBanterClip(line.clip, line.voiceMood ?? 'neutral', line.alts, line.priority, line.waitMs)
+    // The line still plays. The corner pop-up stays off until the board is finished.
+    if (liveBoard()) return
     unseenKey.current += 1
     setUnseenPop({ text: line.text, key: unseenKey.current, clip: line.clip })
   }
@@ -1388,6 +1399,20 @@ export default function App() {
   function persistPets(next: PetState) {
     setPets(next)
     savePets(next)
+  }
+
+  /** Safe-stash snacks only. Field treats and feasts stay. Coins never leave the game. */
+  function confirmConvertTreats() {
+    const n = pets.treats.snack ?? 0
+    const r = swapTreatsToCoins(pets, wallet.coins, n)
+    setConvertAsk(false)
+    if (!r.ok) {
+      showToast(r.reason)
+      return
+    }
+    persistPets(r.state)
+    persistWallet({ ...wallet, coins: r.coins })
+    showToast(`${r.swapped} snacks became ${r.gained} coins.`)
   }
 
   /** 9.30-d: hidden way to the owner page: 7 quick taps on the home title within 3 s (still needs the passphrase) */
@@ -2794,8 +2819,11 @@ export default function App() {
   useEffect(() => {
     if (guide || petPop) return
     if (celebrate || defeated || showWheel || shortfall || parade || showHunt) return
+    // No guide or pet pop-up on a live board. Home and the other menus can still show one.
+    if (screen === 'play' && running && !celebrate && !defeated) return
     if (screen === 'play' && guideBoardRef.current === boardSeqRef.current) return
     const t = window.setTimeout(() => {
+      if (screen === 'play' && running && !celebrate && !defeated) return
       if (Date.now() - guideLastAtRef.current < 45_000) return
       const snapshot = {
         now: petNow,
@@ -2837,7 +2865,7 @@ export default function App() {
     }, 2000)
     return () => window.clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screen, pets, petNow, wallet.coins, records, celebrate, defeated, showWheel, shortfall, parade, showHunt, guide, petPop])
+  }, [screen, running, pets, petNow, wallet.coins, records, celebrate, defeated, showWheel, shortfall, parade, showHunt, guide, petPop])
   const dailyDateLabel = new Date(`${todayKey}T12:00:00Z`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })
   function buildRemix(size: RemixSize, openAfter = false) {
     const set = remixSet
@@ -3067,38 +3095,47 @@ export default function App() {
       <style>{MENU_CSS}</style>
       {!hideChrome && (
         <header className="topbar topbar-slim">
-          <button
-            type="button"
+          <a
             className="brand"
-            onClick={() => {
-              setScreen('home')
-              sfxWhoosh()
-            }}
+            href="https://romansgame.com"
+            target="_blank"
+            rel="noopener"
+            data-testid="brand-site"
+            title="Visit romansgame.com"
           >
             <span className="brand-mark" />
             <span className="brand-name brand-name-full">Roman's Game</span>
             <span className="brand-name brand-name-short" data-testid="brand-roman">Roman</span>
+          </a>
+          <button
+            type="button"
+            className="nav-menu"
+            aria-expanded={navOpen}
+            aria-controls="app-nav"
+            onClick={() => setNavOpen((open) => !open)}
+          >
+            Menu
           </button>
-          <nav className="nav">
-            <button type="button" className={screen === 'levels' ? 'on' : ''} onClick={() => setScreen('levels')}>
+          <nav id="app-nav" className={`nav${navOpen ? ' is-open' : ''}`}>
+            <button type="button" className={screen === 'levels' ? 'on' : ''} onClick={() => { setNavOpen(false); setScreen('levels') }}>
               Play
             </button>
-            <button type="button" data-testid="nav-how" title="How to play" onClick={() => setScreen('how')}>
+            <button type="button" data-testid="nav-how" title="How to play" onClick={() => { setNavOpen(false); setScreen('how') }}>
               How
             </button>
-            <button type="button" className={screen === 'rewards' ? 'on' : ''} onClick={() => setScreen('rewards')}>
+            <button type="button" className={screen === 'rewards' ? 'on' : ''} onClick={() => { setNavOpen(false); setScreen('rewards') }}>
               Rewards
             </button>
-            <button type="button" className={`nav-stable ${screen === 'stable' ? 'on' : ''}`} onClick={() => setScreen('stable')}>
+            <button type="button" className={`nav-stable ${screen === 'stable' ? 'on' : ''}`} onClick={() => { setNavOpen(false); setScreen('stable') }}>
               Stable
             </button>
-            <button type="button" className={screen === 'challenge' ? 'on' : ''} onClick={() => setScreen('challenge')}>
+            <button type="button" className={screen === 'challenge' ? 'on' : ''} onClick={() => { setNavOpen(false); setScreen('challenge') }}>
               Share
             </button>
-            <button type="button" className={screen === 'leaderboard' ? 'on' : ''} data-testid="nav-board" onClick={() => setScreen('leaderboard')}>
+            <button type="button" className={screen === 'leaderboard' ? 'on' : ''} data-testid="nav-board" onClick={() => { setNavOpen(false); setScreen('leaderboard') }}>
               Board
             </button>
-            <button type="button" className={screen === 'profile' ? 'on' : ''} onClick={() => setScreen('profile')}>
+            <button type="button" className={screen === 'profile' ? 'on' : ''} onClick={() => { setNavOpen(false); setScreen('profile') }}>
               {playerName ? <span className="player-name-mark nav-player" data-testid="nav-player" title={playerName}>{playerName}</span> : 'Account'}
             </button>
           </nav>
@@ -3108,10 +3145,11 @@ export default function App() {
               href="https://romansgame.com"
               target="_blank"
               rel="noopener"
-              title="romansgame.com"
+              title="Visit romansgame.com"
               aria-label="Visit romansgame.com"
+              data-testid="site-logo"
             >
-              🏰
+              <img src="/images/site-logo.png" alt="" width="512" height="512" draggable={false} />
             </a>
             <button
               type="button"
@@ -3264,6 +3302,11 @@ export default function App() {
               <span>win coins</span>
             </div>
           </section>
+          <footer className="home-site-foot">
+            <a href="https://romansgame.com" target="_blank" rel="noopener" data-testid="home-site-link">
+              Visit romansgame.com
+            </a>
+          </footer>
         </main>
       )}
 
@@ -3746,46 +3789,82 @@ export default function App() {
       )}
 
       {screen === 'rewards' && (
-        <main className="panel scroll-pane">
+        <main className="panel scroll-pane shop-screen">
           <section className="shop-block" data-testid="shop" aria-label="Shop">
             <h2>Shop</h2>
-            <p className="sub shop-note">Real money buys coin packs and the starter pack. Treats and animals are bought with coins in the Stable.</p>
-            <div className="coin-shop">
-              {(['coins_500', 'coins_1200', 'coins_3000'] as const).map((id) => {
-                const pack = COIN_PACKS.find((p) => p.id === id)
-                if (!pack) return null
-                const size = id === 'coins_500' ? 'Small' : id === 'coins_1200' ? 'Medium' : 'Large'
-                return (
-                  <CoinPackCard
-                    key={pack.id}
-                    webBuy
-                    pack={{ ...pack, label: size }}
-                    priceText={storePrices[pack.productId] || pack.priceHint}
-                    onBuy={onBuyCoins}
-                  />
-                )
-              })}
-            </div>
-            <article className="product-card starter-pack" data-testid="starter-pack">
-              <div className="product-card-top">
-                <h3>Starter pack</h3>
-                <p className="product-coins">Lupa + Aquila</p>
+            <p className="coin-explain">Coins are earned by playing or bought here. They are not real money.</p>
+            <section className="pay-real" aria-label="Real money" data-testid="real-money">
+              <h3><span className="pay-mark" aria-hidden="true">💳</span> Real money</h3>
+              <div className="coin-shop">
+                {(['coins_500', 'coins_1200', 'coins_3000'] as const).map((id) => {
+                  const pack = COIN_PACKS.find((p) => p.id === id)
+                  if (!pack) return null
+                  const size = id === 'coins_500' ? 'Small' : id === 'coins_1200' ? 'Medium' : 'Large'
+                  return (
+                    <CoinPackCard
+                      key={pack.id}
+                      webBuy
+                      pack={{ ...pack, label: size }}
+                      priceText={storePrices[pack.productId] || pack.priceHint}
+                      onBuy={onBuyCoins}
+                    />
+                  )
+                })}
               </div>
-              <p className="product-value">Two buddies. Real money only. Other animals are coins in the Stable.</p>
-              <div className="product-card-foot">
-                <span className="product-price">Real money</span>
+              <article className="product-card product-card-money starter-pack" data-testid="starter-pack">
+                <div className="starter-art">
+                  <PetArt id="lupa" size={52} title="Lupa" />
+                  <PetArt id="aquila" size={52} title="Aquila" />
+                </div>
+                <h3>Starter pack</h3>
+                <p className="product-value">Lupa and Aquila, to start your stable. Other animals are bought with coins.</p>
+                <div className="product-card-foot">
+                  <span className="product-price" data-testid="starter-price">
+                    <span className="pay-mark" aria-hidden="true">💳</span> {STARTER_PACK_PRICE}
+                    <small>Price not set yet</small>
+                  </span>
+                  <button type="button" className="btn ghost product-buy" disabled data-testid="starter-buy">
+                    Coming soon
+                  </button>
+                </div>
+              </article>
+            </section>
+            <section className="pay-coins" aria-label="Spend coins" data-testid="spend-coins">
+              <h3><span className="pay-mark" aria-hidden="true">🪙</span> Spend coins</h3>
+              <div className="balance-row">
+                <span data-testid="balance-coins"><span className="pay-mark" aria-hidden="true">🪙</span> {wallet.coins} coins</span>
+                <span data-testid="balance-treats"><span aria-hidden="true">🍖</span> {pets.treats.snack + pets.treats.feast} treats</span>
+              </div>
+              <p className="product-value">
+                Safe snacks become coins at {SNACK_COIN_RATE} each. Field treats and feasts stay. No cash-out.
+              </p>
+              {convertAsk ? (
+                <div className="convert-confirm" data-testid="convert-confirm">
+                  <p>
+                    Convert {pets.treats.snack} snacks into {(pets.treats.snack ?? 0) * SNACK_COIN_RATE} coins? They stay in the game.
+                  </p>
+                  <button type="button" className="btn primary btn-sm" data-testid="convert-yes" onClick={confirmConvertTreats}>
+                    Convert
+                  </button>
+                  <button type="button" className="btn ghost btn-sm" onClick={() => setConvertAsk(false)}>
+                    Cancel
+                  </button>
+                </div>
+              ) : (
                 <button
                   type="button"
-                  className="btn ghost product-buy"
-                  onClick={() => {
-                    const owned = pets.owned.lupa && pets.owned.aquila
-                    showToast(owned ? 'You already have the starter buddies.' : 'Purchases are unavailable right now.')
-                  }}
+                  className="btn ghost btn-sm"
+                  data-testid="convert-treats"
+                  disabled={(pets.treats.snack ?? 0) <= 0}
+                  onClick={() => setConvertAsk(true)}
                 >
-                  Buy
+                  <span className="pay-mark" aria-hidden="true">🪙</span> Convert snacks
                 </button>
-              </div>
-            </article>
+              )}
+              <button type="button" className="btn ghost btn-sm" onClick={() => setScreen('stable')}>
+                <span className="pay-mark" aria-hidden="true">🪙</span> Animals in the Stable
+              </button>
+            </section>
             {isStoreBuild() ? (
               <button type="button" className="btn ghost" onClick={() => void onRestorePurchases()}>
                 Restore unfinished purchases
@@ -3817,7 +3896,7 @@ export default function App() {
                       className="btn ghost badge-upgrade"
                       onClick={() => onUpgradeBadge(a.id)}
                     >
-                      Upgrade · {cost}¢
+                      <span className="pay-mark" aria-hidden="true">🪙</span> Upgrade · {cost}
                     </button>
                   ) : (
                     <span className="badge-locked-hint">Earn by playing</span>
@@ -3889,6 +3968,9 @@ export default function App() {
               ) : (
                 <CloudScoresButton suggestedName={playerName} />
               )}
+              <a className="btn ghost btn-sm" href="https://romansgame.com" target="_blank" rel="noopener" data-testid="account-website">
+                Website
+              </a>
             </div>
             {editingName ? (
               <label className="name-setting">
