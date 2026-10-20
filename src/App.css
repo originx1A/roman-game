@@ -6357,6 +6357,9 @@ html[data-motion='reduce'] .td-invader {
 .cloud-sheet .name-input { width: 100%; }
 .cloud-code { letter-spacing: 0.22em; text-align: center; font-weight: 800; font-variant-numeric: tabular-nums; }
 .cloud-code::placeholder { letter-spacing: 0; font-weight: 600; }
+/* The sheet sits in the visible viewport, not pinned under the keyboard. */
+.cloud-sheet { overflow: auto; align-content: safe center; }
+.cloud-sheet .start-sheet-card { margin-block: auto; }
 .cloud-checks { display: grid; gap: 0.45rem; margin: 0.6rem 0 0.2rem; text-align: left; }
 .cloud-check { display: flex; align-items: center; gap: 0.55rem; font-size: 0.88rem; cursor: pointer; }
 .cloud-check input { width: 1.15rem; height: 1.15rem; flex-shrink: 0; accent-color: #f5c84c; }
