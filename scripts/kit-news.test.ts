@@ -149,6 +149,81 @@ test('feed escapes text, orders newest first, and writes RFC 822 pubDate', () =>
   assert.equal(guid?.textContent, 'newer-story')
 })
 
+test('broadcast subject strips one wrapping quote pair and keeps quotes inside the title', () => {
+  const plain = 'Throne Weather — hoop advisory in effect until Thursday'
+  assert.equal(source.stripWrappingTitleQuotes(`"${plain}"`), plain)
+  assert.equal(source.stripWrappingTitleQuotes(`'${plain}'`), plain)
+  assert.equal(source.stripWrappingTitleQuotes(`\u201C${plain}\u201D`), plain)
+  assert.equal(source.stripWrappingTitleQuotes(`\u2018${plain}\u2019`), plain)
+  assert.equal(source.stripWrappingTitleQuotes(`  "${plain}"  `), plain)
+  assert.equal(source.stripWrappingTitleQuotes(JSON.stringify(plain)), plain)
+  assert.equal(source.stripWrappingTitleQuotes(`\u201C${plain}\u201C`), `\u201C${plain}\u201C`)
+
+  const inner = 'Gusting to "hold onto your hat" and sometimes beyond'
+  assert.equal(source.stripWrappingTitleQuotes(inner), inner)
+  assert.equal(source.stripWrappingTitleQuotes(`"${inner}"`), inner)
+  assert.equal(source.stripWrappingTitleQuotes(JSON.stringify(inner)), inner)
+  assert.equal(source.stripWrappingTitleQuotes('"Mismatch\''), '"Mismatch\'')
+  assert.equal(source.stripWrappingTitleQuotes("Roman's World News is live"), "Roman's World News is live")
+
+  assert.equal(source.stripWrappingTitleQuotes('\\"On purpose\\"'), '"On purpose"')
+  assert.equal(source.stripWrappingTitleQuotes("\\'On purpose\\'"), "'On purpose'")
+  assert.equal(source.stripWrappingTitleQuotes('\\“On purpose\\”'), '“On purpose”')
+  assert.equal(source.stripWrappingTitleQuotes(JSON.stringify('"On purpose"')), '"On purpose"')
+  assert.equal(source.stripWrappingTitleQuotes('"On purpose"', true), '"On purpose"')
+  assert.equal(source.stripWrappingTitleQuotes('"Say \\"hi\\""'), 'Say "hi"')
+
+  const html = [
+    '<a class="ncard" data-show="throne-weather" href="throne-weather-hoop-advisory/"><h2>&quot;Throne Weather — hoop advisory in effect until Thursday&quot;</h2><div class="nex">Strong crosswinds.</div><div class="nmeta">2026-10-20</div></a>',
+    '<a class="ncard" href="kept/"><h2 data-keep-quotes="true">&quot;On purpose&quot;</h2><div class="nex">Kept.</div><div class="nmeta">2026-10-20</div></a>',
+    '<a class="ncard" href="bare/"><h2 data-keep-quotes>&quot;Bare flag&quot;</h2><div class="nex">Bare.</div><div class="nmeta">2026-10-20</div></a>',
+    '<a class="ncard" href="curly/"><h2>&ldquo;Curly title&rdquo;</h2><div class="nex">Curly.</div><div class="nmeta">2026-10-18</div></a>',
+    '<a class="ncard" href="off/"><h2 data-keep-quotes="false">&quot;Still stripped&quot;</h2><div class="nex">Off.</div><div class="nmeta">2026-10-17</div></a>',
+  ].join('')
+  const parsed = source.parseNewsIndex(html)
+  const hoop = parsed.find((item) => item.id === 'throne-weather-hoop-advisory')
+  assert.ok(hoop)
+  assert.equal(hoop.title, `"${plain}"`)
+  assert.equal(hoop.keepTitleQuotes, undefined)
+  const sent = news.broadcastDraft(
+    { ...hoop, image: 'https://romansgame.com/news/hoops.png' },
+    { type: 'tag', id: 3 },
+    new Date('2026-10-20T13:20:00Z'),
+  )
+  assert.equal(sent.subject, plain)
+  assert.equal(sent.thumbnail_alt, plain)
+
+  const kept = parsed.find((item) => item.id === 'kept')
+  assert.ok(kept)
+  assert.equal(kept.keepTitleQuotes, true)
+  assert.equal(
+    news.broadcastDraft(kept, { type: 'tag', id: 3 }, new Date('2026-10-20T13:20:00Z')).subject,
+    '"On purpose"',
+  )
+  const bare = parsed.find((item) => item.id === 'bare')
+  assert.ok(bare)
+  assert.equal(
+    news.broadcastDraft(bare, { type: 'tag', id: 3 }, new Date('2026-10-20T13:20:00Z')).subject,
+    '"Bare flag"',
+  )
+  const curly = parsed.find((item) => item.id === 'curly')
+  assert.ok(curly)
+  assert.equal(curly.title, '“Curly title”')
+  assert.equal(
+    news.broadcastDraft(curly, { type: 'tag', id: 3 }, new Date('2026-10-20T13:20:00Z')).subject,
+    'Curly title',
+  )
+  const off = parsed.find((item) => item.id === 'off')
+  assert.ok(off)
+  assert.equal(off.keepTitleQuotes, undefined)
+  assert.equal(
+    news.broadcastDraft(off, { type: 'tag', id: 3 }, new Date('2026-10-20T13:20:00Z')).subject,
+    'Still stripped',
+  )
+  assert.equal(source.h2KeepsTitleQuotes('<h2 class="x" data-keep-quotes="yes">x</h2>'), true)
+  assert.equal(source.h2KeepsTitleQuotes('<h2 data-keep-quotes="no">x</h2>'), false)
+})
+
 test('no Amazon host can reach broadcast, welcome, or alert email', () => {
   const article = 'https://romansgame.com/news/throne-weather-fog-over-the-swamp/'
   const hosts = [
