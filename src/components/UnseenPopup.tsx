@@ -10,7 +10,7 @@ import { watchVoiceEnd } from '../game/sound'
  *
  * - The hooded Unseen sticker rises out of the bottom-right corner, pointing up and in at the board
  * - Speech bubble above him with the line's text, shown while its clip plays
- * - Auto-dismisses after ~4.5s; a new line replaces the current one
+ * - A voiced line stays up until that clip ends. Text-only lines dismiss on their hold.
  * - pointer-events: none — taps pass straight through, never blocks the board
  */
 
@@ -55,7 +55,10 @@ export function UnseenPopup({ pop, holdMs = 4500 }: Props) {
     lastKey.current = pop.key
     window.clearTimeout(hideTimer.current)
     window.clearTimeout(leaveTimer.current)
-    const stay = pop.holdMs ?? holdMs
+    // A clip that has started must not have its bubble torn down at 4.5s.
+    // The longest Unseen file is about 11s; 16s is the ceiling if the end event never arrives.
+    const voiced = Boolean(pop.clip)
+    const stay = voiced ? Math.max(pop.holdMs ?? holdMs, 16000) : (pop.holdMs ?? holdMs)
     setText(bubbleText(pop.text))
     setLeaving(false)
     setVisible(true)

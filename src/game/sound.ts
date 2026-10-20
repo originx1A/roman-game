@@ -19,9 +19,9 @@ import { boardEndCancel, clipEndsAt, decideVoice, replacesWaiting, type ChannelL
 import {
   PAUSE_GRACE_MS,
   classifyPlayRejection,
-  pauseEndsLine,
   retryStillFresh,
   shouldAttachVoiceGraph,
+  shouldResumePausedLine,
   shouldStartPrime,
 } from './voiceUnlock'
 import { clipAudible, desktopCaption, DESKTOP_PHONE_JAB, isComputerPlayer, PHONE_JAB_CLIP, spokenClip } from './lineCaption'
@@ -706,7 +706,47 @@ function watchVoiceVisibility() {
   visibilityWatch = true
   document.addEventListener('visibilitychange', () => {
     // iOS suspends the media session in the background. The next tap has to prime again.
-    if (document.visibilityState === 'hidden') needsGesture = true
+    if (document.visibilityState === 'hidden') {
+      needsGesture = true
+      return
+    }
+    // Back on the page: finish the line the browser paused. Leaving is allowed to stop it.
+    void resumePausedLine().catch(() => {})
+  })
+}
+
+/** Page is still in front of the player. A hidden tab may keep a paused line paused. */
+function pageVisible(): boolean {
+  return typeof document === 'undefined' || document.visibilityState !== 'hidden'
+}
+
+/**
+ * Continue a clip the browser paused (playbackRate, Web Audio attach, a tap)
+ * while the player is still on the page and the file has not finished.
+ */
+function resumePausedLine(): Promise<void> {
+  const el = voiceEl
+  const line = currentLine
+  if (!el || !line?.audible || el.ended || !el.paused) return Promise.resolve()
+  if (!shouldResumePausedLine({
+    pageVisible: pageVisible(),
+    ended: el.ended,
+    currentTimeSec: el.currentTime || 0,
+    durationSec: el.duration,
+    replaced: false,
+  })) return Promise.resolve()
+  const gen = line.gen
+  resumeVoiceGraph(el)
+  return Promise.resolve(el.play()).then(() => {
+    if (gen !== voiceGeneration || !currentLine) return
+    // The pause ate wall-clock time. Time the rest of the file from here so a
+    // waiting line cannot start while this one is still going.
+    const now = performance.now()
+    currentLine.audible = true
+    currentLine.endsAt = clipEndsAt(now, el.duration, el.playbackRate || 1, (el.duration || 0) - (el.currentTime || 0))
+    clearVoiceSafety()
+    const left = currentLine.endsAt ? currentLine.endsAt - now : 20000
+    voiceSafetyTimer = window.setTimeout(() => releaseVoice(gen), left + 2500)
   })
 }
 
@@ -922,7 +962,9 @@ export function unlockAudio() {
   const el = voicePlayer()
   if (!el) return
   resumeVoiceGraph(el)
-  const audible = !!(currentLine?.audible && !el.paused && !el.ended && el.getAttribute(PRIME_ATTR) !== '1')
+  const audible = !!(currentLine?.audible && el.getAttribute(PRIME_ATTR) !== '1')
+  // A tap must not swap in the silent primer over a line that has already started.
+  if (audible && el.paused && !el.ended) void resumePausedLine().catch(() => {})
   if (!shouldStartPrime({ priming: !!priming, unlocked: voiceUnlocked, needsGesture, audible })) {
     if (priming) void priming.then((ok) => { if (ok) flushRetry() })
     else flushRetry()
@@ -938,6 +980,8 @@ export function unlockAudio() {
  */
 function primeElement(el: HTMLAudioElement): Promise<boolean> {
   if (priming) return priming
+  // Never replace a started clip with the silent primer. That swap is a hard cut.
+  if (currentLine?.audible && el.getAttribute(PRIME_ATTR) !== '1') return Promise.resolve(true)
   resumeVoiceGraph(el)
   // A line that already finished leaves its pause handler on the element.
   // Pausing the silence at the end of this prime must not look like that line stopping.
@@ -1486,6 +1530,94 @@ async function playClipQueue(
     let ok = false
     let refused = false
     let rejection: ReturnType<typeof classifyPlayRejection> | null = null
+    const noted = reportRequested ? requestedId : clipId
+    let pauseTimer: number | null = null
+    const clearPauseTimer = () => {
+      if (pauseTimer != null) window.clearTimeout(pauseTimer)
+      pauseTimer = null
+    }
+    const done = () => {
+      clearPauseTimer()
+      releaseVoice(gen)
+    }
+    // 9.30-k: heard = finished or 70% played; counted once per play
+    let counted = false
+    const countHeard = () => {
+      if (counted) return
+      counted = true
+      el.ontimeupdate = null
+      try {
+        voiceHeardListener?.(noted)
+      } catch {
+        /* the heard log never breaks playback */
+      }
+    }
+    const playStartedAt = performance.now()
+    // Attached before play() and before any later playbackRate write. A rate
+    // change, a Web Audio attach, or a tap used to pause the element and the
+    // old handler treated that pause as the end of the line.
+    el.onpause = () => {
+      if (gen !== voiceGeneration || !currentLine || !el.paused || el.ended) return
+      if (pauseTimer != null) return
+      const since = performance.now() - playStartedAt
+      const keep = () => shouldResumePausedLine({
+        pageVisible: pageVisible(),
+        ended: el.ended,
+        currentTimeSec: el.currentTime || 0,
+        durationSec: el.duration,
+        replaced: gen !== voiceGeneration || !currentLine,
+      })
+      if (!keep()) {
+        // Hidden tab: the browser may pause. Leaving the page is allowed to stop the line.
+        if (!pageVisible()) return
+        if (heardEnough(el.currentTime, el.duration)) countHeard()
+        done()
+        return
+      }
+      // The first instant is the iOS blip. Wait it out, then resume. A pause
+      // once the line is underway resumes immediately so the sentence is not cut.
+      const earlyBlip = since < PAUSE_GRACE_MS && (el.currentTime || 0) < 0.25
+      const wait = earlyBlip ? PAUSE_GRACE_MS - since : 0
+      pauseTimer = window.setTimeout(() => {
+        pauseTimer = null
+        if (gen !== voiceGeneration || !currentLine || !el.paused || el.ended) return
+        if (!keep()) {
+          if (!pageVisible()) return
+          if (heardEnough(el.currentTime, el.duration)) countHeard()
+          done()
+          return
+        }
+        void resumePausedLine().catch((err) => {
+          if (gen !== voiceGeneration || !currentLine) return
+          const kind = classifyPlayRejection(err)
+          warnVoice(`${clipId}.mp3`, `paused and resume failed (${kind})`)
+          if (kind === 'not-allowed') {
+            needsGesture = true
+            voiceUnlocked = false
+            if (!requestedOpts.retry) armRetry(requestedId, requestedOpts)
+            done()
+          }
+        })
+      }, wait)
+    }
+    el.ontimeupdate = () => {
+      if (gen !== voiceGeneration) {
+        el.ontimeupdate = null
+        return
+      }
+      if (heardEnough(el.currentTime, el.duration)) countHeard()
+    }
+    el.onended = () => {
+      countHeard()
+      done()
+    }
+    el.onerror = () => {
+      warnVoice(`${clipId}.mp3`, 'playback error')
+      done()
+    }
+    // From this moment the line has started: a later line waits or is skipped.
+    // play() can already be audible before the promise resolves.
+    if (currentLine && gen === voiceGeneration) currentLine.audible = true
     try {
       resumeVoiceGraph(el)
       await el.play()
@@ -1503,28 +1635,29 @@ async function playClipQueue(
     }
     if (gen !== voiceGeneration) return
     if (refused) {
+      clearPauseTimer()
+      el.onpause = null
       const again = requestedOpts.retry ? 'Giving up after one retry.' : 'Will retry once after the next tap.'
       warnVoice(`${clipId}.mp3`, `play() was rejected (${rejection}). ${again}`)
       if (!requestedOpts.retry) armRetry(requestedId, requestedOpts)
       break
     }
     if (!ok) {
+      clearPauseTimer()
+      el.onpause = null
       warnVoice(`${clipId}.mp3`, 'the browser reported a media error')
       continue
     }
-    const noted = reportRequested ? requestedId : clipId
     try {
       voiceStartListener?.(noted)
     } catch {
       /* rotation bookkeeping never breaks playback */
     }
-    const playStartedAt = performance.now()
-    let resumeTried = false
-    let pauseTimer: number | null = null
     // Heard now: nothing may cut it. Size the safety net to what's left of the clip at this rate.
     const markPlaying = () => {
       if (gen !== voiceGeneration || !currentLine) return
-      // iOS can reset the rate once metadata loads: put the voice's speed back before timing the clip
+      // iOS can reset the rate once metadata loads: put the voice's speed back before timing the clip.
+      // That write can pause the element. onpause (already attached) resumes while the page is visible.
       if (Math.abs(el.playbackRate - wantRate) > 0.01) el.playbackRate = wantRate
       const now = performance.now()
       currentLine.audible = true
@@ -1535,69 +1668,6 @@ async function playClipQueue(
     }
     markPlaying()
     el.onloadedmetadata = markPlaying
-    const done = () => {
-      if (pauseTimer != null) window.clearTimeout(pauseTimer)
-      releaseVoice(gen)
-    }
-    // 9.30-k: heard = finished or 70% played; counted once per play
-    let counted = false
-    const countHeard = () => {
-      if (counted) return
-      counted = true
-      el.ontimeupdate = null
-      try {
-        voiceHeardListener?.(noted)
-      } catch {
-        /* the heard log never breaks playback */
-      }
-    }
-    el.ontimeupdate = () => {
-      if (gen !== voiceGeneration) {
-        el.ontimeupdate = null
-        return
-      }
-      if (heardEnough(el.currentTime, el.duration)) countHeard()
-    }
-    el.onended = () => {
-      countHeard()
-      done()
-    }
-    el.onerror = () => {
-      warnVoice(`${clipId}.mp3`, 'playback error')
-      done()
-    }
-    // Paused by the OS/browser (call, tab hidden…). A pause in the first moment is
-    // the iOS blip from applying playbackRate — resume once instead of dropping the line.
-    el.onpause = () => {
-      if (gen !== voiceGeneration || !el.paused || el.ended) return
-      if (pauseTimer != null) return
-      const since = performance.now() - playStartedAt
-      if (!pauseEndsLine({ paused: true, ended: false, sincePlayMs: since })) {
-        pauseTimer = window.setTimeout(() => {
-          pauseTimer = null
-          if (gen !== voiceGeneration) return
-          if (!el.paused || el.ended) return
-          if (!resumeTried && el.currentTime < 0.25) {
-            resumeTried = true
-            resumeVoiceGraph(el)
-            void el.play().catch((err) => {
-              if (gen !== voiceGeneration) return
-              warnVoice(`${clipId}.mp3`, `paused immediately and resume failed (${classifyPlayRejection(err)})`)
-              needsGesture = true
-              voiceUnlocked = false
-              if (!requestedOpts.retry) armRetry(requestedId, requestedOpts)
-              done()
-            })
-            return
-          }
-          if (heardEnough(el.currentTime, el.duration)) countHeard()
-          done()
-        }, Math.max(0, PAUSE_GRACE_MS - since))
-        return
-      }
-      if (heardEnough(el.currentTime, el.duration)) countHeard()
-      done()
-    }
     if (el.ended) {
       countHeard()
       done()

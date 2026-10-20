@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { petById, type PetId } from '../game/pets'
+import { watchVoiceEnd } from '../game/sound'
 import { PetArt } from './PetArt'
 import type { GuideKind, GuideTarget } from '../game/unseenGuide'
 
@@ -9,9 +10,8 @@ import type { GuideKind, GuideTarget } from '../game/unseenGuide'
  * Visual entrance reuses the heckler pop-up pattern (UnseenPopup): the hooded
  * Unseen sticker rises from the bottom-right with a speech bubble. Unlike the
  * heckler pop-up (pointer-events:none), the guide is TAPPABLE — tapping takes
- * the player to the relevant page. No voice audio: the guide lines have no
- * recordings, and the voice pipeline only plays catalog clips, so the bubble
- * text carries the line until Tony records/approves TTS for them.
+ * the player to the relevant page. When a catalog clip is playing with the
+ * guide, the bubble stays up until that clip finishes.
  */
 
 export interface GuideItem {
@@ -20,6 +20,8 @@ export interface GuideItem {
   target: GuideTarget
   /** Increment to re-trigger for a new guide */
   key: number
+  /** Catalog clip playing with this guide. The bubble stays until that clip ends. */
+  clip?: string
 }
 
 interface GuideProps {
@@ -56,14 +58,28 @@ export function UnseenGuide({ guide, onGo, onDismiss, onDone, holdMs = 8000 }: G
     setItem(guide)
     setLeaving(false)
     setVisible(true)
-    hideTimer.current = window.setTimeout(() => setLeaving(true), holdMs)
-    leaveTimer.current = window.setTimeout(() => {
-      setVisible(false)
-      onDoneRef.current()
-    }, holdMs + 450)
+    const clip = guide.clip
+    // Streak's recording is ~11s. A voiced guide waits for the clip, with that as the ceiling.
+    const ceiling = clip ? Math.max(holdMs, 16000) : holdMs
+    const arm = (ms: number) => {
+      window.clearTimeout(hideTimer.current)
+      window.clearTimeout(leaveTimer.current)
+      hideTimer.current = window.setTimeout(() => setLeaving(true), ms)
+      leaveTimer.current = window.setTimeout(() => {
+        setVisible(false)
+        onDoneRef.current()
+      }, ms + 450)
+    }
+    arm(ceiling)
+    const stop = clip
+      ? watchVoiceEnd((id) => {
+          if (id === clip) arm(400)
+        })
+      : undefined
     return () => {
       window.clearTimeout(hideTimer.current)
       window.clearTimeout(leaveTimer.current)
+      stop?.()
     }
   }, [guide, holdMs])
 

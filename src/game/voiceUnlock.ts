@@ -57,6 +57,28 @@ export function pauseEndsLine(opts: { paused: boolean; ended: boolean; sincePlay
   return opts.sincePlayMs >= (opts.graceMs ?? PAUSE_GRACE_MS)
 }
 
+/** Seconds before the file's end that still count as the clip finishing. */
+export const LINE_END_SLACK_SEC = 0.2
+
+/**
+ * Resume a line the browser paused.
+ * A started clip keeps going while the page is showing and the file has not
+ * finished. Leaving the page, the clip ending, or a real stop (mute, voice
+ * off, a newer line that took the channel) does not resume.
+ * Duration 0 / NaN means metadata is not in yet: keep the line while visible.
+ */
+export function shouldResumePausedLine(opts: {
+  pageVisible: boolean
+  ended: boolean
+  currentTimeSec: number
+  durationSec: number
+  replaced: boolean
+}): boolean {
+  if (opts.replaced || opts.ended || !opts.pageVisible) return false
+  if (!Number.isFinite(opts.durationSec) || opts.durationSec <= 0) return true
+  return opts.currentTimeSec < opts.durationSec - LINE_END_SLACK_SEC
+}
+
 export function retryStillFresh(armedAt: number, now: number, ttlMs = VOICE_RETRY_TTL_MS, holdUntilGesture = false): boolean {
   if (!Number.isFinite(armedAt) || now < armedAt) return false
   if (holdUntilGesture) return true

@@ -25,6 +25,13 @@ test('play() rejections are classified, and a blocked line stays retryable only 
   assert.equal(U.pauseEndsLine({ paused: true, ended: false, sincePlayMs: 10 }), false)
   assert.equal(U.pauseEndsLine({ paused: true, ended: false, sincePlayMs: 400 }), true)
   assert.equal(U.pauseEndsLine({ paused: false, ended: false, sincePlayMs: 4000 }), false)
+  // A started Unseen line keeps going while the page is showing. Leaving, ending, or a real stop does not resume.
+  assert.equal(U.shouldResumePausedLine({ pageVisible: true, ended: false, currentTimeSec: 4.2, durationSec: 11.208, replaced: false }), true)
+  assert.equal(U.shouldResumePausedLine({ pageVisible: true, ended: false, currentTimeSec: 11.05, durationSec: 11.208, replaced: false }), false)
+  assert.equal(U.shouldResumePausedLine({ pageVisible: false, ended: false, currentTimeSec: 4.2, durationSec: 11.208, replaced: false }), false)
+  assert.equal(U.shouldResumePausedLine({ pageVisible: true, ended: true, currentTimeSec: 1, durationSec: 11.208, replaced: false }), false)
+  assert.equal(U.shouldResumePausedLine({ pageVisible: true, ended: false, currentTimeSec: 1, durationSec: 11.208, replaced: true }), false)
+  assert.equal(U.shouldResumePausedLine({ pageVisible: true, ended: false, currentTimeSec: 0.4, durationSec: Number.NaN, replaced: false }), true)
   assert.equal(U.retryStillFresh(1000, 1000 + U.VOICE_RETRY_TTL_MS), true)
   assert.equal(U.retryStillFresh(1000, 1000 + U.VOICE_RETRY_TTL_MS + 1), false)
   assert.equal(U.shouldAttachVoiceGraph('running', false), true)
@@ -47,6 +54,7 @@ test('preload order is Roman first, and every catalog file exists with that exac
   const sound = readFileSync(new URL('../src/game/sound.ts', import.meta.url), 'utf8')
   assert.equal(sound.includes('if (voiceUnlocked || currentLine) return'), false)
   assert.match(sound, /shouldStartPrime/)
+  assert.match(sound, /shouldResumePausedLine/)
   assert.match(sound, /\[voice\]/)
 })
 
@@ -335,6 +343,46 @@ test('an immediate pause after play() does not drop the line', async () => {
   await new Promise((resolve) => setTimeout(resolve, 500))
   assert.equal(sound.voiceQuietMs(), null)
   assert.ok(audio.plays.filter((p) => !p.prime).length >= 2)
+})
+
+test('a pause in the middle of an Unseen line resumes while the page is showing', async () => {
+  resetAudio()
+  sound.unlockAudio()
+  sound.playVoice('old_remind_streak')
+  await flush()
+  const before = audio.plays.filter((p) => !p.prime).length
+  assert.equal(before, 1)
+  assert.equal(sound.voiceQuietMs(), null)
+  audio.duration = 11.208
+  audio.currentTime = 4.2
+  audio.paused = true
+  audio.onpause?.()
+  await new Promise((resolve) => setTimeout(resolve, 80))
+  assert.equal(sound.voiceQuietMs(), null)
+  assert.equal(audio.paused, false)
+  assert.ok(audio.plays.filter((p) => !p.prime).length > before)
+})
+
+test('leaving the page does not resume a paused Unseen line', async () => {
+  resetAudio()
+  sound.unlockAudio()
+  sound.playVoice('old_remind_daily')
+  await flush()
+  const before = audio.plays.filter((p) => !p.prime).length
+  const doc = globalThis.document as { visibilityState: string }
+  doc.visibilityState = 'hidden'
+  try {
+    audio.duration = 6.744
+    audio.currentTime = 2
+    audio.paused = true
+    audio.onpause?.()
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    assert.equal(audio.plays.filter((p) => !p.prime).length, before)
+    assert.equal(audio.paused, true)
+    assert.equal(sound.voiceQuietMs(), null)
+  } finally {
+    doc.visibilityState = 'visible'
+  }
 })
 
 test.after(() => {

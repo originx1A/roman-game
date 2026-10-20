@@ -3002,8 +3002,8 @@ export default function App() {
         guideBoardRef.current = boardSeqRef.current
         guideLastAtRef.current = Date.now()
         guideKey.current += 1
-        setGuide({ kind: pick.kind, text: pick.text, target: pick.target, key: guideKey.current })
         const clip = guideVoiceClip(pick.tag)
+        setGuide({ kind: pick.kind, text: pick.text, target: pick.target, key: guideKey.current, clip: clip ?? undefined })
         if (clip) playVoice(clip, { priority: 2 })
         return
       }
