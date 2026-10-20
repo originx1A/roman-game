@@ -11,9 +11,14 @@ import { ResultOverlay } from './components/ResultOverlay'
 import { WinScreen, type WinReplay } from './components/WinScreen'
 import { type ShortfallAction } from './components/ShortfallSheet'
 import { ShortfallSheetHost } from './components/ShortfallSheetHost'
-import { CoinPackCard } from './components/CoinPackCard'
+import { CoinPackCard, OfflineBuyButton } from './components/CoinPackCard'
 import './styles/store-layer.css'
 import { ShareBar } from './components/ShareBar'
+import { QuietToast } from './components/QuietToast'
+import { SyncNote } from './components/SyncNote'
+import { PlayNudge } from './components/PlayNudge'
+import { InboxButton, InboxScreen } from './components/InboxScreen'
+import { AccountSocial, PlayerChip } from './components/AccountSocial'
 import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './components/SparkCritter'
 import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
@@ -24,7 +29,10 @@ import { UnseenGuide, PetPopout, type GuideItem, type PetPopoutInfo } from './co
 import { HomeUnseenReminder } from './components/UnseenReminder'
 import { CloudScoresButton, useCloud } from './cloud/CloudScores'
 import { Leaderboard } from './cloud/Leaderboard'
-import { NAME_MAX, initCloud, loadPublicScores, renamePlayer, saveScore, signOut as cloudSignOut } from './cloud/cloud'
+import { NAME_MAX, getSupabase, initCloud, loadPublicScores, renamePlayer, saveScore, signOut as cloudSignOut } from './cloud/cloud'
+import { noteWalletCoins, type CoinMeta } from './social/coins'
+import { armRound, isFriend, noteRoundScore, sendChallenge, sendLive, setPlaying, startSocial, type InboxItem } from './social/hub'
+import { setQuietRound } from './game/quietQueue'
 import { cloudModeForWin } from './game/scoreMode'
 import { leaderboardTease, loadBoardSeen, saveBoardSeen } from './game/leaderboardTease'
 import { isProfane } from './cloud/profanity'
@@ -189,6 +197,8 @@ import {
   duelWinner,
   encodeChallengeLink,
   encodeDuelLink,
+  packBoardLayout,
+  registerSharedBoard,
   formatShareTime,
   mailtoChallenge,
   parseChallengeFromHash,
@@ -487,6 +497,7 @@ export default function App() {
   // 9.32: player accounts + score saving (lazy, never blocks the game)
   useEffect(() => {
     void initCloud()
+    startSocial()
   }, [])
   useEffect(() => {
     setGaEnabled(!isStoreBuild() && settingsRef.current.analytics !== false)
@@ -934,7 +945,7 @@ export default function App() {
         return
       }
       const current = loadWallet()
-      persistWallet({ ...current, coins: current.coins + result.coins })
+      persistWallet({ ...current, coins: current.coins + result.coins }, { stripeSessionId: sessionId })
       sfxCoin()
       showToast(`+${result.coins} coins · ${result.label}`)
     })
@@ -995,27 +1006,32 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const duelParsed = parseDuelFromHash(window.location.hash)
-    if (duelParsed) {
-      setDuel(duelParsed)
-      setDuelLink(publicLinkWithHash(window.location.hash))
-      setShareText(duelShareText(duelParsed))
-      setLinkBoardError(getPuzzle(duelParsed.puzzleId) ? '' : MISSING_BOARD)
-      setScreen('duel')
-      window.history.replaceState(null, '', window.location.pathname)
-      return
+    function openFromHash() {
+      const duelParsed = parseDuelFromHash(window.location.hash)
+      if (duelParsed) {
+        setDuel(duelParsed)
+        setDuelLink(publicLinkWithHash(window.location.hash))
+        setShareText(duelShareText(duelParsed))
+        setLinkBoardError(getPuzzle(duelParsed.puzzleId) ? '' : MISSING_BOARD)
+        setScreen('duel')
+        window.history.replaceState(null, '', window.location.pathname)
+        return
+      }
+      const parsed = parseChallengeFromHash(window.location.hash)
+      if (parsed) {
+        const full: Challenge = { ...parsed, createdAt: new Date().toISOString() }
+        setIncoming(full)
+        setActiveChallenge(full)
+        addChallenge(full)
+        setChallenges(loadChallenges())
+        setLinkBoardError(getPuzzle(parsed.puzzleId) ? '' : MISSING_BOARD)
+        setScreen('challenge')
+        window.history.replaceState(null, '', window.location.pathname)
+      }
     }
-    const parsed = parseChallengeFromHash(window.location.hash)
-    if (parsed) {
-      const full: Challenge = { ...parsed, createdAt: new Date().toISOString() }
-      setIncoming(full)
-      setActiveChallenge(full)
-      addChallenge(full)
-      setChallenges(loadChallenges())
-      setLinkBoardError(getPuzzle(parsed.puzzleId) ? '' : MISSING_BOARD)
-      setScreen('challenge')
-      window.history.replaceState(null, '', window.location.pathname)
-    }
+    openFromHash()
+    window.addEventListener('rg-open-hash', openFromHash)
+    return () => window.removeEventListener('rg-open-hash', openFromHash)
   }, [])
 
   // A phone turned sideways during a board: the "turn upright" overlay covers the board and the clock
@@ -1371,10 +1387,46 @@ export default function App() {
     saveRecords(next)
   }
 
-  function persistWallet(next: Wallet) {
+  function persistWallet(next: Wallet, meta?: CoinMeta) {
+    const prev = loadWallet()
     setWallet(next)
     saveWallet(next)
+    noteWalletCoins(prev, next, meta)
   }
+
+  useEffect(() => {
+    const playing = screen === 'play' && !celebrate && !defeated
+    setPlaying(playing)
+    setQuietRound(playing)
+  }, [screen, celebrate, defeated])
+
+  useEffect(() => {
+    const onReject = (event: Event) => {
+      const detail = (event as CustomEvent<{ balance?: number | null; cost?: number; undo?: { badgeRanks?: Wallet['badgeRanks']; pets?: PetState | null }; note?: string }>).detail
+      const current = loadWallet()
+      const coins = typeof detail?.balance === 'number' ? detail.balance : current.coins + (Number(detail?.cost) || 0)
+      const next: Wallet = { ...current, coins, ...(detail?.undo?.badgeRanks ? { badgeRanks: detail.undo.badgeRanks } : {}) }
+      setWallet(next)
+      saveWallet(next)
+      if (detail?.undo?.pets) persistPets(detail.undo.pets)
+      showToast(detail?.note || 'We put the coins back and locked that item.')
+    }
+    const onBalance = (event: Event) => {
+      const balance = (event as CustomEvent<{ balance?: number }>).detail?.balance
+      if (typeof balance !== 'number') return
+      const current = loadWallet()
+      if (current.coins === balance) return
+      const next = { ...current, coins: balance }
+      setWallet(next)
+      saveWallet(next)
+    }
+    window.addEventListener('rg-coin-reject', onReject)
+    window.addEventListener('rg-balance', onBalance)
+    return () => {
+      window.removeEventListener('rg-coin-reject', onReject)
+      window.removeEventListener('rg-balance', onBalance)
+    }
+  }, [])
 
   /** 9.30-m: today's ledger (a new day starts fresh), read from storage so two tabs can't double-count */
   function ledgerNow(): Ledger {
@@ -1397,12 +1449,13 @@ export default function App() {
   function onAdoptPet(id: PetId) {
     const now = Date.now()
     const w = loadWallet()
-    const r = buyPet(loadPets(), w.coins, id, now)
+    const beforePets = loadPets()
+    const r = buyPet(beforePets, w.coins, id, now)
     if (!r.ok) {
       showToast(r.reason)
       return
     }
-    persistWallet({ ...w, coins: r.coins })
+    persistWallet({ ...w, coins: r.coins }, { itemType: 'pet', itemId: id, undoPets: beforePets })
     persistPets(r.state)
     sfxCoin()
     petGiggle()
@@ -1946,6 +1999,7 @@ export default function App() {
       } catch {
         /* never block the win */
       }
+      void noteRoundScore(score, elapsedMs)
       // Personal bests, stars, Trial and Daily
       let replay: RunResult | null = null
       let rec = records
@@ -2718,7 +2772,7 @@ export default function App() {
       showToast(reason || 'Cannot upgrade')
       return
     }
-    persistWallet(result.wallet)
+    persistWallet(result.wallet, { itemType: 'badge', itemId: `${badgeId}:${badgeRank(result.wallet, badgeId)}` })
     sfxCoin()
     const rank = badgeRank(result.wallet, badgeId)
     const def = BADGES.find((b) => b.id === badgeId)
@@ -2727,6 +2781,10 @@ export default function App() {
 
   async function onBuyCoins(packId: CoinPackId) {
     unlockAudio()
+    if (!isStoreBuild() && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      showToast('Connect to buy')
+      return
+    }
     if (!isStoreBuild()) {
       const { startWebCheckout } = await import('./game/webCheckout')
       const started = await startWebCheckout(packId)
@@ -2739,7 +2797,7 @@ export default function App() {
       return
     }
     if (result.credited) setWallet(loadWallet())
-    else persistWallet({ ...wallet, coins: wallet.coins + result.coins })
+    else persistWallet({ ...wallet, coins: wallet.coins + result.coins }, { itemId: 'shop' })
     sfxCoin()
     showToast(`+${result.coins} coins · ${result.pack.label}`)
   }
@@ -3134,6 +3192,7 @@ export default function App() {
 
       {/* On a live board the toast text shows in the play caption slot instead (never over the board) */}
       {toast && (screen !== 'play' || celebrate || defeated) && <div className="toast">{toast}</div>}
+      <QuietToast />
 
       {namePrompt && <NamePromptSheet touch={touchName} nameDraft={nameDraft} setNameDraft={setNameDraft} onClose={closeNamePrompt} signedIn={signedIn} />}
 
@@ -3206,11 +3265,15 @@ export default function App() {
               <button type="button" className="btn ghost btn-sm" data-testid="home-board" onClick={() => setScreen('leaderboard')}>
                 Leaderboard
               </button>
+              <InboxButton onOpen={() => setScreen('inbox')} />
+              <PlayerChip onOpen={() => setScreen('profile')} />
               <button type="button" className="btn ghost btn-sm" onClick={() => setScreen('bug')}>
                 🐛 Report a bug
               </button>
               <UnseenCardTile records={records} />
             </div>
+            <PlayNudge home />
+            <SyncNote />
           </section>
           {/* 10.06: treat defense — the vulnerable field pile. Claim only on the board screen. */}
           <section className="treat-pile-widget" aria-label="Field treat pile">
@@ -3294,6 +3357,31 @@ export default function App() {
         <BugReport currentScreen={screen} onBack={() => setScreen('home')} />
       )}
 
+      {screen === 'inbox' && (
+        <InboxScreen
+          onBack={() => setScreen('home')}
+          onPlay={(item: InboxItem) => {
+            if (item.kind === 'live') {
+              const matchId = String(item.payload.match || '')
+              const layout = String(item.payload.layout || '')
+              const board = layout ? registerSharedBoard(`live-${matchId || item.id}`, String(item.payload.puzzleName || item.payload.name || 'Live'), layout) : null
+              if (matchId) void getSupabase().then((sb) => sb?.rpc('join_live', { match_id: matchId }))
+              armRound({ kind: 'live', theirName: item.fromName, theirScore: 0, matchId })
+              if (board) startPuzzle(board)
+              else setScreen('home')
+              return
+            }
+            const link = String(item.payload.link || '')
+            const hash = link.includes('#') ? link.slice(link.indexOf('#')) : ''
+            armRound({ kind: 'challenge', theirName: item.fromName, theirScore: Number(item.payload.score) || 0 })
+            if (hash) {
+              window.location.hash = hash
+              window.dispatchEvent(new Event('rg-open-hash'))
+            } else setScreen('home')
+          }}
+        />
+      )}
+
       {screen === 'leaderboard' && (
         <Leaderboard
           you={playerName}
@@ -3301,9 +3389,19 @@ export default function App() {
           badges={BADGES.filter((b) => badgeRank(wallet, b.id) >= 1).map((b) => b.icon)}
           showcase={{ pieces: localCard(records).pieces, earned: localCard(records).pieces >= CARD_PIECES }}
           onChallenge={(rival) => {
-            makeScoreChallenge(`${playerName || 'I'} challenge ${rival}. Beat my score.`)
+            const made = makeScoreChallenge(`${playerName || 'I'} challenge ${rival}. Beat my score.`)
+            if (isFriend(rival)) {
+              void sendChallenge(rival, { link: made.url }, `${playerName || 'A friend'} challenged you`)
+              showToast(`Challenge sent to ${rival}`)
+              return
+            }
             setScreen('challenge')
             showToast(`Challenge ready. Share it with ${rival}.`)
+          }}
+          onLive={(rival) => {
+            const target = puzzle ?? PUZZLES[0]
+            void sendLive(rival, packBoardLayout(target), target.name)
+            showToast(`Invite sent to ${rival}`)
           }}
         />
       )}
@@ -3773,16 +3871,12 @@ export default function App() {
               <p className="product-value">Two buddies. Real money only. Other animals are coins in the Stable.</p>
               <div className="product-card-foot">
                 <span className="product-price">Real money</span>
-                <button
-                  type="button"
-                  className="btn ghost product-buy"
+                <OfflineBuyButton
                   onClick={() => {
                     const owned = pets.owned.lupa && pets.owned.aquila
                     showToast(owned ? 'You already have the starter buddies.' : 'Purchases are unavailable right now.')
                   }}
-                >
-                  Buy
-                </button>
+                />
               </div>
             </article>
             {isStoreBuild() ? (
@@ -3911,6 +4005,7 @@ export default function App() {
               </label>
             ) : null}
           </div>
+          <AccountSocial />
           <section className="leaderboard">
             <h3>Leaderboard</h3>
             <p className="sub">Today's Daily, this week, and all-time. Your name is highlighted on the board.</p>

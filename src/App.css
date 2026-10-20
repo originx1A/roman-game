@@ -7371,3 +7371,53 @@ html[data-layout='wide'] .win-sheet-main {
   .lb-meta { grid-column: 3; white-space: nowrap; }
   .lb-challenge { grid-column: 4; grid-row: 1 / span 2; align-self: center; }
 }
+
+.quiet-toast {
+  position: fixed;
+  top: 0.6rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  max-width: min(28rem, calc(100% - 1.5rem));
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(7, 18, 42, 0.72);
+  color: #f4fbff;
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+.sync-note { font-size: 0.75rem; opacity: 0.75; margin: 0.4rem 0; }
+.play-nudge {
+  margin: 0.8rem 0;
+  padding: 0.7rem 0.8rem;
+  border-radius: 12px;
+  background: rgba(255, 209, 102, 0.12);
+}
+.play-nudge-actions { display: flex; gap: 0.4rem; margin-top: 0.4rem; }
+.inbox-badge {
+  display: inline-block;
+  min-width: 1.1rem;
+  margin-left: 0.35rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: #e23d3d;
+  color: white;
+  font-size: 0.72rem;
+}
+.inbox-list { list-style: none; padding: 0; display: grid; gap: 0.6rem; }
+.inbox-row { padding: 0.6rem 0; border-bottom: 1px solid rgba(255, 255, 255, 0.12); }
+.inbox-actions { display: flex; gap: 0.4rem; }
+.lb-online {
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-right: 0.3rem;
+  border-radius: 50%;
+  background: #3dd68c;
+}
+.lb-name.is-friend, .lb-row.is-friend .lb-name { color: #ffd166; }
+.friend-qr { width: 180px; height: 180px; background: white; border-radius: 8px; }
+.account-social { display: grid; gap: 0.45rem; margin: 0.8rem 0 1rem; }
+.profile-list, .account-social ul { list-style: none; padding: 0; }
+.scan-video { width: min(100%, 280px); border-radius: 8px; background: black; }
+.auth-methods { display: grid; gap: 0.4rem; }

@@ -2,6 +2,7 @@ import { useEffect, useId } from 'react'
 import { createPortal } from 'react-dom'
 import { cheapestPackForGap, isStoreBuild, packValueBlurb, type CoinPack } from '../game/iap'
 import { cheapestWebPack, type WebPackOffer } from '../game/webPacks'
+import { useOnline } from '../game/useOnline'
 
 export type ShortfallAction = 'hint' | 'rescue' | 'revive' | 'upgrade'
 
@@ -41,6 +42,7 @@ export function ShortfallSheet({
   purchasesUnavailable = false,
 }: ShortfallSheetProps) {
   const titleId = useId()
+  const online = useOnline()
   const short = Math.max(0, need - have)
   const store = isStoreBuild()
   const pack = cheapestPackForGap(short || need)
@@ -84,12 +86,17 @@ export function ShortfallSheet({
           <button type="button" className="btn primary" onClick={onPlay}>
             Play for coins
           </button>
-          {store && onBuyPack ? (
+          {!online && !store ? (
+            <button type="button" className="btn ghost" disabled>
+              Connect to buy
+            </button>
+          ) : null}
+          {online && store && onBuyPack ? (
             <button type="button" className="btn ghost" onClick={() => onBuyPack(pack)}>
               Buy {pack.label} · +{pack.coins} ({pack.priceHint})
             </button>
           ) : null}
-          {!store && webOffer && onBuyPack ? (
+          {online && !store && webOffer && onBuyPack ? (
             <button
               type="button"
               className="btn ghost"

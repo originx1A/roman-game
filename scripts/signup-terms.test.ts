@@ -17,16 +17,15 @@ test('sign-up sheet requires Terms and Privacy, and leaves the news box unchecke
   assert.match(cloud, /https:\/\/oelsglmfkpzbueqysvdm\.supabase\.co/)
 })
 
-test('sign-in sheet keeps the magic link and accepts a 6 to 8 digit code', () => {
+test('sign-in sheet keeps the magic link and accepts a 6 to 10 digit code', () => {
   assert.match(sheet, /Tap the link in your email, or enter the code from your email/)
   assert.match(sheet, /aria-label="the code from your email"/)
   assert.match(sheet, /inputMode="numeric"/)
-  assert.match(sheet, /maxLength=\{8\}/)
-  assert.match(sheet, /replace\(\/\\s\/g, ''\)/)
-  assert.match(sheet, /verifyEmailCode\(email, code\)/)
+  assert.match(sheet, /maxLength=\{10\}/)
+  assert.match(sheet, /verifyEmailCode\(sentEmail \|\| signInEmail\(email\), digits\)/)
   assert.match(cloud, /token\.replace\(\/\\s\/g, ''\)/)
-  assert.match(cloud, /\\d\{6,8\}/)
-  assert.match(cloud, /verifyOtp\(\{ email: email\.trim\(\), token: code, type: 'email' \}\)/)
+  assert.match(cloud, /\\d\{6,10\}/)
+  assert.match(cloud, /verifyOtp\(\{ email: address, token: code, type \}\)/)
   assert.match(cloud, /signInWithOtp/)
   assert.doesNotMatch(sheet, /6-digit/)
   assert.doesNotMatch(cloud, /6-digit/)

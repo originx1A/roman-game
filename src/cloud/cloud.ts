@@ -35,6 +35,8 @@ export interface ScoreRow {
    * of the same win cannot save a second copy.
    */
   dedupeKey?: string
+  /** Local only. The outbox and submit_score share this id so a retry cannot insert twice. */
+  opId?: string
 }
 
 export interface CloudState {
@@ -276,6 +278,42 @@ function client(): Promise<SupabaseClient | null> {
   return clientP
 }
 
+/** The shared Supabase client. Null when the browser cannot load it. */
+export function getSupabase(): Promise<SupabaseClient | null> {
+  return client()
+}
+
+let anonHeld = false
+
+/** Profile switches sign out on purpose. Hold the silent account until the new session is in. */
+export function holdAnonymous(hold: boolean): void {
+  anonHeld = hold
+}
+
+export function resumePlayAccount(): void {
+  anonHeld = false
+  void ensureAnonymous()
+}
+
+async function ensurePlayerRow(sb: SupabaseClient): Promise<void> {
+  await sb.rpc('ensure_player').then(() => undefined, () => undefined)
+}
+
+/** Silent anonymous account. Play already started. Failures retry in the background. */
+async function ensureAnonymous(attempt = 0): Promise<void> {
+  if (anonHeld || explicitSignOut) return
+  if (typeof window === 'undefined') return
+  if (readStoredSession()) return
+  const sb = await client()
+  if (!sb || anonHeld) return
+  const { data } = await sb.auth.getSession()
+  if (data.session || anonHeld) return
+  const { error } = await sb.auth.signInAnonymously()
+  if (!error || anonHeld) return
+  if (attempt >= 5) return
+  window.setTimeout(() => void ensureAnonymous(attempt + 1), Math.min(30_000, 2000 * 2 ** attempt))
+}
+
 function sessionFromStore(): Session | null {
   const saved = readStoredSession()
   if (!saved) return null
@@ -310,6 +348,7 @@ async function loadPlayer(sb: SupabaseClient, session: Session | null) {
   const publicName = data?.public_name
   set({ status: 'signed-in', email: session.user.email, name, publicName })
   writeProfileCache(session.user.id, session.user.email, name, publicName)
+  void ensurePlayerRow(sb)
   if (data) void flushScores().then(() => syncCard())
 }
 
@@ -339,6 +378,7 @@ export async function initCloud(): Promise<void> {
       }
       if (event === 'SIGNED_IN' && state.status !== 'signed-in') gaEvent('sign_in')
       void loadPlayer(sb, session)
+      if (!session && !explicitSignOut && !anonHeld && !readStoredSession()) void ensureAnonymous()
     })
     window.addEventListener('online', () => {
       refreshIfDue(sb)
@@ -348,6 +388,7 @@ export async function initCloud(): Promise<void> {
       if (document.visibilityState === 'visible') refreshIfDue(sb)
     })
     window.setInterval(() => refreshIfDue(sb), 60_000)
+    if (!data.session && !readStoredSession()) void ensureAnonymous()
   } catch {
     if (!readStoredSession()) set({ status: 'off' })
   }
@@ -358,9 +399,9 @@ export function signInEmail(email: string): string {
   return email.trim().toLowerCase()
 }
 
-/** Digits from the email code. Spaces are dropped. The live email uses 8 digits. */
+/** Digits from the email code. Spaces are dropped. Supabase may send 6 to 10 digits. */
 export function signInCode(token: string): string {
-  return token.replace(/\s/g, '').replace(/\D/g, '').slice(0, 8)
+  return token.replace(/\s/g, '').replace(/\D/g, '').slice(0, 10)
 }
 
 /** The sheet shows Supabase's own words. The usual OTP failure gets a plain sentence. */
@@ -410,8 +451,9 @@ export async function sendMagicLink(email: string): Promise<SignInResult> {
 }
 
 /**
- * The code from the same email as the magic link. The live email is 8 digits.
- * A shorter prefix is refused here so it is never sent: Supabase would burn the real code.
+ * The code from the same email as the magic link. The default email is 8 digits.
+ * Anything from 6 to 10 digits is accepted. A shorter prefix is refused here so it is never sent:
+ * Supabase would burn the real code. Type every digit from the email.
  * verifyOtp signs the player in and fires SIGNED_IN. The listener in initCloud then runs
  * loadPlayer, which copies this device's queued scores onto the account and flushes them.
  * That is the same path as opening the link.
@@ -419,7 +461,7 @@ export async function sendMagicLink(email: string): Promise<SignInResult> {
 export async function verifyEmailCode(email: string, token: string): Promise<{ ok: boolean; error?: string }> {
   const address = signInEmail(email)
   const code = signInCode(token)
-  if (!/^\d{8}$/.test(code)) return { ok: false, error: 'Enter all 8 digits from your email.' }
+  if (!/^\d{6,10}$/.test(code)) return { ok: false, error: 'Type every digit from your email.' }
   const key = `${address}|${code}`
   const existing = verifyOnce.get(key)
   if (existing) {
@@ -580,6 +622,7 @@ export async function signOut(): Promise<void> {
     set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined })
   } finally {
     explicitSignOut = false
+    if (!anonHeld) void ensureAnonymous()
   }
 }
 
@@ -613,9 +656,9 @@ function rememberDedupe(key: string) {
 }
 
 /** Rows ready for insert. Local-only fields (queued-at time, dedupe key) stay off the server. */
-export function scoreRowsForServer(q: ScoreRow[], now = Date.now()): Array<Omit<ScoreRow, 'at' | 'dedupeKey'>> {
+export function scoreRowsForServer(q: ScoreRow[], now = Date.now()): Array<Omit<ScoreRow, 'at' | 'dedupeKey' | 'opId'>> {
   const weekAgo = new Date(now - 6 * 86_400_000).toISOString().slice(0, 10)
-  return q.map(({ at: _at, dedupeKey: _dedupe, ...r }) => (r.daily_date && r.daily_date < weekAgo ? { ...r, daily_date: undefined } : r))
+  return q.map(({ at: _at, dedupeKey: _dedupe, opId: _op, ...r }) => (r.daily_date && r.daily_date < weekAgo ? { ...r, daily_date: undefined } : r))
 }
 
 /** Queue a finished game and try to send everything queued. Safe to call offline. Same dedupeKey is stored once. */
@@ -631,11 +674,68 @@ export function saveScore(row: Omit<ScoreRow, 'at'>): void {
     ...(row.mode === 'daily' && row.daily_date && /^\d{4}-\d{2}-\d{2}$/.test(row.daily_date) ? { daily_date: row.daily_date } : {}),
     at: new Date().toISOString(),
     ...(row.dedupeKey ? { dedupeKey: row.dedupeKey.slice(0, 160) } : {}),
+    opId: row.opId ?? crypto.randomUUID(),
   }
   writeQueue([...readQueue(), clean])
   if (clean.dedupeKey) rememberDedupe(clean.dedupeKey)
+  void import('../game/outbox').then(({ enqueueOp }) =>
+    enqueueOp(
+      'score',
+      {
+        score: clean.score,
+        level: clean.level,
+        moves: clean.moves,
+        time_seconds: clean.time_seconds,
+        mode: clean.mode,
+        puzzle_id: clean.puzzle_id ?? null,
+        daily_date: clean.daily_date ?? null,
+      },
+      clean.opId,
+    ),
+  )
   set({})
   void flushScores()
+}
+
+function rpcMissing(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false
+  const msg = error.message || ''
+  return error.code === 'PGRST202' || error.code === '42883' || /submit_score|schema cache/i.test(msg)
+}
+
+/** One server call per score. A missing function falls back to a plain insert. */
+async function submitQueuedScores(
+  sb: SupabaseClient,
+  q: ScoreRow[],
+  rows: Array<Omit<ScoreRow, 'at' | 'dedupeKey' | 'opId'>>,
+): Promise<boolean> {
+  let missing = false
+  for (let i = 0; i < q.length; i++) {
+    const op = q[i].opId
+    if (!op) {
+      missing = true
+      break
+    }
+    const row = rows[i]
+    const { error } = await sb.rpc('submit_score', {
+      op,
+      score: row.score,
+      level: row.level,
+      moves: row.moves,
+      time_seconds: row.time_seconds,
+      mode: row.mode,
+      puzzle_id: row.puzzle_id ?? null,
+      daily_date: row.daily_date ?? null,
+    })
+    if (rpcMissing(error)) {
+      missing = true
+      break
+    }
+    if (error) return false
+  }
+  if (!missing) return true
+  const { error } = await sb.from('scores').insert(rows)
+  return !error
 }
 
 let flushing = false
@@ -653,8 +753,8 @@ export async function flushScores(): Promise<void> {
     const rows = scoreRowsForServer(q)
     const { data: sess } = await sb.auth.getSession()
     if (sess.session?.user.id !== owner) return // switched player mid-send: leave the queue alone
-    const { error } = await sb.from('scores').insert(rows)
-    if (!error) {
+    const sent = await submitQueuedScores(sb, q, rows)
+    if (sent) {
       // keep anything queued while we were sending
       writeQueue(readQueue(owner).slice(q.length), owner)
       set({ lastSync: new Date().toISOString() })
