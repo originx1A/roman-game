@@ -7561,8 +7561,12 @@ html[data-layout='wide'] .win-sheet-main {
 .pay-coins .btn { margin: 0.2rem 0.2rem 0; }
 .badge-upgrade .pay-mark { font-size: 0.75rem; }
 
-/* Phones: a tiny header. The long nav lives in Menu so the bar stays one short row. */
-.nav-menu { display: none; }
+/* Phones: a tiny header. The long nav lives in Menu so the bar stays one short row.
+   The open list is a solid panel. It has to sit above the page and the preview
+   badge: the header's own layer is only z-index 1, so a dropdown inside it was
+   painting under the page and looking transparent. */
+.nav-menu,
+.nav-scrim { display: none; }
 @media (max-width: 640px) {
   .topbar-slim {
     position: relative;
@@ -7571,6 +7575,10 @@ html[data-layout='wide'] .win-sheet-main {
     padding-left: max(0.35rem, env(safe-area-inset-left, 0px));
     padding-right: max(0.35rem, env(safe-area-inset-right, 0px));
     min-height: 0;
+  }
+  .topbar-slim:has(.nav.is-open) {
+    z-index: 2147483000;
+    background-color: #07122a;
   }
   .nav-menu {
     display: inline-flex;
@@ -7586,30 +7594,59 @@ html[data-layout='wide'] .win-sheet-main {
     border-radius: 999px;
     cursor: pointer;
   }
+  .nav-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: rgba(5, 13, 31, 0.55);
+    cursor: pointer;
+  }
+  .topbar-slim:has(.nav.is-open) .brand,
+  .topbar-slim:has(.nav.is-open) .nav-menu,
+  .topbar-slim:has(.nav.is-open) .hud-pills {
+    position: relative;
+    z-index: 3;
+  }
   .topbar-slim .nav {
     display: none;
+  }
+  .topbar-slim .nav.is-open {
+    display: flex;
     position: absolute;
     top: 100%;
     left: 0;
     right: 0;
-    z-index: 40;
-    width: 100%;
+    z-index: 2;
+    width: auto;
     margin: 0;
     flex-direction: column;
     align-items: stretch;
-    gap: 0.1rem;
+    gap: 0.15rem;
     overflow: auto;
-    max-height: min(70dvh, 24rem);
-    padding: 0.3rem 0.4rem max(0.4rem, env(safe-area-inset-bottom, 0px));
-    background: #07122a;
-    border-bottom: 1px solid rgba(255, 209, 102, 0.35);
-    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.45);
+    max-height: min(70dvh, 28rem);
+    padding: 0.4rem 0.5rem 0.65rem;
+    background-color: #07122a;
+    background-image: none;
+    opacity: 1;
+    border: 1px solid rgba(255, 209, 102, 0.45);
+    border-top: 0;
+    border-radius: 0 0 16px 16px;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.72);
   }
-  .topbar-slim .nav.is-open { display: flex; }
-  .topbar-slim .nav button {
+  .topbar-slim .nav.is-open button {
     text-align: left;
-    padding: 0.45rem 0.55rem;
-    font-size: 0.9rem;
+    padding: 0.55rem 0.7rem;
+    font-size: 1rem;
+    color: #f4fbff;
+    background-color: transparent;
+  }
+  .topbar-slim .nav.is-open button.on {
+    color: #07122a;
+    background-color: #ffd166;
   }
 }
 

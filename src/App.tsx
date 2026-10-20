@@ -1100,6 +1100,15 @@ export default function App() {
     }
   }, [running, rotatePaused])
 
+  useEffect(() => {
+    if (!navOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setNavOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [navOpen])
+
   // PC keyboard shortcuts on a live board: Z undo, Y redo, H hint (plus Ctrl/Cmd+Z, Ctrl+Y, Ctrl+Shift+Z)
   const keysRef = useRef<{ undo: () => void; redo: () => void; hint: () => void }>({ undo: () => {}, redo: () => {}, hint: () => {} })
   useEffect(() => {
@@ -3273,6 +3282,9 @@ export default function App() {
           >
             Menu
           </button>
+          {navOpen ? (
+            <button type="button" className="nav-scrim" aria-label="Close menu" onClick={() => setNavOpen(false)} />
+          ) : null}
           <nav id="app-nav" className={`nav${navOpen ? ' is-open' : ''}`}>
             <button type="button" data-testid="nav-home" className={screen === 'home' ? 'on' : ''} onClick={() => { setNavOpen(false); setScreen('home') }}>
               Home
@@ -3281,7 +3293,7 @@ export default function App() {
               Play
             </button>
             <button type="button" data-testid="nav-how" className={screen === 'how' ? 'on' : ''} title="How to play" onClick={() => { setNavOpen(false); setHelpFocus(''); setScreen('how') }}>
-              How
+              How to play
             </button>
             <button type="button" className={screen === 'rewards' ? 'on' : ''} onClick={() => { setNavOpen(false); setScreen('rewards') }}>
               Rewards
