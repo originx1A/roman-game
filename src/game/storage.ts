@@ -41,7 +41,7 @@ export interface Settings {
   analytics?: boolean
 }
 
-export { cleanPlayerName, getPlayerName, PLAYER_NAME_MAX } from './playerName'
+export { cleanPlayerName, getPlayerName, isUnsetAccountName, PLAYER_NAME_MAX } from './playerName'
 /** Fired after the account name is copied into settings and the local profile */
 export const PLAYER_NAME_EVENT = 'rg-player-name'
 
