@@ -1,38 +1,26 @@
-/** Notch strip for the buddy meter. Play uses the board strip; the win sheet uses the inline copy. */
+/** Notches for the buddy meter, drawn inside the victory card's stats. */
 
 export function BuddyMeterStrip({
   notches,
   goal,
   pending,
   perfect = false,
-  variant,
 }: {
   notches: number
   goal: number
   pending: boolean
   /** This clear just filled a notch. */
   perfect?: boolean
-  variant: 'play' | 'win'
 }) {
   const filled = pending ? goal : notches
-  const hint =
-    variant === 'win'
-      ? pending
-        ? 'Full!'
-        : perfect
-          ? 'Perfect win +1'
-          : 'Perfect wins fill it'
-      : pending
-        ? 'Full'
-        : `${filled}/${goal}`
+  const hint = pending ? 'Full!' : perfect ? 'Perfect win +1' : 'Perfect wins fill it'
   return (
     <div
-      className={`buddy-meter ${variant === 'play' ? 'buddy-meter-inline' : 'buddy-meter-win'} ${pending ? 'is-full' : ''}`}
+      className={`buddy-meter buddy-meter-win ${pending ? 'is-full' : ''}`}
       aria-label={`Buddy meter ${filled} of ${goal}`}
-      data-testid={variant === 'play' ? 'buddy-meter-inline' : 'buddy-meter-win'}
+      data-testid="buddy-meter-win"
       data-meter={filled}
     >
-      <span className="buddy-meter-label">Buddy meter</span>
       <span className="buddy-meter-notches" aria-hidden="true">
         {Array.from({ length: goal }, (_, i) => (
           <i

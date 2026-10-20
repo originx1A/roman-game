@@ -46,7 +46,6 @@ import { guideCandidates, guideVoiceClip, petPopoutPick, type GuideTarget } from
 import { ThemeBackdrop } from './components/ThemeBackdrop'
 import { TapButton } from './components/TapButton'
 import { BuddyHunt } from './components/BuddyHunt'
-import { BuddyMeterStrip } from './components/BuddyMeterStrip'
 import { PetArt } from './components/PetArt'
 import { Stable } from './components/Stable'
 import { RemixScreen } from './components/RemixScreen'
@@ -3748,12 +3747,6 @@ export default function App() {
 
 
           <div className="play-side">
-          <BuddyMeterStrip
-            notches={buddyMeter.notches}
-            goal={BUDDY_HUNT_PERFECT_WINS}
-            pending={buddyMeter.pending}
-            variant="play"
-          />
           <div className="toolbar play-toolbar">
             <TapButton className="btn tool" onTap={undo} disabled={!history.length || celebrate || defeated || mode === 'trial'}>
               {mode === 'trial' ? 'No undo' : 'Undo'}

@@ -217,17 +217,18 @@ export function WinScreen({
                   {livesLeft}/{maxLives}
                 </strong>
               </div>
+              {buddyMeter ? (
+                <div className="win-stat win-stat-meter">
+                  <span className="win-stat-label">Buddy meter</span>
+                  <BuddyMeterStrip
+                    notches={buddyMeter.notches}
+                    goal={buddyMeter.goal}
+                    pending={buddyMeter.pending}
+                    perfect={buddyMeter.perfect}
+                  />
+                </div>
+              ) : null}
             </div>
-
-            {buddyMeter ? (
-              <BuddyMeterStrip
-                notches={buddyMeter.notches}
-                goal={buddyMeter.goal}
-                pending={buddyMeter.pending}
-                perfect={buddyMeter.perfect}
-                variant="win"
-              />
-            ) : null}
 
             {huntReady ? (
               <button type="button" className="btn primary win-cta win-hunt" onClick={onBuddyHunt}>

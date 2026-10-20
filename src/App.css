@@ -4233,54 +4233,31 @@ html.play-locked #root {
   color: var(--ink);
   animation: huntPulse 1.6s ease-in-out infinite;
 }
-/* Board strip: between the board and the tools on a phone, in the side column on a PC. */
-.buddy-meter-inline,
-.buddy-meter-win {
-  width: 100%;
-  max-width: 520px;
-  margin: 0.1rem auto 0;
-  padding: 0.1rem 0.4rem;
-  gap: 0.35rem;
-  box-sizing: border-box;
-  flex-shrink: 0;
+/* The meter is one stat in the victory card, not its own panel. */
+.win-stat-meter {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  text-align: left;
 }
-.buddy-meter-inline .buddy-meter-label,
-.buddy-meter-win .buddy-meter-label {
-  display: none;
-}
-.buddy-meter-inline .buddy-meter-notches i,
-.buddy-meter-win .buddy-meter-notches i {
-  width: 0.7rem;
-  height: 0.28rem;
-}
-.buddy-meter-win .buddy-meter-notches i {
-  width: 1.15rem;
-  height: 0.42rem;
-}
-.win-sheet-main .buddy-meter-win {
+.win-stat-meter .win-stat-label {
   margin: 0;
+}
+.win-stat-meter .buddy-meter,
+.win-stat-meter .buddy-meter.is-full {
+  width: auto;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 .win-sheet-main > .win-hunt {
   width: 100%;
-}
-html:not([data-layout='wide']) .shell-ended .buddy-meter-inline {
-  display: none;
-}
-html[data-layout='wide'] .play-side > .play-toolbar { order: 1; }
-html[data-layout='wide'] .play-side > .buddy-spot { order: 2; }
-html[data-layout='wide'] .play-side > .buddy-meter-inline {
-  order: 3;
-  max-width: none;
-  margin: 0;
-  padding: 0.4rem 0.55rem;
-}
-html[data-layout='wide'] .play-side > .play-dock { order: 4; }
-html[data-layout='wide'] .buddy-meter-inline .buddy-meter-label {
-  display: inline;
-}
-html[data-layout='wide'] .buddy-meter-inline .buddy-meter-notches i {
-  width: 1.15rem;
-  height: 0.46rem;
 }
 @keyframes huntPulse {
   50% { box-shadow: 0 0 0 4px rgba(61, 255, 168, 0.25), 0 0 22px rgba(255, 209, 102, 0.45); }
