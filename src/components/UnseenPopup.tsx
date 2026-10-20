@@ -17,6 +17,8 @@ export interface UnseenPop {
   text: string
   /** Increment to re-trigger for a new line */
   key: number
+  /** Override the usual hold. Leaderboard teases are text-only and a little longer. */
+  holdMs?: number
 }
 
 interface Props {
@@ -39,15 +41,23 @@ export function UnseenPopup({ pop, holdMs = 4500 }: Props) {
   const lastKey = useRef(-1)
 
   useEffect(() => {
-    if (!pop || pop.key === lastKey.current) return
+    if (!pop) {
+      window.clearTimeout(hideTimer.current)
+      window.clearTimeout(leaveTimer.current)
+      setVisible(false)
+      setLeaving(false)
+      return
+    }
+    if (pop.key === lastKey.current) return
     lastKey.current = pop.key
     window.clearTimeout(hideTimer.current)
     window.clearTimeout(leaveTimer.current)
+    const stay = pop.holdMs ?? holdMs
     setText(bubbleText(pop.text))
     setLeaving(false)
     setVisible(true)
-    hideTimer.current = window.setTimeout(() => setLeaving(true), holdMs)
-    leaveTimer.current = window.setTimeout(() => setVisible(false), holdMs + 450)
+    hideTimer.current = window.setTimeout(() => setLeaving(true), stay)
+    leaveTimer.current = window.setTimeout(() => setVisible(false), stay + 450)
     return () => {
       window.clearTimeout(hideTimer.current)
       window.clearTimeout(leaveTimer.current)

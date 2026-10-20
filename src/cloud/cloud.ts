@@ -297,6 +297,53 @@ export interface LeaderboardRow {
   rank: number
 }
 
+export interface PublicScoreRow {
+  name: string
+  score: number
+  time_seconds: number
+  mode: string
+  created_at: string
+  daily_date?: string | null
+}
+
+/**
+ * Read public.public_scores. Never writes.
+ * Asks for daily_date (migration 005). If that column is not on the view yet, reads the columns that already exist.
+ */
+export async function loadPublicScores(): Promise<PublicScoreRow[] | null> {
+  try {
+    const sb = await client()
+    if (!sb) return null
+    const withDate = await pagePublicScores(sb, 'name, score, time_seconds, mode, created_at, daily_date')
+    if (withDate !== 'no-daily-date') return withDate
+    const plain = await pagePublicScores(sb, 'name, score, time_seconds, mode, created_at')
+    return plain === 'no-daily-date' ? null : plain
+  } catch {
+    return null
+  }
+}
+
+async function pagePublicScores(sb: SupabaseClient, columns: string): Promise<PublicScoreRow[] | null | 'no-daily-date'> {
+  const pageSize = 1000
+  const out: PublicScoreRow[] = []
+  for (let page = 0; page < 8; page++) {
+    const from = page * pageSize
+    const { data, error } = await sb
+      .from('public_scores')
+      .select(columns)
+      .order('created_at', { ascending: false })
+      .range(from, from + pageSize - 1)
+    if (error) {
+      if (error.code === '42703' || /daily_date/i.test(error.message)) return 'no-daily-date'
+      return out.length ? out : null
+    }
+    const rows = (Array.isArray(data) ? data : []) as unknown as PublicScoreRow[]
+    out.push(...rows)
+    if (rows.length < pageSize) break
+  }
+  return out
+}
+
 /** Read the public leaderboard view. Never writes. */
 export async function loadLeaderboard(limit = 15): Promise<LeaderboardRow[]> {
   try {
