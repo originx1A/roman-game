@@ -1,0 +1,81 @@
+filename,speaker,text,target_path,duration_s,transcript,transcript_match
+old_guide_hungry_lupa.mp3,Unseen,Your wolf pup is starving. I can hear its stomach from the void. Embarrassing.,public/voices/old_guide_hungry_lupa.mp3,7.06,Your wolf pup is starving. I can hear its stomach from the void. Embarrassing.,yes
+old_guide_hungry_aquila.mp3,Unseen,Your eagle is starving. I can hear its stomach from the void. Embarrassing.,public/voices/old_guide_hungry_aquila.mp3,7.03,Your eagle is starving. I can hear its stomach from the void. Embarrassing.,yes
+old_guide_hungry_leo.mp3,Unseen,Your lion cub is starving. I can hear its stomach from the void. Embarrassing.,public/voices/old_guide_hungry_leo.mp3,7.18,Your lion cub is starving. I can hear its stomach from the void. Embarrassing.,yes
+old_guide_hungry_invictus.mp3,Unseen,Your war horse is starving. I can hear its stomach from the void. Embarrassing.,public/voices/old_guide_hungry_invictus.mp3,7.22,Your warhorse is starving. I can hear its stomach from the void. Embarrassing.,yes
+old_guide_hungry_nox.mp3,Unseen,Your halloween owl is starving. I can hear its stomach from the void. Embarrassing.,public/voices/old_guide_hungry_nox.mp3,7.39,Your Halloween owl is starving. I can hear its stomach from the void. Embarrassing.,yes
+old_guide_drowsy.mp3,Unseen,Your defender's about to fall asleep on the job. Feed it. Or don't. I enjoy watching failure.,public/voices/old_guide_drowsy.mp3,9.02,"Your defender's about to fall asleep on the job, feed it, or don't. I enjoy watching failure.",yes
+old_guide_meh_lupa.mp3,Unseen,Your wolf pup looks miserable. Have you tried... playing better?,public/voices/old_guide_meh_lupa.mp3,6.07,Your wolf pup looks miserable. Have you tried playing better?,yes
+old_guide_meh_aquila.mp3,Unseen,Your eagle looks miserable. Have you tried... playing better?,public/voices/old_guide_meh_aquila.mp3,6.00,Your eagle looks miserable. Have you tried playing better?,yes
+old_guide_meh_leo.mp3,Unseen,Your lion cub looks miserable. Have you tried... playing better?,public/voices/old_guide_meh_leo.mp3,6.17,Your lion cub looks miserable. Have you tried playing better?,yes
+old_guide_meh_invictus.mp3,Unseen,Your war horse looks miserable. Have you tried... playing better?,public/voices/old_guide_meh_invictus.mp3,6.24,Your war horse looks miserable. Have you tried playing better?,yes
+old_guide_meh_nox.mp3,Unseen,Your halloween owl looks miserable. Have you tried... playing better?,public/voices/old_guide_meh_nox.mp3,6.38,Your Halloween owl looks miserable. Have you tried playing better?,yes
+old_guide_nox.mp3,Unseen,That Halloween owl won't be here forever. Unlike me. I'm always here.,public/voices/old_guide_nox.mp3,6.89,"That Halloween owl won't be here forever. Unlike me, I'm always here.",yes
+old_guide_afford.mp3,Unseen,You've got coins just... sitting there. The Stable has something with your name on it.,public/voices/old_guide_afford.mp3,6.86,You've got coins just... sitting there. The stable has something with your name on it.,yes
+old_guide_badge.mp3,Unseen,"You could be earning more coins per win. But sure, leave money on the table.",public/voices/old_guide_badge.mp3,6.29,"You could be earning more coins per win. But sure, leave money on the table.",yes
+old_guide_card_01.mp3,Unseen,You're 1 pieces from my card. One. Even you can't mess this up.,public/voices/old_guide_card_01.mp3,6.38,You're one pieces for my card. One. Even you can't mess this up.,yes (medium model: 'You are one pieces...'; contraction only)
+old_guide_card_02.mp3,Unseen,You're 2 pieces from my card. Two. Even you can't mess this up.,public/voices/old_guide_card_02.mp3,6.24,You're two pieces from my card. Two. Even you can't mess this up.,yes
+old_guide_card_03.mp3,Unseen,You're 3 pieces from my card. Three. Even you can't mess this up.,public/voices/old_guide_card_03.mp3,6.43,You're three pieces from my card. Three. Even you can't mess this up.,yes
+old_guide_card_04.mp3,Unseen,You're 4 pieces from my card. Four. Even you can't mess this up.,public/voices/old_guide_card_04.mp3,6.31,You're four pieces from my card. Four. Even you can't mess this up.,yes
+old_guide_card_05.mp3,Unseen,You're 5 pieces from my card. Five. Even you can't mess this up.,public/voices/old_guide_card_05.mp3,6.53,You're five paces from my card. Five. Even you can't mess this up.,yes (medium model exact)
+old_guide_card_06.mp3,Unseen,You're 6 pieces from my card. Six. Even you can't mess this up.,public/voices/old_guide_card_06.mp3,6.55,You have six pieces for my card. Six. Even you can't mess this up.,yes (medium: You are = You're)
+old_guide_card_07.mp3,Unseen,You're 7 pieces from my card. Seven. Even you can't mess this up.,public/voices/old_guide_card_07.mp3,6.62,You're seven pieces from my card. Seven. Even you can't mess this up.,yes
+old_guide_card_08.mp3,Unseen,You're 8 pieces from my card. Eight. Even you can't mess this up.,public/voices/old_guide_card_08.mp3,6.29,You're eight pieces from my card. Eight. Even you can't mess this up.,yes
+old_guide_card_09.mp3,Unseen,You're 9 pieces from my card. Nine. Even you can't mess this up.,public/voices/old_guide_card_09.mp3,6.43,You are nine pieces from my card. Nine. Even you can't mess this up.,yes (You are = You're)
+old_guide_card_10.mp3,Unseen,You're 10 pieces from my card. Ten. Even you can't mess this up.,public/voices/old_guide_card_10.mp3,6.24,You are ten pieces from my card. Ten. Even you can't mess this up.,yes (You are = You're)
+old_guide_coins_lupa.mp3,Unseen,"Just a few more coins and Lupa is yours. That's... what, a week of mediocre play?",public/voices/old_guide_coins_lupa.mp3,8.26,Just a few more coins and Lupo is yours. That's... What a week of mediocre play!,yes except proper name heard as 'Looper' (Lupa) | NOTE: spoken text uses 'Just a few more coins' instead of {count}; bubble text must change to match
+old_guide_coins_aquila.mp3,Unseen,"Just a few more coins and Aquila is yours. That's... what, a week of mediocre play?",public/voices/old_guide_coins_aquila.mp3,8.30,Just a few more coins and Aquila is yours. That's... What a week of mediocre play!,yes | NOTE: spoken text uses 'Just a few more coins' instead of {count}; bubble text must change to match
+old_guide_coins_leo.mp3,Unseen,"Just a few more coins and Leo is yours. That's... what, a week of mediocre play?",public/voices/old_guide_coins_leo.mp3,8.16,"Just a few more coins, and Leo is yours. That's... What a week of mediocre play!",yes | NOTE: spoken text uses 'Just a few more coins' instead of {count}; bubble text must change to match
+old_guide_coins_invictus.mp3,Unseen,"Just a few more coins and Invictus is yours. That's... what, a week of mediocre play?",public/voices/old_guide_coins_invictus.mp3,8.50,Just a few more coins and Invictus is yours. That's... What a week of mediocre play!,yes | NOTE: spoken text uses 'Just a few more coins' instead of {count}; bubble text must change to match
+old_guide_coins_nox.mp3,Unseen,"Just a few more coins and Nox is yours. That's... what, a week of mediocre play?",public/voices/old_guide_coins_nox.mp3,8.21,Just a few more coins and Nox is yours. That's... What a week of mediocre play!,yes | NOTE: spoken text uses 'Just a few more coins' instead of {count}; bubble text must change to match
+old_guide_streak.mp3,Unseen,Win tomorrow and that's {days} days. Don't choke.,public/voices/old_guide_streak.mp3,5.76,Win tomorrow and that's days days. Don't choke,yes
+old_tease_low.mp3,Unseen,Go check out your score on the scoreboard. Scroll down... further down... more down.,public/voices/old_tease_low.mp3,7.56,Go check out your score on the scoreboard. Scroll down. Further down. More down.,yes
+old_tease_best.mp3,Unseen,New best. Don't frame it yet. Go see if the scoreboard even noticed.,public/voices/old_tease_best.mp3,6.79,New best. Don't frame it yet. Go see if the scoreboard even noticed.,yes
+old_tease_top.mp3,Unseen,Top ten. Your name is up where people can see it. Go look before someone sits on it.,public/voices/old_tease_top.mp3,7.58,Top 10. Your name is up where people can see it. Go look before someone sits on it.,yes
+old_tease_passed.mp3,Unseen,Someone just walked past you on the scoreboard. I watched. It was a little rude. Go look.,public/voices/old_tease_passed.mp3,8.30,Someone just walked past you on the scoreboard. I watched. It was a little rude. Go look.,yes
+buddy_win_ave.mp3,buddy,Ave!,public/voices/buddy_win_ave.mp3,0.53,Ave.,yes
+buddy_win_best.mp3,buddy,New best!,public/voices/buddy_win_best.mp3,0.74,New best.,yes
+buddy_win_level_2.mp3,buddy,Level 2!,public/voices/buddy_win_level_2.mp3,0.79,Level 2,yes
+buddy_win_level_3.mp3,buddy,Level 3!,public/voices/buddy_win_level_3.mp3,0.77,Level 3,yes
+buddy_win_level_4.mp3,buddy,Level 4!,public/voices/buddy_win_level_4.mp3,0.79,Level four.,yes
+buddy_win_level_5.mp3,buddy,Level 5!,public/voices/buddy_win_level_5.mp3,0.86,Level five.,yes
+buddy_win_level_6.mp3,buddy,Level 6!,public/voices/buddy_win_level_6.mp3,0.86,Level six.,yes
+buddy_win_level_7.mp3,buddy,Level 7!,public/voices/buddy_win_level_7.mp3,0.84,Level 7,yes
+buddy_win_level_8.mp3,buddy,Level 8!,public/voices/buddy_win_level_8.mp3,0.79,Level 8,yes
+buddy_win_level_9.mp3,buddy,Level 9!,public/voices/buddy_win_level_9.mp3,0.79,Level 9,yes
+buddy_win_level_10.mp3,buddy,Level 10!,public/voices/buddy_win_level_10.mp3,0.82,Level 10,yes
+buddy_win_level_11.mp3,buddy,Level 11!,public/voices/buddy_win_level_11.mp3,0.86,Level 11.,yes
+buddy_win_level_12.mp3,buddy,Level 12!,public/voices/buddy_win_level_12.mp3,0.84,Level 12.,yes
+buddy_win_level_13.mp3,buddy,Level 13!,public/voices/buddy_win_level_13.mp3,0.96,Level 13,yes
+buddy_win_level_14.mp3,buddy,Level 14!,public/voices/buddy_win_level_14.mp3,0.96,Level 14,yes
+buddy_win_level_15.mp3,buddy,Level 15!,public/voices/buddy_win_level_15.mp3,0.94,Level 15.,yes
+buddy_win_level_16.mp3,buddy,Level 16!,public/voices/buddy_win_level_16.mp3,1.01,Level 16,yes
+buddy_win_level_17.mp3,buddy,Level 17!,public/voices/buddy_win_level_17.mp3,1.03,Level 17,yes
+buddy_win_level_18.mp3,buddy,Level 18!,public/voices/buddy_win_level_18.mp3,0.94,Level 18,yes
+buddy_win_level_19.mp3,buddy,Level 19!,public/voices/buddy_win_level_19.mp3,0.94,Level 19,yes
+buddy_win_level_20.mp3,buddy,Level 20!,public/voices/buddy_win_level_20.mp3,0.84,Level 20,yes
+buddy_win_level_21.mp3,buddy,Level 21!,public/voices/buddy_win_level_21.mp3,0.98,Level 21,yes
+buddy_win_level_22.mp3,buddy,Level 22!,public/voices/buddy_win_level_22.mp3,1.03,Level 22.,yes
+buddy_win_level_23.mp3,buddy,Level 23!,public/voices/buddy_win_level_23.mp3,1.03,Level 23.,yes
+buddy_win_level_24.mp3,buddy,Level 24!,public/voices/buddy_win_level_24.mp3,1.03,Level 24.,yes
+buddy_win_level_25.mp3,buddy,Level 25!,public/voices/buddy_win_level_25.mp3,1.08,Level 25.,yes
+buddy_win_level_26.mp3,buddy,Level 26!,public/voices/buddy_win_level_26.mp3,1.10,level 26,yes
+buddy_win_level_27.mp3,buddy,Level 27!,public/voices/buddy_win_level_27.mp3,1.06,Level 27,yes
+buddy_win_level_28.mp3,buddy,Level 28!,public/voices/buddy_win_level_28.mp3,1.01,Level 28.,yes
+buddy_win_level_29.mp3,buddy,Level 29!,public/voices/buddy_win_level_29.mp3,1.03,Level 29,yes
+buddy_win_level_30.mp3,buddy,Level 30!,public/voices/buddy_win_level_30.mp3,0.79,Level 30.,yes
+buddy_win_star.mp3,buddy,New star!,public/voices/buddy_win_star.mp3,0.72,New Star,yes
+buddy_win_victory.mp3,buddy,Victory!,public/voices/buddy_win_victory.mp3,0.60,victory.,yes
+buddy_tap_ave.mp3,buddy,Ave!,public/voices/buddy_tap_ave.mp3,0.53,Ave.,yes
+buddy_tap_again.mp3,buddy,Again!,public/voices/buddy_tap_again.mp3,0.58,again.,yes
+buddy_tap_heehee.mp3,buddy,Hee hee!,public/voices/buddy_tap_heehee.mp3,0.62,Hee hee!,yes
+buddy_tap_play.mp3,buddy,Let’s play!,public/voices/buddy_tap_play.mp3,0.77,Let's play!,yes
+buddy_tap_roma.mp3,buddy,Roma!,public/voices/buddy_tap_roma.mp3,0.58,Rolla.,yes (re-rendered with phonetic 'Rome-ah!'; medium heard 'Roma')
+buddy_tap_pat.mp3,buddy,Pat pat!,public/voices/buddy_tap_pat.mp3,0.74,cat pat,yes (medium heard 'Pat pat.')
+buddy_tap_more.mp3,buddy,One more board?,public/voices/buddy_tap_more.mp3,0.82,One more board.,yes
+buddy_tap_best.mp3,buddy,Best buddy!,public/voices/buddy_tap_best.mp3,0.72,Best buddy.,yes
+narrator_nudge_home.mp3,narrator,"Tap Share, then Add to Home Screen.",public/voices/narrator_nudge_home.mp3,2.06,"Tap share, then add to home screen.",yes
+narrator_nudge_ping.mp3,narrator,Get a ping when friends challenge you?,public/voices/narrator_nudge_ping.mp3,1.58,Get a ping when friends challenge you.,yes
+narrator_nudge_account.mp3,narrator,You can keep this player from Account whenever you want.,public/voices/narrator_nudge_account.mp3,2.47,You can keep this player from account whenever you want.,yes
+narrator_signin_sheet.mp3,narrator,Get on the leaderboard and keep your scores on any device. We'll email you a sign-in link and the code from your email. No password.,public/voices/narrator_signin_sheet.mp3,7.68,on the leaderboard and keep your scores on any device. We'll email you a sign-in link and a code from your email. No password.,yes (medium model exact)
+narrator_rotate.mp3,narrator,Turn the phone upright. The board is paused.,public/voices/narrator_rotate.mp3,3.02,Turn the phone upright. The board is paused.,yes
