@@ -3273,6 +3273,54 @@ export default function App() {
             <span className="brand-name brand-name-full">Roman's Game</span>
             <span className="brand-name brand-name-short" data-testid="brand-roman">Roman</span>
           </button>
+          <nav className="nav-quick" aria-label="Shortcuts">
+            <button
+              type="button"
+              data-testid="quick-home"
+              className={screen === 'home' ? 'on' : ''}
+              aria-label="Home"
+              title="Home"
+              onClick={() => { setNavOpen(false); setScreen('home') }}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="currentColor" d="M12 3.4 3.2 11h2.3v8.6h5v-5.2h2.9v5.2h5V11h2.4L12 3.4z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              data-testid="quick-play"
+              className={screen === 'levels' ? 'on' : ''}
+              aria-label="Play"
+              title="Play"
+              onClick={() => { setNavOpen(false); setScreen('levels') }}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="currentColor" d="M8 5.2v13.6l12-6.8L8 5.2z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              data-testid="quick-how"
+              className={`quick-how${screen === 'how' ? ' on' : ''}`}
+              aria-label="How to play"
+              title="How to play"
+              onClick={() => { setNavOpen(false); setHelpFocus(''); setScreen('how') }}
+            >
+              ?
+            </button>
+            <button
+              type="button"
+              data-testid="quick-shop"
+              className={screen === 'rewards' ? 'on' : ''}
+              aria-label="Shop"
+              title="Shop"
+              onClick={() => { setNavOpen(false); setScreen('rewards') }}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="currentColor" d="M7 7.2V6.4a5 5 0 0 1 10 0v.8h2.6V20H4.4V7.2H7zm2 0h6V6.4a3 3 0 0 0-6 0v.8z" />
+              </svg>
+            </button>
+          </nav>
           <button
             type="button"
             className="nav-menu"
@@ -3286,13 +3334,13 @@ export default function App() {
             <button type="button" className="nav-scrim" aria-label="Close menu" onClick={() => setNavOpen(false)} />
           ) : null}
           <nav id="app-nav" className={`nav${navOpen ? ' is-open' : ''}`}>
-            <button type="button" data-testid="nav-home" className={screen === 'home' ? 'on' : ''} onClick={() => { setNavOpen(false); setScreen('home') }}>
+            <button type="button" data-testid="nav-home" className={`nav-in-quick${screen === 'home' ? ' on' : ''}`} onClick={() => { setNavOpen(false); setScreen('home') }}>
               Home
             </button>
-            <button type="button" className={screen === 'levels' ? 'on' : ''} onClick={() => { setNavOpen(false); setScreen('levels') }}>
+            <button type="button" className={`nav-in-quick${screen === 'levels' ? ' on' : ''}`} onClick={() => { setNavOpen(false); setScreen('levels') }}>
               Play
             </button>
-            <button type="button" data-testid="nav-how" className={screen === 'how' ? 'on' : ''} title="How to play" onClick={() => { setNavOpen(false); setHelpFocus(''); setScreen('how') }}>
+            <button type="button" data-testid="nav-how" className={`nav-in-quick${screen === 'how' ? ' on' : ''}`} title="How to play" onClick={() => { setNavOpen(false); setHelpFocus(''); setScreen('how') }}>
               How to play
             </button>
             <button type="button" className={screen === 'rewards' ? 'on' : ''} onClick={() => { setNavOpen(false); setScreen('rewards') }}>

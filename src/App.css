@@ -7566,7 +7566,8 @@ html[data-layout='wide'] .win-sheet-main {
    badge: the header's own layer is only z-index 1, so a dropdown inside it was
    painting under the page and looking transparent. */
 .nav-menu,
-.nav-scrim { display: none; }
+.nav-scrim,
+.nav-quick { display: none; }
 @media (max-width: 640px) {
   .topbar-slim {
     position: relative;
@@ -7580,10 +7581,61 @@ html[data-layout='wide'] .win-sheet-main {
     z-index: 2147483000;
     background-color: #07122a;
   }
+  .nav-quick {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    justify-content: space-evenly;
+    min-width: 0;
+    gap: 0.12rem;
+    margin: 0 0.15rem;
+  }
+  .nav-quick button {
+    position: relative;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.7rem;
+    height: 1.7rem;
+    padding: 0;
+    border: 1px solid rgba(255, 209, 102, 0.45);
+    border-radius: 999px;
+    background: rgba(7, 18, 42, 0.72);
+    color: #f4fbff;
+    font-weight: 800;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .nav-quick button svg {
+    display: block;
+    width: 0.95rem;
+    height: 0.95rem;
+  }
+  .nav-quick button.quick-how {
+    color: #ffd166;
+    font-size: 1.05rem;
+  }
+  .nav-quick button.on,
+  .nav-quick button.quick-how.on {
+    color: #07122a;
+    background: #ffd166;
+    border-color: #ffd166;
+  }
+  .nav-quick button::after {
+    content: "";
+    position: absolute;
+    left: -3px;
+    right: -3px;
+    top: -11px;
+    bottom: -11px;
+  }
   .nav-menu {
     display: inline-flex;
     align-items: center;
-    margin-left: auto;
+    flex: 0 0 auto;
+    margin-left: 0;
     border: 0;
     background: transparent;
     color: rgba(244, 251, 255, 0.85);
@@ -7593,6 +7645,7 @@ html[data-layout='wide'] .win-sheet-main {
     padding: 0.2rem 0.35rem;
     border-radius: 999px;
     cursor: pointer;
+    white-space: nowrap;
   }
   .nav-scrim {
     display: block;
@@ -7606,12 +7659,25 @@ html[data-layout='wide'] .win-sheet-main {
     cursor: pointer;
   }
   .topbar-slim:has(.nav.is-open) .brand,
+  .topbar-slim:has(.nav.is-open) .nav-quick,
   .topbar-slim:has(.nav.is-open) .nav-menu,
   .topbar-slim:has(.nav.is-open) .hud-pills {
     position: relative;
     z-index: 3;
   }
+  .topbar-slim .brand,
+  .topbar-slim .hud-pills,
+  .topbar-slim .score-pill {
+    flex-shrink: 0;
+  }
+  .topbar-slim .score-pill {
+    white-space: nowrap;
+    overflow: visible;
+  }
   .topbar-slim .nav {
+    display: none;
+  }
+  .topbar-slim .nav.is-open .nav-in-quick {
     display: none;
   }
   .topbar-slim .nav.is-open {
