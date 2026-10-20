@@ -199,19 +199,41 @@ export async function initCloud(): Promise<void> {
   }
 }
 
-export async function sendMagicLink(email: string): Promise<{ ok: boolean; error?: string }> {
+/** Same string for signInWithOtp and verifyOtp. Trimmed and lowercased, nothing else. */
+export function signInEmail(email: string): string {
+  return email.trim().toLowerCase()
+}
+
+/** Digits from the email code. Spaces are dropped. The live email uses 8 digits. */
+export function signInCode(token: string): string {
+  return token.replace(/\s/g, '').replace(/\D/g, '').slice(0, 8)
+}
+
+/** The sheet shows Supabase's own words. The usual OTP failure gets a plain sentence. */
+export function explainCodeError(message: string | undefined): string {
+  const raw = message?.trim() ?? ''
+  if (!raw) return 'Code expired or already used, send a new one.'
+  if (/rate/i.test(raw)) return 'Too many tries. Wait a minute and try again.'
+  if (/expired|already used|otp_expired|is invalid/i.test(raw)) return `Code expired or already used, send a new one. ${raw}`
+  return raw
+}
+
+export async function sendMagicLink(email: string): Promise<{ ok: boolean; error?: string; email?: string }> {
   const sb = await client()
   if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
-  // The page the player is actually on. A deploy preview stays on that preview.
-  // This is not play.romansgame.com. Supabase only honors it when that origin is in the project's redirect allow list.
+  const address = signInEmail(email)
+  // The link returns to the page the player is on, including a deploy preview.
+  // verifyOtp does not send this URL. A preview origin cannot change the code check.
+  // Supabase only honors the link redirect when that origin is in the project's allow list.
   const redirect = `${window.location.origin}${window.location.pathname}`
-  const { error } = await sb.auth.signInWithOtp({ email: email.trim(), options: { emailRedirectTo: redirect, shouldCreateUser: true } })
-  if (error) return { ok: false, error: error.message.includes('rate') ? 'Too many tries. Wait a minute and try again.' : "Couldn't send the link. Check the email and try again." }
-  return { ok: true }
+  const { error } = await sb.auth.signInWithOtp({ email: address, options: { emailRedirectTo: redirect, shouldCreateUser: true } })
+  if (error) return { ok: false, error: error.message?.trim() || "Couldn't send the link. Check the email and try again." }
+  return { ok: true, email: address }
 }
 
 /**
- * The code from the same email as the magic link. The project sends 6 to 8 digits.
+ * The code from the same email as the magic link. The live email is 8 digits.
+ * A shorter prefix is refused here so it is never sent: Supabase would burn the real code.
  * verifyOtp signs the player in and fires SIGNED_IN. The listener in initCloud then runs
  * loadPlayer, which copies this device's queued scores onto the account and flushes them.
  * That is the same path as opening the link.
@@ -219,12 +241,11 @@ export async function sendMagicLink(email: string): Promise<{ ok: boolean; error
 export async function verifyEmailCode(email: string, token: string): Promise<{ ok: boolean; error?: string }> {
   const sb = await client()
   if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
-  const code = token.replace(/\s/g, '')
-  if (!/^\d{6,8}$/.test(code)) return { ok: false, error: 'Enter the code from your email.' }
-  const { data, error } = await sb.auth.verifyOtp({ email: email.trim(), token: code, type: 'email' })
-  if (error || !data.session) {
-    return { ok: false, error: error?.message?.includes('rate') ? 'Too many tries. Wait a minute and try again.' : "That code didn't work. Check it and try again." }
-  }
+  const address = signInEmail(email)
+  const code = signInCode(token)
+  if (!/^\d{8}$/.test(code)) return { ok: false, error: 'Enter all 8 digits from your email.' }
+  const { data, error } = await sb.auth.verifyOtp({ email: address, token: code, type: 'email' })
+  if (error || !data.session) return { ok: false, error: explainCodeError(error?.message) }
   return { ok: true }
 }
 
