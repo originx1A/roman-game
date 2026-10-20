@@ -20,7 +20,9 @@ import { TreatDefense } from './components/TreatDefense'
 import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
 import { CloudScoresButton, useCloud } from './cloud/CloudScores'
 import { Leaderboard } from './cloud/Leaderboard'
-import { NAME_MAX, initCloud, renamePlayer, saveScore, signOut as cloudSignOut } from './cloud/cloud'
+import { NAME_MAX, initCloud, loadPublicScores, renamePlayer, saveScore, signOut as cloudSignOut } from './cloud/cloud'
+import { cloudModeForWin } from './game/scoreMode'
+import { leaderboardTease, loadBoardSeen, saveBoardSeen } from './game/leaderboardTease'
 import { isProfane } from './cloud/profanity'
 import { UnseenCardTile } from './components/UnseenCard'
 import { noteCardWin } from './game/unseenCard'
@@ -544,6 +546,35 @@ export default function App() {
     unseenKey.current += 1
     setUnseenPop({ text: line.text, key: unseenKey.current })
   }
+  const teaseTimer = useRef(0)
+  const teaseGen = useRef(0)
+  /** After a scored win, once the cheer has had its say. Never during a live board. Text only. */
+  function scheduleLeaderboardTease(score: number, timeSeconds: number, mode: string) {
+    const you = (cloud.publicName || cloud.name || '').trim()
+    if (cloud.status !== 'signed-in' || !you) return
+    window.clearTimeout(teaseTimer.current)
+    const gen = ++teaseGen.current
+    teaseTimer.current = window.setTimeout(() => {
+      if (boardOverRef.current !== 'won') return
+      void loadPublicScores().then((rows) => {
+        if (gen !== teaseGen.current || boardOverRef.current !== 'won' || !rows) return
+        const seen = loadBoardSeen(you)
+        const tease = leaderboardTease({
+          you,
+          score,
+          timeSeconds,
+          mode,
+          rows,
+          previousRank: seen?.rank ?? null,
+          lastSituation: seen?.situation ?? null,
+        })
+        if (tease.rank != null) saveBoardSeen(you, tease.rank, tease.situation)
+        if (!tease.text || boardOverRef.current !== 'won') return
+        unseenKey.current += 1
+        setUnseenPop({ text: tease.text, key: unseenKey.current, holdMs: 8000 })
+      })
+    }, 7500)
+  }
   const [shortfall, setShortfall] = useState<null | { action: ShortfallAction; need: number; detail?: string }>(null)
   const [incoming, setIncoming] = useState<Challenge | null>(null)
   const [, setChallenges] = useState(() => loadChallenges())
@@ -627,6 +658,8 @@ export default function App() {
   /** Today's date key while this attempt is the scored (first) Daily try */
   const dailyRunRef = useRef<string | null>(null)
   const [dailyTag, setDailyTag] = useState<'' | 'scored' | 'practice'>('')
+  const practiceRef = useRef(false)
+  practiceRef.current = dailyTag === 'practice'
   const [startSheet, setStartSheet] = useState<Puzzle | null>(null)
 
   // ---- 9.30-i: Remix boards (a new set of 4 every 3 days at midnight Toronto) + Endless mode ----
@@ -1529,6 +1562,10 @@ export default function App() {
   }
 
   function startPuzzle(p: Puzzle, resume = false, opts: { mode?: RunMode; daily?: boolean; endless?: boolean } = {}) {
+    // A new board is live play: drop a scoreboard tease so it never sits over the grid.
+    window.clearTimeout(teaseTimer.current)
+    teaseGen.current += 1
+    setUnseenPop(null)
     // First board ever: How to play opens first (returning players start at the new cards)
     if (!resume && !settingsRef.current.howSeen) {
       pendingStartRef.current = { p, opts }
@@ -1803,15 +1840,26 @@ export default function App() {
       setLastScore(score)
       // 9.32: save the finished game to the player's account (queued offline / until signed in)
       try {
-        saveScore({
-          score,
-          level: puzzle.size,
-          moves: hist.past.length,
-          time_seconds: elapsedMs / 1000,
-          mode: dailyRunRef.current ? 'daily' : endlessRef.current ? 'endless' : runMode === 'trial' ? 'trial' : runMode === 'normal' ? 'normal' : 'other',
-          puzzle_id: String(puzzle.id),
-          daily_date: dailyRunRef.current ?? undefined,
+        const cloudMode = cloudModeForWin({
+          practice: practiceRef.current,
+          daily: !!dailyRunRef.current,
+          endless: !!endlessRef.current,
+          trial: runMode === 'trial',
+          remix: !!parseRemixId(String(puzzle.id)),
         })
+        if (cloudMode) {
+          const timeSeconds = elapsedMs / 1000
+          saveScore({
+            score,
+            level: puzzle.size,
+            moves: hist.past.length,
+            time_seconds: timeSeconds,
+            mode: cloudMode,
+            puzzle_id: String(puzzle.id),
+            daily_date: cloudMode === 'daily' ? dailyRunRef.current ?? undefined : undefined,
+          })
+          scheduleLeaderboardTease(score, timeSeconds, cloudMode)
+        }
       } catch {
         /* never block the win */
       }
@@ -2929,6 +2977,9 @@ export default function App() {
             <button type="button" className={screen === 'challenge' ? 'on' : ''} onClick={() => setScreen('challenge')}>
               Share
             </button>
+            <button type="button" className={screen === 'leaderboard' ? 'on' : ''} data-testid="nav-board" onClick={() => setScreen('leaderboard')}>
+              Board
+            </button>
             <button type="button" className={screen === 'profile' ? 'on' : ''} onClick={() => setScreen('profile')}>
               {playerName ? <span className="player-name-mark nav-player">{playerName.split(' ')[0]}</span> : 'Account'}
             </button>
@@ -3034,6 +3085,9 @@ export default function App() {
               <button type="button" className="btn ghost" onClick={() => setScreen('how')}>
                 How to play
               </button>
+              <button type="button" className="btn ghost" data-testid="home-board" onClick={() => setScreen('leaderboard')}>
+                Leaderboard
+              </button>
               <button type="button" className="btn ghost" onClick={() => setScreen('bug')}>
                 🐛 Report a bug
               </button>
@@ -3121,6 +3175,10 @@ export default function App() {
 
       {screen === 'bug' && (
         <BugReport currentScreen={screen} onBack={() => setScreen('home')} />
+      )}
+
+      {screen === 'leaderboard' && (
+        <Leaderboard you={cloud.publicName || cloud.name || playerName} signedIn={signedIn} />
       )}
 
       {screen === 'levels' && (
@@ -3751,7 +3809,13 @@ export default function App() {
               </div>
             ) : null}
           </div>
-          <Leaderboard you={signedIn ? cloud.publicName || cloud.name || playerName : ''} />
+          <section className="leaderboard">
+            <h3>Leaderboard</h3>
+            <p className="sub">Today's Daily, this week, and all-time. Your name is highlighted on the board.</p>
+            <button type="button" className="btn ghost" onClick={() => setScreen('leaderboard')}>
+              Open the leaderboard
+            </button>
+          </section>
           <section className="settings">
             <h3>Settings</h3>
             <label className="toggle">
