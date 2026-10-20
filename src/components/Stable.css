@@ -1,0 +1,261 @@
+/* PR #53 batch 2 (Tony 2026-10-19): compact Stable grid + pet detail page.
+   New stable-* classes live here so the refactor doesn't collide with App.css. */
+
+/* ---------- compact pet grid (fits one phone screen) ---------- */
+.stable-list-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 0.55rem;
+}
+
+.stable-mini {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.6rem 0.4rem;
+  border-radius: 16px;
+  background: rgba(5, 13, 31, 0.5);
+  border: 2px solid rgba(244, 251, 255, 0.1);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: center;
+}
+
+.stable-mini.is-active {
+  border-color: var(--mint);
+  box-shadow: 0 0 0 3px rgba(61, 255, 168, 0.15);
+}
+
+.stable-mini.is-locked .stable-mini-art {
+  filter: brightness(0.55);
+}
+
+.stable-mini.is-dormant .stable-mini-art {
+  filter: grayscale(1);
+  opacity: 0.5;
+}
+
+.stable-mini-art {
+  display: grid;
+  place-items: center;
+  min-height: 80px;
+}
+
+.stable-mini-name {
+  font-weight: 800;
+  font-size: 0.85rem;
+  line-height: 1.15;
+}
+
+.stable-mini-bars {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+}
+
+.stable-mini-bar {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(244, 251, 255, 0.12);
+  overflow: hidden;
+}
+
+.stable-mini-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+}
+
+.stable-mini-locked {
+  font-size: 0.7rem;
+  opacity: 0.75;
+}
+
+.stable-mini-badge,
+.stable-mini-dormant {
+  font-size: 0.66rem;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 0.12rem 0.5rem;
+}
+
+.stable-mini-badge {
+  background: rgba(61, 255, 168, 0.18);
+}
+
+.stable-mini-badge.is-trial {
+  background: rgba(255, 209, 102, 0.2);
+}
+
+.stable-mini-dormant {
+  background: rgba(142, 162, 201, 0.28);
+}
+
+/* ---------- meter colors: green -> yellow -> red ---------- */
+.meter-high {
+  background: linear-gradient(90deg, #3dffa8, #7dffc4);
+}
+
+.meter-mid {
+  background: linear-gradient(90deg, #ffd166, #ffe29a);
+}
+
+.meter-low {
+  background: linear-gradient(90deg, #e63946, #ff7a7a);
+}
+
+/* ---------- pet detail page ---------- */
+.stable-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  width: 100%;
+  max-width: 26rem;
+  margin: 0 auto;
+  padding-bottom: 1rem;
+}
+
+.stable-detail-back {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--foam);
+  font: inherit;
+  font-weight: 800;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.25rem 0;
+}
+
+.stable-detail-hero {
+  display: grid;
+  place-items: center;
+}
+
+.stable-detail-name {
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.5rem;
+  color: var(--sun);
+}
+
+.stable-detail-name small {
+  display: block;
+  font-family: var(--font-body);
+  font-weight: 800;
+  font-size: 0.75rem;
+  color: var(--foam);
+  opacity: 0.7;
+}
+
+.stable-detail-mood {
+  margin: 0;
+  text-align: center;
+  font-weight: 800;
+  font-size: 1.05rem;
+}
+
+.stable-detail-trial {
+  margin: 0;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--sun);
+}
+
+.stable-detail-blurb {
+  margin: 0;
+  text-align: center;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+.stable-meter-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-weight: 800;
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+}
+
+.stable-meter-bar {
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(244, 251, 255, 0.12);
+  overflow: hidden;
+}
+
+.stable-meter-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.stable-meter-sub {
+  margin: 0.3rem 0 0;
+  font-size: 0.75rem;
+  opacity: 0.75;
+}
+
+.stable-detail-assign,
+.stable-detail-unlock,
+.stable-detail-keep {
+  width: 100%;
+  padding: 0.7rem 0.5rem;
+  font-size: 1rem;
+}
+
+.stable-detail-care {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.stable-detail-care .btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.55rem 0.3rem;
+  font-size: 0.85rem;
+  min-height: 0;
+}
+
+.stable-detail-care .btn small {
+  font-size: 0.7rem;
+  opacity: 0.8;
+}
+
+.stable-detail-perk {
+  margin: 0;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.stable-detail-coupon {
+  margin: 0;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--sun);
+}
+
+.stable-detail-coupon small {
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+.stable-detail-off {
+  margin: 0;
+  text-align: center;
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
