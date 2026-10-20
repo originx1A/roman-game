@@ -124,7 +124,6 @@ export function WinScreen({
                 aria-label={`Buddy meter ${buddyMeter.pending ? buddyMeter.goal : buddyMeter.notches} of ${buddyMeter.goal}`}
                 data-meter={buddyMeter.pending ? buddyMeter.goal : buddyMeter.notches}
               >
-                <span className="buddy-meter-label">Buddy meter</span>
                 <span className="buddy-meter-notches">
                   {Array.from({ length: buddyMeter.goal }, (_, i) => (
                     <i
