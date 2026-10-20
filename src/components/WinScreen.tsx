@@ -49,6 +49,9 @@ export type WinScreenProps = {
   replay?: WinReplay
   /** 9.32-b: this win added an Unseen card piece */
   cardGain?: { from: number; to: number }
+  /** The player's name on this clear */
+  playerName?: string
+  signedIn?: boolean
 }
 
 export function WinScreen({
@@ -78,6 +81,8 @@ export function WinScreen({
   onBuddyHunt,
   replay,
   cardGain,
+  playerName,
+  signedIn,
 }: WinScreenProps) {
   const [entered, setEntered] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -135,6 +140,12 @@ export function WinScreen({
         {/* Scrolls on its own only if a very short screen can't fit it; the buttons stay pinned below. */}
         <div className="win-screen-body">
           <h2 className="win-screen-title">Victory!</h2>
+          {playerName ? (
+            <p className="win-player" data-testid="win-player">
+              {signedIn ? 'Signed in as ' : ''}
+              <strong className="player-name-mark">{playerName}</strong>
+            </p>
+          ) : null}
           {modeNote ? <p className="win-mode-note" data-testid="win-mode-note">{modeNote}</p> : null}
           {paradeHint ? <p className="next-parade-hint" data-testid="next-parade-hint">{paradeHint}</p> : null}
           <p className="win-screen-kicker">

@@ -1,4 +1,5 @@
 import { gaEvent } from '../game/analytics'
+import { rememberPlayerName } from '../game/storage'
 /**
  * Player accounts + score saving (Supabase, project romans-game).
  *
@@ -99,6 +100,15 @@ export async function subscribeNews(email: string): Promise<boolean> {
 }
 const MAX_QUEUE = 200
 let clientP: Promise<SupabaseClient | null> | null = null
+/**
+ * Queues are per player: signed in -> `rg.cloud.queue.v1.<user id>`, signed out -> the shared
+ * `rg.cloud.queue.v1` (games played before signing in; they go to whoever signs in next).
+ * Switching player signs out only after a new sign-in link is actually sent. Not now leaves
+ * player A signed in. Once A is signed out, A's unsent scores stay under A's id and only send
+ * when A signs in again; they are never mixed into player B.
+ * Declared before `state`: the first queue read runs while this module is still starting.
+ */
+let queueOwner: string | null = null
 let state: CloudState = { status: 'off', pending: readQueue().length }
 const listeners = new Set<(s: CloudState) => void>()
 
@@ -115,13 +125,6 @@ export function onCloud(fn: (s: CloudState) => void): () => void {
   return () => listeners.delete(fn)
 }
 
-/**
- * Queues are per player: signed in -> `rg.cloud.queue.v1.<user id>`, signed out -> the shared
- * `rg.cloud.queue.v1` (games played before signing in; they go to whoever signs in next).
- * "Switch player" signs out, so player A's unsent scores stay under A's id and only send when A
- * signs in again; they are never mixed into player B.
- */
-let queueOwner: string | null = null
 function queueKey(owner: string | null = queueOwner): string {
   return owner ? `${QUEUE_KEY}.${owner}` : QUEUE_KEY
 }
@@ -221,10 +224,52 @@ export async function savePlayerName(name: string, consent: Consent): Promise<{ 
   if (!row) return { ok: false, error: "Couldn't save your name. Try again." }
   if (error) return { ok: false, error: "Couldn't save your name. Try again." }
   set({ name: row.display_name, publicName: row.public_name })
+  rememberPlayerName(row.public_name || row.display_name)
   saveConsent(consent)
   if (consent.optIn && data.session?.user.email) void subscribeNews(data.session.user.email)
   void flushScores()
   return { ok: true, publicName: row.public_name }
+}
+
+/** Change the signed-in player's name. Does not touch consent, email, or the session. */
+export async function renamePlayer(name: string): Promise<{ ok: boolean; error?: string; publicName?: string }> {
+  const sb = await client()
+  if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
+  const { data } = await sb.auth.getSession()
+  const uid = data.session?.user.id
+  if (!uid) return { ok: false, error: 'Please sign in first.' }
+  const display_name = name.trim().replace(/\s+/g, ' ').slice(0, NAME_MAX)
+  if (!display_name) return { ok: false, error: 'Type a name.' }
+  const { data: row, error } = await sb.from('players').update({ display_name }).eq('id', uid).select('display_name, public_name').maybeSingle()
+  if (error || !row) return { ok: false, error: "Couldn't save your name. Try again." }
+  set({ name: row.display_name, publicName: row.public_name })
+  rememberPlayerName(row.public_name || row.display_name)
+  return { ok: true, publicName: row.public_name }
+}
+
+export interface LeaderboardRow {
+  name: string
+  level: number
+  best_score: number
+  best_time_seconds: number
+  rank: number
+}
+
+/** Read the public leaderboard view. Never writes. */
+export async function loadLeaderboard(limit = 15): Promise<LeaderboardRow[]> {
+  try {
+    const sb = await client()
+    if (!sb) return []
+    const { data, error } = await sb
+      .from('leaderboard')
+      .select('name, level, best_score, best_time_seconds, rank')
+      .order('best_score', { ascending: false })
+      .limit(limit)
+    if (error || !Array.isArray(data)) return []
+    return data as LeaderboardRow[]
+  } catch {
+    return []
+  }
 }
 
 export async function signOut(): Promise<void> {

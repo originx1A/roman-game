@@ -1,4 +1,5 @@
 import { sanitizeTips } from './voiceTips'
+import { cleanPlayerName } from './playerName'
 import { sanitizeMeter } from './buddyHunt'
 import { PETS_KEY, sanitizePets, type PetState } from './pets'
 import type { Challenge, ClearRecord, Profile } from './types'
@@ -40,13 +41,21 @@ export interface Settings {
   analytics?: boolean
 }
 
-export const PLAYER_NAME_MAX = 16
+export { cleanPlayerName, getPlayerName, PLAYER_NAME_MAX } from './playerName'
+/** Fired after the account name is copied into settings and the local profile */
+export const PLAYER_NAME_EVENT = 'rg-player-name'
 
-/** Trim, drop control characters, squash spaces, cap at 16 characters */
-export function cleanPlayerName(raw: unknown): string {
-  if (typeof raw !== 'string') return ''
-  const s = raw.replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim()
-  return Array.from(s).slice(0, PLAYER_NAME_MAX).join('').trim()
+/** Keep settings and the old local profile on the same name as the account. */
+export function rememberPlayerName(name: string): void {
+  const cleaned = cleanPlayerName(name)
+  if (!cleaned) return
+  const settings = loadSettings()
+  if (settings.playerName !== cleaned || !settings.namePrompted) {
+    saveSettings({ ...settings, playerName: cleaned, namePrompted: true })
+  }
+  const profile = loadProfile()
+  if (profile && profile.displayName !== cleaned) saveProfile({ ...profile, displayName: cleaned })
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(PLAYER_NAME_EVENT))
 }
 
 export interface ProgressBlob {

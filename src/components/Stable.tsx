@@ -74,9 +74,12 @@ export type StableProps = {
   giftCode?: string
   /** Owner gift codes need the website's functions */
   giftsOnline: boolean
+  /** Signed-in (or local) player name, highlighted in the stable */
+  playerName?: string
+  signedIn?: boolean
 }
 
-export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCare, onFeed, onSwapTreats, today, onEquip, onPeek, onRedeem, onShop, onBack, giftCode, giftsOnline }: StableProps) {
+export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCare, onFeed, onSwapTreats, today, onEquip, onPeek, onRedeem, onShop, onBack, giftCode, giftsOnline, playerName, signedIn }: StableProps) {
   const [code, setCode] = useState(giftCode ?? '')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -134,6 +137,12 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
         <div>
           <h2>The Stable</h2>
           <p className="stable-sub">Roman's buddies. Keep them forever, ride with one.</p>
+          {playerName ? (
+            <p className="stable-player" data-testid="stable-player">
+              {signedIn ? 'Signed in as ' : 'Playing as '}
+              <strong className="player-name-mark">{playerName}</strong>
+            </p>
+          ) : null}
         </div>
         <span className="stable-coins" aria-label={`${coins} coins`}>
           🪙 {coins}

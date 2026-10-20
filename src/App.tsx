@@ -1,7 +1,7 @@
 import { useTapCount } from './components/useTapCount'
 import { loadAnon, openEvents, sendPing, PRIVACY_NOTE, ANON_KEY, gaEvent, setGaEnabled } from './game/analytics'
 import { OWNER_PATH, OWNER_TAP_WINDOW_MS, OWNER_TAPS } from './game/ownerDoor'
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Board } from './components/Board'
 import { HowToPlay, HOW_NEW_START } from './components/HowToPlay'
@@ -18,8 +18,10 @@ import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './componen
 import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
 import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
-import { CloudScoresButton } from './cloud/CloudScores'
-import { initCloud, saveScore } from './cloud/cloud'
+import { CloudScoresButton, useCloud } from './cloud/CloudScores'
+import { Leaderboard } from './cloud/Leaderboard'
+import { NAME_MAX, initCloud, renamePlayer, saveScore, signOut as cloudSignOut } from './cloud/cloud'
+import { isProfane } from './cloud/profanity'
 import { UnseenCardTile } from './components/UnseenCard'
 import { noteCardWin } from './game/unseenCard'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
@@ -230,7 +232,10 @@ import {
   loadSettings,
   loadWallet,
   cleanPlayerName,
+  getPlayerName,
+  rememberPlayerName,
   PLAYER_NAME_MAX,
+  PLAYER_NAME_EVENT,
   loadBuddyMeter,
   loadPets,
   savePets,
@@ -250,8 +255,6 @@ import {
   saveDraft,
   saveSettings,
   saveWallet,
-  signInWithEmail,
-  signOutKeepDevice,
   type Settings,
 } from './game/storage'
 import {
@@ -428,6 +431,7 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('home')
   const [{ layout }, setLayoutInfo] = useState(() => readLayout())
   const [profile, setProfile] = useState<Profile | null>(() => loadProfile())
+  const cloud = useCloud()
   const [progress, setProgress] = useState(() => getProgress())
   const [settings, setSettings] = useState<Settings>(() => loadSettings())
   // Level select difficulty tab — persisted so it survives reloads
@@ -543,11 +547,11 @@ export default function App() {
   const [shortfall, setShortfall] = useState<null | { action: ShortfallAction; need: number; detail?: string }>(null)
   const [incoming, setIncoming] = useState<Challenge | null>(null)
   const [, setChallenges] = useState(() => loadChallenges())
-  const [emailInput, setEmailInput] = useState('')
+  const [nameField, setNameField] = useState('')
+  const nameFocus = useRef(false)
   const [storePrices, setStorePrices] = useState<Record<string, string>>({})
   const [webPacks, setWebPacks] = useState<WebPackOffer[] | null>(null)
   const [webShop, setWebShop] = useState<'loading' | 'ready' | 'unavailable'>('loading')
-  const [nameInput, setNameInput] = useState('Roman')
   const [challengeEmail, setChallengeEmail] = useState('')
   const [challengeMsg, setChallengeMsg] = useState('Can you beat me on this board?')
   const [shareLink, setShareLink] = useState('')
@@ -662,8 +666,14 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, remixSet])
   const [winReplay, setWinReplay] = useState<WinReplay | null>(null)
-  // Player name for share cards (asked once: first share or first finished board)
-  const playerName = cleanPlayerName(settings.playerName)
+  // One name everywhere: account (public name, then chosen name), then this device, then the old profile.
+  const playerName = getPlayerName({
+    publicName: cloud.publicName,
+    name: cloud.name,
+    playerName: settings.playerName,
+    displayName: profile?.displayName,
+  })
+  const signedIn = cloud.status === 'signed-in' && !!(cloud.publicName || cloud.name)
   const [namePrompt, setNamePrompt] = useState<null | { then?: () => void }>(null)
   const [nameDraft, setNameDraft] = useState('')
   const comboRef = useRef<ComboState>(newCombo())
@@ -1180,10 +1190,61 @@ export default function App() {
 
   function closeNamePrompt(save: boolean) {
     const name = save ? cleanPlayerName(nameDraft) : ''
-    saveSettingsPatch({ namePrompted: true, ...(name ? { playerName: name } : {}) })
+    if (name) {
+      rememberPlayerName(name)
+      setSettings(loadSettings())
+      setProfile(loadProfile())
+      if (cloud.status === 'signed-in') void renamePlayer(name)
+    } else {
+      saveSettingsPatch({ namePrompted: true })
+    }
     const then = namePrompt?.then
     setNamePrompt(null)
     if (then) window.setTimeout(then, 0)
+  }
+
+  useEffect(() => {
+    const sync = () => {
+      setSettings(loadSettings())
+      setProfile(loadProfile())
+    }
+    window.addEventListener(PLAYER_NAME_EVENT, sync)
+    return () => window.removeEventListener(PLAYER_NAME_EVENT, sync)
+  }, [])
+
+  // The account name is the one that shows. Copy it into settings and the old profile so they can't drift.
+  useEffect(() => {
+    if (cloud.status !== 'signed-in') return
+    const account = getPlayerName({ publicName: cloud.publicName, name: cloud.name })
+    if (!account) return
+    const settingsNow = loadSettings()
+    const profileNow = loadProfile()
+    if (settingsNow.playerName === account && (!profileNow || profileNow.displayName === account)) return
+    rememberPlayerName(account)
+  }, [cloud.status, cloud.publicName, cloud.name])
+
+  useEffect(() => {
+    if (nameFocus.current) return
+    setNameField(signedIn ? cloud.name || playerName : playerName)
+  }, [signedIn, cloud.name, playerName])
+
+  async function commitName(raw: string) {
+    const name = cleanPlayerName(raw).slice(0, NAME_MAX)
+    if (!name) return
+    if (isProfane(name)) {
+      showToast("Let's pick a different name. Keep it friendly!")
+      return
+    }
+    rememberPlayerName(name)
+    setSettings(loadSettings())
+    setProfile(loadProfile())
+    if (cloud.status !== 'signed-in') {
+      showToast(`Name saved: ${name}`)
+      return
+    }
+    const r = await renamePlayer(name)
+    if (!r.ok) showToast(r.error || "Couldn't update your name")
+    else showToast(`Name saved: ${r.publicName || name}`)
   }
 
   /** Share text for this board: name, score, level, stars, best time, New best! */
@@ -1847,7 +1908,7 @@ export default function App() {
         activeChallenge.scoreMs != null &&
         activeChallenge.scorePts != null
       ) {
-        const myName = profile?.displayName || 'You'
+        const myName = playerName || 'You'
         const result = createDuelResult({
           code: activeChallenge.code,
           puzzleId: puzzle.id,
@@ -2287,19 +2348,6 @@ export default function App() {
     })
   }
 
-  function handleSignIn(e: FormEvent) {
-    e.preventDefault()
-    if (!emailInput.includes('@')) {
-      showToast('Enter a valid email')
-      return
-    }
-    const p = signInWithEmail(emailInput, nameInput)
-    setProfile(p)
-    setProgress(getProgress())
-    showToast(`Signed in as ${p.displayName}`)
-    unlockAudio()
-  }
-
   function handleCritterCatch(reward: CritterReward) {
     const current = loadWallet()
     const have = (current.critterStash ?? 0) + 1
@@ -2459,7 +2507,7 @@ export default function App() {
       puzzleName: target.name,
       difficulty: DIFFICULTY_LABEL[target.difficulty],
       fromEmail: senderEmail(profile?.email),
-      fromName: playerName || profile?.displayName || 'A friend',
+      fromName: playerName || 'A friend',
       message: challengeMsg,
       toEmail: challengeEmail || undefined,
       scoreMs: clear?.bestMs,
@@ -2505,7 +2553,7 @@ export default function App() {
       puzzleName: puzzle.name,
       difficulty: DIFFICULTY_LABEL[puzzle.difficulty],
       fromEmail: senderEmail(profile?.email),
-      fromName: who || profile?.displayName || 'A friend',
+      fromName: who || playerName || 'A friend',
       scoreMs: elapsedMs,
       scorePts: lastScore,
       buddy: runPetRef.current,
@@ -2604,7 +2652,7 @@ export default function App() {
         puzzleName: board.name,
         difficulty: DIFFICULTY_LABEL[board.difficulty],
         fromEmail: senderEmail(profile?.email),
-        fromName: playerName || profile?.displayName || 'A friend',
+        fromName: playerName || 'A friend',
         message: challengeMsg,
         toEmail: to || undefined,
       })
@@ -2882,7 +2930,7 @@ export default function App() {
               Share
             </button>
             <button type="button" className={screen === 'profile' ? 'on' : ''} onClick={() => setScreen('profile')}>
-              {profile ? profile.displayName.split(' ')[0] : 'Save'}
+              {playerName ? <span className="player-name-mark nav-player">{playerName.split(' ')[0]}</span> : 'Account'}
             </button>
           </nav>
           <div className="hud-pills">
@@ -2892,6 +2940,13 @@ export default function App() {
             </div>
           </div>
         </header>
+      )}
+
+      {screen !== 'play' && playerName && (
+        <p className="signed-in-bar" data-testid="signed-in-as">
+          {signedIn ? 'Signed in as ' : 'Playing as '}
+          <strong className="player-name-mark">{playerName}</strong>
+        </p>
       )}
 
       {/* On a live board the toast text shows in the play caption slot instead (never over the board) */}
@@ -2909,7 +2964,7 @@ export default function App() {
               }}
             >
               <h3>What should we call you?</h3>
-              <p className="start-sheet-tip">Your name goes on the scores you share, like “{cleanPlayerName(nameDraft) || 'Sam'} scored 1,840 on Level 1”. It stays on this device. You can change it later in Save &amp; settings.</p>
+              <p className="start-sheet-tip">Your name goes on the scores you share, like “{cleanPlayerName(nameDraft) || 'Sam'} scored 1,840 on Level 1”. {signedIn ? 'It updates your account too.' : 'It stays on this device.'} You can change it later in Account &amp; settings.</p>
               <input
                 className="name-input"
                 type="text"
@@ -3131,6 +3186,12 @@ export default function App() {
             </button>
             <div className="hud-title">
               <strong>{puzzle.name}</strong>
+              {playerName ? (
+                <em className="hud-you" data-testid="hud-player">
+                  {signedIn ? 'Signed in as ' : ''}
+                  <strong className="player-name-mark">{playerName}</strong>
+                </em>
+              ) : null}
               <span>
                 {mode === 'trial'
                   ? "⚔ Roman's Trial · 2× coins"
@@ -3397,6 +3458,8 @@ export default function App() {
               onBuddyHunt={openBuddyHunt}
               onShare={() => shareWinAsChallenge()}
               onDuel={duel && activeChallenge?.puzzleId === puzzle.id ? openDuelShare : undefined}
+              playerName={playerName}
+              signedIn={signedIn}
             />
           )}
 
@@ -3489,6 +3552,8 @@ export default function App() {
           onBack={() => setScreen('home')}
           giftCode={giftPrefill}
           giftsOnline={!isStoreBuild()}
+          playerName={playerName}
+          signedIn={signedIn}
         />
       )}
 
@@ -3633,50 +3698,62 @@ export default function App() {
 
       {screen === 'profile' && (
         <main className="panel profile scroll-pane">
-          <h2>Save & settings</h2>
-          {profile ? (
-            <div className="profile-card">
-              <p className="profile-name">{profile.displayName}</p>
-              <p className="profile-email">{profile.email}</p>
-              <button
-                type="button"
-                className="btn ghost"
-                onClick={() => {
-                  signOutKeepDevice()
-                  setProfile(null)
-                  setProgress(getProgress())
-                }}
-              >
-                Sign out
-              </button>
-            </div>
-          ) : (
-            <form className="auth-form" onSubmit={handleSignIn}>
-              <label>
-                Email
-                <input type="email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} required />
-              </label>
-              <label>
-                Display name
-                <input type="text" value={nameInput} onChange={(e) => setNameInput(e.target.value)} />
-              </label>
-              <button type="submit" className="btn primary">Save with email</button>
-            </form>
-          )}
-          <section className="settings">
-            <h3>Settings</h3>
+          <h2>Account & settings</h2>
+          <div className="profile-card" data-testid="account-card">
+            {signedIn ? (
+              <>
+                <p className="profile-name">
+                  Signed in as <strong className="player-name-mark">{playerName}</strong>
+                </p>
+                {cloud.email ? <p className="profile-email">{cloud.email}</p> : null}
+              </>
+            ) : (
+              <>
+                <p className="profile-name">{playerName ? <>Playing as <strong className="player-name-mark">{playerName}</strong></> : 'Not signed in'}</p>
+                <p className="profile-email">Scores stay on this device until you sign in. No password — we email you a link.</p>
+                <CloudScoresButton suggestedName={playerName} />
+              </>
+            )}
             <label className="name-setting">
               Your name on shared scores
               <input
                 type="text"
-                value={settings.playerName ?? ''}
-                maxLength={PLAYER_NAME_MAX}
+                value={nameField}
+                maxLength={NAME_MAX}
                 placeholder="Blank = “I scored…”"
                 aria-label="Your name on shared scores"
-                onChange={(e) => saveSettingsPatch({ playerName: e.target.value.slice(0, PLAYER_NAME_MAX), namePrompted: true })}
-                onBlur={(e) => saveSettingsPatch({ playerName: cleanPlayerName(e.target.value) })}
+                onFocus={() => {
+                  nameFocus.current = true
+                }}
+                onChange={(e) => setNameField(e.target.value.slice(0, NAME_MAX))}
+                onBlur={(e) => {
+                  nameFocus.current = false
+                  const next = cleanPlayerName(e.target.value)
+                  setNameField(next)
+                  if (next && next !== (signedIn ? cloud.name || playerName : playerName)) void commitName(next)
+                }}
               />
             </label>
+            {signedIn ? (
+              <div className="cta-row">
+                <button type="button" className="btn ghost" onClick={() => void commitName(nameField)}>
+                  Change name
+                </button>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={() => {
+                    void cloudSignOut()
+                  }}
+                >
+                  Sign out
+                </button>
+              </div>
+            ) : null}
+          </div>
+          <Leaderboard you={signedIn ? cloud.publicName || cloud.name || playerName : ''} />
+          <section className="settings">
+            <h3>Settings</h3>
             <label className="toggle">
               <input
                 type="checkbox"
@@ -3829,8 +3906,17 @@ export default function App() {
       {screen === 'challenge' && (
         <main className="panel challenge scroll-pane">
           <h2>Share &amp; challenge</h2>
+          {playerName ? (
+            <p className="share-player" data-testid="share-player">
+              Sharing as <strong className="player-name-mark">{playerName}</strong>
+              {' · '}can you beat my score?
+            </p>
+          ) : (
+            <p className="sub">Add your name in Account & settings and it goes on every challenge.</p>
+          )}
           <p className="sub">
             Share your best time. Friends open the link, play the same board, then send a head-to-head score back.
+            {playerName ? ` The email and the link say ${playerName} challenged them.` : ''}
           </p>
           <ShareBar
             url={shareLink || playUrl}

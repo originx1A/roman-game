@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { isProfane } from './profanity'
-import { NAME_MAX, loadConsent, saveConsent, onCloud, savePlayerName, sendMagicLink, signOut, type CloudState } from './cloud'
+import { NAME_MAX, loadConsent, saveConsent, onCloud, renamePlayer, savePlayerName, sendMagicLink, signOut, type CloudState } from './cloud'
 
 /**
  * "Save my scores" button + sheets: email magic-link sign-in, then a one-time name prompt.
  * The whole chosen name is shown publicly (the server adds 02, 03... if it's taken); bad words are rejected on the spot.
+ * Switching player is a separate choice. Opening that sheet, or tapping Not now, never signs the current player out.
  */
 export function useCloud(): CloudState {
   const [s, setS] = useState<CloudState>({ status: 'off', pending: 0 })
@@ -22,6 +23,11 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
   const [name, setName] = useState(suggestedName ?? '')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  const [switching, setSwitching] = useState(false)
+  const [switchedAway, setSwitchedAway] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [nameEdit, setNameEdit] = useState('')
+  const [nameDismissed, setNameDismissed] = useState(false)
   const [age13, setAge13] = useState(() => loadConsent()?.age13 ?? false)
   const [optIn, setOptIn] = useState(() => loadConsent()?.optIn ?? false)
   const consentChecks = (
@@ -38,53 +44,61 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
     </div>
   )
 
-  // Signed in from the magic link but no name yet: ask once
+  // Signed in from the magic link but no name yet: ask once. Never steal the sheet during an explicit switch.
   useEffect(() => {
+    if (switching || nameDismissed) return
     if (cloud.status === 'signed-in' && cloud.name === null) setSheet((s) => (s === 'account' ? s : 'name'))
-  }, [cloud.status, cloud.name])
+  }, [cloud.status, cloud.name, switching, nameDismissed])
 
-  const label =
-    cloud.status === 'signed-in' && cloud.name
-      ? `☁ Scores saving as ${cloud.publicName ?? cloud.name}${cloud.pending ? ` (${cloud.pending} waiting)` : ''}`
-      : cloud.pending
-        ? `☁ Save my scores (${cloud.pending} waiting)`
-        : '☁ Save my scores'
+  const signedIn = cloud.status === 'signed-in' && !!cloud.name
+  const label = signedIn
+    ? `☁ Saved to your account ✓${cloud.pending ? ` (${cloud.pending} waiting)` : ''}`
+    : cloud.pending
+      ? `☁ Save my scores (${cloud.pending} waiting)`
+      : '☁ Save my scores'
 
-  /** Families sharing a phone: sign this player out (their unsent scores stay theirs) and sign in someone else */
-  async function switchPlayer() {
-    await signOut()
-    setEmail('')
-    setName('')
-    setAge13(false)
-    setOptIn(false)
-    saveConsent({ age13: false, optIn: false })
+  /** Close whatever sheet is open. Never signs out and never changes the player. */
+  function closeSheet() {
+    if (sheet === 'name') setNameDismissed(true)
+    setSwitching(false)
+    setSwitchedAway(false)
+    setEditing(false)
     setErr('')
+    setSheet(null)
+  }
+
+  /** Explicit switch only. The current player stays signed in until a new link is actually sent. */
+  function beginSwitch() {
+    setSwitching(true)
+    setEditing(false)
+    setErr('')
+    setEmail('')
+    if (cloud.status === 'signed-in') setAge13(true)
     setSheet('email')
   }
 
   const nameProblem = !name.trim() ? '' : isProfane(name) ? "Let's pick a different name. Keep it friendly!" : ''
+  const editProblem = !nameEdit.trim() ? '' : isProfane(nameEdit) ? "Let's pick a different name. Keep it friendly!" : ''
 
   return (
     <>
       <button
         type="button"
         className={`btn ghost cloud-btn${compact ? ' is-compact' : ''}`}
+        data-testid="save-scores"
         onClick={() => {
           setErr('')
+          setSwitching(false)
+          setEditing(false)
           setSheet(cloud.status === 'signed-in' ? (cloud.name ? 'account' : 'name') : 'email')
         }}
       >
         {label}
       </button>
-      {cloud.status === 'signed-in' && cloud.name && (
-        <button type="button" className={`btn ghost cloud-switch${compact ? ' is-compact' : ''}`} onClick={() => void switchPlayer()}>
-          Switch player
-        </button>
-      )}
       {sheet &&
         createPortal(
-          <div className="start-sheet cloud-sheet" role="dialog" aria-modal="true" aria-label="Save my scores">
-            <div className="start-sheet-scrim" onClick={() => setSheet(null)} />
+          <div className="start-sheet cloud-sheet" role="dialog" aria-modal="true" aria-label={switching ? 'Switch player' : 'Save my scores'}>
+            <div className="start-sheet-scrim" onClick={closeSheet} />
             {sheet === 'email' && (
               <form
                 className="start-sheet-card"
@@ -96,13 +110,21 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                   setBusy(true)
                   const r = await sendMagicLink(email)
                   setBusy(false)
-                  if (r.ok) setSheet('sent')
-                  else setErr(r.error ?? 'Something went wrong.')
+                  if (!r.ok) return setErr(r.error ?? 'Something went wrong.')
+                  // Only a sent link switches players. A failed send leaves the current player signed in.
+                  if (switching) {
+                    await signOut()
+                    setSwitchedAway(true)
+                  }
+                  setSwitching(false)
+                  setSheet('sent')
                 }}
               >
-                <h3>Save your scores</h3>
+                <h3>{switching ? 'Switch player' : 'Save your scores'}</h3>
                 <p className="start-sheet-tip">
-                  Get on the leaderboard and keep your scores on any device. We'll email you a sign-in link. No password.
+                  {switching
+                    ? `You're signed in as ${cloud.publicName ?? cloud.name ?? cloud.email}. Not now keeps this player. We'll only switch after the new sign-in link is sent.`
+                    : "Get on the leaderboard and keep your scores on any device. We'll email you a sign-in link. No password."}
                 </p>
                 <input className="name-input" type="email" inputMode="email" autoComplete="email" placeholder="Email address" aria-label="Email address" value={email} onChange={(e) => setEmail(e.target.value)} />
                 {consentChecks}
@@ -110,7 +132,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 <button type="submit" className="btn primary" disabled={busy}>
                   {busy ? 'Sending…' : 'Email me a sign-in link'}
                 </button>
-                <button type="button" className="btn ghost" onClick={() => setSheet(null)}>
+                <button type="button" className="btn ghost" data-testid="cloud-not-now" onClick={closeSheet}>
                   Not now
                 </button>
               </form>
@@ -119,9 +141,11 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
               <div className="start-sheet-card">
                 <h3>Check your email</h3>
                 <p className="start-sheet-tip">
-                  We sent a link to <b>{email.trim()}</b>. Open it on this device and you're in. Your scores keep saving here until then.
+                  {switchedAway
+                    ? <>We sent a link to <b>{email.trim()}</b>. Open it on this device to finish switching. This device stays signed out until then.</>
+                    : <>We sent a link to <b>{email.trim()}</b>. Open it on this device and you're in. Your scores keep saving here until then.</>}
                 </p>
-                <button type="button" className="btn primary" onClick={() => setSheet(null)}>
+                <button type="button" className="btn primary" onClick={closeSheet}>
                   OK
                 </button>
               </div>
@@ -150,6 +174,9 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 <button type="submit" className="btn primary" disabled={busy || !name.trim() || !!nameProblem}>
                   {busy ? 'Saving…' : 'Save name'}
                 </button>
+                <button type="button" className="btn ghost" data-testid="cloud-not-now" onClick={closeSheet}>
+                  Not now
+                </button>
               </form>
             )}
             {sheet === 'parent' && (
@@ -158,36 +185,67 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 <p className="start-sheet-tip">
                   You need to be 13 or older to make an account. You can keep playing everything without one. Your scores just stay on this device.
                 </p>
-                <button type="button" className="btn primary" onClick={() => setSheet(null)}>
+                <button type="button" className="btn primary" onClick={closeSheet}>
                   Keep playing
                 </button>
-                {cloud.status === 'signed-in' && (
-                  <button type="button" className="btn ghost" onClick={() => { void signOut(); setSheet(null) }}>
-                    Sign out
-                  </button>
-                )}
               </div>
             )}
             {sheet === 'account' && (
               <div className="start-sheet-card">
-                <h3>Scores are saving</h3>
-                <p className="start-sheet-tip">
-                  Signed in as {cloud.email}. Leaderboard name: <b>{cloud.publicName ?? cloud.name}</b>.
-                  {cloud.pending ? ` ${cloud.pending} score${cloud.pending === 1 ? '' : 's'} will send when you're back online.` : ' Every game you finish is saved.'}
-                </p>
-                <button type="button" className="btn primary" onClick={() => setSheet(null)}>
-                  Done
-                </button>
-                <button
-                  type="button"
-                  className="btn ghost"
-                  onClick={() => void switchPlayer()}
-                >
-                  Switch player
-                </button>
-                <button type="button" className="btn ghost" onClick={() => { void signOut(); setSheet(null) }}>
-                  Sign out
-                </button>
+                <h3>Saved to your account ✓</h3>
+                {editing ? (
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault()
+                      if (!nameEdit.trim() || editProblem) return
+                      setBusy(true)
+                      const r = await renamePlayer(nameEdit)
+                      setBusy(false)
+                      if (!r.ok) setErr(r.error ?? "Couldn't save your name.")
+                      else {
+                        setEditing(false)
+                        setErr('')
+                      }
+                    }}
+                  >
+                    <p className="start-sheet-tip">This updates your name on shared scores and on the leaderboard.</p>
+                    <input className="name-input" type="text" maxLength={NAME_MAX} autoComplete="nickname" aria-label="Your name" value={nameEdit} onChange={(e) => setNameEdit(e.target.value)} />
+                    {(editProblem || err) && <p className="cloud-err" role="alert">{editProblem || err}</p>}
+                    <button type="submit" className="btn primary" disabled={busy || !nameEdit.trim() || !!editProblem}>
+                      {busy ? 'Saving…' : 'Save name'}
+                    </button>
+                    <button type="button" className="btn ghost" data-testid="cloud-not-now" onClick={() => { setEditing(false); setErr('') }}>
+                      Not now
+                    </button>
+                  </form>
+                ) : (
+                  <>
+                    <p className="start-sheet-tip">
+                      Signed in as {cloud.email}. Leaderboard name: <b className="player-name-mark">{cloud.publicName ?? cloud.name}</b>.
+                      {cloud.pending ? ` ${cloud.pending} score${cloud.pending === 1 ? '' : 's'} will send when you're back online.` : ' Every game you finish is saved.'}
+                    </p>
+                    <button type="button" className="btn primary" onClick={closeSheet}>
+                      Done
+                    </button>
+                    <button
+                      type="button"
+                      className="btn ghost"
+                      onClick={() => {
+                        setNameEdit(cloud.name ?? '')
+                        setErr('')
+                        setEditing(true)
+                      }}
+                    >
+                      Change name
+                    </button>
+                    <button type="button" className="btn ghost" data-testid="switch-player" onClick={beginSwitch}>
+                      Switch player
+                    </button>
+                    <button type="button" className="btn ghost" onClick={() => { void signOut(); closeSheet() }}>
+                      Sign out
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>,
