@@ -97,6 +97,14 @@ function limitedDaysLeft(p: PetDef, now: number): number {
   return 0
 }
 
+/** A catalog clip for this guide, or null when no recording exists (those guides stay hidden). */
+export function guideVoiceClip(tag: string): string | null {
+  if (tag.startsWith('card-')) return null
+  if (tag.startsWith('hungry-') || tag.startsWith('drowsy-') || tag.startsWith('meh-')) return 'old_remind_pets'
+  if (tag.startsWith('streak-')) return 'old_remind_streak'
+  return 'old_remind_coins'
+}
+
 /**
  * All guide candidates in priority order: warnings first (urgent), then
  * opportunities, then progress. App.tsx applies the frequency caps

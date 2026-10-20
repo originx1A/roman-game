@@ -59,7 +59,7 @@ let needsGesture = true
 /** In-flight silent play() that is unlocking the element. Must not be paused. */
 let priming: Promise<boolean> | null = null
 /** One blocked line, retried once on the next successful prime. */
-let retryLine: { id: string; opts: PlayVoiceOpts; at: number; used: boolean } | null = null
+let retryLine: { id: string; opts: PlayVoiceOpts; at: number; used: boolean; hold: boolean } | null = null
 let voiceGraphAttached = false
 let visibilityWatch = false
 let silentUrl: string | null = null
@@ -761,6 +761,7 @@ function releaseVoice(gen: number) {
   if (gen !== voiceGeneration) return
   clearVoiceSafety()
   clearVoiceHandlers(voiceEl)
+  const endedClip = currentClip
   currentLine = null
   currentClip = null
   voiceFreeSince = 0
@@ -776,12 +777,28 @@ function releaseVoice(gen: number) {
   }
   const next = waitingLine
   waitingLine = null
+  if (endedClip) {
+    for (const watch of voiceEndWatchers) {
+      try {
+        watch(endedClip)
+      } catch {
+        /* a bubble must not break the channel */
+      }
+    }
+  }
   if (next && performance.now() <= next.until) {
-    // Small gap so two voices don't run into each other
+    // Quiet beat so two speakers don't run into each other
     window.setTimeout(() => {
       if (!currentLine) playVoice(next.id, { ...next.opts, waitMs: 0 })
-    }, 250)
+    }, 500)
   }
+}
+
+const voiceEndWatchers = new Set<(clip: string) => void>()
+/** Told when a clip leaves the channel, so a speech bubble can hide with it. */
+export function watchVoiceEnd(fn: (clip: string) => void): () => void {
+  voiceEndWatchers.add(fn)
+  return () => voiceEndWatchers.delete(fn)
 }
 
 /** 9.30-f: told when a clip actually starts playing (the line bags only count heard lines) */
@@ -969,18 +986,22 @@ function primeElement(el: HTMLAudioElement): Promise<boolean> {
 
 function armRetry(id: string, opts: PlayVoiceOpts) {
   if (opts.retry || muted || !voiceEnabled) return
+  // The first line blocked before any tap stays queued until a gesture unlocks audio.
+  const hold = !voiceUnlocked
+  if (retryLine?.hold && !voiceUnlocked) return
   retryLine = {
     id,
     opts: { mood: opts.mood, priority: opts.priority, waitMs: 0, alts: opts.alts },
     at: performance.now(),
     used: false,
+    hold,
   }
 }
 
 function flushRetry() {
   const lined = retryLine
   if (!lined || lined.used || currentLine || muted || !voiceEnabled) return
-  if (!retryStillFresh(lined.at, performance.now())) {
+  if (!retryStillFresh(lined.at, performance.now(), undefined, lined.hold && !voiceUnlocked)) {
     retryLine = null
     return
   }
@@ -1339,9 +1360,9 @@ function clipObjectUrl(id: string): Promise<string | null> {
 /**
  * Play one voice line on the shared channel.
  * - Only catalog clips play (Roman = Brian, coach = Jenny); anything else is ignored (silent).
- * - One line at a time. Roman does not play a second line in the same moment.
- * - The Unseen cuts Roman off and plays instead. Roman does not start while the Unseen is speaking.
- * - Other voices: a higher line waits (or replaces one that has not been heard yet). Equal or lower is skipped.
+ * - One line at a time. A line the player can hear is never cut off.
+ * - A new line waits its turn, or is skipped if it is less important or the same speaker again.
+ * - A line that is still loading can be replaced by a higher one.
  */
 export function playVoice(id: string, opts: PlayVoiceOpts = {}) {
   if (muted || !voiceEnabled || !id) return
@@ -1370,11 +1391,9 @@ export function playVoice(id: string, opts: PlayVoiceOpts = {}) {
     if (replacesWaiting(waitingLine ? (waitingLine.opts.priority ?? 1) : null, priority)) waitingLine = { id, opts, until: d.until }
     return
   }
-  // The Unseen is speaking now. Drop any Roman line that was waiting to start after this.
-  if (speaker === 'oldtimer') waitingLine = null
-  else if (waitingLine && priority >= (waitingLine.opts.priority ?? 1)) waitingLine = null
-  // A new line replaces a blocked one. The retry call itself must keep its slot.
-  if (!opts.retry) retryLine = null
+  if (waitingLine && priority >= (waitingLine.opts.priority ?? 1)) waitingLine = null
+  // A new line replaces a blocked one, except the first line held for the opening tap.
+  if (!opts.retry && !(retryLine?.hold && !voiceUnlocked)) retryLine = null
   const el = voicePlayer()
   if (!el) {
     warnVoice(`${id}.mp3`, 'no audio element on this device')

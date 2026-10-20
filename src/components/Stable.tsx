@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { HelpMark } from './HelpMark'
 import {
   BUNDLES,
   bundleQuote,
@@ -279,9 +280,10 @@ export type StableProps = {
   /** Signed-in (or local) player name, highlighted in the stable */
   playerName?: string
   signedIn?: boolean
+  onHelp?: () => void
 }
 
-export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCare, onFeed, today, onEquip, onPeek, onRedeem, onShop, onBack, giftCode, focusPet, giftsOnline, isSignedIn, playerName, signedIn }: StableProps) {
+export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCare, onFeed, today, onEquip, onPeek, onRedeem, onShop, onBack, giftCode, focusPet, giftsOnline, isSignedIn, playerName, signedIn, onHelp }: StableProps) {
   const [code, setCode] = useState(giftCode ?? '')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -375,7 +377,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
           ←
         </button>
         <div>
-          <h2>The Stable</h2>
+          <h2>The Stable {onHelp ? <HelpMark id="buddies" onOpen={() => onHelp()} /> : null}</h2>
           <p className="stable-sub">Roman's buddies. Keep them forever, ride with one.</p>
           {playerName ? (
             <p className="stable-player" data-testid="stable-player">

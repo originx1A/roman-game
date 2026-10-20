@@ -35,6 +35,7 @@ export function HomeUnseenReminder({ facts, onConsumed }: { facts: ReminderFacts
     if (lastVisit && now - lastVisit.at < 500) {
       idRef.current = lastVisit.id
       setText(lastVisit.text)
+      if (lastVisit.id) void playReminderLine(lastVisit.id)
       onConsumed()
       return
     }

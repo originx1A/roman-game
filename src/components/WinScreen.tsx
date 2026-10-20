@@ -147,7 +147,7 @@ export function WinScreen({
               </div>
             ) : null}
 
-            <p className="win-roman-says">{romanSaying}</p>
+            {romanSaying ? <p className="win-roman-says">{romanSaying}</p> : null}
 
             <p className="win-sheet-kicker">
               <span className="win-screen-board">{puzzleName}</span> · {difficultyLabel} · {themeLabel}

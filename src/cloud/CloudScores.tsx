@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { KeyboardNameSheet, useKeyboardNameEntry } from '../components/KeyboardNameSheet'
+import { LegalLine } from '../components/LegalLine'
 import { isProfane } from './profanity'
 import { NAME_MAX, cloudState, loadConsent, saveConsent, onCloud, renamePlayer, savePlayerName, scoreSaveLabel, sendMagicLink, signInCode, signInEmail, signOut, verifyEmailCode, type CloudState } from './cloud'
 
@@ -30,10 +31,13 @@ export type CloudScoreActions = {
 export function CloudScoresButton({
   suggestedName,
   compact,
+  buttonLabel,
   children,
 }: {
   suggestedName?: string
   compact?: boolean
+  /** Short label when this button sits with the other sign-in choices. */
+  buttonLabel?: string
   /** When set, the big Save button is not rendered. The sheet still is. */
   children?: (actions: CloudScoreActions) => ReactNode
 }) {
@@ -78,6 +82,7 @@ export function CloudScoresButton({
           </a>
         </span>
       </label>
+      <LegalLine />
       <label className="cloud-check">
         <input type="checkbox" checked={optIn} onChange={(e) => setOptIn(e.target.checked)} />
         <span>Get Roman's World News: the story behind this game. Unsubscribe anytime.</span>
@@ -230,7 +235,7 @@ export function CloudScoresButton({
           data-testid="save-scores"
           onClick={openSignIn}
         >
-          {label}
+          {buttonLabel || label}
         </button>
       )}
       {nameInKeyboard && (
@@ -293,7 +298,7 @@ export function CloudScoresButton({
                 onSubmit={async (e) => {
                   e.preventDefault()
                   const digits = signInCode(code)
-                  // 6 to 10 digits. A shorter prefix must not call verifyOtp.
+                  // Accept every digit Supabase sent (6 to 10). A short prefix must not call verifyOtp.
                   // A second submit (double click, or Enter plus the button) must not start another check.
                   if (digits.length < 6 || digits.length > 10 || verifyingRef.current) return
                   verifyingRef.current = true
@@ -311,7 +316,7 @@ export function CloudScoresButton({
                 <h3>Check your email</h3>
                 <p className="start-sheet-tip">
                   {switchedAway
-                    ? <>We sent it to <b>{sentEmail || signInEmail(email)}</b>. Tap the link, or enter the code from your email, to finish switching. This device stays signed out until then.</>
+                    ? <>We sent it to <b>{sentEmail || signInEmail(email)}</b>. Tap the link in your email, or enter the code from your email, to finish switching. This device stays signed out until then.</>
                     : <>We sent it to <b>{sentEmail || signInEmail(email)}</b>. Tap the link in your email, or enter the code from your email.</>}
                 </p>
                 {sentAt && sentEmail && (
@@ -350,7 +355,7 @@ export function CloudScoresButton({
                   }}
                 />
                 {err && <p className="cloud-err" role="alert" data-testid="signin-code-error">{err}</p>}
-                <button type="submit" className="btn primary" data-testid="signin-code-submit" disabled={busy || signInCode(code).length < 6}>
+                <button type="submit" className="btn primary" data-testid="signin-code-submit" disabled={busy || signInCode(code).length < 6 || signInCode(code).length > 10}>
                   {busy ? 'Checking…' : 'Sign in with code'}
                 </button>
                 <button

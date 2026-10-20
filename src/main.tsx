@@ -21,4 +21,10 @@ if (owner) {
   document.head.appendChild(title)
 }
 
+if (!owner && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register('./sw.js').catch(() => undefined)
+  })
+}
+
 createRoot(document.getElementById('root')!).render(<StrictMode>{owner ? <OwnerGifts /> : <App />}</StrictMode>)

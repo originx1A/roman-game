@@ -57,8 +57,10 @@ export function pauseEndsLine(opts: { paused: boolean; ended: boolean; sincePlay
   return opts.sincePlayMs >= (opts.graceMs ?? PAUSE_GRACE_MS)
 }
 
-export function retryStillFresh(armedAt: number, now: number, ttlMs = VOICE_RETRY_TTL_MS): boolean {
-  return Number.isFinite(armedAt) && now >= armedAt && now - armedAt <= ttlMs
+export function retryStillFresh(armedAt: number, now: number, ttlMs = VOICE_RETRY_TTL_MS, holdUntilGesture = false): boolean {
+  if (!Number.isFinite(armedAt) || now < armedAt) return false
+  if (holdUntilGesture) return true
+  return now - armedAt <= ttlMs
 }
 
 /**

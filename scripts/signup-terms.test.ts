@@ -19,7 +19,7 @@ test('sign-up sheet requires Terms and Privacy, and leaves the news box unchecke
 
 test('the website link is on home, the logo, and account, and opens in a new tab', () => {
   const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8')
-  const home = app.slice(app.indexOf("{screen === 'home'"), app.indexOf("{screen === 'how'"))
+  const home = app.slice(app.indexOf("{screen === 'home' &&"), app.indexOf("{screen === 'how' &&"))
   const account = app.slice(app.indexOf("{screen === 'profile'"), app.indexOf('<section className="leaderboard">'))
   assert.match(home, /data-testid="home-site-link"/)
   assert.match(home, /Visit romansgame\.com/)
@@ -27,12 +27,14 @@ test('the website link is on home, the logo, and account, and opens in a new tab
   assert.match(account, /data-testid="account-website"/)
   assert.match(account, />\s*Website\s*</)
   const brandAt = app.indexOf('data-testid="brand-site"')
-  const brand = app.slice(Math.max(0, brandAt - 240), brandAt + 40)
-  for (const chunk of [home, account, brand]) {
+  const brand = app.slice(Math.max(0, brandAt - 80), brandAt + 240)
+  for (const chunk of [home, account]) {
     assert.match(chunk, /href="https:\/\/romansgame\.com"/)
     assert.match(chunk, /target="_blank"/)
     assert.match(chunk, /rel="noopener"/)
   }
+  assert.match(brand, /setScreen\('home'\)/)
+  assert.doesNotMatch(brand, /href="https:\/\/romansgame\.com"/)
   assert.equal(app.includes("hideChrome = screen === 'play'"), true)
   const logo = app.slice(app.indexOf('data-testid="site-logo"') - 280, app.indexOf('data-testid="site-logo"') + 220)
   assert.match(logo, /href="https:\/\/romansgame\.com"/)
@@ -49,10 +51,11 @@ test('sign-in sheet keeps the magic link and accepts a 6 to 10 digit code', () =
   assert.match(sheet, /inputMode="numeric"/)
   assert.match(sheet, /maxLength=\{10\}/)
   assert.match(sheet, /signInCode\(code\)\.length < 6/)
-  assert.match(sheet, /verifyEmailCode\(/)
+  assert.match(sheet, /verifyEmailCode\(sentEmail \|\| signInEmail\(email\), digits\)/)
   assert.match(cloud, /token\.replace\(\/\\s\/g, ''\)/)
   assert.match(cloud, /slice\(0, 10\)/)
   assert.match(cloud, /\\d\{6,10\}/)
+  assert.match(cloud, /verifyOtp\(\{ email: address, token: code, type \}\)/)
   assert.match(cloud, /signInWithOtp/)
   assert.doesNotMatch(cloud, /\\d\{8\}/)
   assert.doesNotMatch(sheet, /maxLength=\{8\}/)

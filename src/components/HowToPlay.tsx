@@ -43,11 +43,13 @@ export function HowToPlay({
   onBack,
   startAt = 0,
   doneLabel = 'Choose a level',
+  focusId = '',
 }: {
   onDone: () => void
   onBack?: () => void
   startAt?: number
   doneLabel?: string
+  focusId?: string
 }) {
   const [step, setStep] = useState(() => Math.max(0, Math.min(STEPS.length - 1, startAt)))
   const current = STEPS[step]
@@ -57,6 +59,13 @@ export function HowToPlay({
     const id = window.setTimeout(() => setStep((n) => (n + 1) % STEPS.length), s.ms ?? STEP_MS)
     return () => window.clearTimeout(id)
   }, [step])
+
+  useEffect(() => {
+    if (!focusId) return
+    const el = document.getElementById(focusId)
+    if (el instanceof HTMLDetailsElement) el.open = true
+    el?.scrollIntoView({ block: 'start' })
+  }, [focusId])
 
   return (
     <main className="panel scroll-pane how-panel">
@@ -70,24 +79,50 @@ export function HowToPlay({
       </div>
       <p className="sub how-sub">The short version. The pictures below walk through the same ideas.</p>
       <section className="how-plain" aria-label="How the game works">
-        <h3>Rules and levels</h3>
-        <p>One buddy in every row, every column, and every colored region. They cannot touch, even at a corner. Swipe an X. Tap an X to place a buddy. Levels run easy, medium, hard, and expert. Stars: finish, beat the time, then beat the time and the score with no undos.</p>
-        <h3>Hints and revives</h3>
-        <p>Three mistakes cost a heart. A hint or a revive spends coins, or a free hint if you have one. Undo costs 25 points and breaks a combo.</p>
-        <h3>Coins</h3>
-        <p>You earn coins by playing. You can also buy them. Coins are not real money and cannot be cashed out.</p>
-        <h3>Treats</h3>
-        <p>Wins earn field treats. Claim them safe, then feed buddies or convert snacks into coins. You confirm before converting. Feasts and field treats are not converted. Nothing turns back into cash.</p>
-        <h3>Shop</h3>
-        <p>Real money is its own section: coin packs and the starter pack, each with a card icon and a price. Spend coins is separate, with a coin icon, for animals, treats, and badge upgrades.</p>
-        <h3>Buddies</h3>
-        <p>Buddies live in the Stable. Feed them, and one can ride along. New players can claim one buddy free.</p>
-        <h3>Rewards</h3>
-        <p>Badges, streaks, and daily prizes come from playing. Upgrade a badge with coins.</p>
-        <h3>Scores and account</h3>
-        <p>A name saves scores on this device. Sign in and finished games upload to your account.</p>
-        <h3>Friends</h3>
-        <p>Share a board so a friend can beat your time. Star players on the Board to keep a friends list. The Daily is one board a day. Remix boards change every three days.</p>
+        <details id="help-playing" open>
+          <summary>Playing a board</summary>
+          <p>One buddy in every row, every column, and every colored region. They cannot touch, even at a corner. Swipe an X. Tap an X to place a buddy.</p>
+        </details>
+        <details id="help-daily">
+          <summary>Daily and Remix</summary>
+          <p>The Daily is one board a day. Your first try is the one that counts. Remix boards change every three days and are the same for everyone.</p>
+        </details>
+        <details id="help-hints">
+          <summary>Hints, Undo, and Rescue</summary>
+          <p>Three mistakes cost a heart. A hint or a rescue spends coins, or a free one if you have it. Undo costs 25 points. A revive spends coins and puts a heart back.</p>
+        </details>
+        <details id="help-buddies">
+          <summary>Buddies and the Stable</summary>
+          <p>Buddies live in the Stable. Feed them, and one can ride along. New players can claim one buddy free. A perfect win fills the buddy meter. Three notches open Buddy Hunt.</p>
+        </details>
+        <details id="help-coins">
+          <summary>Coins and Treats</summary>
+          <p>You earn coins by playing. You can also buy them. Coins are not real money and cannot be cashed out. Wins earn field treats. Claim them safe, then feed buddies or convert snacks into coins. You confirm before converting. Feasts and field treats are not converted. Nothing turns back into cash.</p>
+        </details>
+        <details id="help-shop">
+          <summary>Shop</summary>
+          <p>Real money is its own section, with a card icon and a price in Canadian dollars. Spend coins is separate, with a coin icon, for animals, treats, and badge upgrades. Prices are proposed until they are approved.</p>
+        </details>
+        <details id="help-rewards">
+          <summary>Rewards</summary>
+          <p>Badges, streaks, and parades come from playing. Upgrade a badge with coins. Catch sparks to earn a prize spin.</p>
+        </details>
+        <details id="help-board">
+          <summary>Leaderboard</summary>
+          <p>Finished games can show on the Board. Stars, time, and score decide the rank. Star a player to ask them to be friends.</p>
+        </details>
+        <details id="help-share">
+          <summary>Share</summary>
+          <p>Share a board so a friend can beat your time. You can also send a challenge from the Board.</p>
+        </details>
+        <details id="help-account">
+          <summary>Account and saving</summary>
+          <p>You can play as a guest. Sign in with email, Google, a passkey, or a code from another device to keep your name and scores. A name on this device is kept here too.</p>
+        </details>
+        <details id="help-offline">
+          <summary>Offline play</summary>
+          <p>Boards you already have keep working without a connection. Buying coins needs a connection. Messages wait and send when you are back online.</p>
+        </details>
       </section>
       <div className="how-stage" data-demo={current.demo}>
         <HowDemo key={current.demo} demo={current.demo} />

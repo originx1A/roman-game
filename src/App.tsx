@@ -11,10 +11,18 @@ import { ResultOverlay } from './components/ResultOverlay'
 import { WinScreen, type WinReplay } from './components/WinScreen'
 import { type ShortfallAction } from './components/ShortfallSheet'
 import { ShortfallSheetHost } from './components/ShortfallSheetHost'
-import { CoinPackCard } from './components/CoinPackCard'
-import { STARTER_PACK_PRICE } from './game/starterPack'
+import { OfflineBuyButton } from './components/CoinPackCard'
+import { HelpMark } from './components/HelpMark'
+import { LegalLine } from './components/LegalLine'
+import { formatCad, savingsCents, SHOP_OFFERS, shopOfferById } from './game/shopOffers'
+import { coinStackDiscs, formatPackCoins } from './game/coinPackDisplay'
 import './styles/store-layer.css'
 import { ShareBar } from './components/ShareBar'
+import { QuietToast } from './components/QuietToast'
+import { SyncNote } from './components/SyncNote'
+import { PlayNudge } from './components/PlayNudge'
+import { InboxButton, InboxScreen } from './components/InboxScreen'
+import { AccountSocial, PlayerChip } from './components/AccountSocial'
 import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './components/SparkCritter'
 import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
@@ -25,13 +33,16 @@ import { UnseenGuide, PetPopout, type GuideItem, type PetPopoutInfo } from './co
 import { HomeUnseenReminder } from './components/UnseenReminder'
 import { CloudScoresButton, useCloud } from './cloud/CloudScores'
 import { Leaderboard } from './cloud/Leaderboard'
-import { NAME_MAX, initCloud, loadPublicScores, renamePlayer, saveScore, scoreSaveLabel, signOut as cloudSignOut } from './cloud/cloud'
+import { NAME_MAX, getSupabase, initCloud, loadPublicScores, renamePlayer, saveScore, scoreSaveLabel, signOut as cloudSignOut } from './cloud/cloud'
+import { noteWalletCoins, type CoinMeta } from './social/coins'
+import { armRound, isFriend, noteRoundScore, sendChallenge, sendLive, setPlaying, startSocial, type InboxItem } from './social/hub'
+import { setQuietRound } from './game/quietQueue'
 import { cloudModeForWin } from './game/scoreMode'
 import { leaderboardTease, loadBoardSeen, saveBoardSeen } from './game/leaderboardTease'
 import { isProfane } from './cloud/profanity'
 import { UnseenCardTile } from './components/UnseenCard'
 import { noteCardWin, localCard, CARD_PIECES } from './game/unseenCard'
-import { guideCandidates, petPopoutPick, type GuideTarget } from './game/unseenGuide'
+import { guideCandidates, guideVoiceClip, petPopoutPick, type GuideTarget } from './game/unseenGuide'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
 import { TapButton } from './components/TapButton'
 import { BuddyHunt } from './components/BuddyHunt'
@@ -192,6 +203,8 @@ import {
   duelWinner,
   encodeChallengeLink,
   encodeDuelLink,
+  packBoardLayout,
+  registerSharedBoard,
   formatShareTime,
   mailtoChallenge,
   parseChallengeFromHash,
@@ -275,6 +288,7 @@ import {
 } from './game/storage'
 import {
   playBanterClip,
+  playVoice,
   setMuted,
   setVoiceEnabled,
   sfxAchievement,
@@ -295,7 +309,7 @@ import {
   petGiggle,
 } from './game/sound'
 import { isComputerPlayer } from './game/lineCaption'
-import { COIN_PACKS, purchaseCoinPack, restorePurchases, isStoreBuild, subscribeStore, type CoinPackId } from './game/iap'
+import { purchaseCoinPack, restorePurchases, isStoreBuild, subscribeStore, type CoinPackId } from './game/iap'
 import { loadWebPacks, type WebPackOffer } from './game/webPacks'
 import './App.css'
 
@@ -492,6 +506,7 @@ export default function App() {
   // 9.32: player accounts + score saving (lazy, never blocks the game)
   useEffect(() => {
     void initCloud()
+    startSocial()
   }, [])
   useEffect(() => {
     setGaEnabled(!isStoreBuild() && settingsRef.current.analytics !== false)
@@ -617,17 +632,14 @@ export default function App() {
           previousRank: seen?.rank ?? null,
           lastSituation: seen?.situation ?? null,
         })
-        if (tease.rank != null) saveBoardSeen(you, tease.rank, tease.situation)
         if (!tease.text || boardOverRef.current !== 'won') return
-        unseenKey.current += 1
-        setUnseenPop({ text: tease.text, key: unseenKey.current, holdMs: 8000 })
+        // No recording matches this tease, so it stays off the screen.
+        if (tease.rank != null) saveBoardSeen(you, tease.rank, tease.situation)
       })
     }, 7500)
   }
-  // PR #53 batch 2 (Tony 2026-10-19): the Unseen as guide character.
-  // Visual-only (his guide lines have no recorded audio); tappable deep-links.
-  // Appearing never touches the timer — he's a distraction mid-board; the timer
-  // only pauses via the existing navigation behavior when the player taps through.
+  // The Unseen as guide. Each line uses an existing recording. A guide with no clip stays hidden.
+  // Appearing never touches the timer.
   const [guide, setGuide] = useState<GuideItem | null>(null)
   const [petPop, setPetPop] = useState<PetPopoutInfo | null>(null)
   const guideKey = useRef(0)
@@ -659,8 +671,16 @@ export default function App() {
   const [nameField, setNameField] = useState('')
   const [editingName, setEditingName] = useState(false)
   const nameFocus = useRef(false)
-  const [storePrices, setStorePrices] = useState<Record<string, string>>({})
+  const [, setStorePrices] = useState<Record<string, string>>({})
   const [webPacks, setWebPacks] = useState<WebPackOffer[] | null>(null)
+  const [starterOwned, setStarterOwned] = useState(() => {
+    try {
+      return localStorage.getItem('roman.shop.starter') === '1'
+    } catch {
+      return false
+    }
+  })
+  const [helpFocus, setHelpFocus] = useState('')
   const [webShop, setWebShop] = useState<'loading' | 'ready' | 'unavailable'>('loading')
   const [challengeEmail, setChallengeEmail] = useState('')
   const [challengeMsg, setChallengeMsg] = useState('Can you beat me on this board?')
@@ -927,27 +947,36 @@ export default function App() {
     let cancelled = false
     void import('./game/webCheckout').then(async (mod) => {
       if (cancelled) return
+      if (sessionId.startsWith('cs_live_')) {
+        showToast('Live checkout is not turned on yet.')
+        return
+      }
       if (mod.wasCheckoutRedeemed(sessionId)) {
         showToast('Those coins are already in your wallet.')
         clean()
         return
       }
-      const result = await mod.confirmWebCheckout(sessionId)
+      const sb = await getSupabase()
+      const token = sb ? (await sb.auth.getSession()).data.session?.access_token : undefined
+      if (!token) {
+        showToast('Sign in so this purchase can be saved to your account.')
+        return
+      }
+      const result = await mod.claimWebCredit(sessionId, token)
       if (cancelled) return
-      clean()
       if (!result.ok) {
         showToast(result.reason)
         return
       }
+      clean()
       mod.rememberCheckoutRedeemed(sessionId)
-      if (result.alreadyRedeemed || result.coins <= 0) {
-        showToast('Those coins are already in your wallet.')
+      if (result.duplicate) {
+        showToast('That purchase is already in your account.')
         return
       }
-      const current = loadWallet()
-      persistWallet({ ...current, coins: current.coins + result.coins })
+      applyShopGrant(result.offerId, result.coins, result.treats, result.pets)
       sfxCoin()
-      showToast(`+${result.coins} coins · ${result.label}`)
+      showToast(`Added ${result.label}`)
     })
     return () => {
       cancelled = true
@@ -1006,27 +1035,32 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const duelParsed = parseDuelFromHash(window.location.hash)
-    if (duelParsed) {
-      setDuel(duelParsed)
-      setDuelLink(publicLinkWithHash(window.location.hash))
-      setShareText(duelShareText(duelParsed))
-      setLinkBoardError(getPuzzle(duelParsed.puzzleId) ? '' : MISSING_BOARD)
-      setScreen('duel')
-      window.history.replaceState(null, '', window.location.pathname)
-      return
+    function openFromHash() {
+      const duelParsed = parseDuelFromHash(window.location.hash)
+      if (duelParsed) {
+        setDuel(duelParsed)
+        setDuelLink(publicLinkWithHash(window.location.hash))
+        setShareText(duelShareText(duelParsed))
+        setLinkBoardError(getPuzzle(duelParsed.puzzleId) ? '' : MISSING_BOARD)
+        setScreen('duel')
+        window.history.replaceState(null, '', window.location.pathname)
+        return
+      }
+      const parsed = parseChallengeFromHash(window.location.hash)
+      if (parsed) {
+        const full: Challenge = { ...parsed, createdAt: new Date().toISOString() }
+        setIncoming(full)
+        setActiveChallenge(full)
+        addChallenge(full)
+        setChallenges(loadChallenges())
+        setLinkBoardError(getPuzzle(parsed.puzzleId) ? '' : MISSING_BOARD)
+        setScreen('challenge')
+        window.history.replaceState(null, '', window.location.pathname)
+      }
     }
-    const parsed = parseChallengeFromHash(window.location.hash)
-    if (parsed) {
-      const full: Challenge = { ...parsed, createdAt: new Date().toISOString() }
-      setIncoming(full)
-      setActiveChallenge(full)
-      addChallenge(full)
-      setChallenges(loadChallenges())
-      setLinkBoardError(getPuzzle(parsed.puzzleId) ? '' : MISSING_BOARD)
-      setScreen('challenge')
-      window.history.replaceState(null, '', window.location.pathname)
-    }
+    openFromHash()
+    window.addEventListener('rg-open-hash', openFromHash)
+    return () => window.removeEventListener('rg-open-hash', openFromHash)
   }, [])
 
   // A phone turned sideways during a board: the "turn upright" overlay covers the board and the clock
@@ -1382,10 +1416,46 @@ export default function App() {
     saveRecords(next)
   }
 
-  function persistWallet(next: Wallet) {
+  function persistWallet(next: Wallet, meta?: CoinMeta) {
+    const prev = loadWallet()
     setWallet(next)
     saveWallet(next)
+    noteWalletCoins(prev, next, meta)
   }
+
+  useEffect(() => {
+    const playing = screen === 'play' && !celebrate && !defeated
+    setPlaying(playing)
+    setQuietRound(playing)
+  }, [screen, celebrate, defeated])
+
+  useEffect(() => {
+    const onReject = (event: Event) => {
+      const detail = (event as CustomEvent<{ balance?: number | null; cost?: number; undo?: { badgeRanks?: Wallet['badgeRanks']; pets?: PetState | null }; note?: string }>).detail
+      const current = loadWallet()
+      const coins = typeof detail?.balance === 'number' ? detail.balance : current.coins + (Number(detail?.cost) || 0)
+      const next: Wallet = { ...current, coins, ...(detail?.undo?.badgeRanks ? { badgeRanks: detail.undo.badgeRanks } : {}) }
+      setWallet(next)
+      saveWallet(next)
+      if (detail?.undo?.pets) persistPets(detail.undo.pets)
+      showToast(detail?.note || 'We put the coins back and locked that item.')
+    }
+    const onBalance = (event: Event) => {
+      const balance = (event as CustomEvent<{ balance?: number }>).detail?.balance
+      if (typeof balance !== 'number') return
+      const current = loadWallet()
+      if (current.coins === balance) return
+      const next = { ...current, coins: balance }
+      setWallet(next)
+      saveWallet(next)
+    }
+    window.addEventListener('rg-coin-reject', onReject)
+    window.addEventListener('rg-balance', onBalance)
+    return () => {
+      window.removeEventListener('rg-coin-reject', onReject)
+      window.removeEventListener('rg-balance', onBalance)
+    }
+  }, [])
 
   /** 9.30-m: today's ledger (a new day starts fresh), read from storage so two tabs can't double-count */
   function ledgerNow(): Ledger {
@@ -1422,12 +1492,13 @@ export default function App() {
   function onAdoptPet(id: PetId) {
     const now = Date.now()
     const w = loadWallet()
-    const r = buyPet(loadPets(), w.coins, id, now)
+    const beforePets = loadPets()
+    const r = buyPet(beforePets, w.coins, id, now)
     if (!r.ok) {
       showToast(r.reason)
       return
     }
-    persistWallet({ ...w, coins: r.coins })
+    persistWallet({ ...w, coins: r.coins }, { itemType: 'pet', itemId: id, undoPets: beforePets })
     persistPets(r.state)
     sfxCoin()
     petGiggle()
@@ -1971,6 +2042,7 @@ export default function App() {
       } catch {
         /* never block the win */
       }
+      void noteRoundScore(score, elapsedMs)
       // Personal bests, stars, Trial and Daily
       let replay: RunResult | null = null
       let rec = records
@@ -2024,7 +2096,7 @@ export default function App() {
                 : 'win'
       if (isRecord) sfxRecord()
       const win = pushBanter(winEvent)
-      setWinLine(win.text || 'Roman says: nice clear!')
+      setWinLine(win.text && win.clip ? win.text : '')
       // Slow or sloppy clear (lost a heart, 2+ hints, or over 3 minutes): the Unseen may chime in
       // with a backhanded compliment once Roman's cheer is done (never on top of it)
       // Voice tips: what the player has shown they get, and how to reach 3 stars if they missed it
@@ -2743,28 +2815,81 @@ export default function App() {
       showToast(reason || 'Cannot upgrade')
       return
     }
-    persistWallet(result.wallet)
+    persistWallet(result.wallet, { itemType: 'badge', itemId: `${badgeId}:${badgeRank(result.wallet, badgeId)}` })
     sfxCoin()
     const rank = badgeRank(result.wallet, badgeId)
     const def = BADGES.find((b) => b.id === badgeId)
     showToast(`${def?.title ?? badgeId} → Rank ${rank} · +${formatBonusPercent(totalCoinBonusPercent(result.wallet))} coins`)
   }
 
-  async function onBuyCoins(packId: CoinPackId) {
+  function applyShopGrant(offerId: string, coins: number, treats: number, petIds: readonly string[]) {
+    const now = Date.now()
+    const w = loadWallet()
+    if (coins > 0) persistWallet({ ...w, coins: w.coins + coins }, { itemId: offerId })
+    let ps = loadPets()
+    if (treats > 0) ps = grantTreat(ps, 'snack', treats)
+    for (const id of petIds) {
+      if (id === 'premium-choice') {
+        try {
+          localStorage.setItem('roman.bundle.premium', '1')
+        } catch {
+          /* ignore */
+        }
+        showToast('Pick your premium buddy in the Stable.')
+        continue
+      }
+      const pet: PetId | undefined =
+        id === 'random-common'
+          ? PETS.find((p) => p.tier === 'common' && !ps.owned[p.id])?.id
+          : id === 'lupa' || id === 'aquila' || id === 'leo' || id === 'invictus' || id === 'nox'
+            ? id
+            : undefined
+      if (!pet || ps.owned[pet]) continue
+      ps = { ...ps, owned: { ...ps.owned, [pet]: { at: now, xp: 0, gift: true } }, active: ps.active ?? pet }
+    }
+    persistPets(ps)
+    if (shopOfferById(offerId)?.once) {
+      try {
+        localStorage.setItem('roman.shop.starter', '1')
+      } catch {
+        /* ignore */
+      }
+      setStarterOwned(true)
+    }
+  }
+
+  async function onBuyCoins(packId: CoinPackId | string) {
     unlockAudio()
+    if (!isStoreBuild() && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      showToast('Connect to buy')
+      return
+    }
     if (!isStoreBuild()) {
+      const offer = shopOfferById(packId)
+      if (offer?.once && starterOwned) {
+        showToast('You already have the Starter Pack.')
+        return
+      }
+      const sb = await getSupabase()
+      const token = sb ? (await sb.auth.getSession()).data.session?.access_token : undefined
+      if (offer?.once && !token) {
+        showToast('Sign in first. The Starter Pack is once per account.')
+        setScreen('profile')
+        return
+      }
       const { startWebCheckout } = await import('./game/webCheckout')
-      const started = await startWebCheckout(packId)
+      const started = await startWebCheckout(packId, token)
       if (!started.ok) showToast(started.reason)
       return
     }
+    if (packId !== 'coins_100' && packId !== 'coins_500' && packId !== 'coins_1200' && packId !== 'coins_3000') return
     const result = await purchaseCoinPack(packId)
     if (!result.ok) {
       showToast(result.reason)
       return
     }
     if (result.credited) setWallet(loadWallet())
-    else persistWallet({ ...wallet, coins: wallet.coins + result.coins })
+    else persistWallet({ ...wallet, coins: wallet.coins + result.coins }, { itemId: 'shop' })
     sfxCoin()
     showToast(`+${result.coins} coins · ${result.pack.label}`)
   }
@@ -2798,7 +2923,35 @@ export default function App() {
 
   const done = new Set(progress.clears.map((c) => c.puzzleId))
 
-  const hideChrome = screen === 'play' || screen === 'how'
+  const hideChrome = screen === 'play'
+
+  function openHelp(id: string) {
+    setHelpFocus(id.startsWith('help-') ? id : `help-${id}`)
+    setNavOpen(false)
+    setScreen('how')
+  }
+
+  function goNextBoard() {
+    if (!puzzle) return
+    maybeParade(() => {
+      const rm = parseRemixId(puzzle.id)
+      if (rm) {
+        const nxt = rm.set === remixSet ? nextRemixSize(rm.size, (s) => records.levels[remixId(rm.set, s)]?.bestMs != null) : null
+        const nb = nxt ? liveRemix[nxt] : undefined
+        if (nb) startPuzzle(nb)
+        else {
+          setScreen('remix')
+          if (nxt) buildRemix(nxt, true)
+        }
+        return
+      }
+      if (endlessRef.current) {
+        startEndless(endlessRef.current)
+        return
+      }
+      startPuzzle(pickNextBoard(puzzle, PUZZLES, getProgress().clears))
+    })
+  }
 
   // Daily Challenge: same board for everyone on a Toronto date
   const todayKey = torontoDateKey()
@@ -2834,13 +2987,14 @@ export default function App() {
         piecesTotal: CARD_PIECES,
         streak: dailyStreakNow,
       }
-      const pick = guideCandidates(snapshot).find((c) =>
-        c.category === 'warning'
+      const pick = guideCandidates(snapshot).find((c) => {
+        if (!guideVoiceClip(c.tag)) return false
+        return c.category === 'warning'
           ? !guideWarnShownRef.current
           : c.category === 'opportunity'
             ? !guideOppShownRef.current
-            : !guideProgressFiredRef.current.has(c.tag),
-      )
+            : !guideProgressFiredRef.current.has(c.tag)
+      })
       if (pick) {
         if (pick.category === 'warning') guideWarnShownRef.current = true
         else if (pick.category === 'opportunity') guideOppShownRef.current = true
@@ -2849,6 +3003,8 @@ export default function App() {
         guideLastAtRef.current = Date.now()
         guideKey.current += 1
         setGuide({ kind: pick.kind, text: pick.text, target: pick.target, key: guideKey.current })
+        const clip = guideVoiceClip(pick.tag)
+        if (clip) playVoice(clip, { priority: 2 })
         return
       }
       // No guide: silent pet pop-out (lowest-mood pet needing care), once per
@@ -3087,7 +3243,7 @@ export default function App() {
 
   return (
     <div
-      className={`shell fixed-shell ${isStoreBuild() ? 'shell-native' : ''} ${screen === 'play' ? 'shell-play' : ''} ${screen === 'play' && celebrate && !showWheel ? 'shell-celebrate' : ''} ${hideChrome ? 'shell-immersive' : ''} shell-${screen}`}
+      className={`shell fixed-shell ${isStoreBuild() ? 'shell-native' : ''} ${screen === 'play' ? 'shell-play' : ''} ${screen === 'play' && celebrate && !showWheel ? 'shell-celebrate' : ''} ${screen === 'play' && (celebrate || defeated) ? 'shell-ended' : ''} ${hideChrome ? 'shell-immersive' : ''} shell-${screen}`}
       ref={shellRef}
       onPointerDown={unlockAudio}
     >
@@ -3095,18 +3251,19 @@ export default function App() {
       <style>{MENU_CSS}</style>
       {!hideChrome && (
         <header className="topbar topbar-slim">
-          <a
+          <button
+            type="button"
             className="brand"
-            href="https://romansgame.com"
-            target="_blank"
-            rel="noopener"
             data-testid="brand-site"
-            title="Visit romansgame.com"
+            onClick={() => {
+              setNavOpen(false)
+              setScreen('home')
+            }}
           >
             <span className="brand-mark" />
             <span className="brand-name brand-name-full">Roman's Game</span>
             <span className="brand-name brand-name-short" data-testid="brand-roman">Roman</span>
-          </a>
+          </button>
           <button
             type="button"
             className="nav-menu"
@@ -3117,10 +3274,13 @@ export default function App() {
             Menu
           </button>
           <nav id="app-nav" className={`nav${navOpen ? ' is-open' : ''}`}>
+            <button type="button" data-testid="nav-home" className={screen === 'home' ? 'on' : ''} onClick={() => { setNavOpen(false); setScreen('home') }}>
+              Home
+            </button>
             <button type="button" className={screen === 'levels' ? 'on' : ''} onClick={() => { setNavOpen(false); setScreen('levels') }}>
               Play
             </button>
-            <button type="button" data-testid="nav-how" title="How to play" onClick={() => { setNavOpen(false); setScreen('how') }}>
+            <button type="button" data-testid="nav-how" className={screen === 'how' ? 'on' : ''} title="How to play" onClick={() => { setNavOpen(false); setHelpFocus(''); setScreen('how') }}>
               How
             </button>
             <button type="button" className={screen === 'rewards' ? 'on' : ''} onClick={() => { setNavOpen(false); setScreen('rewards') }}>
@@ -3173,6 +3333,7 @@ export default function App() {
 
       {/* On a live board the toast text shows in the play caption slot instead (never over the board) */}
       {toast && (screen !== 'play' || celebrate || defeated) && <div className="toast">{toast}</div>}
+      <QuietToast />
 
       {namePrompt && <NamePromptSheet touch={touchName} nameDraft={nameDraft} setNameDraft={setNameDraft} onClose={closeNamePrompt} signedIn={signedIn} />}
 
@@ -3245,11 +3406,15 @@ export default function App() {
               <button type="button" className="btn ghost btn-sm" data-testid="home-board" onClick={() => setScreen('leaderboard')}>
                 Leaderboard
               </button>
+              <InboxButton onOpen={() => setScreen('inbox')} />
+              <PlayerChip onOpen={() => setScreen('profile')} />
               <button type="button" className="btn ghost btn-sm" onClick={() => setScreen('bug')}>
                 🐛 Report a bug
               </button>
               <UnseenCardTile records={records} />
             </div>
+            <PlayNudge home />
+            <SyncNote />
           </section>
           {/* 10.06: treat defense — the vulnerable field pile. Claim only on the board screen. */}
           <section className="treat-pile-widget" aria-label="Field treat pile">
@@ -3306,14 +3471,16 @@ export default function App() {
             <a href="https://romansgame.com" target="_blank" rel="noopener" data-testid="home-site-link">
               Visit romansgame.com
             </a>
+            <LegalLine />
           </footer>
         </main>
       )}
 
       {screen === 'how' && (
         <HowToPlay
-          key={`how-${howStart}`}
+          key={`how-${howStart}-${helpFocus}`}
           startAt={howStart}
+          focusId={helpFocus}
           doneLabel={pendingStartRef.current ? "Let's play" : 'Choose a level'}
           onDone={() => {
             settingsRef.current = { ...settingsRef.current, howSeen: true }
@@ -3338,16 +3505,52 @@ export default function App() {
         <BugReport currentScreen={screen} onBack={() => setScreen('home')} />
       )}
 
+      {screen === 'inbox' && (
+        <InboxScreen
+          onBack={() => setScreen('home')}
+          onPlay={(item: InboxItem) => {
+            if (item.kind === 'live') {
+              const matchId = String(item.payload.match || '')
+              const layout = String(item.payload.layout || '')
+              const board = layout ? registerSharedBoard(`live-${matchId || item.id}`, String(item.payload.puzzleName || item.payload.name || 'Live'), layout) : null
+              if (matchId) void getSupabase().then((sb) => sb?.rpc('join_live', { match_id: matchId }))
+              armRound({ kind: 'live', theirName: item.fromName, theirScore: 0, matchId })
+              if (board) startPuzzle(board)
+              else setScreen('home')
+              return
+            }
+            const link = String(item.payload.link || '')
+            const hash = link.includes('#') ? link.slice(link.indexOf('#')) : ''
+            armRound({ kind: 'challenge', theirName: item.fromName, theirScore: Number(item.payload.score) || 0 })
+            if (hash) {
+              window.location.hash = hash
+              window.dispatchEvent(new Event('rg-open-hash'))
+            } else setScreen('home')
+          }}
+        />
+      )}
+
       {screen === 'leaderboard' && (
         <Leaderboard
           you={playerName}
           signedIn={signedIn}
+          onHelp={() => openHelp('help-board')}
           badges={BADGES.filter((b) => badgeRank(wallet, b.id) >= 1).map((b) => b.icon)}
           showcase={{ pieces: localCard(records).pieces, earned: localCard(records).pieces >= CARD_PIECES }}
           onChallenge={(rival) => {
-            makeScoreChallenge(`${playerName || 'I'} challenge ${rival}. Beat my score.`)
+            const made = makeScoreChallenge(`${playerName || 'I'} challenge ${rival}. Beat my score.`)
+            if (isFriend(rival)) {
+              void sendChallenge(rival, { link: made.url }, `${playerName || 'A friend'} challenged you`)
+              showToast(`Challenge sent to ${rival}`)
+              return
+            }
             setScreen('challenge')
             showToast(`Challenge ready. Share it with ${rival}.`)
+          }}
+          onLive={(rival) => {
+            const target = puzzle ?? PUZZLES[0]
+            void sendLive(rival, packBoardLayout(target), target.name)
+            showToast(`Invite sent to ${rival}`)
           }}
         />
       )}
@@ -3602,6 +3805,17 @@ export default function App() {
               </div>
             )
           })()}
+          {(celebrate || defeated) && !showHunt && !showWheel ? (
+            <aside className="play-dock" data-testid="play-dock">
+              <p>
+                {celebrate ? 'Victory' : 'Out of hearts'} · {formatMs(elapsedMs)} · {lastScore ?? 0} pts · {lives} hearts
+              </p>
+              <p className="play-dock-buddy">Buddy meter {buddyMeter.notches}/{BUDDY_HUNT_PERFECT_WINS}</p>
+              <button type="button" className="btn primary" onClick={goNextBoard}>Next board</button>
+              <button type="button" className="btn ghost" onClick={resetBoard}>Play again</button>
+              <button type="button" className="btn ghost" onClick={() => setScreen('leaderboard')}>Leaderboard</button>
+            </aside>
+          ) : null}
           </div>
           <p className="build-tag" data-build={BUILD_TAG}>{BUILD_TAG}</p>
 
@@ -3611,7 +3825,7 @@ export default function App() {
                 <span className="rotate-phone-screen" />
               </span>
               <h3>Turn your phone upright</h3>
-              <p>Roman says: this board likes to stand tall. So do I.</p>
+              <p>Turn the phone upright. The board is paused.</p>
               <small>Paused — your board, hearts and time are saved.</small>
             </div>
           </div>
@@ -3647,7 +3861,7 @@ export default function App() {
               livesLeft={lives}
               maxLives={runMaxLives}
               sparkCount={wallet.critterStash ?? 0}
-              romanSaying={winLine || 'Roman says: Veni, vidi, vici!'}
+              romanSaying={winLine}
               spins={wallet.spins}
               perfect={hintsUsed === 0}
               replay={winReplay ?? undefined}
@@ -3655,25 +3869,7 @@ export default function App() {
               nextLabel={endlessRef.current ? 'Next Endless board' : parseRemixId(puzzle.id) ? 'Next Remix board' : 'Next board'}
               paradeHint={settings.parade === false ? undefined : paradeHint(paradeRef.current).text}
               modeNote={endlessRef.current ? `Endless mode · ${endless.cleared} cleared. Levels and Home are under More.` : parseRemixId(puzzle.id) ? boardKindNote(puzzle.id) : undefined}
-              onNext={() => maybeParade(() => {
-                // 9.30-i: Remix → the next uncleared board of the live set; Endless → another fresh board
-                const rm = parseRemixId(puzzle.id)
-                if (rm) {
-                  const nxt = rm.set === remixSet ? nextRemixSize(rm.size, (s) => records.levels[remixId(rm.set, s)]?.bestMs != null) : null
-                  const nb = nxt ? liveRemix[nxt] : undefined
-                  if (nb) startPuzzle(nb)
-                  else {
-                    setScreen('remix')
-                    if (nxt) buildRemix(nxt, true)
-                  }
-                  return
-                }
-                if (endlessRef.current) {
-                  startEndless(endlessRef.current)
-                  return
-                }
-                startPuzzle(pickNextBoard(puzzle, PUZZLES, getProgress().clears))
-              })}
+              onNext={goNextBoard}
               onReplay={resetBoard}
               onLevels={() => setScreen('levels')}
               onHome={() => setScreen('home')}
@@ -3785,49 +3981,88 @@ export default function App() {
           isSignedIn={signedIn || !!profile}
           playerName={playerName}
           signedIn={signedIn}
+          onHelp={() => openHelp('help-buddies')}
         />
       )}
 
       {screen === 'rewards' && (
         <main className="panel scroll-pane shop-screen">
           <section className="shop-block" data-testid="shop" aria-label="Shop">
-            <h2>Shop</h2>
+            <h2>Shop <HelpMark id="shop" onOpen={openHelp} /></h2>
             <p className="coin-explain">Coins are earned by playing or bought here. They are not real money.</p>
+            <p className="shop-proposed" data-testid="shop-proposed">Prices are in Canadian dollars. Proposed until approved.</p>
             <section className="pay-real" aria-label="Real money" data-testid="real-money">
               <h3><span className="pay-mark" aria-hidden="true">💳</span> Real money</h3>
               <div className="coin-shop">
-                {(['coins_500', 'coins_1200', 'coins_3000'] as const).map((id) => {
-                  const pack = COIN_PACKS.find((p) => p.id === id)
-                  if (!pack) return null
-                  const size = id === 'coins_500' ? 'Small' : id === 'coins_1200' ? 'Medium' : 'Large'
+                {SHOP_OFFERS.filter((offer) => offer.pets.length === 0).map((offer) => {
+                  const discs = coinStackDiscs(offer.coins)
+                  const save = savingsCents(offer)
                   return (
-                    <CoinPackCard
-                      key={pack.id}
-                      webBuy
-                      pack={{ ...pack, label: size }}
-                      priceText={storePrices[pack.productId] || pack.priceHint}
-                      onBuy={onBuyCoins}
-                    />
+                    <article key={offer.id} className="product-card product-card-money product-card-web" data-pack={offer.id}>
+                      <span className="coin-stack" data-discs={discs} aria-hidden="true">
+                        {Array.from({ length: discs }, (_, i) => (
+                          <i key={i} />
+                        ))}
+                      </span>
+                      <h3>{offer.label}</h3>
+                      <p className="product-coins">{formatPackCoins(offer.coins)}</p>
+                      <ul className="offer-contents">
+                        {offer.contents.map((line) => (
+                          <li key={line}>{line}</li>
+                        ))}
+                      </ul>
+                      <div className="product-card-foot">
+                        <span className="product-price">
+                          <span className="pay-mark" aria-hidden="true">💳</span> {formatCad(offer.cadCents)}
+                          {save > 0 ? <small>Save {formatCad(save)}</small> : null}
+                        </span>
+                        <OfflineBuyButton onClick={() => void onBuyCoins(offer.id)} />
+                      </div>
+                    </article>
                   )
                 })}
               </div>
-              <article className="product-card product-card-money starter-pack" data-testid="starter-pack">
-                <div className="starter-art">
-                  <PetArt id="lupa" size={52} title="Lupa" />
-                  <PetArt id="aquila" size={52} title="Aquila" />
-                </div>
-                <h3>Starter pack</h3>
-                <p className="product-value">Lupa and Aquila, to start your stable. Other animals are bought with coins.</p>
-                <div className="product-card-foot">
-                  <span className="product-price" data-testid="starter-price">
-                    <span className="pay-mark" aria-hidden="true">💳</span> {STARTER_PACK_PRICE}
-                    <small>Price not set yet</small>
-                  </span>
-                  <button type="button" className="btn ghost product-buy" disabled data-testid="starter-buy">
-                    Coming soon
-                  </button>
-                </div>
-              </article>
+              <div className="bundle-shop">
+                {SHOP_OFFERS.filter((offer) => offer.pets.length > 0).map((offer) => {
+                  const save = savingsCents(offer)
+                  const owned = offer.once && starterOwned
+                  return (
+                    <article key={offer.id} className="product-card product-card-money starter-pack" data-testid={`${offer.id}-pack`}>
+                      {offer.id === 'starter' ? (
+                        <div className="starter-art">
+                          <PetArt id="lupa" size={52} title="Lupa" />
+                          <PetArt id="aquila" size={52} title="Aquila" />
+                        </div>
+                      ) : null}
+                      <h3>
+                        {offer.label}
+                        {offer.badge ? <span className="offer-badge">{offer.badge}</span> : null}
+                      </h3>
+                      <ul className="offer-contents">
+                        {offer.contents.map((line) => (
+                          <li key={line}>{line}</li>
+                        ))}
+                      </ul>
+                      <div className="product-card-foot">
+                        <span className="product-price" data-testid={offer.id === 'starter' ? 'starter-price' : undefined}>
+                          <span className="pay-mark" aria-hidden="true">💳</span> {formatCad(offer.cadCents)}
+                          {save > 0 ? <small>Save {formatCad(save)} vs buying separately</small> : null}
+                        </span>
+                        {owned ? (
+                          <button type="button" className="btn ghost product-buy" disabled data-testid="starter-buy">
+                            Already yours
+                          </button>
+                        ) : (
+                          <OfflineBuyButton onClick={() => void onBuyCoins(offer.id)}>
+                            <span data-testid={offer.id === 'starter' ? 'starter-buy' : undefined}>Buy</span>
+                          </OfflineBuyButton>
+                        )}
+                      </div>
+                    </article>
+                  )
+                })}
+              </div>
+              <LegalLine />
             </section>
             <section className="pay-coins" aria-label="Spend coins" data-testid="spend-coins">
               <h3><span className="pay-mark" aria-hidden="true">🪙</span> Spend coins</h3>
@@ -3872,7 +4107,7 @@ export default function App() {
             ) : null}
           </section>
 
-          <h2>Rewards</h2>
+          <h2>Rewards <HelpMark id="rewards" onOpen={openHelp} /></h2>
           <p className="rewards-lead">Badges, streaks, and prizes you pick up by playing.</p>
           <h3 className="ach-title">Badges</h3>
           <div className="reward-row" aria-label="Badges">
@@ -3942,7 +4177,7 @@ export default function App() {
 
       {screen === 'profile' && (
         <main className="panel profile scroll-pane">
-          <h2>Account & settings</h2>
+          <h2>Account & settings <HelpMark id="account" onOpen={openHelp} /></h2>
           <div className="profile-card account-line" data-testid="account-card">
             <p className="profile-name" data-testid="account-signed-in">
               {signedIn ? (
@@ -3971,7 +4206,11 @@ export default function App() {
               <a className="btn ghost btn-sm" href="https://romansgame.com" target="_blank" rel="noopener" data-testid="account-website">
                 Website
               </a>
+              <button type="button" className="btn ghost btn-sm" data-testid="account-help" onClick={() => openHelp('help-account')}>
+                Help / How to play
+              </button>
             </div>
+            <LegalLine />
             {editingName ? (
               <label className="name-setting">
                 Name
@@ -3995,6 +4234,7 @@ export default function App() {
               </label>
             ) : null}
           </div>
+          <AccountSocial />
           <section className="leaderboard">
             <h3>Leaderboard</h3>
             <p className="sub">Today's Daily, this week, and all-time. Your name is highlighted on the board.</p>
@@ -4155,7 +4395,7 @@ export default function App() {
 
       {screen === 'challenge' && (
         <main className="panel challenge scroll-pane">
-          <h2>Share</h2>
+          <h2>Share <HelpMark id="share" onOpen={openHelp} /></h2>
           {playerName ? (
             <p className="share-player" data-testid="share-player">
               Sharing as <strong className="player-name-mark">{playerName}</strong>

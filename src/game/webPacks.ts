@@ -1,17 +1,15 @@
-import type { CoinPackId } from './iap'
-
 /** Pack the website shop is allowed to show. Prices are labels from the server. */
 export interface WebPackOffer {
-  id: CoinPackId
+  id: string
   productId: string
   label: string
   coins: number
   priceLabel: string
 }
 
-const PACK_IDS: readonly CoinPackId[] = ['coins_500', 'coins_1200', 'coins_3000']
+const PACK_IDS = ['coins_500', 'coins_1400', 'coins_3200'] as const
 
-function isPackId(value: unknown): value is CoinPackId {
+function isPackId(value: unknown): value is string {
   return typeof value === 'string' && (PACK_IDS as readonly string[]).includes(value)
 }
 

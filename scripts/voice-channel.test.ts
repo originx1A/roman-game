@@ -11,15 +11,15 @@ const P = { idle: 1, chatter: 2, wrong: 3, hint: 4, prize: 4, win: 5, lose: 5 }
 const now = 100_000
 const oldTimerPlaying = (priority: number, leftMs = 3000) => ({ priority, audible: true, endsAt: now + leftMs })
 
-test('the Unseen cuts Roman off, and Roman does not chain or talk over him', () => {
+test('the Unseen waits; an audible line is never cut', () => {
   const roman = { priority: P.win, audible: true, endsAt: now + 4000, speaker: 'roman' as const }
   const unseen = V.decideVoice(roman, { priority: P.chatter, speaker: 'oldtimer' }, now)
-  assert.equal(unseen.kind, 'preempt')
+  assert.equal(unseen.kind, 'skip')
   // a second Roman line in the same moment is dropped, even if it asked to wait
   assert.equal(V.decideVoice(roman, { priority: P.chatter, waitMs: 6000, speaker: 'roman' }, now).kind, 'skip')
-  // Roman does not start while the Unseen is speaking
+  // a more important Roman line waits until the Unseen finishes
   const old = { priority: P.chatter, audible: true, endsAt: now + 3000, speaker: 'oldtimer' as const }
-  assert.equal(V.decideVoice(old, { priority: P.win, speaker: 'roman' }, now).kind, 'skip')
+  assert.equal(V.decideVoice(old, { priority: P.win, speaker: 'roman' }, now).kind, 'wait')
   // a Roman line that has not been heard yet can still be replaced by a more important Roman line
   assert.equal(
     V.decideVoice({ priority: P.idle, audible: false, endsAt: 0, speaker: 'roman' }, { priority: P.win, speaker: 'roman' }, now).kind,

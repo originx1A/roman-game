@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { watchVoiceEnd } from '../game/sound'
 
 /**
  * The Unseen heckler visual pop-up (9.31-u; was the Unseen pop-up from 10.06).
@@ -58,11 +59,22 @@ export function UnseenPopup({ pop, holdMs = 4500 }: Props) {
     setText(bubbleText(pop.text))
     setLeaving(false)
     setVisible(true)
-    hideTimer.current = window.setTimeout(() => setLeaving(true), stay)
-    leaveTimer.current = window.setTimeout(() => setVisible(false), stay + 450)
+    const arm = (ms: number) => {
+      window.clearTimeout(hideTimer.current)
+      window.clearTimeout(leaveTimer.current)
+      hideTimer.current = window.setTimeout(() => setLeaving(true), ms)
+      leaveTimer.current = window.setTimeout(() => setVisible(false), ms + 450)
+    }
+    arm(stay)
+    const stop = pop.clip
+      ? watchVoiceEnd((clip) => {
+          if (clip === pop.clip) arm(400)
+        })
+      : undefined
     return () => {
       window.clearTimeout(hideTimer.current)
       window.clearTimeout(leaveTimer.current)
+      stop?.()
     }
   }, [pop, holdMs])
 

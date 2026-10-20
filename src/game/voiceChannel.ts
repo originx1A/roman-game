@@ -1,12 +1,10 @@
 /*
  * One shared voice channel (Roman, the coach and the Unseen), kept pure so it is unit-tested.
  *
- * - Roman says one line per moment. A second Roman line is skipped, not queued behind the first.
- * - When the Unseen speaks, Roman's line stops and the Unseen plays. Roman does not start
- *   while the Unseen is speaking.
- * - Anyone else: a line that has started finishes. A higher line waits instead of cutting in.
- *   Equal or lower lines are skipped unless they asked to wait.
+ * - A line the player can already hear is never cut off. A new line waits or is skipped.
+ * - The same speaker does not chain-talk. A paired reply may wait a short gap.
  * - A line that is still loading (nothing heard yet) can be replaced by a higher one.
+ * - Higher lines wait until the current one ends, then go stale after a few seconds.
  * - At a board end only queued lines below the win/lose line are dropped.
  */
 export type VoiceSpeaker = 'roman' | 'oldtimer' | 'other'
@@ -24,7 +22,12 @@ export interface VoiceRequest {
   priority: number
   waitMs?: number
   speaker?: VoiceSpeaker
+  /** A reply written to follow the line that is playing. It may wait; it does not cut in. */
+  paired?: boolean
 }
+
+/** Quiet beat between two speakers so they do not run into each other. */
+export const SPEAKER_GAP_MS = 500
 
 /** How long past the current line's end a line that outranks it is still worth saying */
 export const STALE_AFTER_MS = { high: 4000, normal: 1500 } as const
@@ -37,20 +40,19 @@ export type VoiceDecision = { kind: 'play' } | { kind: 'preempt' } | { kind: 'wa
 
 export function decideVoice(current: ChannelLine | null, req: VoiceRequest, now: number): VoiceDecision {
   if (!current) return { kind: 'play' }
-  // The Unseen takes the channel from Roman so his line is the one you hear.
-  if (req.speaker === 'oldtimer' && current.speaker === 'roman') return { kind: 'preempt' }
-  // One Roman line per moment, and he stays quiet while the Unseen is speaking.
-  if (req.speaker === 'roman' && (current.speaker === 'roman' || current.speaker === 'oldtimer')) {
-    if (current.speaker === 'roman' && !current.audible && req.priority > current.priority) return { kind: 'preempt' }
+  // Still loading: a more important line may take the slot. Nothing has been heard.
+  if (!current.audible && req.priority > current.priority) return { kind: 'preempt' }
+  if (current.audible) {
+    // One speaker at a time. A written-back-and-forth may wait; it never cuts the line.
+    if (req.speaker && current.speaker && req.speaker === current.speaker && !req.paired) return { kind: 'skip' }
+    if (req.priority > current.priority || req.waitMs || req.paired) {
+      const remaining = current.endsAt > now ? current.endsAt - now : current.endsAt ? 0 : UNKNOWN_REMAINING_MS
+      const grace = req.priority >= HIGH_PRIORITY ? STALE_AFTER_MS.high : STALE_AFTER_MS.normal
+      return { kind: 'wait', until: now + Math.max(req.waitMs ?? 0, remaining + grace) }
+    }
     return { kind: 'skip' }
   }
-  if (req.priority > current.priority && !current.audible) return { kind: 'preempt' }
-  if (req.priority > current.priority) {
-    const remaining = current.endsAt > now ? current.endsAt - now : current.endsAt ? 0 : UNKNOWN_REMAINING_MS
-    const grace = req.priority >= HIGH_PRIORITY ? STALE_AFTER_MS.high : STALE_AFTER_MS.normal
-    return { kind: 'wait', until: now + Math.max(req.waitMs ?? 0, remaining + grace) }
-  }
-  if (req.waitMs) return { kind: 'wait', until: now + req.waitMs }
+  if (req.waitMs || req.paired) return { kind: 'wait', until: now + Math.max(req.waitMs ?? SPEAKER_GAP_MS, SPEAKER_GAP_MS) }
   return { kind: 'skip' }
 }
 
