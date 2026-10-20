@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { isProfane } from './profanity'
-import { NAME_MAX, loadConsent, saveConsent, onCloud, renamePlayer, savePlayerName, sendMagicLink, signOut, verifyEmailCode, type CloudState } from './cloud'
+import { NAME_MAX, loadConsent, saveConsent, onCloud, renamePlayer, savePlayerName, sendMagicLink, signInCode, signInEmail, signOut, verifyEmailCode, type CloudState } from './cloud'
 
 /**
  * "Save my scores" button + sheets: email magic link or the code from that email, then a one-time name prompt.
@@ -20,7 +20,11 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
   const cloud = useCloud()
   const [sheet, setSheet] = useState<Sheet>(null)
   const [email, setEmail] = useState('')
+  const [sentEmail, setSentEmail] = useState('')
   const [code, setCode] = useState('')
+  const [notice, setNotice] = useState('')
+  const [frame, setFrame] = useState<{ top: number; height: number } | null>(null)
+  const sendingRef = useRef(false)
   const [name, setName] = useState(suggestedName ?? '')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
@@ -54,6 +58,28 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
     else setSheet((s) => (s === 'sent' ? null : s))
   }, [cloud.status, cloud.name, switching, nameDismissed])
 
+  // Keep the open sheet inside the visible viewport. A phone keyboard shrinks visualViewport
+  // and leaves position:fixed covering the full layout, so the code box would sit underneath it.
+  useEffect(() => {
+    if (!sheet) return
+    const vv = window.visualViewport
+    if (!vv) return
+    const apply = () => {
+      const covered = window.innerHeight - vv.offsetTop - vv.height
+      setFrame(covered > 40 ? { top: vv.offsetTop, height: vv.height } : null)
+      const el = document.activeElement
+      if (el instanceof HTMLElement && el.dataset.testid === 'signin-code') el.scrollIntoView({ block: 'center' })
+    }
+    apply()
+    vv.addEventListener('resize', apply)
+    vv.addEventListener('scroll', apply)
+    return () => {
+      vv.removeEventListener('resize', apply)
+      vv.removeEventListener('scroll', apply)
+      setFrame(null)
+    }
+  }, [sheet])
+
   const signedIn = cloud.status === 'signed-in' && !!cloud.name
   const label = signedIn
     ? `☁ Saved to your account ✓${cloud.pending ? ` (${cloud.pending} waiting)` : ''}`
@@ -69,6 +95,31 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
     setEditing(false)
     setErr('')
     setSheet(null)
+  }
+
+  /**
+   * One send at a time. Re-renders never call this. A second send would invalidate the code
+   * already in the email, so only the email button and "Send a new code" may call it.
+   */
+  async function deliverLink(address: string): Promise<boolean> {
+    if (sendingRef.current) return false
+    sendingRef.current = true
+    setBusy(true)
+    setErr('')
+    try {
+      const r = await sendMagicLink(address)
+      if (!r.ok || !r.email) {
+        setErr(r.error ?? 'Something went wrong.')
+        return false
+      }
+      setSentEmail(r.email)
+      setEmail(r.email)
+      setCode('')
+      return true
+    } finally {
+      sendingRef.current = false
+      setBusy(false)
+    }
   }
 
   /** Explicit switch only. The current player stays signed in until a new link is actually sent. */
@@ -102,7 +153,13 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
       </button>
       {sheet &&
         createPortal(
-          <div className="start-sheet cloud-sheet" role="dialog" aria-modal="true" aria-label={switching ? 'Switch player' : 'Save my scores'}>
+          <div
+            className="start-sheet cloud-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label={switching ? 'Switch player' : 'Save my scores'}
+            style={frame ? { top: frame.top, height: frame.height, bottom: 'auto' } : undefined}
+          >
             <div className="start-sheet-scrim" onClick={closeSheet} />
             {sheet === 'email' && (
               <form
@@ -110,19 +167,18 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 onSubmit={async (e) => {
                   e.preventDefault()
                   if (!age13) return setSheet('parent')
-                  if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setErr('Type a full email address.')
+                  const address = signInEmail(email)
+                  if (!/^\S+@\S+\.\S+$/.test(address)) return setErr('Type a full email address.')
                   saveConsent({ age13, optIn })
-                  setBusy(true)
-                  const r = await sendMagicLink(email)
-                  setBusy(false)
-                  if (!r.ok) return setErr(r.error ?? 'Something went wrong.')
+                  const ok = await deliverLink(address)
+                  if (!ok) return
                   // Only a sent link switches players. A failed send leaves the current player signed in.
                   if (switching) {
                     await signOut()
                     setSwitchedAway(true)
                   }
                   setSwitching(false)
-                  setCode('')
+                  setNotice('')
                   setSheet('sent')
                 }}
               >
@@ -148,44 +204,67 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 className="start-sheet-card"
                 onSubmit={async (e) => {
                   e.preventDefault()
-                  if (!/^\d{6,8}$/.test(code)) return setErr('Enter the code from your email.')
+                  const digits = signInCode(code)
+                  // The live code is 8 digits. Enter or a 6-digit prefix must not call verifyOtp.
+                  if (digits.length < 8) return
                   setBusy(true)
-                  const r = await verifyEmailCode(email, code)
+                  const r = await verifyEmailCode(sentEmail || signInEmail(email), digits)
                   setBusy(false)
-                  if (!r.ok) setErr(r.error ?? 'Something went wrong.')
+                  if (!r.ok) setErr(r.error ?? 'Code expired or already used, send a new one.')
                   // A good code signs them in. The listener closes this sheet, or asks for a name once.
                 }}
               >
                 <h3>Check your email</h3>
                 <p className="start-sheet-tip">
                   {switchedAway
-                    ? <>We sent it to <b>{email.trim()}</b>. Tap the link, or enter the code from your email, to finish switching. This device stays signed out until then.</>
-                    : <>We sent it to <b>{email.trim()}</b>. Tap the link in your email, or enter the code from your email.</>}
+                    ? <>We sent it to <b>{sentEmail || signInEmail(email)}</b>. Tap the link, or enter the 8-digit code, to finish switching. This device stays signed out until then.</>
+                    : <>We sent it to <b>{sentEmail || signInEmail(email)}</b>. Tap the link in your email, or enter the 8-digit code.</>}
                 </p>
+                {notice && <p className="start-sheet-tip" data-testid="signin-notice">{notice}</p>}
                 <input
                   className="name-input cloud-code"
                   data-testid="signin-code"
                   inputMode="numeric"
                   autoComplete="one-time-code"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  enterKeyHint="done"
                   maxLength={8}
-                  placeholder="the code from your email"
+                  placeholder="8-digit code"
                   aria-label="the code from your email"
                   value={code}
+                  onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center' })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && signInCode(code).length < 8) e.preventDefault()
+                  }}
                   onPaste={(e) => {
-                    const text = e.clipboardData.getData('text').replace(/\s/g, '').replace(/\D/g, '').slice(0, 8)
+                    const text = signInCode(e.clipboardData.getData('text'))
                     if (!text) return
                     e.preventDefault()
                     setCode(text)
                     setErr('')
                   }}
                   onChange={(e) => {
-                    setCode(e.target.value.replace(/\s/g, '').replace(/\D/g, '').slice(0, 8))
+                    setCode(signInCode(e.target.value))
                     setErr('')
                   }}
                 />
-                {err && <p className="cloud-err" role="alert">{err}</p>}
-                <button type="submit" className="btn primary" data-testid="signin-code-submit" disabled={busy || code.length < 6}>
+                {err && <p className="cloud-err" role="alert" data-testid="signin-code-error">{err}</p>}
+                <button type="submit" className="btn primary" data-testid="signin-code-submit" disabled={busy || signInCode(code).length < 8}>
                   {busy ? 'Checking…' : 'Sign in with code'}
+                </button>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  data-testid="signin-resend"
+                  disabled={busy}
+                  onClick={() => {
+                    void deliverLink(sentEmail || email).then((ok) => {
+                      if (ok) setNotice('New code sent. The previous one will not work.')
+                    })
+                  }}
+                >
+                  Send a new code
                 </button>
                 <button type="button" className="btn ghost" data-testid="cloud-not-now" onClick={closeSheet}>
                   Not now
