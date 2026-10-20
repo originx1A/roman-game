@@ -231,7 +231,7 @@ export function guideCandidates(s: GuideSnapshot): GuideCandidate[] {
       category: 'progress',
       tag: `streak-${s.streak}`,
       kind: 'progress',
-      text: `Win tomorrow and that's ${s.streak + 1} days. Don't choke.`,
+      text: "Win tomorrow and the streak keeps growing. Don't choke.",
       target: { screen: 'home' },
     })
   }

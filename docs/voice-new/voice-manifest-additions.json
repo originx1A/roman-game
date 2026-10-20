@@ -207,7 +207,7 @@
     "rate": "-20%",
     "pitch": "-16Hz",
     "post": "rasp-v1",
-    "text": "Win tomorrow and that's {days} days. Don't choke."
+    "text": "Win tomorrow and the streak keeps growing. Don't choke."
   },
   "old_tease_low": {
     "voice": "en-AU-WilliamMultilingualNeural",
