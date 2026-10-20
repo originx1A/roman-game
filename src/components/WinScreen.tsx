@@ -49,6 +49,8 @@ export type WinScreenProps = {
   replay?: WinReplay
   /** 9.32-b: this win added an Unseen card piece */
   cardGain?: { from: number; to: number }
+  /** Local share-card name, offered as a starting leaderboard name if they sign in from here */
+  suggestedName?: string
 }
 
 export function WinScreen({
@@ -78,6 +80,7 @@ export function WinScreen({
   onBuddyHunt,
   replay,
   cardGain,
+  suggestedName,
 }: WinScreenProps) {
   const [entered, setEntered] = useState(false)
   const [more, setMore] = useState(false)
@@ -178,8 +181,6 @@ export function WinScreen({
               </button>
             </div>
 
-            <CloudScoresButton compact />
-
             <a
               className="win-fb-follow"
               href="https://romansgame.com"
@@ -250,6 +251,22 @@ export function WinScreen({
                 </button>
               ) : null}
             </div>
+
+            <CloudScoresButton suggestedName={suggestedName}>
+              {(cloud) =>
+                cloud.saving ? (
+                  <p className="win-save-note" role="status" data-testid="win-saved">
+                    {cloud.pending && typeof navigator !== 'undefined' && navigator.onLine === false
+                      ? `Saved on this phone${cloud.publicName ? ` as ${cloud.publicName}` : ''}. It sends when you're back online.`
+                      : `Score saved${cloud.publicName ? ` as ${cloud.publicName}` : ''}`}
+                  </p>
+                ) : (
+                  <button type="button" className="win-save-link" data-testid="win-signin" onClick={cloud.openSignIn}>
+                    {cloud.needsName ? 'Add a name to save this score' : 'Sign in to save this score'}
+                  </button>
+                )
+              }
+            </CloudScoresButton>
 
             <button
               type="button"
