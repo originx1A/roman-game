@@ -1,12 +1,11 @@
-import { isComputerPlayer } from './lineCaption'
 import { playVoice, voiceOutputOn } from './sound'
 import { isPlayableVoiceClip } from './voiceLines'
 import { REMINDER_LINES, type ReminderId } from './unseenReminders'
 
 /**
  * Clip id for each Home reminder. The file is public/voices/<id>.mp3.
- * Nothing is added to VOICE_LINES until that file exists, so the voice build check stays green.
- * playReminderLine plays a catalogued clip, or the mp3 itself if Cooper has dropped the file in.
+ * Sign-in swaps to old_remind_signin_computer on a computer inside playVoice.
+ * These are not in a random heckle bag. They only play from the Home reminder.
  */
 export const REMINDER_CLIPS: Record<ReminderId, string> = {
   pets: 'old_remind_pets',
@@ -21,28 +20,20 @@ export function reminderClipId(id: ReminderId): string {
   return REMINDER_CLIPS[id]
 }
 
-/** Play the reminder if a recording is available. Silent when voice is off or the file is missing. */
-export async function playReminderLine(id: ReminderId): Promise<boolean> {
+/**
+ * Play the reminder on the shared voice channel.
+ * The clip id starts with old_, so the Unseen takes priority and Roman does not talk over it.
+ * One element only: a missing catalog clip stays silent rather than starting a second player.
+ */
+export function playReminderLine(id: ReminderId): boolean {
   if (!voiceOutputOn()) return false
-  // The sign-in recording talks about "this phone". A computer shows different words and stays silent.
-  if (id === 'signin' && isComputerPlayer()) return false
   const clip = REMINDER_CLIPS[id]
-  if (isPlayableVoiceClip(clip)) {
-    playVoice(clip, { mood: 'neutral' })
-    return true
-  }
-  try {
-    const res = await fetch(`/voices/${clip}.mp3`, { method: 'HEAD' })
-    if (!res.ok) return false
-    const el = new Audio(`/voices/${clip}.mp3`)
-    await el.play()
-    return true
-  } catch {
-    return false
-  }
+  if (!isPlayableVoiceClip(clip)) return false
+  playVoice(clip, { mood: 'neutral' })
+  return true
 }
 
-/** Exact words Cooper still needs to record. */
+/** Exact words that still have no catalog recording. */
 export function missingReminderLines(): { id: string; text: string }[] {
   return (Object.keys(REMINDER_LINES) as ReminderId[])
     .filter((id) => !isPlayableVoiceClip(REMINDER_CLIPS[id]))

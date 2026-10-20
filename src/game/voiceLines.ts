@@ -556,6 +556,14 @@ export const VOICE_LINES = {
   old_wrong_map: '/voices/old_wrong_map.mp3',
   old_wrong_cane: '/voices/old_wrong_cane.mp3',
   old_nearmiss_close: '/voices/old_nearmiss_close.mp3',
+  old_jab_computer: '/voices/old_jab_computer.mp3',
+  old_remind_pets: '/voices/old_remind_pets.mp3',
+  old_remind_signin: '/voices/old_remind_signin.mp3',
+  old_remind_signin_computer: '/voices/old_remind_signin_computer.mp3',
+  old_remind_coins: '/voices/old_remind_coins.mp3',
+  old_remind_daily: '/voices/old_remind_daily.mp3',
+  old_remind_remix: '/voices/old_remind_remix.mp3',
+  old_remind_streak: '/voices/old_remind_streak.mp3',
 } as const
 
 export type VoiceLineId = keyof typeof VOICE_LINES

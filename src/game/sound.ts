@@ -24,7 +24,7 @@ import {
   shouldAttachVoiceGraph,
   shouldStartPrime,
 } from './voiceUnlock'
-import { clipAudible, desktopCaption, DESKTOP_PHONE_JAB, isComputerPlayer, PHONE_JAB_CLIP } from './lineCaption'
+import { clipAudible, desktopCaption, DESKTOP_PHONE_JAB, isComputerPlayer, PHONE_JAB_CLIP, spokenClip } from './lineCaption'
 
 let ctx: AudioContext | null = null
 let muted = false
@@ -262,6 +262,19 @@ const FALLBACK_TEXT: Partial<Record<VoiceLineId, string>> = {
   old_jab_mitts: "The Unseen: You play like you're wearing oven mitts.",
   old_jab_bingo: "The Unseen: I've seen better moves at a bingo hall.",
   old_jab_phone: 'The Unseen: Is this your first time holding a phone?',
+  old_jab_computer: 'The Unseen: Have you ever used a computer before?',
+  old_remind_pets: "The Unseen: Your buddy's looking a bit peaky. Go look in on the Stable. They might need a treat.",
+  old_remind_signin:
+    "The Unseen: You keep winning and then leaving it on this phone. Sign in, and the scores come with you. No password. I'm not carrying them.",
+  old_remind_signin_computer:
+    "The Unseen: You keep winning and then leaving it on this computer. Sign in, and the scores come with you. No password. I'm not carrying them.",
+  old_remind_coins:
+    'The Unseen: That coin pile is getting smug. Spend some. The Stable sells treats and buddies. Rewards will take the rest.',
+  old_remind_daily: "The Unseen: Today's Daily is still sitting there. I checked. It hasn't done itself.",
+  old_remind_remix:
+    'The Unseen: New Remix boards. Every three days, like clockwork. Go on, before I solve them out of boredom.',
+  old_remind_streak:
+    "The Unseen: That streak of yours is hanging by a thread. One Daily today and it lives. I'm not saying I'm worried. I'm saying the fire is.",
   old_jab_backday: "The Unseen: Back in my day we didn't tap. We committed.",
   old_jab_buddy: 'The Unseen: That buddy looks as confused as you do.',
   old_jab_square: 'The Unseen: Pick a square, any square. Preferably a different one.',
@@ -1332,9 +1345,15 @@ function clipObjectUrl(id: string): Promise<string | null> {
  */
 export function playVoice(id: string, opts: PlayVoiceOpts = {}) {
   if (muted || !voiceEnabled || !id) return
-  // Desktop caption for the phone jab has no matching recording. Don't play the phone audio or a different alt under it.
-  if (!shouldPlayClip(id)) return
-  const queue = [id, ...(opts.alts ?? [])].filter((clip, i, all) => isPlayableVoiceClip(clip) && shouldPlayClip(clip) && all.indexOf(clip) === i).slice(0, 5)
+  const computer = isComputerPlayer()
+  // Phone lines swap to their computer recordings here, before any alternate is considered,
+  // so a different sentence never plays under the device caption.
+  const spoken = spokenClip(id, computer)
+  if (!spoken || !shouldPlayClip(spoken, computer)) return
+  const swapped = spoken !== id
+  const queue = (swapped ? [spoken] : [id, ...(opts.alts ?? [])])
+    .filter((clip, i, all) => isPlayableVoiceClip(clip) && shouldPlayClip(clip, computer) && all.indexOf(clip) === i)
+    .slice(0, swapped ? 1 : 5)
   if (!queue.length) {
     warnVoice(`${id}.mp3`, 'not in the playable voice catalog')
     return
@@ -1373,7 +1392,7 @@ export function playVoice(id: string, opts: PlayVoiceOpts = {}) {
   const { rate, volume } = moodPlayback(opts.mood ?? (roleForClip(id) === 'roman' ? 'excited' : 'neutral'))
   // Prime synchronously, before the fetch yields, so this tap still counts on iOS.
   if (shouldStartPrime({ priming: !!priming, unlocked: voiceUnlocked, needsGesture, audible: false })) primeElement(el)
-  void playClipQueue(el, queue, gen, rate, volume, id, opts).catch((err) => {
+  void playClipQueue(el, queue, gen, rate, volume, id, opts, swapped).catch((err) => {
     warnVoice(`${id}.mp3`, err instanceof Error ? err.message : 'unexpected failure')
     releaseVoice(gen)
   })
@@ -1387,6 +1406,8 @@ async function playClipQueue(
   volume: number,
   requestedId: string,
   requestedOpts: PlayVoiceOpts,
+  /** A device substitute: the bag still counts the line that was asked for. */
+  reportRequested = false,
 ) {
   // Fetch alongside the prime. The play() itself waits until the element is unlocked.
   const loads = queue.map((clipId) => clipObjectUrl(clipId))
@@ -1472,8 +1493,9 @@ async function playClipQueue(
       warnVoice(`${clipId}.mp3`, 'the browser reported a media error')
       continue
     }
+    const noted = reportRequested ? requestedId : clipId
     try {
-      voiceStartListener?.(clipId)
+      voiceStartListener?.(noted)
     } catch {
       /* rotation bookkeeping never breaks playback */
     }
@@ -1505,7 +1527,7 @@ async function playClipQueue(
       counted = true
       el.ontimeupdate = null
       try {
-        voiceHeardListener?.(clipId)
+        voiceHeardListener?.(noted)
       } catch {
         /* the heard log never breaks playback */
       }

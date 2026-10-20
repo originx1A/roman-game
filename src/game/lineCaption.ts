@@ -1,9 +1,15 @@
-/** The recorded phone jab. Computers show different words and do not play this clip. */
+/** The recorded phone jab. Computers play old_jab_computer instead of this file. */
 export const PHONE_JAB_CLIP = 'old_jab_phone'
+/** Computer substitute for the phone jab. Not part of the random heckle bag. */
+export const COMPUTER_JAB_CLIP = 'old_jab_computer'
+/** Home sign-in reminder that says "this phone". Computers play the computer file. */
+export const PHONE_SIGNIN_CLIP = 'old_remind_signin'
+/** Computer substitute for the sign-in reminder. Not part of any random bag. */
+export const COMPUTER_SIGNIN_CLIP = 'old_remind_signin_computer'
 /**
  * Computer wording for the Unseen's phone jab.
- * The recording says "Is this your first time holding a phone?" so computers show this caption
- * and do not play that audio.
+ * The phone recording says "Is this your first time holding a phone?"
+ * Computers show this caption and play old_jab_computer.
  */
 export const DESKTOP_PHONE_JAB = 'The Unseen: Have you ever used a computer before?'
 
@@ -58,7 +64,25 @@ export function desktopCaption(id: string, computer: boolean): string | undefine
   return undefined
 }
 
-/** False only for the phone jab on a computer, so the phone recording never plays there. */
+/**
+ * Whether this file may play on this device.
+ * Phone recordings stay on phones and tablets. Computer substitutes stay on computers.
+ */
 export function clipAudible(id: string, computer: boolean): boolean {
-  return !(id === PHONE_JAB_CLIP && computer)
+  if (id === PHONE_JAB_CLIP || id === PHONE_SIGNIN_CLIP) return !computer
+  if (id === COMPUTER_JAB_CLIP || id === COMPUTER_SIGNIN_CLIP) return computer
+  return true
+}
+
+/**
+ * The recording to play for this saying.
+ * Phone and computer substitutes swap here. Null means the line stays silent on this device.
+ * Other lines play the file they were asked for.
+ */
+export function spokenClip(id: string, computer: boolean): string | null {
+  if (id === PHONE_JAB_CLIP) return computer ? COMPUTER_JAB_CLIP : PHONE_JAB_CLIP
+  if (id === COMPUTER_JAB_CLIP) return computer ? COMPUTER_JAB_CLIP : null
+  if (id === PHONE_SIGNIN_CLIP) return computer ? COMPUTER_SIGNIN_CLIP : PHONE_SIGNIN_CLIP
+  if (id === COMPUTER_SIGNIN_CLIP) return computer ? COMPUTER_SIGNIN_CLIP : null
+  return id
 }

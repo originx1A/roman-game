@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { getPlayerName, isUnsetAccountName } from '../src/game/playerName.ts'
-import { clipAudible, DESKTOP_PHONE_JAB, desktopCaption, HANDHELD_MAX_WIDTH_PX, isComputerDevice } from '../src/game/lineCaption.ts'
+import { clipAudible, DESKTOP_PHONE_JAB, desktopCaption, HANDHELD_MAX_WIDTH_PX, isComputerDevice, spokenClip } from '../src/game/lineCaption.ts'
 import { COMPUTER_SIGNIN_LINE, reminderText } from '../src/game/unseenReminders.ts'
 
 test('getPlayerName prefers the account name, then settings, then the old profile', () => {
@@ -39,13 +39,24 @@ test('a default account name yields to the name the player already chose', () =>
   assert.equal(getPlayerName({ publicName: 'Sam', name: 'Sam', playerName: 'Roman' }), 'Sam')
 })
 
-test('phone jab keeps its recording on phones and a silent desktop caption on computers', () => {
+test('phone lines play their own recordings, and computers swap in the computer files', () => {
   assert.equal(desktopCaption('old_jab_phone', false), undefined)
   assert.equal(desktopCaption('old_jab_phone', true), DESKTOP_PHONE_JAB)
   assert.equal(desktopCaption('old_jab_bingo', true), undefined)
   assert.equal(clipAudible('old_jab_phone', false), true)
   assert.equal(clipAudible('old_jab_phone', true), false)
+  assert.equal(clipAudible('old_jab_computer', true), true)
+  assert.equal(clipAudible('old_jab_computer', false), false)
   assert.equal(clipAudible('old_jab_bingo', true), true)
+  assert.equal(spokenClip('old_jab_phone', false), 'old_jab_phone')
+  assert.equal(spokenClip('old_jab_phone', true), 'old_jab_computer')
+  assert.equal(spokenClip('old_jab_computer', false), null)
+  assert.equal(spokenClip('old_remind_signin', false), 'old_remind_signin')
+  assert.equal(spokenClip('old_remind_signin', true), 'old_remind_signin_computer')
+  assert.equal(spokenClip('old_remind_signin_computer', false), null)
+  assert.equal(clipAudible('old_remind_signin', true), false)
+  assert.equal(clipAudible('old_remind_signin_computer', false), false)
+  assert.equal(spokenClip('old_remind_pets', true), 'old_remind_pets')
   assert.match(DESKTOP_PHONE_JAB, /Have you ever used a computer before/)
 })
 
