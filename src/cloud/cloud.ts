@@ -218,17 +218,41 @@ export function explainCodeError(message: string | undefined): string {
   return raw
 }
 
-export async function sendMagicLink(email: string): Promise<{ ok: boolean; error?: string; email?: string }> {
-  const sb = await client()
-  if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
+/** Wrong OTP type and a burned code look the same. Only those may try the next type. */
+function otpTypeMismatch(message: string | undefined): boolean {
+  const raw = message?.trim() ?? ''
+  return /expired|already used|otp_expired|is invalid/i.test(raw)
+}
+
+type SignInResult = { ok: boolean; error?: string; email?: string; sentAt?: number }
+
+/** One network send at a time, shared by every sign-in button (Home, Board, Victory). */
+let sendFlight: { email: string; promise: Promise<SignInResult> } | null = null
+/** One verify per address+code. A second tap reuses the first result instead of burning the code. */
+const verifyOnce = new Map<string, Promise<{ ok: boolean; error?: string }>>()
+
+export async function sendMagicLink(email: string): Promise<SignInResult> {
   const address = signInEmail(email)
-  // The link returns to the page the player is on, including a deploy preview.
-  // verifyOtp does not send this URL. A preview origin cannot change the code check.
-  // Supabase only honors the link redirect when that origin is in the project's allow list.
-  const redirect = `${window.location.origin}${window.location.pathname}`
-  const { error } = await sb.auth.signInWithOtp({ email: address, options: { emailRedirectTo: redirect, shouldCreateUser: true } })
-  if (error) return { ok: false, error: error.message?.trim() || "Couldn't send the link. Check the email and try again." }
-  return { ok: true, email: address }
+  if (sendFlight) {
+    console.info(`[signin] send skipped email=${address} inFlight=${sendFlight.email}`)
+    return sendFlight.email === address ? sendFlight.promise : { ok: false, error: 'A code is already on its way.' }
+  }
+  const sentAt = Date.now()
+  console.info(`[signin] send email=${address} at=${new Date(sentAt).toISOString()}`)
+  const promise = (async (): Promise<SignInResult> => {
+    const sb = await client()
+    if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
+    // The link returns to the page the player is on, including a deploy preview.
+    // verifyOtp does not send this URL. A preview origin cannot change the code check.
+    const redirect = `${window.location.origin}${window.location.pathname}`
+    const { error } = await sb.auth.signInWithOtp({ email: address, options: { emailRedirectTo: redirect, shouldCreateUser: true } })
+    if (error) return { ok: false, error: error.message?.trim() || "Couldn't send the link. Check the email and try again." }
+    return { ok: true, email: address, sentAt }
+  })().finally(() => {
+    if (sendFlight?.promise === promise) sendFlight = null
+  })
+  sendFlight = { email: address, promise }
+  return promise
 }
 
 /**
@@ -239,14 +263,41 @@ export async function sendMagicLink(email: string): Promise<{ ok: boolean; error
  * That is the same path as opening the link.
  */
 export async function verifyEmailCode(email: string, token: string): Promise<{ ok: boolean; error?: string }> {
-  const sb = await client()
-  if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
   const address = signInEmail(email)
   const code = signInCode(token)
   if (!/^\d{8}$/.test(code)) return { ok: false, error: 'Enter all 8 digits from your email.' }
-  const { data, error } = await sb.auth.verifyOtp({ email: address, token: code, type: 'email' })
-  if (error || !data.session) return { ok: false, error: explainCodeError(error?.message) }
-  return { ok: true }
+  const key = `${address}|${code}`
+  const existing = verifyOnce.get(key)
+  if (existing) {
+    console.info(`[signin] verify skipped email=${address} digits=${code.length}`)
+    return existing
+  }
+  const promise = (async () => {
+    const sb = await client()
+    if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
+    // email is the type the merged sign-in uses. If Supabase stored the code as a magic link
+    // or a new-user signup, that call says the token is invalid and the next type is tried once.
+    let last = ''
+    for (const type of ['email', 'magiclink', 'signup'] as const) {
+      console.info(`[signin] verify type=${type} email=${address} digits=${code.length} at=${new Date().toISOString()}`)
+      const { data, error } = await sb.auth.verifyOtp({ email: address, token: code, type })
+      const message = error?.message
+      console.info(`[signin] verify result type=${type} ok=${!error && !!data.session} message=${message ?? ''}`)
+      if (!error && data.session) return { ok: true }
+      last = message ?? ''
+      if (!otpTypeMismatch(message)) return { ok: false, error: explainCodeError(message) }
+    }
+    return { ok: false, error: explainCodeError(last) }
+  })()
+  verifyOnce.set(key, promise)
+  // A burned or accepted code stays cached so a second tap does not call verify again.
+  // Offline and rate-limit failures are dropped so the same code can be tried once the wait is over.
+  void promise.then((result) => {
+    if (result.ok) return
+    if (/expired|already used|invalid/i.test(result.error ?? '')) return
+    if (verifyOnce.get(key) === promise) verifyOnce.delete(key)
+  })
+  return promise
 }
 
 export async function savePlayerName(name: string, consent: Consent): Promise<{ ok: boolean; error?: string; publicName?: string }> {

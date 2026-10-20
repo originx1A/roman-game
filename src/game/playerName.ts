@@ -9,8 +9,17 @@ export function cleanPlayerName(raw: unknown): string {
 }
 
 /**
- * One name for shares, challenges, and labels.
- * Account name first (publicName ?? name), then settings.playerName, then the old local profile.
+ * A name the player never chose. The live default looks like "Roman's Game official".
+ * That must not replace the name they already picked on this device.
+ */
+export function isUnsetAccountName(name: string): boolean {
+  const n = name.trim().toLowerCase().replace(/[’']/g, '')
+  return n === 'romans game official' || n === 'romans game'
+}
+
+/**
+ * One name for the bar, the nav, Stable, Share, challenges, the victory card, and the Board.
+ * A chosen account name wins. A default account name yields to the name already on this device.
  */
 export function getPlayerName(sources: {
   publicName?: string | null
@@ -19,10 +28,8 @@ export function getPlayerName(sources: {
   displayName?: string | null
 }): string {
   const account = cleanPlayerName(sources.publicName) || cleanPlayerName(sources.name)
-  if (account) return account
-  for (const raw of [sources.playerName, sources.displayName]) {
-    const cleaned = cleanPlayerName(raw)
-    if (cleaned) return cleaned
-  }
-  return ''
+  const local = [sources.playerName, sources.displayName].map(cleanPlayerName).find(Boolean) ?? ''
+  if (account && !isUnsetAccountName(account)) return account
+  if (local) return local
+  return account
 }

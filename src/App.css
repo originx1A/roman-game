@@ -6377,7 +6377,18 @@ html[data-motion='reduce'] .td-invader {
   text-transform: none;
   box-shadow: 0 0 0 1px rgba(255, 209, 102, 0.55);
 }
-.nav-player { font-size: 0.78rem; }
+.nav-player {
+  display: inline-block;
+  max-width: 5.6rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  font-size: 0.78rem;
+}
+@media (min-width: 900px) {
+  .nav-player { max-width: 12rem; }
+}
 .signed-in-bar {
   margin: 0 auto 0.35rem;
   padding: 0 0.85rem;
