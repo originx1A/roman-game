@@ -41,6 +41,8 @@ test('a saved login is already signed in before any network call', () => {
   assert.equal(s.email, 'player@example.com')
   assert.equal(s.name, 'Roman')
   assert.equal(s.publicName, 'Roman')
+  assert.equal(s.pending, 1)
+  assert.equal(localStorage.getItem('rg.cloud.queue.v1'), null)
 })
 
 test('a token refresh cannot delete the saved login', () => {
@@ -51,9 +53,6 @@ test('a token refresh cannot delete the saved login', () => {
 })
 
 test('guest scores merge onto the account once', () => {
-  const moved = cloud.mergeGuestQueue('user-1')
-  assert.equal(moved, 1)
-  assert.equal(localStorage.getItem('rg.cloud.queue.v1'), null)
   const mine = JSON.parse(localStorage.getItem('rg.cloud.queue.v1.user-1') || '[]')
   assert.equal(mine.length, 1)
   assert.equal(mine[0].dedupeKey, 'guest-win')

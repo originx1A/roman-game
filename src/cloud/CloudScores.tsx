@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { KeyboardNameSheet, useKeyboardNameEntry } from '../components/KeyboardNameSheet'
 import { isProfane } from './profanity'
-import { NAME_MAX, cloudState, loadConsent, saveConsent, onCloud, renamePlayer, savePlayerName, sendMagicLink, signInCode, signInEmail, signOut, verifyEmailCode, type CloudState } from './cloud'
+import { NAME_MAX, cloudState, loadConsent, saveConsent, onCloud, renamePlayer, savePlayerName, scoreSaveLabel, sendMagicLink, signInCode, signInEmail, signOut, verifyEmailCode, type CloudState } from './cloud'
 
 /**
  * "Save my scores" button + sheets: email magic link or the code from that email, then a one-time name prompt.
@@ -117,12 +117,8 @@ export function CloudScoresButton({
     }
   }, [sheet])
 
-  const signedIn = cloud.status === 'signed-in' && !!cloud.name
-  const label = signedIn
-    ? `☁ Saved to your account ✓${cloud.pending ? ` (${cloud.pending} waiting)` : ''}`
-    : cloud.pending
-      ? `☁ Save my scores (${cloud.pending} waiting)`
-      : '☁ Save my scores'
+  const signedIn = cloud.status === 'signed-in'
+  const label = scoreSaveLabel(cloud)
 
   /** Close whatever sheet is open. Never signs out and never changes the player. */
   function closeSheet() {
@@ -248,7 +244,7 @@ export function CloudScoresButton({
             className="start-sheet cloud-sheet"
             role="dialog"
             aria-modal="true"
-            aria-label={switching ? 'Switch player' : 'Save my scores'}
+            aria-label={switching ? 'Switch player' : signedIn ? 'Your scores' : 'Save my scores'}
             style={frame ? { top: frame.top, height: frame.height, bottom: 'auto' } : undefined}
           >
             <div className="start-sheet-scrim" onClick={closeSheet} />

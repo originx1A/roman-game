@@ -261,6 +261,11 @@ main,
   text-shadow: 0 2px 0 rgba(0, 0, 0, 0.25);
 }
 
+/* Phones keep the short name beside the sun. The full title stays on wider screens. */
+.brand-name-short {
+  display: none;
+}
+
 .nav {
   display: flex;
   gap: 0.35rem;
@@ -1209,7 +1214,7 @@ html[data-motion='reduce'] *::after {
 }
 
 /* Slim topbar stays ONE row on phones: override the two-row fallback
-   above. The brand text collapses to the tappable sun mark (still goes
+   above. The brand keeps the short name "Roman" beside the sun (still goes
    home) so Play / Rewards / Stable / Share / name + castle + coins all
    fit on a single 360px line, the player name truncating if needed. */
 @media (max-width: 640px) {
@@ -1242,8 +1247,19 @@ html[data-motion='reduce'] *::after {
     padding-left: 0.16rem;
     padding-right: 0.16rem;
   }
-  .topbar-slim .brand-name {
+  .topbar-slim .brand {
+    flex: 0 0 auto;
+    min-width: max-content;
+    overflow: visible;
+  }
+  .topbar-slim .brand-name-full {
     display: none;
+  }
+  .topbar-slim .brand-name-short {
+    display: inline;
+    flex: 0 0 auto;
+    overflow: visible;
+    font-size: 0.8125rem;
   }
 }
 
@@ -7305,6 +7321,7 @@ html[data-layout='wide'] .win-sheet-main {
 .reward-card .badge-upgrade { padding: 0.25rem 0.4rem; font-size: 0.68rem; min-height: 0; }
 
 .account-line .profile-name { margin: 0; }
+.account-sync { margin: 0.35rem 0 0; color: var(--sun); font-weight: 700; }
 .account-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-top: 0.45rem; }
 
 .sr-only {

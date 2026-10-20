@@ -24,7 +24,7 @@ import { UnseenGuide, PetPopout, type GuideItem, type PetPopoutInfo } from './co
 import { HomeUnseenReminder } from './components/UnseenReminder'
 import { CloudScoresButton, useCloud } from './cloud/CloudScores'
 import { Leaderboard } from './cloud/Leaderboard'
-import { NAME_MAX, initCloud, loadPublicScores, renamePlayer, saveScore, signOut as cloudSignOut } from './cloud/cloud'
+import { NAME_MAX, initCloud, loadPublicScores, renamePlayer, saveScore, scoreSaveLabel, signOut as cloudSignOut } from './cloud/cloud'
 import { cloudModeForWin } from './game/scoreMode'
 import { leaderboardTease, loadBoardSeen, saveBoardSeen } from './game/leaderboardTease'
 import { isProfane } from './cloud/profanity'
@@ -3076,7 +3076,8 @@ export default function App() {
             }}
           >
             <span className="brand-mark" />
-            <span className="brand-name">Roman's Game</span>
+            <span className="brand-name brand-name-full">Roman's Game</span>
+            <span className="brand-name brand-name-short" data-testid="brand-roman">Roman</span>
           </button>
           <nav className="nav">
             <button type="button" className={screen === 'levels' ? 'on' : ''} onClick={() => setScreen('levels')}>
@@ -3876,6 +3877,7 @@ export default function App() {
                 'Not signed in'
               )}
             </p>
+            {signedIn ? <p className="account-sync" data-testid="score-sync">{scoreSaveLabel(cloud).replace(/^☁\s*/, '')}</p> : null}
             <div className="account-actions">
               <button type="button" className="btn ghost btn-sm" data-testid="edit-name" onClick={() => setEditingName((open) => !open)}>
                 Edit name

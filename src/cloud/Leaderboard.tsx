@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CloudScoresButton } from './CloudScores'
+import { CloudScoresButton, useCloud } from './CloudScores'
 import { loadPublicScores } from './cloud'
 import {
   BOARD_TABS,
@@ -66,6 +66,7 @@ export function Leaderboard({
   const [failed, setFailed] = useState(false)
   const [query, setQuery] = useState('')
   const [stars, setStars] = useState<string[]>(() => loadStars())
+  const cloud = useCloud()
   const name = (you ?? '').trim()
   const starred = useMemo(() => new Set(stars.map((n) => n.toLowerCase())), [stars])
 
@@ -74,12 +75,15 @@ export function Leaderboard({
     void loadPublicScores().then((next) => {
       if (cancel) return
       if (next === null) setFailed(true)
-      else setRows(next)
+      else {
+        setFailed(false)
+        setRows(next)
+      }
     })
     return () => {
       cancel = true
     }
-  }, [])
+  }, [cloud.lastSync])
 
   function toggleStar(player: string) {
     const key = player.trim().toLowerCase()
@@ -146,7 +150,7 @@ export function Leaderboard({
         </p>
       ) : rows && !failed ? (
         <p className="lb-you is-empty" data-testid="lb-you">
-          {tab === 'friends' ? "Star a player and they'll show up here." : "You're not on this board yet."}
+          {tab === 'friends' ? "Star a player and they'll show up here." : name ? `${name} isn't on this board yet.` : "You're not on this board yet."}
         </p>
       ) : null}
       {rows === null && !failed ? (

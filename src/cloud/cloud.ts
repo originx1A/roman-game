@@ -1,4 +1,5 @@
 import { gaEvent } from '../game/analytics'
+import { getPlayerName, isUnsetAccountName } from '../game/playerName'
 import { rememberPlayerName } from '../game/storage'
 /**
  * Player accounts + score saving (Supabase, project romans-game).
@@ -204,17 +205,29 @@ let clientP: Promise<SupabaseClient | null> | null = null
  * A `let` below that call is still in the temporal dead zone in dev and the game white-screens.
  */
 let queueOwner: string | null = null
+
+/** Point the queue at the saved login and fold guest scores into it. Safe to call more than once. */
+function adoptQueueOwner(): string | null {
+  const saved = readStoredSession()
+  if (!saved) return queueOwner
+  if (queueOwner !== saved.user.id) {
+    queueOwner = saved.user.id
+    mergeGuestQueue(saved.user.id)
+  }
+  return queueOwner
+}
+
 function restoredState(): CloudState {
   const saved = readStoredSession()
-  const pending = readQueue(saved?.user.id ?? null).length + readQueue(null).length
   if (!saved) return { status: 'off', pending: readQueue(null).length }
+  adoptQueueOwner()
   const cached = readProfileCache(saved.user.id)
   return {
     status: 'signed-in',
     email: saved.user.email ?? cached?.email,
     name: cached?.name,
     publicName: cached?.publicName,
-    pending,
+    pending: readQueue(saved.user.id).length,
   }
 }
 let state: CloudState = restoredState()
@@ -251,6 +264,11 @@ function writeQueue(q: ScoreRow[], owner: string | null = queueOwner) {
   } catch {
     /* storage full / private mode: the score just isn't queued */
   }
+}
+
+/** Tests swap in a fake client so a score upload never touches the live project. */
+export function useCloudClientForTests(sb: SupabaseClient | null): void {
+  clientP = Promise.resolve(sb)
 }
 
 function client(): Promise<SupabaseClient | null> {
@@ -304,13 +322,15 @@ async function loadPlayer(sb: SupabaseClient, session: Session | null) {
   const { data, error } = await sb.from('players').select('display_name, public_name').eq('id', session.user.id).maybeSingle()
   if (error) {
     writeProfileCache(session.user.id, session.user.email, state.name, state.publicName)
+    void flushScores()
     return
   }
   const name = data?.display_name ?? null
   const publicName = data?.public_name
   set({ status: 'signed-in', email: session.user.email, name, publicName })
   writeProfileCache(session.user.id, session.user.email, name, publicName)
-  if (data) void flushScores().then(() => syncCard())
+  // A session is enough. The upload creates the player row when this one is missing.
+  void flushScores().then(() => syncCard())
 }
 
 function refreshIfDue(sb: SupabaseClient) {
@@ -618,8 +638,45 @@ export function scoreRowsForServer(q: ScoreRow[], now = Date.now()): Array<Omit<
   return q.map(({ at: _at, dedupeKey: _dedupe, ...r }) => (r.daily_date && r.daily_date < weekAgo ? { ...r, daily_date: undefined } : r))
 }
 
+/**
+ * The name the Board should use. A chosen account name wins. The default account
+ * name yields to the name already saved on this device.
+ */
+export function accountNameFromDevice(): string {
+  let playerName = ''
+  let displayName = ''
+  try {
+    const settings = JSON.parse(localStorage.getItem('roman.settings.v1') || 'null') as { playerName?: string } | null
+    if (typeof settings?.playerName === 'string') playerName = settings.playerName
+  } catch {
+    /* ignore */
+  }
+  try {
+    const profile = JSON.parse(localStorage.getItem('roman.profile.v1') || 'null') as { displayName?: string } | null
+    if (typeof profile?.displayName === 'string') displayName = profile.displayName
+  } catch {
+    /* ignore */
+  }
+  return getPlayerName({
+    publicName: state.publicName,
+    name: state.name,
+    playerName,
+    displayName,
+  })
+}
+
+/** Home and victory copy. A signed-in player never sees the guest "Save my scores" prompt. */
+export function scoreSaveLabel(s: Pick<CloudState, 'status' | 'pending'>): string {
+  if (s.status === 'signed-in') {
+    if (s.pending > 0) return `☁ Saving ${s.pending} ${s.pending === 1 ? 'score' : 'scores'}…`
+    return '☁ Scores saved'
+  }
+  return s.pending ? `☁ Save my scores (${s.pending} waiting)` : '☁ Save my scores'
+}
+
 /** Queue a finished game and try to send everything queued. Safe to call offline. Same dedupeKey is stored once. */
 export function saveScore(row: Omit<ScoreRow, 'at'>): void {
+  adoptQueueOwner()
   if (row.dedupeKey && dedupeSeen(row.dedupeKey)) return
   const clean: ScoreRow = {
     score: Math.max(0, Math.min(1_000_000, Math.round(row.score) || 0)),
@@ -638,32 +695,155 @@ export function saveScore(row: Omit<ScoreRow, 'at'>): void {
   void flushScores()
 }
 
+type WriteError = { code?: string; message?: string } | null
+
+function checkFailed(error: WriteError): boolean {
+  if (!error) return false
+  return error.code === '23514' || /check constraint/i.test(error.message ?? '')
+}
+
+/** Drop keys the server should not see as null. */
+function scorePayload(row: Omit<ScoreRow, 'at' | 'dedupeKey'>): Record<string, unknown> {
+  const out: Record<string, unknown> = {
+    score: row.score,
+    level: row.level,
+    moves: row.moves,
+    time_seconds: row.time_seconds,
+    mode: row.mode,
+  }
+  if (row.puzzle_id) out.puzzle_id = row.puzzle_id
+  if (row.daily_date) out.daily_date = row.daily_date
+  return out
+}
+
+/** The client memory can be empty after a failed refresh even though the login is still saved. */
+async function sessionForWrites(sb: SupabaseClient): Promise<Session | null> {
+  const { data } = await sb.auth.getSession()
+  const current = data.session
+  const expiresAt = current?.expires_at ? current.expires_at * 1000 : 0
+  const usable = !!current?.access_token && !!current.user?.id && (!expiresAt || expiresAt - Date.now() > 30_000)
+  if (usable && current) return current
+  const saved = readStoredSession()
+  if (!saved) return current?.user?.id ? current : null
+  const { data: next, error } = await sb.auth.setSession({
+    access_token: saved.access_token,
+    refresh_token: saved.refresh_token,
+  })
+  if (!error && next.session?.user?.id) return next.session
+  return current?.user?.id ? current : null
+}
+
+/** Scores need a players row (foreign key). Create one from the name already on this device. */
+async function ensurePlayerRow(sb: SupabaseClient, uid: string): Promise<boolean> {
+  const found = await sb.from('players').select('display_name, public_name').eq('id', uid).maybeSingle()
+  if (found.error) return false
+  const deviceName = accountNameFromDevice()
+  if (found.data?.display_name) {
+    let name = found.data.display_name as string
+    let publicName = (found.data.public_name as string | undefined) || name
+    // The default account name must not hide the name already chosen on this device.
+    if (isUnsetAccountName(publicName) && deviceName && !isUnsetAccountName(deviceName)) {
+      const renamed = await sb.from('players').update({ display_name: deviceName }).eq('id', uid).select('display_name, public_name').maybeSingle()
+      if (!renamed.error && renamed.data?.display_name) {
+        name = renamed.data.display_name as string
+        publicName = (renamed.data.public_name as string | undefined) || name
+      }
+    }
+    set({ name, publicName })
+    writeProfileCache(uid, state.email, name, publicName)
+    if (!isUnsetAccountName(publicName)) rememberPlayerName(publicName)
+    return true
+  }
+  const display_name = deviceName
+  if (!display_name) return false
+  const age13 = loadConsent()?.age13 !== false
+  if (!age13) return false
+  let { data: row, error } = await sb
+    .from('players')
+    .insert({ id: uid, display_name, age_13_plus: true, marketing_opt_in: !!loadConsent()?.optIn })
+    .select('display_name, public_name')
+    .single()
+  if (error?.code === '23505') {
+    ;({ data: row, error } = await sb.from('players').select('display_name, public_name').eq('id', uid).maybeSingle())
+  }
+  if (error || !row?.display_name) return false
+  const name = row.display_name as string
+  const publicName = (row.public_name as string | undefined) || name
+  set({ name, publicName })
+  writeProfileCache(uid, state.email, name, publicName)
+  rememberPlayerName(publicName)
+  return true
+}
+
+async function insertScoreBatch(sb: SupabaseClient, rows: Array<Omit<ScoreRow, 'at' | 'dedupeKey'>>): Promise<WriteError> {
+  const { error } = await sb.from('scores').insert(rows.map(scorePayload))
+  return error
+}
+
+/** One row. A check failure retries without daily_date, then with mode "other" for remix. */
+async function insertScoreOne(sb: SupabaseClient, row: ScoreRow): Promise<boolean> {
+  const [clean] = scoreRowsForServer([row])
+  let error = await insertScoreBatch(sb, [clean])
+  if (!error) return true
+  if (checkFailed(error) && clean.daily_date) {
+    const { daily_date: _day, ...rest } = clean
+    error = await insertScoreBatch(sb, [rest])
+    if (!error) return true
+  }
+  if (checkFailed(error) && (clean.mode === 'remix' || row.mode === 'remix')) {
+    const { daily_date: _day, ...rest } = clean
+    error = await insertScoreBatch(sb, [{ ...rest, mode: 'other' }])
+    if (!error) return true
+  }
+  return false
+}
+
 let flushing = false
+let flushAgain = false
 export async function flushScores(): Promise<void> {
-  if (flushing || state.status !== 'signed-in') return
+  if (flushing) {
+    flushAgain = true
+    return
+  }
+  if (state.status !== 'signed-in') return
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return
-  const owner = queueOwner
-  const q = readQueue(owner)
+  const owner = adoptQueueOwner()
+  if (owner) mergeGuestQueue(owner)
+  const q = owner ? readQueue(owner) : []
   if (!owner || !q.length) return
   flushing = true
   try {
     const sb = await client()
     if (!sb) return
-    // the server only takes a daily_date from the last week; older queued rows still send their score
+    const session = await sessionForWrites(sb)
+    if (!session || session.user.id !== owner) return
+    const ready = await ensurePlayerRow(sb, owner)
+    if (!ready) return
     const rows = scoreRowsForServer(q)
-    const { data: sess } = await sb.auth.getSession()
-    if (sess.session?.user.id !== owner) return // switched player mid-send: leave the queue alone
-    const { error } = await sb.from('scores').insert(rows)
-    if (!error) {
-      // keep anything queued while we were sending
+    const batchError = await insertScoreBatch(sb, rows)
+    if (!batchError) {
       writeQueue(readQueue(owner).slice(q.length), owner)
       set({ lastSync: new Date().toISOString() })
+    } else {
+      const kept: ScoreRow[] = []
+      let sent = 0
+      for (const row of q) {
+        if (await insertScoreOne(sb, row)) sent += 1
+        else kept.push(row)
+      }
+      const fresh = readQueue(owner).slice(q.length)
+      writeQueue([...kept, ...fresh], owner)
+      if (sent > 0) set({ lastSync: new Date().toISOString() })
     }
     void syncCard()
   } catch {
     /* stays queued */
   } finally {
     flushing = false
+    if (flushAgain) {
+      flushAgain = false
+      void flushScores()
+    }
   }
 }
 
@@ -685,7 +865,7 @@ onCloud((s) => {
 })
 /** Ask the server to count saved wins and award the card at 50/50. Idempotent. */
 export async function syncCard(): Promise<void> {
-  if (state.status !== 'signed-in' || !state.name) return
+  if (state.status !== 'signed-in') return
   try {
     const sb = await client()
     if (!sb) return
