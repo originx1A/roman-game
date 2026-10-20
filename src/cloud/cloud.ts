@@ -100,6 +100,11 @@ export async function subscribeNews(email: string): Promise<boolean> {
 }
 const MAX_QUEUE = 200
 let clientP: Promise<SupabaseClient | null> | null = null
+// Must be initialized before `state`: that line calls readQueue(), whose default
+// argument reads queueOwner. A `let` below that call is still in the temporal dead
+// zone in dev (native ESM) and the game white-screens. The production bundle
+// rewrites this to `var`, which is why the live site still boots.
+let queueOwner: string | null = null
 let state: CloudState = { status: 'off', pending: readQueue().length }
 const listeners = new Set<(s: CloudState) => void>()
 
@@ -122,7 +127,6 @@ export function onCloud(fn: (s: CloudState) => void): () => void {
  * "Switch player" signs out, so player A's unsent scores stay under A's id and only send when A
  * signs in again; they are never mixed into player B.
  */
-let queueOwner: string | null = null
 function queueKey(owner: string | null = queueOwner): string {
   return owner ? `${QUEUE_KEY}.${owner}` : QUEUE_KEY
 }

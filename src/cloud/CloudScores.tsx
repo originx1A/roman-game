@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { KeyboardNameSheet, useKeyboardNameEntry } from '../components/KeyboardNameSheet'
 import { isProfane } from './profanity'
 import { NAME_MAX, loadConsent, saveConsent, onCloud, savePlayerName, sendMagicLink, signOut, verifyEmailCode, type CloudState } from './cloud'
 
@@ -26,6 +27,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
   const [age13, setAge13] = useState(() => loadConsent()?.age13 ?? false)
   const [optIn, setOptIn] = useState(() => loadConsent()?.optIn ?? false)
   const [terms, setTerms] = useState(false)
+  const touchName = useKeyboardNameEntry()
   const consentChecks = (
     <div className="cloud-checks">
       <label className="cloud-check">
@@ -82,6 +84,38 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
   }
 
   const nameProblem = !name.trim() ? '' : isProfane(name) ? "Let's pick a different name. Keep it friendly!" : ''
+  const nameForm = (
+    <form
+      className="start-sheet-card"
+      onSubmit={async (e) => {
+        e.preventDefault()
+        const active = document.activeElement
+        if (active instanceof HTMLElement) active.blur()
+        if (!name.trim() || nameProblem) return
+        if (!age13) return setSheet('parent')
+        if (!loadConsent()?.age13 && !terms) return setErr('Please agree to the Terms and Privacy.')
+        setBusy(true)
+        const r = await savePlayerName(name, { age13, optIn })
+        setBusy(false)
+        if (r.ok) setSheet(r.publicName && r.publicName !== name.trim() ? 'account' : null)
+        else setErr(r.error ?? 'Something went wrong.')
+      }}
+    >
+      <div className="kb-name-copy">
+        <h3>Pick your leaderboard name</h3>
+        <p className="start-sheet-tip">
+          This name will be shown publicly on the leaderboard, so don't use your full real name. If someone already has it, we'll add a number (like {name.trim() && !nameProblem ? `${name.trim()}02` : 'Mike02'}). You only do this once.
+        </p>
+      </div>
+      <input className="name-input" type="text" maxLength={NAME_MAX} autoComplete="nickname" enterKeyHint="done" placeholder="Your name" aria-label="Your name" data-testid="leaderboard-name" value={name} onChange={(e) => setName(e.target.value)} />
+      {!loadConsent()?.age13 && consentChecks}
+      {(nameProblem || err) && <p className="cloud-err" role="alert">{nameProblem || err}</p>}
+      <button type="submit" className="btn primary" disabled={busy || !name.trim() || !!nameProblem}>
+        {busy ? 'Saving…' : 'Save name'}
+      </button>
+    </form>
+  )
+  const nameInKeyboard = touchName && sheet === 'name'
 
   return (
     <>
@@ -100,7 +134,12 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
           Switch player
         </button>
       )}
-      {sheet &&
+      {nameInKeyboard && (
+        <KeyboardNameSheet label="Pick your leaderboard name" onDismiss={() => setSheet(null)}>
+          {nameForm}
+        </KeyboardNameSheet>
+      )}
+      {sheet && !nameInKeyboard &&
         createPortal(
           <div className="start-sheet cloud-sheet" role="dialog" aria-modal="true" aria-label="Save my scores">
             <div className="start-sheet-scrim" onClick={() => setSheet(null)} />
@@ -180,33 +219,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 </button>
               </form>
             )}
-            {sheet === 'name' && (
-              <form
-                className="start-sheet-card"
-                onSubmit={async (e) => {
-                  e.preventDefault()
-                  if (!name.trim() || nameProblem) return
-                  if (!age13) return setSheet('parent')
-                  if (!loadConsent()?.age13 && !terms) return setErr('Please agree to the Terms and Privacy.')
-                  setBusy(true)
-                  const r = await savePlayerName(name, { age13, optIn })
-                  setBusy(false)
-                  if (r.ok) setSheet(r.publicName && r.publicName !== name.trim() ? 'account' : null)
-                  else setErr(r.error ?? 'Something went wrong.')
-                }}
-              >
-                <h3>Pick your leaderboard name</h3>
-                <p className="start-sheet-tip">
-                  This name will be shown publicly on the leaderboard, so don't use your full real name. If someone already has it, we'll add a number (like {name.trim() && !nameProblem ? `${name.trim()}02` : 'Mike02'}). You only do this once.
-                </p>
-                <input className="name-input" type="text" maxLength={NAME_MAX} autoComplete="nickname" placeholder="Your name" aria-label="Your name" value={name} onChange={(e) => setName(e.target.value)} />
-                {!loadConsent()?.age13 && consentChecks}
-                {(nameProblem || err) && <p className="cloud-err" role="alert">{nameProblem || err}</p>}
-                <button type="submit" className="btn primary" disabled={busy || !name.trim() || !!nameProblem}>
-                  {busy ? 'Saving…' : 'Save name'}
-                </button>
-              </form>
-            )}
+            {sheet === 'name' && nameForm}
             {sheet === 'parent' && (
               <div className="start-sheet-card">
                 <h3>Ask a parent to sign up for you</h3>
