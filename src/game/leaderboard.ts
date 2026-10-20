@@ -9,7 +9,7 @@ export interface PublicScore {
   daily_date?: string | null
 }
 
-export type BoardTab = 'today' | 'week' | 'all'
+export type BoardTab = 'today' | 'week' | 'all' | 'friends'
 
 export interface RankedPlayer {
   rank: number
@@ -59,7 +59,7 @@ function dayOf(row: PublicScore): string {
 function inTab(row: PublicScore, tab: BoardTab, now: Date): boolean {
   if (!row.name || !row.name.trim()) return false
   if (row.mode === 'practice') return false
-  if (tab === 'all') return true
+  if (tab === 'all' || tab === 'friends') return true
   const day = dayOf(row)
   if (!day) return false
   if (tab === 'today') return row.mode === 'daily' && day === torontoDateKey(now)
@@ -130,4 +130,5 @@ export const BOARD_TABS: { id: BoardTab; label: string; hint: string }[] = [
   { id: 'today', label: 'Today', hint: "Today's Daily. Best score. A tie goes to the faster time." },
   { id: 'week', label: 'This week', hint: 'Best score since Monday, Toronto time. A tie goes to the faster time.' },
   { id: 'all', label: 'All-time', hint: 'Best score ever. A tie goes to the faster time.' },
+  { id: 'friends', label: 'Friends', hint: 'Players you starred. Star someone on any tab to follow them here.' },
 ]

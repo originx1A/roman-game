@@ -159,8 +159,6 @@ export function WinScreen({
               Sparks {sparkCount}/{CRITTER_STASH_GOAL} · Hints {hintsUsed}
             </p>
 
-            {cardGain ? <UnseenCardGain from={cardGain.from} to={cardGain.to} /> : null}
-
             {showSpin || onDuel ? (
               <div className="win-screen-row">
                 {showSpin ? (
@@ -230,6 +228,8 @@ export function WinScreen({
             ) : perfect ? (
               <p className="win-perfect">Perfect clear — no hints</p>
             ) : null}
+
+            {cardGain ? <UnseenCardGain from={cardGain.from} to={cardGain.to} /> : null}
 
             <div className="win-stats" aria-label="Run stats">
               <div className="win-stat">

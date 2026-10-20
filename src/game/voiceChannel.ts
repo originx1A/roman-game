@@ -1,24 +1,29 @@
 /*
- * 9.30-e: rules for the one shared voice channel (Roman, the coach and the Unseen), kept pure so
- * they are unit-tested.
+ * One shared voice channel (Roman, the coach and the Unseen), kept pure so it is unit-tested.
  *
- * - A line that has STARTED PLAYING always finishes. No other voice, board end or screen change
- *   stops it (only muting, turning voices off, or closing the game does).
- * - A new line that outranks the one playing waits its turn instead of cutting in, and is dropped
- *   if it would be stale by then. Equal/lower lines are skipped unless they asked to wait.
- * - A line that is still LOADING (nothing heard yet) can still be replaced by a higher one.
- * - At a board end only QUEUED lines below the win/lose line are dropped.
+ * - Roman says one line per moment. A second Roman line is skipped, not queued behind the first.
+ * - When the Unseen speaks, Roman's line stops and the Unseen plays. Roman does not start
+ *   while the Unseen is speaking.
+ * - Anyone else: a line that has started finishes. A higher line waits instead of cutting in.
+ *   Equal or lower lines are skipped unless they asked to wait.
+ * - A line that is still loading (nothing heard yet) can be replaced by a higher one.
+ * - At a board end only queued lines below the win/lose line are dropped.
  */
+export type VoiceSpeaker = 'roman' | 'oldtimer' | 'other'
+
 export interface ChannelLine {
   priority: number
   /** the clip has actually started playing (the player can hear it) */
   audible: boolean
   /** performance.now() when it should end (0 = not known yet) */
   endsAt: number
+  /** Who is using the channel. Missing means the older "don't cut a started line" rule. */
+  speaker?: VoiceSpeaker
 }
 export interface VoiceRequest {
   priority: number
   waitMs?: number
+  speaker?: VoiceSpeaker
 }
 
 /** How long past the current line's end a line that outranks it is still worth saying */
@@ -32,6 +37,13 @@ export type VoiceDecision = { kind: 'play' } | { kind: 'preempt' } | { kind: 'wa
 
 export function decideVoice(current: ChannelLine | null, req: VoiceRequest, now: number): VoiceDecision {
   if (!current) return { kind: 'play' }
+  // The Unseen takes the channel from Roman so his line is the one you hear.
+  if (req.speaker === 'oldtimer' && current.speaker === 'roman') return { kind: 'preempt' }
+  // One Roman line per moment, and he stays quiet while the Unseen is speaking.
+  if (req.speaker === 'roman' && (current.speaker === 'roman' || current.speaker === 'oldtimer')) {
+    if (current.speaker === 'roman' && !current.audible && req.priority > current.priority) return { kind: 'preempt' }
+    return { kind: 'skip' }
+  }
   if (req.priority > current.priority && !current.audible) return { kind: 'preempt' }
   if (req.priority > current.priority) {
     const remaining = current.endsAt > now ? current.endsAt - now : current.endsAt ? 0 : UNKNOWN_REMAINING_MS

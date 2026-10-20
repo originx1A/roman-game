@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { getPlayerName, isUnsetAccountName } from '../src/game/playerName.ts'
-import { clipAudible, DESKTOP_PHONE_JAB, desktopCaption } from '../src/game/lineCaption.ts'
+import { clipAudible, DESKTOP_PHONE_JAB, desktopCaption, HANDHELD_MAX_WIDTH_PX, isComputerDevice } from '../src/game/lineCaption.ts'
+import { COMPUTER_SIGNIN_LINE, reminderText } from '../src/game/unseenReminders.ts'
 
 test('getPlayerName prefers the account name, then settings, then the old profile', () => {
   assert.equal(
@@ -46,4 +47,19 @@ test('phone jab keeps its recording on phones and a silent desktop caption on co
   assert.equal(clipAudible('old_jab_phone', true), false)
   assert.equal(clipAudible('old_jab_bingo', true), true)
   assert.match(DESKTOP_PHONE_JAB, /Have you ever used a computer before/)
+})
+
+test('phone lines stay on phones and tablets, and computers get the computer line', () => {
+  const wide = HANDHELD_MAX_WIDTH_PX + 40
+  assert.equal(isComputerDevice(null), false)
+  assert.equal(isComputerDevice({ coarse: true, fine: false, width: 390 }), false)
+  assert.equal(isComputerDevice({ coarse: true, fine: false, width: 1024 }), false, 'a wide tablet keeps the phone line')
+  assert.equal(isComputerDevice({ coarse: false, fine: true, width: 700 }), false, 'a narrow window keeps the phone line')
+  assert.equal(isComputerDevice({ coarse: false, fine: true, width: wide }), true)
+  assert.equal(isComputerDevice({ coarse: true, fine: true, width: wide }), false, 'a coarse pointer wins over a fine one')
+  assert.equal(isComputerDevice({ coarse: false, fine: false, width: wide }), false, 'unknown pointer defaults to the phone line')
+  assert.equal(reminderText('signin', false), "You keep winning and then leaving it on this phone. Sign in, and the scores come with you. No password. I'm not carrying them.")
+  assert.equal(reminderText('signin', true), COMPUTER_SIGNIN_LINE)
+  assert.match(COMPUTER_SIGNIN_LINE, /this computer/)
+  assert.equal(reminderText('pets', true).includes('computer'), false)
 })

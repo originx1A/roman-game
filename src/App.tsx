@@ -93,7 +93,6 @@ import {
   moodKind,
   moodNow,
   priceWith,
-  swapTreatsToCoins,
   TREATS,
   stealFieldTreats,} from './game/pets'
 import {
@@ -292,12 +291,10 @@ import {
   dropWaitingVoice,
   petGiggle,
 } from './game/sound'
+import { isComputerPlayer } from './game/lineCaption'
 import { COIN_PACKS, purchaseCoinPack, restorePurchases, isStoreBuild, subscribeStore, type CoinPackId } from './game/iap'
 import { loadWebPacks, type WebPackOffer } from './game/webPacks'
 import './App.css'
-/** Temporarily hide the real-money coin shop until Stripe is connected. Set to true to re-enable. */
-const SHOP_ENABLED = false;
-
 
 let lastAppHeight = 0
 
@@ -512,6 +509,7 @@ export default function App() {
       const next = readLayout()
       document.documentElement.dataset.layout = next.layout
       document.documentElement.dataset.device = next.device
+      document.documentElement.dataset.voiceDevice = isComputerPlayer() ? 'computer' : 'phone'
       setLayoutInfo((cur) => (cur.layout === next.layout && cur.device === next.device ? cur : next))
     }
     apply()
@@ -579,10 +577,12 @@ export default function App() {
     if (!clip) return false
     return clip.startsWith('old_') || (clip.startsWith('tip_') && clip.includes('_old_'))
   }
-  function maybeUnseenPop(line: { text?: string; clip?: string; speak?: boolean; silent?: boolean }) {
-    if (!line.speak || line.silent || !line.text || !isUnseenClip(line.clip)) return
+  function maybeUnseenPop(line: { text?: string; clip?: string; speak?: boolean; silent?: boolean; voiceMood?: Parameters<typeof playBanterClip>[1]; alts?: readonly string[]; priority?: number; waitMs?: number }) {
+    // Allowed moments only: callers already passed the voice gate (between turns, not mid-gesture).
+    if (!line.speak || line.silent || !line.text || !line.clip || !isUnseenClip(line.clip)) return
+    playBanterClip(line.clip, line.voiceMood ?? 'neutral', line.alts, line.priority, line.waitMs)
     unseenKey.current += 1
-    setUnseenPop({ text: line.text, key: unseenKey.current })
+    setUnseenPop({ text: line.text, key: unseenKey.current, clip: line.clip })
   }
   const teaseTimer = useRef(0)
   const teaseGen = useRef(0)
@@ -646,6 +646,7 @@ export default function App() {
   const [incoming, setIncoming] = useState<Challenge | null>(null)
   const [, setChallenges] = useState(() => loadChallenges())
   const [nameField, setNameField] = useState('')
+  const [editingName, setEditingName] = useState(false)
   const nameFocus = useRef(false)
   const [storePrices, setStorePrices] = useState<Record<string, string>>({})
   const [webPacks, setWebPacks] = useState<WebPackOffer[] | null>(null)
@@ -775,7 +776,7 @@ export default function App() {
     playerName: settings.playerName,
     displayName: profile?.displayName,
   })
-  const signedIn = cloud.status === 'signed-in' && !!(cloud.publicName || cloud.name)
+  const signedIn = cloud.status === 'signed-in'
   const [namePrompt, setNamePrompt] = useState<null | { then?: () => void }>(null)
   const [nameDraft, setNameDraft] = useState('')
   const touchName = useKeyboardNameEntry()
@@ -1202,8 +1203,8 @@ export default function App() {
     if (line.text) showToast(line.text)
     // place-good: Board already plays buddy giggle — don't speak here
     if (line.giggle || !line.speak || !line.clip) return line
-    playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
-    maybeUnseenPop(line)
+    if (isUnseenClip(line.clip)) maybeUnseenPop(line)
+    else playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
     return line
   }
 
@@ -1254,8 +1255,8 @@ export default function App() {
       const line = tipBanter(id, reason)
       if (line.silent || !line.clip) return false
       if (line.text) showToast(line.text)
-      playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
-      maybeUnseenPop(line)
+      if (isUnseenClip(line.clip)) maybeUnseenPop(line)
+      else playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
       boardTipsRef.current = [...boardTipsRef.current, id]
       lastTipAtRef.current = now
       persistTips(noteShown(tipsRef.current, id, now))
@@ -2612,35 +2613,17 @@ export default function App() {
     sfxCoin()
     showToast(`🍖 Claimed ${r.claimed} treats to the safe stash!`)
   }
-  /** Swap the whole safe snack stash for coins (1 snack = 15 coins). */
-  function handleSwapTreats() {
-    const w = loadWallet()
-    const snacks = loadPets().treats.snack ?? 0
-    if (snacks <= 0) {
-      showToast('No snacks in the stash to swap.')
-      return
-    }
-    const r = swapTreatsToCoins(loadPets(), w.coins, snacks)
-    if (!r.ok) {
-      showToast(r.reason)
-      return
-    }
-    persistPets(r.state)
-    persistWallet({ ...w, coins: r.coins })
-    sfxCoin()
-    showToast(`🔄 Swapped ${r.swapped} snacks → +${r.gained} coins!`)
-  }
-
-  function handleCreateChallenge() {
+  function makeScoreChallenge(message?: string): { url: string; text: string } {
     const target = puzzle ?? PUZZLES[0]
     const clear = getProgress().clears.find((c) => c.puzzleId === target.id)
+    const note = message?.trim() || challengeMsg
     const c = createChallenge({
       puzzleId: target.id,
       puzzleName: target.name,
       difficulty: DIFFICULTY_LABEL[target.difficulty],
       fromEmail: senderEmail(profile?.email),
       fromName: playerName || 'A friend',
-      message: challengeMsg,
+      message: note,
       toEmail: challengeEmail || undefined,
       scoreMs: clear?.bestMs,
       scorePts: clear?.bestScore,
@@ -2654,24 +2637,18 @@ export default function App() {
     const link = encodeChallengeLink(c, target)
     setShareLink(link)
     const lv = records.levels[target.id]
-    setShareText(
-      clear
-        ? scoreShareText({
-            name: playerName,
-            score: lv?.bestScore ?? clear.bestScore,
-            levelLabel: levelLabelFor(target),
-            stars: lv?.stars,
-            timeMs: lv?.bestMs ?? clear.bestMs,
-            buddy: lv ? petLabel(lv.buddy) : undefined,
-          })
-        : challengeShareText(c),
-    )
-    void navigator.clipboard?.writeText(link)
-    showToast(
-      clear
-        ? `Challenge ready · ${target.name} · ${formatShareTime(clear.bestMs)} · ${badgeTitleForShare(wallet)}`
-        : 'Challenge link ready — share below',
-    )
+    const share = clear
+      ? scoreShareText({
+          name: playerName,
+          score: lv?.bestScore ?? clear.bestScore,
+          levelLabel: levelLabelFor(target),
+          stars: lv?.stars,
+          timeMs: lv?.bestMs ?? clear.bestMs,
+          buddy: lv ? petLabel(lv.buddy) : undefined,
+        })
+      : challengeShareText(c)
+    setShareText(share)
+    return { url: link, text: share }
   }
 
   /** Share this win as a scored challenge so a friend can beat your time */
@@ -3105,6 +3082,9 @@ export default function App() {
             <button type="button" className={screen === 'levels' ? 'on' : ''} onClick={() => setScreen('levels')}>
               Play
             </button>
+            <button type="button" data-testid="nav-how" title="How to play" onClick={() => setScreen('how')}>
+              How
+            </button>
             <button type="button" className={screen === 'rewards' ? 'on' : ''} onClick={() => setScreen('rewards')}>
               Rewards
             </button>
@@ -3145,7 +3125,7 @@ export default function App() {
         </header>
       )}
 
-      {screen !== 'play' && playerName && (
+      {screen !== 'play' && screen !== 'profile' && playerName && (
         <p className="signed-in-bar" data-testid="signed-in-as">
           {signedIn ? 'Signed in as ' : 'Playing as '}
           <strong className="player-name-mark">{playerName}</strong>
@@ -3203,13 +3183,13 @@ export default function App() {
             />
             <div className="cta-row">
               {draftPuzzle ? (
-                <button type="button" className="btn primary" onClick={() => startPuzzle(draftPuzzle, true)}>
+                <button type="button" className="btn primary home-play" onClick={() => startPuzzle(draftPuzzle, true)}>
                   Resume {draftPuzzle.name}
                 </button>
               ) : (
                 <button
                   type="button"
-                  className="btn primary"
+                  className="btn primary home-play"
                   onClick={() => {
                     // 9.30-n: once every level is cleared, Play opens the Levels list (it used to make endless random boards)
                     const uncleared = PUZZLES.find((p) => !done.has(p.id))
@@ -3315,7 +3295,17 @@ export default function App() {
       )}
 
       {screen === 'leaderboard' && (
-        <Leaderboard you={playerName} signedIn={signedIn} />
+        <Leaderboard
+          you={playerName}
+          signedIn={signedIn}
+          badges={BADGES.filter((b) => badgeRank(wallet, b.id) >= 1).map((b) => b.icon)}
+          showcase={{ pieces: localCard(records).pieces, earned: localCard(records).pieces >= CARD_PIECES }}
+          onChallenge={(rival) => {
+            makeScoreChallenge(`${playerName || 'I'} challenge ${rival}. Beat my score.`)
+            setScreen('challenge')
+            showToast(`Challenge ready. Share it with ${rival}.`)
+          }}
+        />
       )}
 
       {screen === 'levels' && (
@@ -3739,7 +3729,6 @@ export default function App() {
           onBuyBundle={onBuyBundle}
           onCare={onCarePet}
           onFeed={onFeedPet}
-          onSwapTreats={handleSwapTreats}
           today={todayKey}
           onEquip={onEquipPet}
           onPeek={onPeekGift}
@@ -3757,117 +3746,62 @@ export default function App() {
 
       {screen === 'rewards' && (
         <main className="panel scroll-pane">
-          <h2>Rewards</h2>
-          <p className="sub">
-            Unlock badges by playing, then spend coins to rank them up forever — each rank boosts coins on every win.
-          </p>
-          <button type="button" className="stable-entry" onClick={() => setScreen('stable')}>
-            <span className="stable-entry-art" aria-hidden="true">
-              <PetArt id="lupa" size={40} />
-              <PetArt id="aquila" size={40} />
-              <PetArt id="leo" size={40} />
-            </span>
-            <span>
-              <strong>The Stable</strong>
-              <small>Adopt a buddy with coins. Each one has a perk.</small>
-            </span>
-            <span aria-hidden="true">›</span>
-          </button>
-          <div className="stat-strip wallet-strip">
-            <div><strong>{wallet.coins}</strong><span>coins</span></div>
-            <div><strong>{wallet.freeHints}</strong><span>free hints</span></div>
-            <div><strong>{wallet.shields}</strong><span>shields</span></div>
-            <div><strong>{wallet.spins}</strong><span>spins</span></div>
-            <div><strong>{wallet.bonusHearts ?? 0}</strong><span>bonus hearts</span></div>
-            <div><strong>{totalBadgePower(wallet)}</strong><span>power</span></div>
-            <div><strong>+{formatBonusPercent(totalCoinBonusPercent(wallet))}</strong><span>win bonus</span></div>
-          </div>
-          <div className="econ-card" data-testid="econ-card">
-            {(() => {
-              const t = ledgerSummary(rollLedger(econ, todayKey))
-              const pr = paradeRewardsLine(rollLedger(econ, todayKey))
-              return (
-                <>
-                  <span>
-                    Today: full-pay wins <b>{t.winsFull}/{t.winsFullMax}</b> · sparks <b>{t.sparks}/{t.sparksMax}</b> · wheel spins earned <b>{t.spins}/{t.spinsMax}</b>
-                  </span>
-                  <span data-testid="parade-rewards-today">
-                    Parade rewards today: <b>{pr.text}</b> · parades with treasure <b>{pr.parades}/{pr.max}</b> · treasure left <b>{treasureLeftPct(rollLedger(econ, todayKey))}%</b>
-                  </span>
-                  <small>{t.winsToday >= t.winsFullMax ? 'Busy day: wins pay a bit less now, and it all resets tomorrow (stars, records and buddy XP always count).' : 'Wins pay in full until 5 a day, then a bit less. It resets every midnight (Toronto).'}</small>
-                </>
-              )
-            })()}
-          </div>
-          <button
-            type="button"
-            className="btn primary"
-            disabled={wallet.spins <= 0}
-            onClick={openPrizeWheel}
-          >
-            {wallet.spins > 0 ? `Use a spin (${wallet.spins})` : 'Catch 5 sparks for a spin (1 a day)'}
-          </button>
-
-          {SHOP_ENABLED && (<>
-          <h3 className="ach-title">Coin shop</h3>
-          <p className="sub shop-note">
-            {isStoreBuild()
-              ? 'Prices come from the App Store / Google Play. Coins spend on hints, rescues, revives, and badge ranks.'
-              : webShop === 'unavailable'
-                ? 'Purchases are unavailable right now. You can still win coins by playing.'
-                : webShop === 'ready'
-                  ? 'Prices are in US dollars. Coins are added in this browser after you pay. You can still win coins by playing.'
-                  : 'Loading the coin shop.'}
-          </p>
-          <div className="coin-shop">
-            {isStoreBuild()
-              ? COIN_PACKS.map((pack) => (
+          <section className="shop-block" data-testid="shop" aria-label="Shop">
+            <h2>Shop</h2>
+            <p className="sub shop-note">Real money buys coin packs and the starter pack. Treats and animals are bought with coins in the Stable.</p>
+            <div className="coin-shop">
+              {(['coins_500', 'coins_1200', 'coins_3000'] as const).map((id) => {
+                const pack = COIN_PACKS.find((p) => p.id === id)
+                if (!pack) return null
+                const size = id === 'coins_500' ? 'Small' : id === 'coins_1200' ? 'Medium' : 'Large'
+                return (
                   <CoinPackCard
                     key={pack.id}
-                    pack={pack}
+                    webBuy
+                    pack={{ ...pack, label: size }}
+                    priceText={storePrices[pack.productId] || pack.priceHint}
                     onBuy={onBuyCoins}
-                    priceText={storePrices[pack.productId]}
                   />
-                ))
-              : webShop === 'ready' && webPacks
-                ? webPacks.map((pack) => (
-                    <CoinPackCard
-                      key={pack.id}
-                      webBuy
-                      pack={{
-                        id: pack.id,
-                        productId: pack.productId,
-                        label: pack.label,
-                        coins: pack.coins,
-                        priceHint: pack.priceLabel,
-                      }}
-                      priceText={pack.priceLabel}
-                      onBuy={onBuyCoins}
-                    />
-                  ))
-                : null}
-          </div>
-          {isStoreBuild() && (
-            <>
+                )
+              })}
+            </div>
+            <article className="product-card starter-pack" data-testid="starter-pack">
+              <div className="product-card-top">
+                <h3>Starter pack</h3>
+                <p className="product-coins">Lupa + Aquila</p>
+              </div>
+              <p className="product-value">Two buddies. Real money only. Other animals are coins in the Stable.</p>
+              <div className="product-card-foot">
+                <span className="product-price">Real money</span>
+                <button
+                  type="button"
+                  className="btn ghost product-buy"
+                  onClick={() => {
+                    const owned = pets.owned.lupa && pets.owned.aquila
+                    showToast(owned ? 'You already have the starter buddies.' : 'Purchases are unavailable right now.')
+                  }}
+                >
+                  Buy
+                </button>
+              </div>
+            </article>
+            {isStoreBuild() ? (
               <button type="button" className="btn ghost" onClick={() => void onRestorePurchases()}>
                 Restore unfinished purchases
               </button>
-              <p className="sub restore-note">
-                Coin packs are consumable. A finished purchase is not restored. This only adds a payment
-                that was charged but not yet turned into coins.
-              </p>
-            </>
-          )}
-          </>)}
+            ) : null}
+          </section>
 
-          <h3 className="ach-title">Badges · rank up</h3>
-          <div className="ach-grid badge-grid">
+          <h2>Rewards</h2>
+          <p className="rewards-lead">Badges, streaks, and prizes you pick up by playing.</p>
+          <h3 className="ach-title">Badges</h3>
+          <div className="reward-row" aria-label="Badges">
             {ACHIEVEMENTS.map((a) => {
               const rank = badgeRank(wallet, a.id)
               const unlocked = rank >= 1
               const cost = unlocked ? upgradeBadgeCost(a.id, rank, totalBadgePower(wallet)) : 0
               return (
-                <div key={a.id} className={`product-card badge-card ${unlocked ? 'on' : 'is-locked'}`}>
+                <div key={a.id} className={`reward-card badge-card ${unlocked ? 'on' : 'is-locked'}`}>
                   <span className="ach-icon">{a.icon}</span>
                   <strong>{a.title}</strong>
                   <span className="badge-rank">{unlocked ? `Rank ${rank}` : 'Locked'}</span>
@@ -3891,62 +3825,90 @@ export default function App() {
               )
             })}
           </div>
+          <h3 className="ach-title">Streaks</h3>
+          <div className="reward-row" aria-label="Streaks">
+            <div className="reward-card"><span className="ach-icon">🔥</span><strong>{dailyStreakNow}-day</strong><span>streak</span></div>
+            <div className="reward-card"><span className="ach-icon">🏆</span><strong>{records.daily.bestStreak}</strong><span>best streak</span></div>
+            <div className="reward-card" data-testid="parade-rewards-today"><span className="ach-icon">🎉</span><strong>{paradeRewardsLine(rollLedger(econ, todayKey)).text}</strong><span>parade today</span></div>
+          </div>
+          <h3 className="ach-title">Daily prizes</h3>
+          <div className="reward-row" aria-label="Daily prizes" data-testid="econ-card">
+            {(() => {
+              const t = ledgerSummary(rollLedger(econ, todayKey))
+              return (
+                <>
+                  <div className="reward-card"><strong>{t.winsFull}/{t.winsFullMax}</strong><span>full-pay wins</span></div>
+                  <div className="reward-card"><strong>{t.sparks}/{t.sparksMax}</strong><span>sparks</span></div>
+                  <button type="button" className="reward-card reward-action" disabled={wallet.spins <= 0} onClick={openPrizeWheel}>
+                    <strong>{wallet.spins > 0 ? `Spin (${wallet.spins})` : 'No spin yet'}</strong>
+                    <span>Catch 5 sparks</span>
+                  </button>
+                </>
+              )
+            })()}
+          </div>
+          <h3 className="ach-title">To collect</h3>
+          <div className="reward-row" aria-label="Things to collect">
+            <button type="button" className="reward-card reward-action" onClick={() => setScreen('stable')}>
+              <span className="ach-icon">🐾</span><strong>Animals</strong><span>{wallet.coins} coins</span>
+            </button>
+            <div className="reward-card"><span className="ach-icon">🍖</span><strong>{pets.treats.snack + pets.treats.feast}</strong><span>treats</span></div>
+            <div className="reward-card"><span className="ach-icon">✨</span><strong>{wallet.critterStash ?? 0}/5</strong><span>sparks</span></div>
+            <div className="reward-card"><span className="ach-icon">🛡️</span><strong>{wallet.shields}</strong><span>shields</span></div>
+            <div className="reward-card"><span className="ach-icon">🃏</span><strong>{localCard(records).pieces}/{CARD_PIECES}</strong><span>Unseen card</span></div>
+          </div>
         </main>
       )}
 
       {screen === 'profile' && (
         <main className="panel profile scroll-pane">
           <h2>Account & settings</h2>
-          <div className="profile-card" data-testid="account-card">
-            {signedIn ? (
-              <>
-                <p className="profile-name">
+          <div className="profile-card account-line" data-testid="account-card">
+            <p className="profile-name" data-testid="account-signed-in">
+              {signedIn ? (
+                <>
                   Signed in as <strong className="player-name-mark">{playerName}</strong>
-                </p>
-                {cloud.email ? <p className="profile-email">{cloud.email}</p> : null}
-              </>
-            ) : (
-              <>
-                <p className="profile-name">{playerName ? <>Playing as <strong className="player-name-mark">{playerName}</strong></> : 'Not signed in'}</p>
-                <p className="profile-email">Scores stay on this device until you sign in. No password — we email you a link.</p>
-                <CloudScoresButton suggestedName={playerName} />
-              </>
-            )}
-            <label className="name-setting">
-              Your name on shared scores
-              <input
-                type="text"
-                value={nameField}
-                maxLength={NAME_MAX}
-                placeholder="Blank = “I scored…”"
-                aria-label="Your name on shared scores"
-                onFocus={() => {
-                  nameFocus.current = true
-                }}
-                onChange={(e) => setNameField(e.target.value.slice(0, NAME_MAX))}
-                onBlur={(e) => {
-                  nameFocus.current = false
-                  const next = cleanPlayerName(e.target.value)
-                  setNameField(next)
-                  if (next && next !== playerName) void commitName(next)
-                }}
-              />
-            </label>
-            {signedIn ? (
-              <div className="cta-row">
-                <button type="button" className="btn ghost" onClick={() => void commitName(nameField)}>
-                  Change name
-                </button>
-                <button
-                  type="button"
-                  className="btn ghost"
-                  onClick={() => {
-                    void cloudSignOut()
-                  }}
-                >
+                  {cloud.email ? <> ({cloud.email})</> : null}
+                </>
+              ) : playerName ? (
+                <>Playing as <strong className="player-name-mark">{playerName}</strong></>
+              ) : (
+                'Not signed in'
+              )}
+            </p>
+            <div className="account-actions">
+              <button type="button" className="btn ghost btn-sm" data-testid="edit-name" onClick={() => setEditingName((open) => !open)}>
+                Edit name
+              </button>
+              {signedIn ? (
+                <button type="button" className="btn ghost btn-sm" onClick={() => void cloudSignOut()}>
                   Sign out
                 </button>
-              </div>
+              ) : (
+                <CloudScoresButton suggestedName={playerName} />
+              )}
+            </div>
+            {editingName ? (
+              <label className="name-setting">
+                Name
+                <input
+                  type="text"
+                  value={nameField}
+                  maxLength={NAME_MAX}
+                  placeholder="Your name"
+                  aria-label="Your name"
+                  onFocus={() => {
+                    nameFocus.current = true
+                  }}
+                  onChange={(e) => setNameField(e.target.value.slice(0, NAME_MAX))}
+                  onBlur={(e) => {
+                    nameFocus.current = false
+                    const next = cleanPlayerName(e.target.value)
+                    setNameField(next)
+                    if (next && next !== playerName) void commitName(next)
+                  }}
+                />
+              </label>
             ) : null}
           </div>
           <section className="leaderboard">
@@ -4109,25 +4071,15 @@ export default function App() {
 
       {screen === 'challenge' && (
         <main className="panel challenge scroll-pane">
-          <h2>Share &amp; challenge</h2>
+          <h2>Share</h2>
           {playerName ? (
             <p className="share-player" data-testid="share-player">
               Sharing as <strong className="player-name-mark">{playerName}</strong>
-              {' · '}can you beat my score?
             </p>
           ) : (
-            <p className="sub">Add your name in Account & settings and it goes on every challenge.</p>
+            <p className="sub">Add your name in Account and it goes on every challenge.</p>
           )}
-          <p className="sub">
-            Share your best time. Friends open the link, play the same board, then send a head-to-head score back.
-            {playerName ? ` The email and the link say ${playerName} challenged them.` : ''}
-          </p>
-          <ShareBar
-            url={shareLink || playUrl}
-            text={shareText || challengeMsg}
-            emailHref={challengeMailHref(shareLink || playUrl)}
-            onCopied={() => showToast('Copied')}
-          />
+          <p className="sub">Share a score, or invite someone to play.</p>
           {incoming && (
             <div className="incoming">
               <p>
@@ -4188,8 +4140,17 @@ export default function App() {
               {linkBoardError ? <p className="link-board-error">{linkBoardError}</p> : null}
             </div>
           )}
+          <ShareBar
+            url={shareLink || playUrl}
+            text={shareText || challengeMsg}
+            inviteUrl={playUrl}
+            inviteText={playerName ? `${playerName} invited you to play Roman's Game.` : "Come play Roman's Game with me."}
+            emailHref={challengeMailHref(shareLink || playUrl)}
+            onCopied={() => showToast('Copied')}
+            onShareScore={() => makeScoreChallenge()}
+          >
           <label>
-            Board
+            Board to challenge
             <select
               value={puzzle?.id ?? PUZZLES[0].id}
               onChange={(e) => {
@@ -4205,27 +4166,15 @@ export default function App() {
             </select>
           </label>
           <label>
-            Friend email (optional)
-            <input type="email" value={challengeEmail} onChange={(e) => setChallengeEmail(e.target.value)} />
+            Friend's email
+            <input type="email" aria-label="Friend's email" placeholder="name@email.com" value={challengeEmail} onChange={(e) => setChallengeEmail(e.target.value)} />
           </label>
           <label>
-            Message
-            <input type="text" value={challengeMsg} onChange={(e) => setChallengeMsg(e.target.value)} maxLength={120} />
+            Note on the score link
+            <input type="text" aria-label="Note on the score link" value={challengeMsg} onChange={(e) => setChallengeMsg(e.target.value)} maxLength={120} />
           </label>
-          <button type="button" className="btn primary" onClick={handleCreateChallenge}>
-            Make score challenge link
-          </button>
-          {shareLink && (
-            <div className="share-box">
-              <code>{shareLink}</code>
-              <ShareBar
-                url={shareLink}
-                text={shareText || challengeMsg}
-                emailHref={challengeMailHref(shareLink)}
-                onCopied={() => showToast('Copied')}
-              />
-            </div>
-          )}
+          {shareLink ? <code className="share-link-preview">{shareLink}</code> : null}
+          </ShareBar>
         </main>
       )}
 
@@ -4267,6 +4216,8 @@ export default function App() {
           <ShareBar
             url={duelLink || shareLink || playUrl}
             text={shareText || duelShareText(duel)}
+            inviteUrl={playUrl}
+            inviteText={playerName ? `${playerName} invited you to play Roman's Game.` : "Come play Roman's Game with me."}
             onCopied={() => showToast('Copied')}
           />
           <div className="cta-row" style={{ marginTop: '1rem' }}>
@@ -4369,13 +4320,13 @@ function NamePromptSheet({
         className="name-input"
         type="text"
         value={nameDraft}
-        maxLength={PLAYER_NAME_MAX + 8}
+        maxLength={PLAYER_NAME_MAX}
         placeholder="Your name"
         autoComplete="nickname"
         enterKeyHint="done"
         aria-label="Your name"
         data-testid="share-name-input"
-        onChange={(e) => setNameDraft(e.target.value.slice(0, PLAYER_NAME_MAX + 8))}
+        onChange={(e) => setNameDraft(e.target.value.slice(0, PLAYER_NAME_MAX))}
       />
       <button type="submit" className="btn primary" disabled={!cleanPlayerName(nameDraft)}>
         Save

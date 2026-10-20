@@ -14,6 +14,16 @@ export const REMINDER_LINES: Record<ReminderId, string> = {
   streak: "That streak of yours is hanging by a thread. One Daily today and it lives. I'm not saying I'm worried. I'm saying the fire is.",
 }
 
+/** Same sign-in reminder, for a computer. Phones and tablets keep REMINDER_LINES.signin. */
+export const COMPUTER_SIGNIN_LINE =
+  "You keep winning and then leaving it on this computer. Sign in, and the scores come with you. No password. I'm not carrying them."
+
+/** Words the player sees. Phone wording unless this device is a computer. */
+export function reminderText(id: ReminderId, computer: boolean): string {
+  if (id === 'signin' && computer) return COMPUTER_SIGNIN_LINE
+  return REMINDER_LINES[id]
+}
+
 /** Sign-in stops for good after this many dismissals. */
 export const SIGNIN_DISMISS_CAP = 2
 /** Sign-in is shown at most this many times in one browser session. */

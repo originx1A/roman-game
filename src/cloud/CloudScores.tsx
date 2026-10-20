@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { KeyboardNameSheet, useKeyboardNameEntry } from '../components/KeyboardNameSheet'
 import { isProfane } from './profanity'
-import { NAME_MAX, loadConsent, saveConsent, onCloud, renamePlayer, savePlayerName, sendMagicLink, signInCode, signInEmail, signOut, verifyEmailCode, type CloudState } from './cloud'
+import { NAME_MAX, cloudState, loadConsent, saveConsent, onCloud, renamePlayer, savePlayerName, sendMagicLink, signInCode, signInEmail, signOut, verifyEmailCode, type CloudState } from './cloud'
 
 /**
  * "Save my scores" button + sheets: email magic link or the code from that email, then a one-time name prompt.
@@ -10,7 +10,7 @@ import { NAME_MAX, loadConsent, saveConsent, onCloud, renamePlayer, savePlayerNa
  * Switching player is a separate choice. Opening that sheet, or tapping Not now, never signs the current player out.
  */
 export function useCloud(): CloudState {
-  const [s, setS] = useState<CloudState>({ status: 'off', pending: 0 })
+  const [s, setS] = useState<CloudState>(() => cloudState())
   useEffect(() => onCloud(setS), [])
   return s
 }

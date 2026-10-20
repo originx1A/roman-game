@@ -11,8 +11,24 @@ const P = { idle: 1, chatter: 2, wrong: 3, hint: 4, prize: 4, win: 5, lose: 5 }
 const now = 100_000
 const oldTimerPlaying = (priority: number, leftMs = 3000) => ({ priority, audible: true, endsAt: now + leftMs })
 
+test('the Unseen cuts Roman off, and Roman does not chain or talk over him', () => {
+  const roman = { priority: P.win, audible: true, endsAt: now + 4000, speaker: 'roman' as const }
+  const unseen = V.decideVoice(roman, { priority: P.chatter, speaker: 'oldtimer' }, now)
+  assert.equal(unseen.kind, 'preempt')
+  // a second Roman line in the same moment is dropped, even if it asked to wait
+  assert.equal(V.decideVoice(roman, { priority: P.chatter, waitMs: 6000, speaker: 'roman' }, now).kind, 'skip')
+  // Roman does not start while the Unseen is speaking
+  const old = { priority: P.chatter, audible: true, endsAt: now + 3000, speaker: 'oldtimer' as const }
+  assert.equal(V.decideVoice(old, { priority: P.win, speaker: 'roman' }, now).kind, 'skip')
+  // a Roman line that has not been heard yet can still be replaced by a more important Roman line
+  assert.equal(
+    V.decideVoice({ priority: P.idle, audible: false, endsAt: 0, speaker: 'roman' }, { priority: P.win, speaker: 'roman' }, now).kind,
+    'preempt',
+  )
+})
+
 test('9.30-e: a line that has started is never cut; higher lines wait for it', () => {
-  // old-timer grumble (wrong, 3) is talking; the coach hint (4) and Roman's win line (5) wait
+  // old-timer grumble (wrong, 3) is talking; a coach hint (4) and a win line with no speaker still wait
   for (const pr of [P.hint, P.prize, P.win, P.lose]) {
     const d = V.decideVoice(oldTimerPlaying(P.wrong), { priority: pr }, now)
     assert.equal(d.kind, 'wait', `priority ${pr}`)

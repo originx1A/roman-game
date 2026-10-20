@@ -25,7 +25,7 @@ const STEPS = [
   { title: 'Remix boards', blurb: 'New boards every 3 days, the same set for everyone, so you can compare scores. Want more? Endless mode makes unlimited new boards.', demo: 'remix', isNew: true },
   { title: 'Buddy flyby', blurb: 'Your active buddy swoops across the board every couple of minutes. Tap it for a reward — coins, hints, hearts, even rescues!', demo: 'critter', isNew: true },
   { title: 'Treat defense', blurb: 'Wild pets sneak onto the board trying to steal your treat pile! Your pets chase them off automatically (+3-5 treats). Or tap the invader yourself (+1-2). Tap the 🍖 count up top to stash your treats safe.', demo: 'hunt', isNew: true },
-  { title: 'Treats & coins', blurb: 'Every win earns 5 field treats. Treats feed and upgrade your pets. Swap safe treats for coins (15 coins each). Bought treats can never be stolen.', demo: 'stars', isNew: true },
+  { title: 'Treats & coins', blurb: 'Every win earns 5 field treats. Treats feed and upgrade your pets. Buy treats and animals with coins. Bought treats can never be stolen.', demo: 'stars', isNew: true },
   { title: 'The Unseen', blurb: 'A faceless hooded figure watches you play. He creeps up from the corner and points at the board with a jab when he speaks.', demo: 'combo', isNew: true },
   { title: 'Free buddy', blurb: 'New players pick one buddy FREE — Lupa, Aquila, Leo, Invictus, or Nox. Yours forever.', demo: 'region', isNew: true },
 ] as const satisfies readonly { title: string; blurb: string; demo: HowDemoId; ms?: number; isNew?: boolean }[]
@@ -65,7 +65,19 @@ export function HowToPlay({
         )}
         <h2>How to play</h2>
       </div>
-      <p className="sub how-sub">Watch the demo, then jump in.</p>
+      <p className="sub how-sub">The short version. The pictures below walk through the same ideas.</p>
+      <section className="how-plain" aria-label="How the game works">
+        <h3>The board</h3>
+        <p>One buddy in every row, every column, and every colored region. They cannot touch, not even at a corner. Swipe to mark an X. Tap an X to place a buddy.</p>
+        <h3>Scoring</h3>
+        <p>Faster clears and fewer hints score more. Quick good moves build a combo. Each undo costs 25 points. Stars: finish, beat the time, then beat the time and the score with no undos.</p>
+        <h3>Coins</h3>
+        <p>Wins pay coins. Spend them on hints, treats, and animals. Real money buys coin packs and the starter pack only.</p>
+        <h3>Pets</h3>
+        <p>Buddies live in the Stable. Feed them treats, and one can ride along for a perk. A hungry buddy needs a treat.</p>
+        <h3>Challenges</h3>
+        <p>Share a score and a friend gets the same board, to beat your time. The Daily is one board a day. Remix boards change every three days.</p>
+      </section>
       <div className="how-stage" data-demo={current.demo}>
         <HowDemo key={current.demo} demo={current.demo} />
         <div className="how-caption">
@@ -102,7 +114,7 @@ export function HowToPlay({
         <li>Each color also has its own little shape in the tile corner.</li>
         <li>Your buddy flies by during play — tap it for rewards.</li>
         <li>Wild pets try to steal your treat pile on the board. Your pets defend it — tap the 🍖 count to stash treats safe.</li>
-        <li>Every win earns 5 treats. Treats feed and upgrade pets. Swap safe treats for coins anytime.</li>
+        <li>Every win earns 5 treats. Treats feed and upgrade pets. Buy treats and animals with coins.</li>
         <li>No pets yet? Claim your FREE buddy in the Stable — without defenders your treats are in danger.</li>
       </ol>
       <div className="cta-row">

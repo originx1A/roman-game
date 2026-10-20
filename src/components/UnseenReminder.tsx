@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { isComputerPlayer } from '../game/lineCaption'
+import { playReminderLine } from '../game/reminderVoice'
 import {
   bumpSessionSignIns,
   loadReminderMemory,
@@ -6,6 +8,7 @@ import {
   markDismissed,
   markShown,
   pickReminder,
+  reminderText,
   saveReminderMemory,
   type ReminderFacts,
   type ReminderId,
@@ -43,10 +46,11 @@ export function HomeUnseenReminder({ facts, onConsumed }: { facts: ReminderFacts
       memory = markShown(memory, choice.pick.id, current.now, current.today, current.remixSet)
       if (choice.pick.id === 'signin') bumpSessionSignIns()
       idRef.current = choice.pick.id
-      setText(choice.pick.text)
+      setText(reminderText(choice.pick.id, isComputerPlayer()))
     }
     lastVisit = { at: now, id: choice.pick?.id ?? null, text: choice.pick?.text ?? null }
     saveReminderMemory(memory)
+    if (choice.pick) void playReminderLine(choice.pick.id)
     onConsumed()
     // One decision per visit. Later Home renders must not swap in a second reminder.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -73,7 +77,7 @@ export function HomeUnseenReminder({ facts, onConsumed }: { facts: ReminderFacts
 export function UnseenReminder({ text, onDismiss }: { text: string; onDismiss: () => void }) {
   return (
     <aside className="unseen-reminder" data-testid="unseen-reminder" aria-label="The Unseen">
-      <img src="/images/unseen.png" alt="" draggable={false} />
+      <img className="unseen-reminder-art" src="/images/unseen.png" alt="" draggable={false} />
       <div>
         <span className="unseen-reminder-name">The Unseen</span>
         <p>{text}</p>

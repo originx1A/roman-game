@@ -19,6 +19,8 @@ export interface UnseenPop {
   key: number
   /** Override the usual hold. Leaderboard teases are text-only and a little longer. */
   holdMs?: number
+  /** Catalog clip played with this pop. Reminders on Home use their own hook. */
+  clip?: string
 }
 
 interface Props {

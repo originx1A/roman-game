@@ -1,5 +1,5 @@
-/** Long enough for a leaderboard name plus the server's 02, 03… suffix */
-export const PLAYER_NAME_MAX = 32
+/** Matches the account name limit (players_display_name_len). The nav pill ellipsizes past this. */
+export const PLAYER_NAME_MAX = 24
 
 /** Trim, drop control characters, squash spaces, cap at PLAYER_NAME_MAX */
 export function cleanPlayerName(raw: unknown): string {

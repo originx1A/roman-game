@@ -21,7 +21,6 @@ import {
   PETS,
   type PetDef,
   priceWith,
-  SNACK_COIN_RATE,
   TREATS,
   type TreatId,
   type Coupon,
@@ -260,8 +259,6 @@ export type StableProps = {
   /** 9.30-m: the free daily pet, and feeding a treat */
   onCare: (id: PetId) => void
   onFeed: (id: PetId, treat: TreatId) => void
-  /** 10.06: swap the safe snack stash for coins */
-  onSwapTreats: () => void
   /** Toronto date, for the once-a-day care */
   today: string
   onEquip: (id: PetId | null) => void
@@ -284,7 +281,7 @@ export type StableProps = {
   signedIn?: boolean
 }
 
-export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCare, onFeed, onSwapTreats, today, onEquip, onPeek, onRedeem, onShop, onBack, giftCode, focusPet, giftsOnline, isSignedIn, playerName, signedIn }: StableProps) {
+export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCare, onFeed, today, onEquip, onPeek, onRedeem, onShop, onBack, giftCode, focusPet, giftsOnline, isSignedIn, playerName, signedIn }: StableProps) {
   const [code, setCode] = useState(giftCode ?? '')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -412,15 +409,11 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
         </button>
       </div>
 
-      {/* 10.06: treat defense — safe stash (never stealable) + swap snacks for coins */}
       <div className="stable-stash" aria-label="Treat stash">
         <span>
           🍖 Stash: <strong>{pets.treats.snack}</strong> snacks · <strong>{pets.treats.feast}</strong> feasts
-          <small>safe from wild buddies · field pile: {pets.fieldTreats ?? 0}</small>
+          <small>safe from wild buddies · field pile: {pets.fieldTreats ?? 0} · buy more with coins</small>
         </span>
-        <button type="button" className="btn tool" onClick={onSwapTreats} disabled={(pets.treats.snack ?? 0) <= 0}>
-          Swap snacks → coins <small>1 🍖 = {SNACK_COIN_RATE} 🪙</small>
-        </button>
       </div>
 
       {pets.trial && pets.trial.until > now ? (
@@ -491,6 +484,8 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
         <section className="stable-bundles" aria-label="Bundles">
           <h3>Bundles</h3>
           {BUNDLES.map((b) => {
+            // Starter pack is real money, on the Shop. Animals here are coins only.
+            if (b.id === 'starter') return null
             const q = bundleQuote(pets, b.id, now)
             if (!q.available) return null
             const partial = q.missing.length < b.pets.length

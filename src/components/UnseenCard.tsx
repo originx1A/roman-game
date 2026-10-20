@@ -84,15 +84,31 @@ export function UnseenCardTile({ records }: { records?: RecordsBlob }) {
   )
 }
 
-/** Win screen moment: only shown when this win added a piece */
+/** Win screen moment: only shown when this win added a piece. Tap to open the details in place. */
 export function UnseenCardGain({ from, to }: { from: number; to: number }) {
+  const [open, setOpen] = useState(false)
+  const earned = to >= CARD_PIECES
+  const added = Math.max(0, to - from)
   return (
-    <div className="unseen-gain" role="status">
-      <UnseenCardArt pieces={to} from={from} size={to >= CARD_PIECES ? 'lg' : 'sm'} />
-      <span>
-        <b>{to >= CARD_PIECES ? 'The Unseen card is yours!' : 'The cracks glow brighter'}</b>
-        <small>Unseen card: {to} of {CARD_PIECES}</small>
+    <button
+      type="button"
+      className={`unseen-gain${open ? ' is-open' : ''}`}
+      data-testid="win-gold-card"
+      aria-expanded={open}
+      onClick={() => setOpen((v) => !v)}
+    >
+      <UnseenCardArt pieces={to} from={from} size="sm" />
+      <span className="unseen-gain-copy">
+        <b>{earned ? 'The Unseen card is yours' : 'The Unseen card'}</b>
+        <small>{open ? 'Tap to close' : `${to} of ${CARD_PIECES}`}</small>
+        <span className="unseen-gain-details">
+          <span>
+            <small>What it does: an exclusive card. Collect every piece and it turns over. You can show it on the Board.</small>
+            <small>Needed: {CARD_PIECES} pieces. A new board and each Daily win each add one.</small>
+            <small>Progress: {to} of {CARD_PIECES}{added > 0 ? `. This win added ${added}.` : ''}</small>
+          </span>
+        </span>
       </span>
-    </div>
+    </button>
   )
 }

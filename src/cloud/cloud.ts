@@ -50,6 +50,94 @@ export interface CloudState {
 
 const QUEUE_KEY = 'rg.cloud.queue.v1'
 const CONSENT_KEY = 'rg.cloud.consent.v1'
+/** Stable key for this project. Same origin, every page, every reload. */
+export const AUTH_STORAGE_KEY = 'sb-oelsglmfkpzbueqysvdm-auth-token'
+export const PROFILE_CACHE_KEY = 'rg.cloud.profile.v1'
+
+export interface StoredSessionUser {
+  access_token: string
+  refresh_token: string
+  expires_at?: number
+  user: { id: string; email?: string }
+}
+
+/** The login saved in localStorage, if it still has both tokens. */
+export function readStoredSession(store: Pick<Storage, 'getItem'> | null = typeof localStorage === 'undefined' ? null : localStorage): StoredSessionUser | null {
+  try {
+    const raw = store?.getItem(AUTH_STORAGE_KEY)
+    if (!raw) return null
+    const s = JSON.parse(raw) as Partial<StoredSessionUser>
+    if (!s?.access_token || !s.refresh_token || !s.user?.id) return null
+    return { access_token: s.access_token, refresh_token: s.refresh_token, expires_at: s.expires_at, user: { id: s.user.id, email: s.user.email } }
+  } catch {
+    return null
+  }
+}
+
+interface ProfileCache { userId: string; email?: string; name?: string | null; publicName?: string }
+
+function readProfileCache(userId: string): ProfileCache | null {
+  try {
+    const c = JSON.parse(localStorage.getItem(PROFILE_CACHE_KEY) || 'null') as ProfileCache | null
+    return c && c.userId === userId ? c : null
+  } catch {
+    return null
+  }
+}
+
+function writeProfileCache(userId: string, email: string | undefined, name: string | null | undefined, publicName?: string) {
+  try {
+    const prev = readProfileCache(userId)
+    localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify({
+      userId,
+      email: email ?? prev?.email,
+      name: name === undefined ? prev?.name ?? null : name,
+      publicName: publicName ?? prev?.publicName,
+    }))
+  } catch {
+    /* private mode */
+  }
+}
+
+/** True only while Sign out is running. A failed token refresh must not delete the login. */
+let explicitSignOut = false
+
+function browserStorage(): Storage | null {
+  try {
+    return typeof localStorage === 'undefined' ? null : localStorage
+  } catch {
+    return null
+  }
+}
+
+/** localStorage adapter. removeItem ignores the auth key unless the player chose Sign out. */
+const authStorage = {
+  getItem: (key: string) => browserStorage()?.getItem(key) ?? null,
+  setItem: (key: string, value: string) => {
+    browserStorage()?.setItem(key, value)
+  },
+  removeItem: (key: string) => {
+    if ((key === AUTH_STORAGE_KEY || key === `${AUTH_STORAGE_KEY}-user`) && !explicitSignOut) return
+    browserStorage()?.removeItem(key)
+  },
+}
+
+/** Used by the auth client. A refresh failure must not delete the saved login. */
+export function releaseAuthKey(key: string): void {
+  authStorage.removeItem(key)
+}
+
+/** Move scores played as a guest onto this account. Local board progress stays on the device. */
+export function mergeGuestQueue(userId: string): number {
+  const anon = readQueue(null)
+  if (!anon.length) return 0
+  const mine = readQueue(userId)
+  const seen = new Set(mine.map((r) => r.dedupeKey).filter(Boolean))
+  const extra = anon.filter((r) => !r.dedupeKey || !seen.has(r.dedupeKey))
+  writeQueue([...mine, ...extra], userId)
+  writeQueue([], null)
+  return extra.length
+}
 /** Same Kit form as romansgame.com/news/#signup (public form endpoint, no secret key in the client) */
 export const KIT_FORM_URL = 'https://app.kit.com/forms/10053148/subscriptions'
 
@@ -116,7 +204,20 @@ let clientP: Promise<SupabaseClient | null> | null = null
  * A `let` below that call is still in the temporal dead zone in dev and the game white-screens.
  */
 let queueOwner: string | null = null
-let state: CloudState = { status: 'off', pending: readQueue().length }
+function restoredState(): CloudState {
+  const saved = readStoredSession()
+  const pending = readQueue(saved?.user.id ?? null).length + readQueue(null).length
+  if (!saved) return { status: 'off', pending: readQueue(null).length }
+  const cached = readProfileCache(saved.user.id)
+  return {
+    status: 'signed-in',
+    email: saved.user.email ?? cached?.email,
+    name: cached?.name,
+    publicName: cached?.publicName,
+    pending,
+  }
+}
+let state: CloudState = restoredState()
 const listeners = new Set<(s: CloudState) => void>()
 
 function set(patch: Partial<CloudState>) {
@@ -157,7 +258,14 @@ function client(): Promise<SupabaseClient | null> {
     clientP = import('@supabase/supabase-js')
       .then(({ createClient }) =>
         createClient(SUPABASE_URL, SUPABASE_KEY, {
-          auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'implicit' },
+          auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true,
+            flowType: 'implicit',
+            storage: authStorage,
+            storageKey: AUTH_STORAGE_KEY,
+          },
         }),
       )
       .catch(() => {
@@ -168,40 +276,80 @@ function client(): Promise<SupabaseClient | null> {
   return clientP
 }
 
+function sessionFromStore(): Session | null {
+  const saved = readStoredSession()
+  if (!saved) return null
+  return saved as unknown as Session
+}
+
 async function loadPlayer(sb: SupabaseClient, session: Session | null) {
+  if (!session && !explicitSignOut) session = sessionFromStore()
   if (!session) {
     queueOwner = null
+    try { localStorage.removeItem(PROFILE_CACHE_KEY) } catch { /* ignore */ }
     return set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined })
   }
   if (queueOwner !== session.user.id) {
     queueOwner = session.user.id
-    // games played while signed out belong to the player who signs in now
-    const anon = readQueue(null)
-    if (anon.length) {
-      writeQueue([...readQueue(), ...anon])
-      writeQueue([], null)
-    }
+    mergeGuestQueue(session.user.id)
   }
+  const cached = readProfileCache(session.user.id)
+  // Stay signed in immediately, before the player row comes back.
+  set({
+    status: 'signed-in',
+    email: session.user.email ?? cached?.email,
+    name: state.name ?? cached?.name,
+    publicName: state.publicName ?? cached?.publicName,
+  })
   const { data, error } = await sb.from('players').select('display_name, public_name').eq('id', session.user.id).maybeSingle()
-  if (error) return set({ status: 'signed-in', email: session.user.email, name: state.name ?? null })
-  set({ status: 'signed-in', email: session.user.email, name: data?.display_name ?? null, publicName: data?.public_name })
+  if (error) {
+    writeProfileCache(session.user.id, session.user.email, state.name, state.publicName)
+    return
+  }
+  const name = data?.display_name ?? null
+  const publicName = data?.public_name
+  set({ status: 'signed-in', email: session.user.email, name, publicName })
+  writeProfileCache(session.user.id, session.user.email, name, publicName)
   if (data) void flushScores().then(() => syncCard())
 }
 
-/** Call once at startup. Never throws, never blocks. */
+function refreshIfDue(sb: SupabaseClient) {
+  if (explicitSignOut) return
+  const saved = readStoredSession()
+  if (!saved?.expires_at) return
+  if (saved.expires_at * 1000 - Date.now() > 60_000) return
+  void sb.auth.refreshSession().catch(() => undefined)
+}
+
+/** Call once at startup. Never throws, never blocks. Restores a saved login before any sign-in prompt. */
 export async function initCloud(): Promise<void> {
   try {
     const sb = await client()
-    if (!sb) return set({ status: 'off' })
+    if (!sb) {
+      if (!readStoredSession()) set({ status: 'off' })
+      return
+    }
     const { data } = await sb.auth.getSession()
-    await loadPlayer(sb, data.session)
-    sb.auth.onAuthStateChange((_e, session) => {
-      if (_e === 'SIGNED_IN' && state.status !== 'signed-in') gaEvent('sign_in')
+    await loadPlayer(sb, data.session ?? sessionFromStore())
+    sb.auth.onAuthStateChange((event, session) => {
+      // A failed refresh emits SIGNED_OUT and tries to delete storage. Keep the saved login.
+      if (event === 'SIGNED_OUT' && !explicitSignOut && readStoredSession()) {
+        void loadPlayer(sb, sessionFromStore())
+        return
+      }
+      if (event === 'SIGNED_IN' && state.status !== 'signed-in') gaEvent('sign_in')
       void loadPlayer(sb, session)
     })
-    window.addEventListener('online', () => void flushScores())
+    window.addEventListener('online', () => {
+      refreshIfDue(sb)
+      void flushScores()
+    })
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') refreshIfDue(sb)
+    })
+    window.setInterval(() => refreshIfDue(sb), 60_000)
   } catch {
-    set({ status: 'off' })
+    if (!readStoredSession()) set({ status: 'off' })
   }
 }
 
@@ -419,11 +567,20 @@ export async function loadLeaderboard(limit = 15): Promise<LeaderboardRow[]> {
 }
 
 export async function signOut(): Promise<void> {
-  const sb = await client()
-  // local scope: only this device; this player's unsent scores stay queued under their id
-  await sb?.auth.signOut({ scope: 'local' }).catch(() => undefined)
-  queueOwner = null
-  set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined })
+  explicitSignOut = true
+  try {
+    const sb = await client()
+    // local scope: only this device; this player's unsent scores stay queued under their id
+    await sb?.auth.signOut({ scope: 'local' }).catch(() => undefined)
+    try {
+      localStorage.removeItem(AUTH_STORAGE_KEY)
+      localStorage.removeItem(PROFILE_CACHE_KEY)
+    } catch { /* ignore */ }
+    queueOwner = null
+    set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined })
+  } finally {
+    explicitSignOut = false
+  }
 }
 
 const DEDUPE_STORE = 'rg.cloud.dedupe.v1'
@@ -483,7 +640,7 @@ export function saveScore(row: Omit<ScoreRow, 'at'>): void {
 
 let flushing = false
 export async function flushScores(): Promise<void> {
-  if (flushing || state.status !== 'signed-in' || !state.name) return
+  if (flushing || state.status !== 'signed-in') return
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return
   const owner = queueOwner
   const q = readQueue(owner)

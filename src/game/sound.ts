@@ -24,7 +24,7 @@ import {
   shouldAttachVoiceGraph,
   shouldStartPrime,
 } from './voiceUnlock'
-import { clipAudible, desktopCaption, DESKTOP_PHONE_JAB, PHONE_JAB_CLIP } from './lineCaption'
+import { clipAudible, desktopCaption, DESKTOP_PHONE_JAB, isComputerPlayer, PHONE_JAB_CLIP } from './lineCaption'
 
 let ctx: AudioContext | null = null
 let muted = false
@@ -599,18 +599,7 @@ const FALLBACK_TEXT: Partial<Record<VoiceLineId, string>> = {
   tip_undo_roman_sock: "undo, undo, undo. Your score is shrinking like a wool sock.",
 }
 
-export { DESKTOP_PHONE_JAB, PHONE_JAB_CLIP }
-
-/** A computer: a fine pointer and no touch. Phones and touchscreens keep the phone line. */
-export function isComputerPlayer(): boolean {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false
-  const fine = window.matchMedia('(pointer: fine)').matches
-  const touch =
-    (typeof navigator !== 'undefined' && (navigator.maxTouchPoints ?? 0) > 0) ||
-    window.matchMedia('(pointer: coarse)').matches ||
-    window.matchMedia('(any-pointer: coarse)').matches
-  return fine && !touch
-}
+export { DESKTOP_PHONE_JAB, isComputerPlayer, PHONE_JAB_CLIP }
 
 export function captionForClip(id: string, computer: boolean): string | undefined {
   return desktopCaption(id, computer) ?? FALLBACK_TEXT[id as VoiceLineId]
@@ -845,6 +834,11 @@ export function setMuted(m: boolean) {
     retryLine = null
     stopVoice()
   }
+}
+
+/** True when a clip is allowed to make sound. Reminders check this before fetching a file. */
+export function voiceOutputOn(): boolean {
+  return !muted && voiceEnabled
 }
 
 export function setVoiceEnabled(on: boolean) {
@@ -1332,8 +1326,9 @@ function clipObjectUrl(id: string): Promise<string | null> {
 /**
  * Play one voice line on the shared channel.
  * - Only catalog clips play (Roman = Brian, coach = Jenny); anything else is ignored (silent).
- * - While a line is loading or playing, a new line interrupts it only if its priority is higher;
- *   equal/lower priority is skipped (or waits, with waitMs), so lines never stack or overlap.
+ * - One line at a time. Roman does not play a second line in the same moment.
+ * - The Unseen cuts Roman off and plays instead. Roman does not start while the Unseen is speaking.
+ * - Other voices: a higher line waits (or replaces one that has not been heard yet). Equal or lower is skipped.
  */
 export function playVoice(id: string, opts: PlayVoiceOpts = {}) {
   if (muted || !voiceEnabled || !id) return
@@ -1345,17 +1340,20 @@ export function playVoice(id: string, opts: PlayVoiceOpts = {}) {
     return
   }
   const priority = opts.priority ?? 1
+  const speaker = roleForClip(id) === 'roman' ? 'roman' : roleForClip(id) === 'oldtimer' ? 'oldtimer' : 'other'
   // 9.30-f: the same clip already playing or waiting its turn isn't asked for twice (a line only
   // counts as played once heard, so its bag can offer it again while it waits)
   if ((currentLine && currentClip === id) || waitingLine?.id === id) return
-  // 9.30-e: a line that has started always finishes; higher lines wait their turn (or go stale)
-  const d = decideVoice(currentLine, { priority, waitMs: opts.waitMs }, performance.now())
+  // One channel. Roman does not chain, and the Unseen cuts him off.
+  const d = decideVoice(currentLine, { priority, waitMs: opts.waitMs, speaker }, performance.now())
   if (d.kind === 'skip') return
   if (d.kind === 'wait') {
     if (replacesWaiting(waitingLine ? (waitingLine.opts.priority ?? 1) : null, priority)) waitingLine = { id, opts, until: d.until }
     return
   }
-  if (waitingLine && priority >= (waitingLine.opts.priority ?? 1)) waitingLine = null
+  // The Unseen is speaking now. Drop any Roman line that was waiting to start after this.
+  if (speaker === 'oldtimer') waitingLine = null
+  else if (waitingLine && priority >= (waitingLine.opts.priority ?? 1)) waitingLine = null
   // A new line replaces a blocked one. The retry call itself must keep its slot.
   if (!opts.retry) retryLine = null
   const el = voicePlayer()
@@ -1366,7 +1364,7 @@ export function playVoice(id: string, opts: PlayVoiceOpts = {}) {
 
   stopVoice()
   const gen = voiceGeneration
-  currentLine = { priority, gen, audible: false, endsAt: 0 }
+  currentLine = { priority, gen, audible: false, endsAt: 0, speaker }
   currentClip = id
   voiceFreeSince = 0
   // Safety net while loading: never hold the channel forever if a clip never starts. Once it plays,
