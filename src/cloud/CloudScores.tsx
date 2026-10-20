@@ -293,9 +293,9 @@ export function CloudScoresButton({
                 onSubmit={async (e) => {
                   e.preventDefault()
                   const digits = signInCode(code)
-                  // The live code is 8 digits. Enter or a 6-digit prefix must not call verifyOtp.
+                  // 6 to 10 digits. A shorter prefix must not call verifyOtp.
                   // A second submit (double click, or Enter plus the button) must not start another check.
-                  if (digits.length < 8 || verifyingRef.current) return
+                  if (digits.length < 6 || digits.length > 10 || verifyingRef.current) return
                   verifyingRef.current = true
                   setBusy(true)
                   try {
@@ -311,8 +311,8 @@ export function CloudScoresButton({
                 <h3>Check your email</h3>
                 <p className="start-sheet-tip">
                   {switchedAway
-                    ? <>We sent it to <b>{sentEmail || signInEmail(email)}</b>. Tap the link, or enter the 8-digit code, to finish switching. This device stays signed out until then.</>
-                    : <>We sent it to <b>{sentEmail || signInEmail(email)}</b>. Tap the link in your email, or enter the 8-digit code.</>}
+                    ? <>We sent it to <b>{sentEmail || signInEmail(email)}</b>. Tap the link, or enter the code from your email, to finish switching. This device stays signed out until then.</>
+                    : <>We sent it to <b>{sentEmail || signInEmail(email)}</b>. Tap the link in your email, or enter the code from your email.</>}
                 </p>
                 {sentAt && sentEmail && (
                   <p className="start-sheet-tip" data-testid="signin-sent-at">
@@ -328,13 +328,13 @@ export function CloudScoresButton({
                   autoCorrect="off"
                   spellCheck={false}
                   enterKeyHint="done"
-                  maxLength={8}
-                  placeholder="8-digit code"
+                  maxLength={10}
+                  placeholder="Code from your email"
                   aria-label="the code from your email"
                   value={code}
                   onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center' })}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && signInCode(code).length < 8) e.preventDefault()
+                    if (e.key === 'Enter' && signInCode(code).length < 6) e.preventDefault()
                   }}
                   onPaste={(e) => {
                     const text = signInCode(e.clipboardData.getData('text'))
@@ -344,13 +344,13 @@ export function CloudScoresButton({
                     setErr('')
                   }}
                   onChange={(e) => {
-                    // Typing the 8th digit must not submit. Only the button or Enter does, and only once.
+                    // Typing a digit must not submit. Only the button or Enter does, and only once.
                     setCode(signInCode(e.target.value))
                     setErr('')
                   }}
                 />
                 {err && <p className="cloud-err" role="alert" data-testid="signin-code-error">{err}</p>}
-                <button type="submit" className="btn primary" data-testid="signin-code-submit" disabled={busy || signInCode(code).length < 8}>
+                <button type="submit" className="btn primary" data-testid="signin-code-submit" disabled={busy || signInCode(code).length < 6}>
                   {busy ? 'Checking…' : 'Sign in with code'}
                 </button>
                 <button

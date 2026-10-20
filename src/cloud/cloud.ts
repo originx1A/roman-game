@@ -378,9 +378,9 @@ export function signInEmail(email: string): string {
   return email.trim().toLowerCase()
 }
 
-/** Digits from the email code. Spaces are dropped. The live email uses 8 digits. */
+/** Digits from the email code. Spaces are dropped. Supabase may send 6 or 8; the field allows 6 to 10. */
 export function signInCode(token: string): string {
-  return token.replace(/\s/g, '').replace(/\D/g, '').slice(0, 8)
+  return token.replace(/\s/g, '').replace(/\D/g, '').slice(0, 10)
 }
 
 /** The sheet shows Supabase's own words. The usual OTP failure gets a plain sentence. */
@@ -430,8 +430,8 @@ export async function sendMagicLink(email: string): Promise<SignInResult> {
 }
 
 /**
- * The code from the same email as the magic link. The live email is 8 digits.
- * A shorter prefix is refused here so it is never sent: Supabase would burn the real code.
+ * The code from the same email as the magic link. Supabase may send 6 or 8 digits.
+ * Fewer than 6 digits is refused here so a short prefix is never sent.
  * verifyOtp signs the player in and fires SIGNED_IN. The listener in initCloud then runs
  * loadPlayer, which copies this device's queued scores onto the account and flushes them.
  * That is the same path as opening the link.
@@ -439,7 +439,7 @@ export async function sendMagicLink(email: string): Promise<SignInResult> {
 export async function verifyEmailCode(email: string, token: string): Promise<{ ok: boolean; error?: string }> {
   const address = signInEmail(email)
   const code = signInCode(token)
-  if (!/^\d{8}$/.test(code)) return { ok: false, error: 'Enter all 8 digits from your email.' }
+  if (!/^\d{6,10}$/.test(code)) return { ok: false, error: 'Enter the code from your email.' }
   const key = `${address}|${code}`
   const existing = verifyOnce.get(key)
   if (existing) {
