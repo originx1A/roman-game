@@ -1,59 +1,53 @@
-/** Reconstructed from roman-game.surge.sh production JS. */
-import { buildShareLinks, copyText, nativeShare } from '../game/share'
+/** One Share button. The link carries the friend code. A picture card goes along when the device allows it. */
+import { useState, type ReactNode } from 'react'
+import { bragCardFile } from '../game/bragCard'
+import { copyText, nativeShare } from '../game/share'
+import { shareUrl } from '../social/hub'
+
+export interface ScoreShare {
+  url: string
+  text: string
+}
 
 export function ShareBar({
   url,
   title = "Roman's Game",
-  text = "Come play Roman's logic board with me!",
+  text = "Come play Roman's Game with me.",
   onCopied,
-  emailHref,
+  onShareScore,
+  children,
 }: {
   url: string
   title?: string
   text?: string
   onCopied?: () => void
-  /** When set, the Email chip uses this mailto (recipient included) instead of a blank one. */
   emailHref?: string
+  inviteUrl?: string
+  inviteText?: string
+  onShareScore?: () => ScoreShare
+  children?: ReactNode
 }) {
-  const links = buildShareLinks({ url, title, text })
+  const [score, setScore] = useState<ScoreShare>({ url, text })
+
+  async function share() {
+    const next = onShareScore ? onShareScore() : score.url === url ? { url, text } : score
+    setScore(next)
+    const sharedUrl = shareUrl(next.url)
+    const file = await bragCardFile(next.text)
+    const data: ShareData = { url: sharedUrl, title, text: next.text }
+    if (file && navigator.canShare?.({ files: [file] })) data.files = [file]
+    const shared = await nativeShare(data)
+    if (!shared) {
+      await copyText(`${next.text} ${sharedUrl}`)
+      onCopied?.()
+    }
+  }
+
   return (
     <div className="share-bar">
-      <button
-        type="button"
-        className="share-chip"
-        onClick={async () => {
-          ;(await nativeShare({ url, title, text })) || ((await copyText(url)), onCopied?.())
-        }}
-      >
+      {children}
+      <button type="button" className="btn primary" data-testid="share-score" onClick={() => void share()}>
         Share
-      </button>
-      <a className="share-chip" href={links.sms}>
-        SMS
-      </a>
-      <a className="share-chip" href={links.whatsapp} target="_blank" rel="noreferrer">
-        WhatsApp
-      </a>
-      <a className="share-chip" href={links.x} target="_blank" rel="noreferrer">
-        X
-      </a>
-      <a className="share-chip" href={links.facebook} target="_blank" rel="noreferrer">
-        Facebook
-      </a>
-      <a className="share-chip" href={links.telegram} target="_blank" rel="noreferrer">
-        Telegram
-      </a>
-      <a className="share-chip" href={emailHref || links.mailto}>
-        Email
-      </a>
-      <button
-        type="button"
-        className="share-chip"
-        onClick={async () => {
-          await copyText(url)
-          onCopied?.()
-        }}
-      >
-        Copy link
       </button>
     </div>
   )

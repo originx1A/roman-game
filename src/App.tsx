@@ -1,27 +1,48 @@
 import { useTapCount } from './components/useTapCount'
 import { loadAnon, openEvents, sendPing, PRIVACY_NOTE, ANON_KEY, gaEvent, setGaEnabled } from './game/analytics'
 import { OWNER_PATH, OWNER_TAP_WINDOW_MS, OWNER_TAPS } from './game/ownerDoor'
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Board } from './components/Board'
-import { HowToPlay, HOW_NEW_START } from './components/HowToPlay'
+import { HowToPlay } from './components/HowToPlay'
 import { BugReport } from './components/BugReport'
 import { PrizeWheel } from './components/PrizeWheel'
 import { ResultOverlay } from './components/ResultOverlay'
 import { WinScreen, type WinReplay } from './components/WinScreen'
 import { type ShortfallAction } from './components/ShortfallSheet'
 import { ShortfallSheetHost } from './components/ShortfallSheetHost'
-import { CoinPackCard } from './components/CoinPackCard'
+import { OfflineBuyButton } from './components/CoinPackCard'
+import { HelpMark } from './components/HelpMark'
+import { LegalLine } from './components/LegalLine'
+import { formatCad, savingsCents, SHOP_OFFERS, shopOfferById } from './game/shopOffers'
+import { coinStackDiscs, formatPackCoins } from './game/coinPackDisplay'
 import './styles/store-layer.css'
 import { ShareBar } from './components/ShareBar'
+import { QuietToast } from './components/QuietToast'
+import { SyncNote } from './components/SyncNote'
+import { PlayNudge } from './components/PlayNudge'
+import { InboxButton, InboxScreen } from './components/InboxScreen'
+import { AccountSocial, PlayerChip } from './components/AccountSocial'
 import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './components/SparkCritter'
 import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
 import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
-import { CloudScoresButton } from './cloud/CloudScores'
-import { initCloud, saveScore } from './cloud/cloud'
+import { KeyboardNameSheet, useKeyboardNameEntry } from './components/KeyboardNameSheet'
+/* PR #53 batch 2 (Tony 2026-10-19): the Unseen as guide character + silent pet pop-outs */
+import { UnseenGuide, PetPopout, type GuideItem, type PetPopoutInfo } from './components/UnseenGuide'
+import { HomeUnseenReminder } from './components/UnseenReminder'
+import { CloudScoresButton, useCloud } from './cloud/CloudScores'
+import { Leaderboard } from './cloud/Leaderboard'
+import { NAME_MAX, getSupabase, initCloud, loadPublicScores, renamePlayer, saveScore, scoreSaveLabel, signOut as cloudSignOut } from './cloud/cloud'
+import { noteWalletCoins, type CoinMeta } from './social/coins'
+import { armRound, isFriend, noteRoundScore, sendChallenge, sendLive, setPlaying, startSocial, type InboxItem } from './social/hub'
+import { setQuietRound } from './game/quietQueue'
+import { cloudModeForWin } from './game/scoreMode'
+import { leaderboardTease, loadBoardSeen, saveBoardSeen } from './game/leaderboardTease'
+import { isProfane } from './cloud/profanity'
 import { UnseenCardTile } from './components/UnseenCard'
-import { noteCardWin } from './game/unseenCard'
+import { noteCardWin, localCard, CARD_PIECES } from './game/unseenCard'
+import { guideCandidates, guideVoiceClip, petPopoutPick, type GuideTarget } from './game/unseenGuide'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
 import { TapButton } from './components/TapButton'
 import { BuddyHunt } from './components/BuddyHunt'
@@ -75,11 +96,18 @@ import {
   type PetId,
   type PetState,
   claimFreePet,
+  couponFor,
   earnFieldTreats,
   claimFieldTreats,
-  jackpotFieldTreats,
-  MAX_FIELD_TREATS,
   swapTreatsToCoins,
+  SNACK_COIN_RATE,
+  jackpotFieldTreats,
+  lockedForSale,
+  MAX_FIELD_TREATS,
+  moodKind,
+  moodNow,
+  priceWith,
+  TREATS,
   stealFieldTreats,} from './game/pets'
 import {
   BUDDY_HUNT_PERFECT_WINS,
@@ -175,6 +203,8 @@ import {
   duelWinner,
   encodeChallengeLink,
   encodeDuelLink,
+  packBoardLayout,
+  registerSharedBoard,
   formatShareTime,
   mailtoChallenge,
   parseChallengeFromHash,
@@ -230,7 +260,11 @@ import {
   loadSettings,
   loadWallet,
   cleanPlayerName,
+  getPlayerName,
+  isUnsetAccountName,
+  rememberPlayerName,
   PLAYER_NAME_MAX,
+  PLAYER_NAME_EVENT,
   loadBuddyMeter,
   loadPets,
   savePets,
@@ -250,12 +284,11 @@ import {
   saveDraft,
   saveSettings,
   saveWallet,
-  signInWithEmail,
-  signOutKeepDevice,
   type Settings,
 } from './game/storage'
 import {
   playBanterClip,
+  playVoice,
   setMuted,
   setVoiceEnabled,
   sfxAchievement,
@@ -275,12 +308,10 @@ import {
   dropWaitingVoice,
   petGiggle,
 } from './game/sound'
-import { COIN_PACKS, purchaseCoinPack, restorePurchases, isStoreBuild, subscribeStore, type CoinPackId } from './game/iap'
+import { isComputerPlayer } from './game/lineCaption'
+import { purchaseCoinPack, restorePurchases, isStoreBuild, subscribeStore, type CoinPackId } from './game/iap'
 import { loadWebPacks, type WebPackOffer } from './game/webPacks'
 import './App.css'
-/** Temporarily hide the real-money coin shop until Stripe is connected. Set to true to re-enable. */
-const SHOP_ENABLED = false;
-
 
 let lastAppHeight = 0
 
@@ -424,10 +455,37 @@ const MENU_CSS = `
 .daily-streakbtn:active { transform: scale(0.96); }
 `
 
+function anyHungryPet(pets: PetState, now: number): boolean {
+  return (Object.keys(pets.owned) as PetId[]).some((id) => moodKind(moodNow(pets.owned[id], now)) === 'hungry')
+}
+
+/** A treat, a buddy, or a badge upgrade they can pay for from Home. A 15-coin hint does not count. */
+function canSpendCoins(coins: number, pets: PetState, wallet: Wallet, now: number): boolean {
+  const today = torontoDateKey(new Date(now))
+  const snack = TREATS.find((t) => t.id === 'snack')?.cost ?? 30
+  const canTreat =
+    coins >= snack &&
+    (Object.keys(pets.owned) as PetId[]).some((id) => {
+      const info = careInfo(pets, id, now, today)
+      return !info.maxed && info.feedsLeft > 0
+    })
+  const buddy = lockedForSale(pets, now)[0]
+  const canBuddy = !!buddy && coins >= priceWith(buddy.price, couponFor(pets, buddy.id, now))
+  const power = totalBadgePower(wallet)
+  const canBadge = BADGES.some((b) => {
+    const rank = badgeRank(wallet, b.id)
+    return rank >= 1 && coins >= upgradeBadgeCost(b.id, rank, power)
+  })
+  return canTreat || canBuddy || canBadge
+}
+
 export default function App() {
   const [screen, setScreen] = useState<Screen>('home')
+  const [navOpen, setNavOpen] = useState(false)
+  const [convertAsk, setConvertAsk] = useState(false)
   const [{ layout }, setLayoutInfo] = useState(() => readLayout())
   const [profile, setProfile] = useState<Profile | null>(() => loadProfile())
+  const cloud = useCloud()
   const [progress, setProgress] = useState(() => getProgress())
   const [settings, setSettings] = useState<Settings>(() => loadSettings())
   // Level select difficulty tab — persisted so it survives reloads
@@ -448,6 +506,7 @@ export default function App() {
   // 9.32: player accounts + score saving (lazy, never blocks the game)
   useEffect(() => {
     void initCloud()
+    startSocial()
   }, [])
   useEffect(() => {
     setGaEnabled(!isStoreBuild() && settingsRef.current.analytics !== false)
@@ -470,6 +529,7 @@ export default function App() {
       const next = readLayout()
       document.documentElement.dataset.layout = next.layout
       document.documentElement.dataset.device = next.device
+      document.documentElement.dataset.voiceDevice = isComputerPlayer() ? 'computer' : 'phone'
       setLayoutInfo((cur) => (cur.layout === next.layout && cur.device === next.device ? cur : next))
     }
     apply()
@@ -519,6 +579,8 @@ export default function App() {
   /** Set the moment a board is won or lost (before any state update lands), cleared for the next
    *  board. Voice lines check it so nothing from the live board speaks after the result. */
   const boardOverRef = useRef<BoardOutcome>(null)
+  /** Set when a board is won or lost. Home reads it once, then a new board clears it. */
+  const afterGameRef = useRef(false)
   const [winLine, setWinLine] = useState('')
   const [loseLine, setLoseLine] = useState('')
   const [lives, setLives] = useState(MAX_LIVES)
@@ -535,19 +597,94 @@ export default function App() {
     if (!clip) return false
     return clip.startsWith('old_') || (clip.startsWith('tip_') && clip.includes('_old_'))
   }
-  function maybeUnseenPop(line: { text?: string; clip?: string; speak?: boolean; silent?: boolean }) {
-    if (!line.speak || line.silent || !line.text || !isUnseenClip(line.clip)) return
+  /** A board the player is still solving. Win, lose, and menus are not active play. */
+  function liveBoard(): boolean {
+    return screen === 'play' && running && !celebrate && !defeated
+  }
+  function maybeUnseenPop(line: { text?: string; clip?: string; speak?: boolean; silent?: boolean; voiceMood?: Parameters<typeof playBanterClip>[1]; alts?: readonly string[]; priority?: number; waitMs?: number }) {
+    // Allowed moments only: callers already passed the voice gate (between turns, not mid-gesture).
+    if (!line.speak || line.silent || !line.text || !line.clip || !isUnseenClip(line.clip)) return
+    playBanterClip(line.clip, line.voiceMood ?? 'neutral', line.alts, line.priority, line.waitMs)
+    // The line still plays. The corner pop-up stays off until the board is finished.
+    if (liveBoard()) return
     unseenKey.current += 1
-    setUnseenPop({ text: line.text, key: unseenKey.current })
+    setUnseenPop({ text: line.text, key: unseenKey.current, clip: line.clip })
+  }
+  const teaseTimer = useRef(0)
+  const teaseGen = useRef(0)
+  /** After a scored win, once the cheer has had its say. Never during a live board. Text only. */
+  function scheduleLeaderboardTease(score: number, timeSeconds: number, mode: string) {
+    const you = playerName.trim()
+    if (cloud.status !== 'signed-in' || !you) return
+    window.clearTimeout(teaseTimer.current)
+    const gen = ++teaseGen.current
+    teaseTimer.current = window.setTimeout(() => {
+      if (boardOverRef.current !== 'won') return
+      void loadPublicScores().then((rows) => {
+        if (gen !== teaseGen.current || boardOverRef.current !== 'won' || !rows) return
+        const seen = loadBoardSeen(you)
+        const tease = leaderboardTease({
+          you,
+          score,
+          timeSeconds,
+          mode,
+          rows,
+          previousRank: seen?.rank ?? null,
+          lastSituation: seen?.situation ?? null,
+        })
+        if (!tease.text || !tease.situation || boardOverRef.current !== 'won') return
+        if (tease.rank != null) saveBoardSeen(you, tease.rank, tease.situation)
+        const clip = `old_tease_${tease.situation}`
+        playVoice(clip, { priority: 2, waitMs: 500 })
+        unseenKey.current += 1
+        setUnseenPop({ text: tease.text, key: unseenKey.current, clip })
+      })
+    }, 7500)
+  }
+  // The Unseen as guide. Each line uses an existing recording. A guide with no clip stays hidden.
+  // Appearing never touches the timer.
+  const [guide, setGuide] = useState<GuideItem | null>(null)
+  const [petPop, setPetPop] = useState<PetPopoutInfo | null>(null)
+  const guideKey = useRef(0)
+  const petPopKey = useRef(0)
+  // Frequency caps (per session): max 1 warning, max 1 opportunity, progress
+  // tags once each; never interrupt the same board twice (boardSeqRef below).
+  const guideWarnShownRef = useRef(false)
+  const guideOppShownRef = useRef(false)
+  const guideProgressFiredRef = useRef<Set<string>>(new Set())
+  const petPopFiredRef = useRef<Set<PetId>>(new Set())
+  const boardSeqRef = useRef(0)
+  const guideBoardRef = useRef(-1)
+  /** Don't stack notifications: at least 45 s between guide/pop-out appearances. */
+  const guideLastAtRef = useRef(0)
+  // PR #53 batch 2: deep-link target for the guide / pet pop-out — opens the
+  // Stable with a specific pet's detail page selected.
+  const [stableFocus, setStableFocus] = useState<{ id: PetId; key: number } | null>(null)
+  const stableFocusKey = useRef(0)
+  function goGuideTarget(t: GuideTarget) {
+    if (t.pet) {
+      stableFocusKey.current += 1
+      setStableFocus({ id: t.pet, key: stableFocusKey.current })
+    }
+    setScreen(t.screen)
   }
   const [shortfall, setShortfall] = useState<null | { action: ShortfallAction; need: number; detail?: string }>(null)
   const [incoming, setIncoming] = useState<Challenge | null>(null)
   const [, setChallenges] = useState(() => loadChallenges())
-  const [emailInput, setEmailInput] = useState('')
-  const [storePrices, setStorePrices] = useState<Record<string, string>>({})
+  const [nameField, setNameField] = useState('')
+  const [editingName, setEditingName] = useState(false)
+  const nameFocus = useRef(false)
+  const [, setStorePrices] = useState<Record<string, string>>({})
   const [webPacks, setWebPacks] = useState<WebPackOffer[] | null>(null)
+  const [starterOwned, setStarterOwned] = useState(() => {
+    try {
+      return localStorage.getItem('roman.shop.starter') === '1'
+    } catch {
+      return false
+    }
+  })
+  const [helpFocus, setHelpFocus] = useState('')
   const [webShop, setWebShop] = useState<'loading' | 'ready' | 'unavailable'>('loading')
-  const [nameInput, setNameInput] = useState('Roman')
   const [challengeEmail, setChallengeEmail] = useState('')
   const [challengeMsg, setChallengeMsg] = useState('Can you beat me on this board?')
   const [shareLink, setShareLink] = useState('')
@@ -604,6 +741,8 @@ export default function App() {
   const pendingStartRef = useRef<{ p: Puzzle; opts: { mode?: RunMode; daily?: boolean; endless?: boolean } } | null>(null)
   const [howStart, setHowStart] = useState(0)
   const recordedRef = useRef(false)
+  /** Stable id for the win currently on screen, so that result is saved once. */
+  const winSaveKeyRef = useRef<string | null>(null)
   /** Latest board plus undo/redo stacks. Updated on every move, not on the next render. */
   const historyRef = useRef(createHistory([] as CellState[]))
   /** Bumped whenever the board is replaced rather than drawn on (Undo, Redo, Reset, new or resumed board). */
@@ -623,6 +762,8 @@ export default function App() {
   /** Today's date key while this attempt is the scored (first) Daily try */
   const dailyRunRef = useRef<string | null>(null)
   const [dailyTag, setDailyTag] = useState<'' | 'scored' | 'practice'>('')
+  const practiceRef = useRef(false)
+  practiceRef.current = dailyTag === 'practice'
   const [startSheet, setStartSheet] = useState<Puzzle | null>(null)
 
   // ---- 9.30-i: Remix boards (a new set of 4 every 3 days at midnight Toronto) + Endless mode ----
@@ -662,10 +803,17 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, remixSet])
   const [winReplay, setWinReplay] = useState<WinReplay | null>(null)
-  // Player name for share cards (asked once: first share or first finished board)
-  const playerName = cleanPlayerName(settings.playerName)
+  // One name everywhere: account (public name, then chosen name), then this device, then the old profile.
+  const playerName = getPlayerName({
+    publicName: cloud.publicName,
+    name: cloud.name,
+    playerName: settings.playerName,
+    displayName: profile?.displayName,
+  })
+  const signedIn = cloud.status === 'signed-in'
   const [namePrompt, setNamePrompt] = useState<null | { then?: () => void }>(null)
   const [nameDraft, setNameDraft] = useState('')
+  const touchName = useKeyboardNameEntry()
   const comboRef = useRef<ComboState>(newCombo())
   const undosRef = useRef(0)
   const splitsRef = useRef<number[]>([])
@@ -802,27 +950,36 @@ export default function App() {
     let cancelled = false
     void import('./game/webCheckout').then(async (mod) => {
       if (cancelled) return
+      if (sessionId.startsWith('cs_live_')) {
+        showToast('Live checkout is not turned on yet.')
+        return
+      }
       if (mod.wasCheckoutRedeemed(sessionId)) {
         showToast('Those coins are already in your wallet.')
         clean()
         return
       }
-      const result = await mod.confirmWebCheckout(sessionId)
+      const sb = await getSupabase()
+      const token = sb ? (await sb.auth.getSession()).data.session?.access_token : undefined
+      if (!token) {
+        showToast('Sign in so this purchase can be saved to your account.')
+        return
+      }
+      const result = await mod.claimWebCredit(sessionId, token)
       if (cancelled) return
-      clean()
       if (!result.ok) {
         showToast(result.reason)
         return
       }
+      clean()
       mod.rememberCheckoutRedeemed(sessionId)
-      if (result.alreadyRedeemed || result.coins <= 0) {
-        showToast('Those coins are already in your wallet.')
+      if (result.duplicate) {
+        showToast('That purchase is already in your account.')
         return
       }
-      const current = loadWallet()
-      persistWallet({ ...current, coins: current.coins + result.coins })
+      applyShopGrant(result.offerId, result.coins, result.treats, result.pets)
       sfxCoin()
-      showToast(`+${result.coins} coins · ${result.label}`)
+      showToast(`Added ${result.label}`)
     })
     return () => {
       cancelled = true
@@ -881,27 +1038,32 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const duelParsed = parseDuelFromHash(window.location.hash)
-    if (duelParsed) {
-      setDuel(duelParsed)
-      setDuelLink(publicLinkWithHash(window.location.hash))
-      setShareText(duelShareText(duelParsed))
-      setLinkBoardError(getPuzzle(duelParsed.puzzleId) ? '' : MISSING_BOARD)
-      setScreen('duel')
-      window.history.replaceState(null, '', window.location.pathname)
-      return
+    function openFromHash() {
+      const duelParsed = parseDuelFromHash(window.location.hash)
+      if (duelParsed) {
+        setDuel(duelParsed)
+        setDuelLink(publicLinkWithHash(window.location.hash))
+        setShareText(duelShareText(duelParsed))
+        setLinkBoardError(getPuzzle(duelParsed.puzzleId) ? '' : MISSING_BOARD)
+        setScreen('duel')
+        window.history.replaceState(null, '', window.location.pathname)
+        return
+      }
+      const parsed = parseChallengeFromHash(window.location.hash)
+      if (parsed) {
+        const full: Challenge = { ...parsed, createdAt: new Date().toISOString() }
+        setIncoming(full)
+        setActiveChallenge(full)
+        addChallenge(full)
+        setChallenges(loadChallenges())
+        setLinkBoardError(getPuzzle(parsed.puzzleId) ? '' : MISSING_BOARD)
+        setScreen('challenge')
+        window.history.replaceState(null, '', window.location.pathname)
+      }
     }
-    const parsed = parseChallengeFromHash(window.location.hash)
-    if (parsed) {
-      const full: Challenge = { ...parsed, createdAt: new Date().toISOString() }
-      setIncoming(full)
-      setActiveChallenge(full)
-      addChallenge(full)
-      setChallenges(loadChallenges())
-      setLinkBoardError(getPuzzle(parsed.puzzleId) ? '' : MISSING_BOARD)
-      setScreen('challenge')
-      window.history.replaceState(null, '', window.location.pathname)
-    }
+    openFromHash()
+    window.addEventListener('rg-open-hash', openFromHash)
+    return () => window.removeEventListener('rg-open-hash', openFromHash)
   }, [])
 
   // A phone turned sideways during a board: the "turn upright" overlay covers the board and the clock
@@ -912,6 +1074,7 @@ export default function App() {
   useEffect(() => {
     const was = rotatePausedRef.current
     rotatePausedRef.current = rotatePaused
+    if (!was && rotatePaused) playVoice('narrator_rotate', { priority: 3, waitMs: 500 })
     if (was && !rotatePaused) {
       // back upright: the pause doesn't count as stalling
       const now = Date.now()
@@ -940,6 +1103,15 @@ export default function App() {
       if (tickRef.current) window.clearInterval(tickRef.current)
     }
   }, [running, rotatePaused])
+
+  useEffect(() => {
+    if (!navOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setNavOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [navOpen])
 
   // PC keyboard shortcuts on a live board: Z undo, Y redo, H hint (plus Ctrl/Cmd+Z, Ctrl+Y, Ctrl+Shift+Z)
   const keysRef = useRef<{ undo: () => void; redo: () => void; hint: () => void }>({ undo: () => {}, redo: () => {}, hint: () => {} })
@@ -974,6 +1146,7 @@ export default function App() {
     if (mode !== 'trial' || !running || !puzzle || celebrate || defeated || boardOverRef.current) return
     if (elapsedMs < trialTimeLimitMs(targetsFor(puzzle))) return
     boardOverRef.current = 'lost'
+    afterGameRef.current = true
     cancelVoiceBelow(VOICE_PRIORITY.lose)
     setRunning(false)
     setDefeated(true)
@@ -1088,8 +1261,8 @@ export default function App() {
     if (line.text) showToast(line.text)
     // place-good: Board already plays buddy giggle — don't speak here
     if (line.giggle || !line.speak || !line.clip) return line
-    playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
-    maybeUnseenPop(line)
+    if (isUnseenClip(line.clip)) maybeUnseenPop(line)
+    else playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
     return line
   }
 
@@ -1140,8 +1313,8 @@ export default function App() {
       const line = tipBanter(id, reason)
       if (line.silent || !line.clip) return false
       if (line.text) showToast(line.text)
-      playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
-      maybeUnseenPop(line)
+      if (isUnseenClip(line.clip)) maybeUnseenPop(line)
+      else playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
       boardTipsRef.current = [...boardTipsRef.current, id]
       lastTipAtRef.current = now
       persistTips(noteShown(tipsRef.current, id, now))
@@ -1155,10 +1328,6 @@ export default function App() {
   function analyticsClear(size: number, ms: number) {
     if (isStoreBuild() || settingsRef.current.analytics === false) return
     sendPing({ id: loadAnon(safeLocalStorage()).id, ev: 'level_clear', size, ms: Math.round(ms) })
-  }
-  function sendFeedback(vote: 'up' | 'down', note: string) {
-    if (isStoreBuild() || settingsRef.current.analytics === false) return
-    sendPing({ id: loadAnon(safeLocalStorage()).id, ev: 'feedback', vote, note: note.slice(0, 200) })
   }
 
   function saveSettingsPatch(patch: Partial<Settings>) {
@@ -1179,11 +1348,74 @@ export default function App() {
   }
 
   function closeNamePrompt(save: boolean) {
+    const active = document.activeElement
+    if (active instanceof HTMLElement) active.blur()
     const name = save ? cleanPlayerName(nameDraft) : ''
-    saveSettingsPatch({ namePrompted: true, ...(name ? { playerName: name } : {}) })
+    if (name) {
+      rememberPlayerName(name)
+      setSettings(loadSettings())
+      setProfile(loadProfile())
+      if (cloud.status === 'signed-in') void renamePlayer(name)
+    } else {
+      saveSettingsPatch({ namePrompted: true })
+    }
     const then = namePrompt?.then
     setNamePrompt(null)
     if (then) window.setTimeout(then, 0)
+  }
+
+  useEffect(() => {
+    const sync = () => {
+      setSettings(loadSettings())
+      setProfile(loadProfile())
+    }
+    window.addEventListener(PLAYER_NAME_EVENT, sync)
+    return () => window.removeEventListener(PLAYER_NAME_EVENT, sync)
+  }, [])
+
+  // A chosen account name is the one name. A default like "Roman's Game official" gives way
+  // to the name already on this device, and that name is saved onto the account.
+  const adoptingName = useRef('')
+  useEffect(() => {
+    if (cloud.status !== 'signed-in') return
+    const account = cleanPlayerName(cloud.publicName) || cleanPlayerName(cloud.name)
+    const local = cleanPlayerName(loadSettings().playerName) || cleanPlayerName(loadProfile()?.displayName)
+    if (account && isUnsetAccountName(account) && local && local.toLowerCase() !== account.toLowerCase()) {
+      if (adoptingName.current === local) return
+      adoptingName.current = local
+      void renamePlayer(local)
+      return
+    }
+    adoptingName.current = ''
+    if (!account || isUnsetAccountName(account)) return
+    const settingsNow = loadSettings()
+    const profileNow = loadProfile()
+    if (settingsNow.playerName === account && (!profileNow || profileNow.displayName === account)) return
+    rememberPlayerName(account)
+  }, [cloud.status, cloud.publicName, cloud.name])
+
+  useEffect(() => {
+    if (nameFocus.current) return
+    setNameField(playerName)
+  }, [playerName])
+
+  async function commitName(raw: string) {
+    const name = cleanPlayerName(raw).slice(0, NAME_MAX)
+    if (!name) return
+    if (isProfane(name)) {
+      showToast("Let's pick a different name. Keep it friendly!")
+      return
+    }
+    rememberPlayerName(name)
+    setSettings(loadSettings())
+    setProfile(loadProfile())
+    if (cloud.status !== 'signed-in') {
+      showToast(`Name saved: ${name}`)
+      return
+    }
+    const r = await renamePlayer(name)
+    if (!r.ok) showToast(r.error || "Couldn't update your name")
+    else showToast(`Name saved: ${r.publicName || name}`)
   }
 
   /** Share text for this board: name, score, level, stars, best time, New best! */
@@ -1197,10 +1429,46 @@ export default function App() {
     saveRecords(next)
   }
 
-  function persistWallet(next: Wallet) {
+  function persistWallet(next: Wallet, meta?: CoinMeta) {
+    const prev = loadWallet()
     setWallet(next)
     saveWallet(next)
+    noteWalletCoins(prev, next, meta)
   }
+
+  useEffect(() => {
+    const playing = screen === 'play' && !celebrate && !defeated
+    setPlaying(playing)
+    setQuietRound(playing)
+  }, [screen, celebrate, defeated])
+
+  useEffect(() => {
+    const onReject = (event: Event) => {
+      const detail = (event as CustomEvent<{ balance?: number | null; cost?: number; undo?: { badgeRanks?: Wallet['badgeRanks']; pets?: PetState | null }; note?: string }>).detail
+      const current = loadWallet()
+      const coins = typeof detail?.balance === 'number' ? detail.balance : current.coins + (Number(detail?.cost) || 0)
+      const next: Wallet = { ...current, coins, ...(detail?.undo?.badgeRanks ? { badgeRanks: detail.undo.badgeRanks } : {}) }
+      setWallet(next)
+      saveWallet(next)
+      if (detail?.undo?.pets) persistPets(detail.undo.pets)
+      showToast(detail?.note || 'We put the coins back and locked that item.')
+    }
+    const onBalance = (event: Event) => {
+      const balance = (event as CustomEvent<{ balance?: number }>).detail?.balance
+      if (typeof balance !== 'number') return
+      const current = loadWallet()
+      if (current.coins === balance) return
+      const next = { ...current, coins: balance }
+      setWallet(next)
+      saveWallet(next)
+    }
+    window.addEventListener('rg-coin-reject', onReject)
+    window.addEventListener('rg-balance', onBalance)
+    return () => {
+      window.removeEventListener('rg-coin-reject', onReject)
+      window.removeEventListener('rg-balance', onBalance)
+    }
+  }, [])
 
   /** 9.30-m: today's ledger (a new day starts fresh), read from storage so two tabs can't double-count */
   function ledgerNow(): Ledger {
@@ -1216,6 +1484,20 @@ export default function App() {
     savePets(next)
   }
 
+  /** Safe-stash snacks only. Field treats and feasts stay. Coins never leave the game. */
+  function confirmConvertTreats() {
+    const n = pets.treats.snack ?? 0
+    const r = swapTreatsToCoins(pets, wallet.coins, n)
+    setConvertAsk(false)
+    if (!r.ok) {
+      showToast(r.reason)
+      return
+    }
+    persistPets(r.state)
+    persistWallet({ ...wallet, coins: r.coins })
+    showToast(`${r.swapped} snacks became ${r.gained} coins.`)
+  }
+
   /** 9.30-d: hidden way to the owner page: 7 quick taps on the home title within 3 s (still needs the passphrase) */
   const ownerDoor = useTapCount(OWNER_TAPS, OWNER_TAP_WINDOW_MS, () => window.location.assign(OWNER_PATH), !isStoreBuild())
 
@@ -1223,12 +1505,13 @@ export default function App() {
   function onAdoptPet(id: PetId) {
     const now = Date.now()
     const w = loadWallet()
-    const r = buyPet(loadPets(), w.coins, id, now)
+    const beforePets = loadPets()
+    const r = buyPet(beforePets, w.coins, id, now)
     if (!r.ok) {
       showToast(r.reason)
       return
     }
-    persistWallet({ ...w, coins: r.coins })
+    persistWallet({ ...w, coins: r.coins }, { itemType: 'pet', itemId: id, undoPets: beforePets })
     persistPets(r.state)
     sfxCoin()
     petGiggle()
@@ -1468,14 +1751,12 @@ export default function App() {
   }
 
   function startPuzzle(p: Puzzle, resume = false, opts: { mode?: RunMode; daily?: boolean; endless?: boolean } = {}) {
-    // First board ever: How to play opens first (returning players start at the new cards)
-    if (!resume && !settingsRef.current.howSeen) {
-      pendingStartRef.current = { p, opts }
-      setStartSheet(null)
-      setHowStart(progress.clears.length > 0 ? HOW_NEW_START : 0)
-      setScreen('how')
-      return
-    }
+    // 2026-10-19: No auto-tutorial. Play goes straight to the game.
+    // A new board is live play: drop a scoreboard tease so it never sits over the grid.
+    window.clearTimeout(teaseTimer.current)
+    teaseGen.current += 1
+    afterGameRef.current = false
+    setUnseenPop(null)
     unlockAudio()
     dropWaitingVoice()
     sfxWhoosh()
@@ -1560,6 +1841,7 @@ export default function App() {
     const themeId = p.theme ?? themeForPuzzle(p.id, p.difficulty)
     setPuzzle({ ...p, theme: themeId })
     recordedRef.current = false
+    winSaveKeyRef.current = null
     setCelebrate(false)
     setDefeated(false)
     setWinLine('')
@@ -1585,6 +1867,7 @@ export default function App() {
         setHintsUsed(d.hintsUsed)
         flawedRef.current = d.flawed === true || d.hintsUsed > 0
         setRunning(true)
+        boardSeqRef.current += 1 // PR #53 batch 2: a fresh board started (guide frequency caps)
         setScreen('play')
         return
       }
@@ -1596,6 +1879,7 @@ export default function App() {
     setHintsUsed(0)
     setRescuesUsed(0)
     setRunning(true)
+    boardSeqRef.current += 1 // PR #53 batch 2: a fresh board started (guide frequency caps)
     setScreen('play')
     saveDraft({
       puzzleId: p.id,
@@ -1689,6 +1973,7 @@ export default function App() {
       persistWallet(w)
       if (nextLives <= 0) {
         boardOverRef.current = 'lost'
+    afterGameRef.current = true
         cancelVoiceBelow(VOICE_PRIORITY.lose)
         setDefeated(true)
         setRunning(false)
@@ -1711,6 +1996,7 @@ export default function App() {
     if (puzzle && isSolved(puzzle, next) && !recordedRef.current) {
       recordedRef.current = true
       boardOverRef.current = 'won'
+      afterGameRef.current = true
       // Drop anything queued from the live board (wrong move, stall, tip, Unseen) before the win line
       cancelVoiceBelow(VOICE_PRIORITY.win)
       setRunning(false)
@@ -1742,18 +2028,34 @@ export default function App() {
       setLastScore(score)
       // 9.32: save the finished game to the player's account (queued offline / until signed in)
       try {
-        saveScore({
-          score,
-          level: puzzle.size,
-          moves: hist.past.length,
-          time_seconds: elapsedMs / 1000,
-          mode: dailyRunRef.current ? 'daily' : endlessRef.current ? 'endless' : runMode === 'trial' ? 'trial' : runMode === 'normal' ? 'normal' : 'other',
-          puzzle_id: String(puzzle.id),
-          daily_date: dailyRunRef.current ?? undefined,
+        const cloudMode = cloudModeForWin({
+          practice: practiceRef.current,
+          daily: !!dailyRunRef.current,
+          endless: !!endlessRef.current,
+          trial: runMode === 'trial',
+          remix: !!parseRemixId(String(puzzle.id)),
         })
+        if (cloudMode) {
+          if (!winSaveKeyRef.current) {
+            winSaveKeyRef.current = `win:${puzzle.id}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`
+          }
+          const timeSeconds = elapsedMs / 1000
+          saveScore({
+            score,
+            level: puzzle.size,
+            moves: hist.past.length,
+            time_seconds: timeSeconds,
+            mode: cloudMode,
+            puzzle_id: String(puzzle.id),
+            daily_date: cloudMode === 'daily' ? dailyRunRef.current ?? undefined : undefined,
+            dedupeKey: winSaveKeyRef.current,
+          })
+          scheduleLeaderboardTease(score, timeSeconds, cloudMode)
+        }
       } catch {
         /* never block the win */
       }
+      void noteRoundScore(score, elapsedMs)
       // Personal bests, stars, Trial and Daily
       let replay: RunResult | null = null
       let rec = records
@@ -1807,7 +2109,7 @@ export default function App() {
                 : 'win'
       if (isRecord) sfxRecord()
       const win = pushBanter(winEvent)
-      setWinLine(win.text || 'Roman says: nice clear!')
+      setWinLine(win.text && win.clip ? win.text : '')
       // Slow or sloppy clear (lost a heart, 2+ hints, or over 3 minutes): the Unseen may chime in
       // with a backhanded compliment once Roman's cheer is done (never on top of it)
       // Voice tips: what the player has shown they get, and how to reach 3 stars if they missed it
@@ -1847,7 +2149,7 @@ export default function App() {
         activeChallenge.scoreMs != null &&
         activeChallenge.scorePts != null
       ) {
-        const myName = profile?.displayName || 'You'
+        const myName = playerName || 'You'
         const result = createDuelResult({
           code: activeChallenge.code,
           puzzleId: puzzle.id,
@@ -1912,12 +2214,25 @@ export default function App() {
         persistPets(ps)
         if (ridePet) {
           const p = petById(ridePet)!
+          const levelUp = grown.levelUp
+          const buddyClip = isRecord
+            ? 'buddy_win_best'
+            : levelUp
+              ? levelUp >= 2 && levelUp <= 30
+                ? `buddy_win_level_${levelUp}`
+                : null
+              : grown.starUp
+                ? 'buddy_win_star'
+                : runMode === 'trial'
+                  ? 'buddy_win_victory'
+                  : 'buddy_win_ave'
           petCheer = {
             id: ridePet,
             name: p.name,
-            text: isRecord ? 'New best!' : grown.levelUp ? `Level ${grown.levelUp}!` : grown.starUp ? 'New star!' : runMode === 'trial' ? 'Victory!' : 'Ave!',
-            cheer: isRecord || !!grown.levelUp,
+            text: isRecord ? 'New best!' : levelUp ? `Level ${levelUp}!` : grown.starUp ? 'New star!' : runMode === 'trial' ? 'Victory!' : 'Ave!',
+            cheer: isRecord || !!levelUp,
           }
+          if (buddyClip) playVoice(buddyClip, { priority: 2, waitMs: 500 })
           // A little giggle for a record, only when Roman isn't talking
           if (isRecord) window.setTimeout(() => petGiggle({ quietOnly: true }), 3200)
           if (grown.levelUp) {
@@ -2158,6 +2473,7 @@ export default function App() {
     flawedRef.current = false
     setLastScore(null)
     recordedRef.current = false
+    winSaveKeyRef.current = null
     setWinReplay(null)
     setRunning(true)
     setLives(runMaxLives)
@@ -2179,6 +2495,7 @@ export default function App() {
     setLives(runMaxLives)
     setDefeated(false)
     setRunning(true)
+    afterGameRef.current = false
     showToast('Revived!')
   }
 
@@ -2285,19 +2602,6 @@ export default function App() {
         showToast(`Badge unlocked: ${badge?.title ?? badgeId}`)
       }, 2600 + i * 2600)
     })
-  }
-
-  function handleSignIn(e: FormEvent) {
-    e.preventDefault()
-    if (!emailInput.includes('@')) {
-      showToast('Enter a valid email')
-      return
-    }
-    const p = signInWithEmail(emailInput, nameInput)
-    setProfile(p)
-    setProgress(getProgress())
-    showToast(`Signed in as ${p.displayName}`)
-    unlockAudio()
   }
 
   function handleCritterCatch(reward: CritterReward) {
@@ -2432,35 +2736,17 @@ export default function App() {
     sfxCoin()
     showToast(`🍖 Claimed ${r.claimed} treats to the safe stash!`)
   }
-  /** Swap the whole safe snack stash for coins (1 snack = 15 coins). */
-  function handleSwapTreats() {
-    const w = loadWallet()
-    const snacks = loadPets().treats.snack ?? 0
-    if (snacks <= 0) {
-      showToast('No snacks in the stash to swap.')
-      return
-    }
-    const r = swapTreatsToCoins(loadPets(), w.coins, snacks)
-    if (!r.ok) {
-      showToast(r.reason)
-      return
-    }
-    persistPets(r.state)
-    persistWallet({ ...w, coins: r.coins })
-    sfxCoin()
-    showToast(`🔄 Swapped ${r.swapped} snacks → +${r.gained} coins!`)
-  }
-
-  function handleCreateChallenge() {
+  function makeScoreChallenge(message?: string): { url: string; text: string } {
     const target = puzzle ?? PUZZLES[0]
     const clear = getProgress().clears.find((c) => c.puzzleId === target.id)
+    const note = message?.trim() || challengeMsg
     const c = createChallenge({
       puzzleId: target.id,
       puzzleName: target.name,
       difficulty: DIFFICULTY_LABEL[target.difficulty],
       fromEmail: senderEmail(profile?.email),
-      fromName: playerName || profile?.displayName || 'A friend',
-      message: challengeMsg,
+      fromName: playerName || 'A friend',
+      message: note,
       toEmail: challengeEmail || undefined,
       scoreMs: clear?.bestMs,
       scorePts: clear?.bestScore,
@@ -2474,24 +2760,18 @@ export default function App() {
     const link = encodeChallengeLink(c, target)
     setShareLink(link)
     const lv = records.levels[target.id]
-    setShareText(
-      clear
-        ? scoreShareText({
-            name: playerName,
-            score: lv?.bestScore ?? clear.bestScore,
-            levelLabel: levelLabelFor(target),
-            stars: lv?.stars,
-            timeMs: lv?.bestMs ?? clear.bestMs,
-            buddy: lv ? petLabel(lv.buddy) : undefined,
-          })
-        : challengeShareText(c),
-    )
-    void navigator.clipboard?.writeText(link)
-    showToast(
-      clear
-        ? `Challenge ready · ${target.name} · ${formatShareTime(clear.bestMs)} · ${badgeTitleForShare(wallet)}`
-        : 'Challenge link ready — share below',
-    )
+    const share = clear
+      ? scoreShareText({
+          name: playerName,
+          score: lv?.bestScore ?? clear.bestScore,
+          levelLabel: levelLabelFor(target),
+          stars: lv?.stars,
+          timeMs: lv?.bestMs ?? clear.bestMs,
+          buddy: lv ? petLabel(lv.buddy) : undefined,
+        })
+      : challengeShareText(c)
+    setShareText(share)
+    return { url: link, text: share }
   }
 
   /** Share this win as a scored challenge so a friend can beat your time */
@@ -2505,7 +2785,7 @@ export default function App() {
       puzzleName: puzzle.name,
       difficulty: DIFFICULTY_LABEL[puzzle.difficulty],
       fromEmail: senderEmail(profile?.email),
-      fromName: who || profile?.displayName || 'A friend',
+      fromName: who || playerName || 'A friend',
       scoreMs: elapsedMs,
       scorePts: lastScore,
       buddy: runPetRef.current,
@@ -2561,28 +2841,81 @@ export default function App() {
       showToast(reason || 'Cannot upgrade')
       return
     }
-    persistWallet(result.wallet)
+    persistWallet(result.wallet, { itemType: 'badge', itemId: `${badgeId}:${badgeRank(result.wallet, badgeId)}` })
     sfxCoin()
     const rank = badgeRank(result.wallet, badgeId)
     const def = BADGES.find((b) => b.id === badgeId)
     showToast(`${def?.title ?? badgeId} → Rank ${rank} · +${formatBonusPercent(totalCoinBonusPercent(result.wallet))} coins`)
   }
 
-  async function onBuyCoins(packId: CoinPackId) {
+  function applyShopGrant(offerId: string, coins: number, treats: number, petIds: readonly string[]) {
+    const now = Date.now()
+    const w = loadWallet()
+    if (coins > 0) persistWallet({ ...w, coins: w.coins + coins }, { itemId: offerId })
+    let ps = loadPets()
+    if (treats > 0) ps = grantTreat(ps, 'snack', treats)
+    for (const id of petIds) {
+      if (id === 'premium-choice') {
+        try {
+          localStorage.setItem('roman.bundle.premium', '1')
+        } catch {
+          /* ignore */
+        }
+        showToast('Pick your premium buddy in the Stable.')
+        continue
+      }
+      const pet: PetId | undefined =
+        id === 'random-common'
+          ? PETS.find((p) => p.tier === 'common' && !ps.owned[p.id])?.id
+          : id === 'lupa' || id === 'aquila' || id === 'leo' || id === 'invictus' || id === 'nox'
+            ? id
+            : undefined
+      if (!pet || ps.owned[pet]) continue
+      ps = { ...ps, owned: { ...ps.owned, [pet]: { at: now, xp: 0, gift: true } }, active: ps.active ?? pet }
+    }
+    persistPets(ps)
+    if (shopOfferById(offerId)?.once) {
+      try {
+        localStorage.setItem('roman.shop.starter', '1')
+      } catch {
+        /* ignore */
+      }
+      setStarterOwned(true)
+    }
+  }
+
+  async function onBuyCoins(packId: CoinPackId | string) {
     unlockAudio()
+    if (!isStoreBuild() && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      showToast('Connect to buy')
+      return
+    }
     if (!isStoreBuild()) {
+      const offer = shopOfferById(packId)
+      if (offer?.once && starterOwned) {
+        showToast('You already have the Starter Pack.')
+        return
+      }
+      const sb = await getSupabase()
+      const token = sb ? (await sb.auth.getSession()).data.session?.access_token : undefined
+      if (offer?.once && !token) {
+        showToast('Sign in first. The Starter Pack is once per account.')
+        setScreen('profile')
+        return
+      }
       const { startWebCheckout } = await import('./game/webCheckout')
-      const started = await startWebCheckout(packId)
+      const started = await startWebCheckout(packId, token)
       if (!started.ok) showToast(started.reason)
       return
     }
+    if (packId !== 'coins_100' && packId !== 'coins_500' && packId !== 'coins_1200' && packId !== 'coins_3000') return
     const result = await purchaseCoinPack(packId)
     if (!result.ok) {
       showToast(result.reason)
       return
     }
     if (result.credited) setWallet(loadWallet())
-    else persistWallet({ ...wallet, coins: wallet.coins + result.coins })
+    else persistWallet({ ...wallet, coins: wallet.coins + result.coins }, { itemId: 'shop' })
     sfxCoin()
     showToast(`+${result.coins} coins · ${result.pack.label}`)
   }
@@ -2604,7 +2937,7 @@ export default function App() {
         puzzleName: board.name,
         difficulty: DIFFICULTY_LABEL[board.difficulty],
         fromEmail: senderEmail(profile?.email),
-        fromName: playerName || profile?.displayName || 'A friend',
+        fromName: playerName || 'A friend',
         message: challengeMsg,
         toEmail: to || undefined,
       })
@@ -2616,7 +2949,35 @@ export default function App() {
 
   const done = new Set(progress.clears.map((c) => c.puzzleId))
 
-  const hideChrome = screen === 'play' || screen === 'how'
+  const hideChrome = screen === 'play'
+
+  function openHelp(id: string) {
+    setHelpFocus(id.startsWith('help-') ? id : `help-${id}`)
+    setNavOpen(false)
+    setScreen('how')
+  }
+
+  function goNextBoard() {
+    if (!puzzle) return
+    maybeParade(() => {
+      const rm = parseRemixId(puzzle.id)
+      if (rm) {
+        const nxt = rm.set === remixSet ? nextRemixSize(rm.size, (s) => records.levels[remixId(rm.set, s)]?.bestMs != null) : null
+        const nb = nxt ? liveRemix[nxt] : undefined
+        if (nb) startPuzzle(nb)
+        else {
+          setScreen('remix')
+          if (nxt) buildRemix(nxt, true)
+        }
+        return
+      }
+      if (endlessRef.current) {
+        startEndless(endlessRef.current)
+        return
+      }
+      startPuzzle(pickNextBoard(puzzle, PUZZLES, getProgress().clears))
+    })
+  }
 
   // Daily Challenge: same board for everyone on a Toronto date
   const todayKey = torontoDateKey()
@@ -2628,6 +2989,65 @@ export default function App() {
   )
   const dailyToday = records.daily.days[todayKey]
   const dailyStreakNow = liveStreak(records.daily, todayKey)
+
+  // PR #53 batch 2 (Tony 2026-10-19): Unseen guide + pet pop-out triggers.
+  // Evaluates ~2s after relevant state settles; the highest-priority candidate
+  // wins. Caps: 1 warning/session, 1 opportunity/session, progress tags once
+  // each, never interrupt the same board twice. Appearing never pauses the
+  // timer — the existing navigation behavior covers the tap-through case.
+  useEffect(() => {
+    if (guide || petPop) return
+    if (celebrate || defeated || showWheel || shortfall || parade || showHunt) return
+    // No guide or pet pop-up on a live board. Home and the other menus can still show one.
+    if (screen === 'play' && running && !celebrate && !defeated) return
+    if (screen === 'play' && guideBoardRef.current === boardSeqRef.current) return
+    const t = window.setTimeout(() => {
+      if (screen === 'play' && running && !celebrate && !defeated) return
+      if (Date.now() - guideLastAtRef.current < 45_000) return
+      const snapshot = {
+        now: petNow,
+        today: todayKey,
+        pets,
+        wallet,
+        pieces: localCard(records).pieces,
+        piecesTotal: CARD_PIECES,
+        streak: dailyStreakNow,
+      }
+      const pick = guideCandidates(snapshot).find((c) => {
+        if (!guideVoiceClip(c.tag)) return false
+        return c.category === 'warning'
+          ? !guideWarnShownRef.current
+          : c.category === 'opportunity'
+            ? !guideOppShownRef.current
+            : !guideProgressFiredRef.current.has(c.tag)
+      })
+      if (pick) {
+        if (pick.category === 'warning') guideWarnShownRef.current = true
+        else if (pick.category === 'opportunity') guideOppShownRef.current = true
+        else guideProgressFiredRef.current.add(pick.tag)
+        guideBoardRef.current = boardSeqRef.current
+        guideLastAtRef.current = Date.now()
+        guideKey.current += 1
+        const clip = guideVoiceClip(pick.tag)
+        setGuide({ kind: pick.kind, text: pick.text, target: pick.target, key: guideKey.current, clip: clip ?? undefined })
+        if (clip) playVoice(clip, { priority: 2, waitMs: 500 })
+        return
+      }
+      // No guide: silent pet pop-out (lowest-mood pet needing care), once per
+      // pet per session, never mid-board.
+      if (screen === 'play') return
+      const needy = petPopoutPick(snapshot)
+      if (needy && !petPopFiredRef.current.has(needy.id)) {
+        petPopFiredRef.current.add(needy.id)
+        guideBoardRef.current = boardSeqRef.current
+        guideLastAtRef.current = Date.now()
+        petPopKey.current += 1
+        setPetPop({ id: needy.id, kind: needy.kind, mood: needy.mood, key: petPopKey.current })
+      }
+    }, 2000)
+    return () => window.clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, running, pets, petNow, wallet.coins, records, celebrate, defeated, showWheel, shortfall, parade, showHunt, guide, petPop])
   const dailyDateLabel = new Date(`${todayKey}T12:00:00Z`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })
   function buildRemix(size: RemixSize, openAfter = false) {
     const set = remixSet
@@ -2849,7 +3269,7 @@ export default function App() {
 
   return (
     <div
-      className={`shell fixed-shell ${isStoreBuild() ? 'shell-native' : ''} ${screen === 'play' ? 'shell-play' : ''} ${screen === 'play' && celebrate && !showWheel ? 'shell-celebrate' : ''} ${hideChrome ? 'shell-immersive' : ''} shell-${screen}`}
+      className={`shell fixed-shell ${isStoreBuild() ? 'shell-native' : ''} ${screen === 'play' ? 'shell-play' : ''} ${screen === 'play' && celebrate && !showWheel ? 'shell-celebrate' : ''} ${screen === 'play' && (celebrate || defeated) ? 'shell-ended' : ''} ${hideChrome ? 'shell-immersive' : ''} shell-${screen}`}
       ref={shellRef}
       onPointerDown={unlockAudio}
     >
@@ -2860,76 +3280,139 @@ export default function App() {
           <button
             type="button"
             className="brand"
+            data-testid="brand-site"
             onClick={() => {
+              setNavOpen(false)
               setScreen('home')
-              sfxWhoosh()
             }}
           >
             <span className="brand-mark" />
-            <span className="brand-name">Roman</span>
+            <span className="brand-name brand-name-full">Roman's Game</span>
+            <span className="brand-name brand-name-short" data-testid="brand-roman">Roman</span>
           </button>
-          <nav className="nav">
-            <button type="button" className={screen === 'levels' ? 'on' : ''} onClick={() => setScreen('levels')}>
+          <nav className="nav-quick" aria-label="Shortcuts">
+            <button
+              type="button"
+              data-testid="quick-home"
+              className={screen === 'home' ? 'on' : ''}
+              aria-label="Home"
+              title="Home"
+              onClick={() => { setNavOpen(false); setScreen('home') }}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="currentColor" d="M12 3.4 3.2 11h2.3v8.6h5v-5.2h2.9v5.2h5V11h2.4L12 3.4z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              data-testid="quick-play"
+              className={screen === 'levels' ? 'on' : ''}
+              aria-label="Play"
+              title="Play"
+              onClick={() => { setNavOpen(false); setScreen('levels') }}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="currentColor" d="M8 5.2v13.6l12-6.8L8 5.2z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              data-testid="quick-how"
+              className={`quick-how${screen === 'how' ? ' on' : ''}`}
+              aria-label="How to play"
+              title="How to play"
+              onClick={() => { setNavOpen(false); setHelpFocus(''); setScreen('how') }}
+            >
+              ?
+            </button>
+            <button
+              type="button"
+              data-testid="quick-shop"
+              className={screen === 'rewards' ? 'on' : ''}
+              aria-label="Shop"
+              title="Shop"
+              onClick={() => { setNavOpen(false); setScreen('rewards') }}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="currentColor" d="M7 7.2V6.4a5 5 0 0 1 10 0v.8h2.6V20H4.4V7.2H7zm2 0h6V6.4a3 3 0 0 0-6 0v.8z" />
+              </svg>
+            </button>
+          </nav>
+          <button
+            type="button"
+            className="nav-menu"
+            aria-expanded={navOpen}
+            aria-controls="app-nav"
+            onClick={() => setNavOpen((open) => !open)}
+          >
+            Menu
+          </button>
+          {navOpen ? (
+            <button type="button" className="nav-scrim" aria-label="Close menu" onClick={() => setNavOpen(false)} />
+          ) : null}
+          <nav id="app-nav" className={`nav${navOpen ? ' is-open' : ''}`}>
+            <button type="button" data-testid="nav-home" className={`nav-in-quick${screen === 'home' ? ' on' : ''}`} onClick={() => { setNavOpen(false); setScreen('home') }}>
+              Home
+            </button>
+            <button type="button" className={`nav-in-quick${screen === 'levels' ? ' on' : ''}`} onClick={() => { setNavOpen(false); setScreen('levels') }}>
               Play
             </button>
-            <button type="button" className={screen === 'rewards' ? 'on' : ''} onClick={() => setScreen('rewards')}>
+            <button type="button" data-testid="nav-how" className={`nav-in-quick${screen === 'how' ? ' on' : ''}`} title="How to play" onClick={() => { setNavOpen(false); setHelpFocus(''); setScreen('how') }}>
+              How to play
+            </button>
+            <button type="button" className={screen === 'rewards' ? 'on' : ''} onClick={() => { setNavOpen(false); setScreen('rewards') }}>
               Rewards
             </button>
-            <button type="button" className={`nav-stable ${screen === 'stable' ? 'on' : ''}`} onClick={() => setScreen('stable')}>
+            <button type="button" className={`nav-stable ${screen === 'stable' ? 'on' : ''}`} onClick={() => { setNavOpen(false); setScreen('stable') }}>
               Stable
             </button>
-            <button type="button" className={screen === 'challenge' ? 'on' : ''} onClick={() => setScreen('challenge')}>
+            <button type="button" className={screen === 'challenge' ? 'on' : ''} onClick={() => { setNavOpen(false); setScreen('challenge') }}>
               Share
             </button>
-            <button type="button" className={screen === 'profile' ? 'on' : ''} onClick={() => setScreen('profile')}>
-              {profile ? profile.displayName.split(' ')[0] : 'Save'}
+            <button type="button" className={screen === 'leaderboard' ? 'on' : ''} data-testid="nav-board" onClick={() => { setNavOpen(false); setScreen('leaderboard') }}>
+              Board
+            </button>
+            <button type="button" className={screen === 'profile' ? 'on' : ''} onClick={() => { setNavOpen(false); setScreen('profile') }}>
+              {playerName ? <span className="player-name-mark nav-player" data-testid="nav-player" title={playerName}>{playerName}</span> : 'Account'}
             </button>
           </nav>
           <div className="hud-pills">
-            <div className="score-pill coin" title="Coins">
+            <a
+              className="site-link"
+              href="https://romansgame.com"
+              target="_blank"
+              rel="noopener"
+              title="Visit romansgame.com"
+              aria-label="Visit romansgame.com"
+              data-testid="site-logo"
+            >
+              <img src="/images/site-logo.png" alt="" width="512" height="512" draggable={false} />
+            </a>
+            <button
+              type="button"
+              className="score-pill coin"
+              title="Coins — tap to get more"
+              onClick={() => setScreen('rewards')}
+            >
               {wallet.coins}
               <span>¢</span>
-            </div>
+            </button>
           </div>
         </header>
       )}
 
+      {screen !== 'play' && screen !== 'profile' && playerName && (
+        <p className="signed-in-bar" data-testid="signed-in-as">
+          {signedIn ? 'Signed in as ' : 'Playing as '}
+          <strong className="player-name-mark">{playerName}</strong>
+        </p>
+      )}
+
       {/* On a live board the toast text shows in the play caption slot instead (never over the board) */}
       {toast && (screen !== 'play' || celebrate || defeated) && <div className="toast">{toast}</div>}
+      <QuietToast />
 
-      {namePrompt &&
-        createPortal(
-          <div className="start-sheet name-prompt" role="dialog" aria-modal="true" aria-label="Your name">
-            <div className="start-sheet-scrim" />
-            <form
-              className="start-sheet-card"
-              onSubmit={(e) => {
-                e.preventDefault()
-                closeNamePrompt(true)
-              }}
-            >
-              <h3>What should we call you?</h3>
-              <p className="start-sheet-tip">Your name goes on the scores you share, like “{cleanPlayerName(nameDraft) || 'Sam'} scored 1,840 on Level 1”. It stays on this device. You can change it later in Save &amp; settings.</p>
-              <input
-                className="name-input"
-                type="text"
-                value={nameDraft}
-                maxLength={PLAYER_NAME_MAX + 8}
-                placeholder="Your name"
-                autoComplete="nickname"
-                aria-label="Your name"
-                onChange={(e) => setNameDraft(e.target.value.slice(0, PLAYER_NAME_MAX + 8))}
-              />
-              <button type="submit" className="btn primary" disabled={!cleanPlayerName(nameDraft)}>
-                Save
-              </button>
-              <button type="button" className="btn ghost" onClick={() => closeNamePrompt(false)}>
-                Skip (share as “I scored…”)
-              </button>
-            </form>
-          </div>,
-          document.body,
-        )}
+      {namePrompt && <NamePromptSheet touch={touchName} nameDraft={nameDraft} setNameDraft={setNameDraft} onClose={closeNamePrompt} signedIn={signedIn} />}
 
       <ShortfallSheetHost
         open={!!shortfall}
@@ -2952,20 +3435,38 @@ export default function App() {
           <section className="hero no-callout">
             <p className="eyebrow">Logic puzzle</p>
             <h1 className="logo-hero no-callout" {...ownerDoor}>
-              Roman
+              Roman's Game
             </h1>
             <p className="lede">
               Drop animated buddies — one per row, column, and region. They hate cuddling (even corners).
             </p>
+            <HomeUnseenReminder
+              facts={{
+                now: Date.now(),
+                today: torontoDateKey(),
+                cloudKnown: cloud.status === 'signed-in' || cloud.status === 'signed-out',
+                signedIn,
+                afterGame: afterGameRef.current,
+                sessionSignIns: 0,
+                hungryPet: anyHungryPet(pets, Date.now()),
+                canSpend: canSpendCoins(wallet.coins, pets, wallet, Date.now()),
+                dailyPlayed: records.daily.days[torontoDateKey()]?.status === 'won',
+                streakAtRisk: liveStreak(records.daily, torontoDateKey()) > 0 && records.daily.lastWon !== torontoDateKey(),
+                remixSet,
+              }}
+              onConsumed={() => {
+                afterGameRef.current = false
+              }}
+            />
             <div className="cta-row">
               {draftPuzzle ? (
-                <button type="button" className="btn primary" onClick={() => startPuzzle(draftPuzzle, true)}>
+                <button type="button" className="btn primary home-play" onClick={() => startPuzzle(draftPuzzle, true)}>
                   Resume {draftPuzzle.name}
                 </button>
               ) : (
                 <button
                   type="button"
-                  className="btn primary"
+                  className="btn primary home-play"
                   onClick={() => {
                     // 9.30-n: once every level is cleared, Play opens the Levels list (it used to make endless random boards)
                     const uncleared = PUZZLES.find((p) => !done.has(p.id))
@@ -2976,15 +3477,21 @@ export default function App() {
                   Play
                 </button>
               )}
-              <button type="button" className="btn ghost" onClick={() => setScreen('how')}>
+              <button type="button" className="btn ghost btn-sm" onClick={() => setScreen('how')}>
                 How to play
               </button>
-              <button type="button" className="btn ghost" onClick={() => setScreen('bug')}>
+              <button type="button" className="btn ghost btn-sm" data-testid="home-board" onClick={() => setScreen('leaderboard')}>
+                Leaderboard
+              </button>
+              <InboxButton onOpen={() => setScreen('inbox')} />
+              <PlayerChip onOpen={() => setScreen('profile')} />
+              <button type="button" className="btn ghost btn-sm" onClick={() => setScreen('bug')}>
                 🐛 Report a bug
               </button>
-              <CloudScoresButton suggestedName={playerName} />
               <UnseenCardTile records={records} />
             </div>
+            <PlayNudge home />
+            <SyncNote />
           </section>
           {/* 10.06: treat defense — the vulnerable field pile. Claim only on the board screen. */}
           <section className="treat-pile-widget" aria-label="Field treat pile">
@@ -3037,13 +3544,20 @@ export default function App() {
               <span>win coins</span>
             </div>
           </section>
+          <footer className="home-site-foot">
+            <a href="https://romansgame.com" target="_blank" rel="noopener" data-testid="home-site-link">
+              Visit romansgame.com
+            </a>
+            <LegalLine />
+          </footer>
         </main>
       )}
 
       {screen === 'how' && (
         <HowToPlay
-          key={`how-${howStart}`}
+          key={`how-${howStart}-${helpFocus}`}
           startAt={howStart}
+          focusId={helpFocus}
           doneLabel={pendingStartRef.current ? "Let's play" : 'Choose a level'}
           onDone={() => {
             settingsRef.current = { ...settingsRef.current, howSeen: true }
@@ -3066,6 +3580,56 @@ export default function App() {
 
       {screen === 'bug' && (
         <BugReport currentScreen={screen} onBack={() => setScreen('home')} />
+      )}
+
+      {screen === 'inbox' && (
+        <InboxScreen
+          onBack={() => setScreen('home')}
+          onPlay={(item: InboxItem) => {
+            if (item.kind === 'live') {
+              const matchId = String(item.payload.match || '')
+              const layout = String(item.payload.layout || '')
+              const board = layout ? registerSharedBoard(`live-${matchId || item.id}`, String(item.payload.puzzleName || item.payload.name || 'Live'), layout) : null
+              if (matchId) void getSupabase().then((sb) => sb?.rpc('join_live', { match_id: matchId }))
+              armRound({ kind: 'live', theirName: item.fromName, theirScore: 0, matchId })
+              if (board) startPuzzle(board)
+              else setScreen('home')
+              return
+            }
+            const link = String(item.payload.link || '')
+            const hash = link.includes('#') ? link.slice(link.indexOf('#')) : ''
+            armRound({ kind: 'challenge', theirName: item.fromName, theirScore: Number(item.payload.score) || 0 })
+            if (hash) {
+              window.location.hash = hash
+              window.dispatchEvent(new Event('rg-open-hash'))
+            } else setScreen('home')
+          }}
+        />
+      )}
+
+      {screen === 'leaderboard' && (
+        <Leaderboard
+          you={playerName}
+          signedIn={signedIn}
+          onHelp={() => openHelp('help-board')}
+          badges={BADGES.filter((b) => badgeRank(wallet, b.id) >= 1).map((b) => b.icon)}
+          showcase={{ pieces: localCard(records).pieces, earned: localCard(records).pieces >= CARD_PIECES }}
+          onChallenge={(rival) => {
+            const made = makeScoreChallenge(`${playerName || 'I'} challenge ${rival}. Beat my score.`)
+            if (isFriend(rival)) {
+              void sendChallenge(rival, { link: made.url }, `${playerName || 'A friend'} challenged you`)
+              showToast(`Challenge sent to ${rival}`)
+              return
+            }
+            setScreen('challenge')
+            showToast(`Challenge ready. Share it with ${rival}.`)
+          }}
+          onLive={(rival) => {
+            const target = puzzle ?? PUZZLES[0]
+            void sendLive(rival, packBoardLayout(target), target.name)
+            showToast(`Invite sent to ${rival}`)
+          }}
+        />
       )}
 
       {screen === 'levels' && (
@@ -3131,6 +3695,12 @@ export default function App() {
             </button>
             <div className="hud-title">
               <strong>{puzzle.name}</strong>
+              {playerName ? (
+                <em className="hud-you" data-testid="hud-player">
+                  {signedIn ? 'Signed in as ' : ''}
+                  <strong className="player-name-mark">{playerName}</strong>
+                </em>
+              ) : null}
               <span>
                 {mode === 'trial'
                   ? "⚔ Roman's Trial · 2× coins"
@@ -3312,6 +3882,16 @@ export default function App() {
               </div>
             )
           })()}
+          {(celebrate || defeated) && !showHunt && !showWheel ? (
+            <aside className="play-dock" data-testid="play-dock">
+              <p>
+                {celebrate ? 'Victory' : 'Out of hearts'} · {formatMs(elapsedMs)} · {lastScore ?? 0} pts · {lives} hearts
+              </p>
+              <button type="button" className="btn primary" onClick={goNextBoard}>Next board</button>
+              <button type="button" className="btn ghost" onClick={resetBoard}>Play again</button>
+              <button type="button" className="btn ghost" onClick={() => setScreen('leaderboard')}>Leaderboard</button>
+            </aside>
+          ) : null}
           </div>
           <p className="build-tag" data-build={BUILD_TAG}>{BUILD_TAG}</p>
 
@@ -3321,7 +3901,7 @@ export default function App() {
                 <span className="rotate-phone-screen" />
               </span>
               <h3>Turn your phone upright</h3>
-              <p>Roman says: this board likes to stand tall. So do I.</p>
+              <p>Turn the phone upright. The board is paused.</p>
               <small>Paused — your board, hearts and time are saved.</small>
             </div>
           </div>
@@ -3357,33 +3937,15 @@ export default function App() {
               livesLeft={lives}
               maxLives={runMaxLives}
               sparkCount={wallet.critterStash ?? 0}
-              romanSaying={winLine || 'Roman says: Veni, vidi, vici!'}
+              romanSaying={winLine}
               spins={wallet.spins}
               perfect={hintsUsed === 0}
               replay={winReplay ?? undefined}
               cardGain={cardGain ?? undefined}
               nextLabel={endlessRef.current ? 'Next Endless board' : parseRemixId(puzzle.id) ? 'Next Remix board' : 'Next board'}
               paradeHint={settings.parade === false ? undefined : paradeHint(paradeRef.current).text}
-              modeNote={endlessRef.current ? `Endless mode · ${endless.cleared} cleared. Levels list and Home are below.` : parseRemixId(puzzle.id) ? boardKindNote(puzzle.id) : undefined}
-              onNext={() => maybeParade(() => {
-                // 9.30-i: Remix → the next uncleared board of the live set; Endless → another fresh board
-                const rm = parseRemixId(puzzle.id)
-                if (rm) {
-                  const nxt = rm.set === remixSet ? nextRemixSize(rm.size, (s) => records.levels[remixId(rm.set, s)]?.bestMs != null) : null
-                  const nb = nxt ? liveRemix[nxt] : undefined
-                  if (nb) startPuzzle(nb)
-                  else {
-                    setScreen('remix')
-                    if (nxt) buildRemix(nxt, true)
-                  }
-                  return
-                }
-                if (endlessRef.current) {
-                  startEndless(endlessRef.current)
-                  return
-                }
-                startPuzzle(pickNextBoard(puzzle, PUZZLES, getProgress().clears))
-              })}
+              modeNote={endlessRef.current ? `Endless mode · ${endless.cleared} cleared. Levels and Home are under More.` : parseRemixId(puzzle.id) ? boardKindNote(puzzle.id) : undefined}
+              onNext={goNextBoard}
               onReplay={resetBoard}
               onLevels={() => setScreen('levels')}
               onHome={() => setScreen('home')}
@@ -3397,6 +3959,9 @@ export default function App() {
               onBuddyHunt={openBuddyHunt}
               onShare={() => shareWinAsChallenge()}
               onDuel={duel && activeChallenge?.puzzleId === puzzle.id ? openDuelShare : undefined}
+              suggestedName={playerName}
+              playerName={playerName}
+              signedIn={signedIn}
             />
           )}
 
@@ -3480,131 +4045,154 @@ export default function App() {
           onBuyBundle={onBuyBundle}
           onCare={onCarePet}
           onFeed={onFeedPet}
-          onSwapTreats={handleSwapTreats}
           today={todayKey}
           onEquip={onEquipPet}
           onPeek={onPeekGift}
           onRedeem={onRedeemGift}
           onShop={() => setScreen('rewards')}
           onBack={() => setScreen('home')}
+          focusPet={stableFocus}
           giftCode={giftPrefill}
           giftsOnline={!isStoreBuild()}
+          isSignedIn={signedIn || !!profile}
+          playerName={playerName}
+          signedIn={signedIn}
+          onHelp={() => openHelp('help-buddies')}
         />
       )}
 
       {screen === 'rewards' && (
-        <main className="panel scroll-pane">
-          <h2>Rewards</h2>
-          <p className="sub">
-            Unlock badges by playing, then spend coins to rank them up forever — each rank boosts coins on every win.
-          </p>
-          <button type="button" className="stable-entry" onClick={() => setScreen('stable')}>
-            <span className="stable-entry-art" aria-hidden="true">
-              <PetArt id="lupa" size={40} />
-              <PetArt id="aquila" size={40} />
-              <PetArt id="leo" size={40} />
-            </span>
-            <span>
-              <strong>The Stable</strong>
-              <small>Adopt a buddy with coins. Each one has a perk.</small>
-            </span>
-            <span aria-hidden="true">›</span>
-          </button>
-          <div className="stat-strip wallet-strip">
-            <div><strong>{wallet.coins}</strong><span>coins</span></div>
-            <div><strong>{wallet.freeHints}</strong><span>free hints</span></div>
-            <div><strong>{wallet.shields}</strong><span>shields</span></div>
-            <div><strong>{wallet.spins}</strong><span>spins</span></div>
-            <div><strong>{wallet.bonusHearts ?? 0}</strong><span>bonus hearts</span></div>
-            <div><strong>{totalBadgePower(wallet)}</strong><span>power</span></div>
-            <div><strong>+{formatBonusPercent(totalCoinBonusPercent(wallet))}</strong><span>win bonus</span></div>
-          </div>
-          <div className="econ-card" data-testid="econ-card">
-            {(() => {
-              const t = ledgerSummary(rollLedger(econ, todayKey))
-              const pr = paradeRewardsLine(rollLedger(econ, todayKey))
-              return (
-                <>
-                  <span>
-                    Today: full-pay wins <b>{t.winsFull}/{t.winsFullMax}</b> · sparks <b>{t.sparks}/{t.sparksMax}</b> · wheel spins earned <b>{t.spins}/{t.spinsMax}</b>
-                  </span>
-                  <span data-testid="parade-rewards-today">
-                    Parade rewards today: <b>{pr.text}</b> · parades with treasure <b>{pr.parades}/{pr.max}</b> · treasure left <b>{treasureLeftPct(rollLedger(econ, todayKey))}%</b>
-                  </span>
-                  <small>{t.winsToday >= t.winsFullMax ? 'Busy day: wins pay a bit less now, and it all resets tomorrow (stars, records and buddy XP always count).' : 'Wins pay in full until 5 a day, then a bit less. It resets every midnight (Toronto).'}</small>
-                </>
-              )
-            })()}
-          </div>
-          <button
-            type="button"
-            className="btn primary"
-            disabled={wallet.spins <= 0}
-            onClick={openPrizeWheel}
-          >
-            {wallet.spins > 0 ? `Use a spin (${wallet.spins})` : 'Catch 5 sparks for a spin (1 a day)'}
-          </button>
-
-          {SHOP_ENABLED && (<>
-          <h3 className="ach-title">Coin shop</h3>
-          <p className="sub shop-note">
-            {isStoreBuild()
-              ? 'Prices come from the App Store / Google Play. Coins spend on hints, rescues, revives, and badge ranks.'
-              : webShop === 'unavailable'
-                ? 'Purchases are unavailable right now. You can still win coins by playing.'
-                : webShop === 'ready'
-                  ? 'Prices are in US dollars. Coins are added in this browser after you pay. You can still win coins by playing.'
-                  : 'Loading the coin shop.'}
-          </p>
-          <div className="coin-shop">
-            {isStoreBuild()
-              ? COIN_PACKS.map((pack) => (
-                  <CoinPackCard
-                    key={pack.id}
-                    pack={pack}
-                    onBuy={onBuyCoins}
-                    priceText={storePrices[pack.productId]}
-                  />
-                ))
-              : webShop === 'ready' && webPacks
-                ? webPacks.map((pack) => (
-                    <CoinPackCard
-                      key={pack.id}
-                      webBuy
-                      pack={{
-                        id: pack.id,
-                        productId: pack.productId,
-                        label: pack.label,
-                        coins: pack.coins,
-                        priceHint: pack.priceLabel,
-                      }}
-                      priceText={pack.priceLabel}
-                      onBuy={onBuyCoins}
-                    />
-                  ))
-                : null}
-          </div>
-          {isStoreBuild() && (
-            <>
+        <main className="panel scroll-pane shop-screen">
+          <section className="shop-block" data-testid="shop" aria-label="Shop">
+            <h2>Shop <HelpMark id="shop" onOpen={openHelp} /></h2>
+            <p className="coin-explain">Coins are earned by playing or bought here. They are not real money.</p>
+            <p className="shop-proposed" data-testid="shop-proposed">Prices are in Canadian dollars.</p>
+            <section className="pay-real" aria-label="Real money" data-testid="real-money">
+              <h3><span className="pay-mark" aria-hidden="true">💳</span> Real money</h3>
+              <div className="coin-shop">
+                {SHOP_OFFERS.filter((offer) => offer.pets.length === 0).map((offer) => {
+                  const discs = coinStackDiscs(offer.coins)
+                  const save = savingsCents(offer)
+                  return (
+                    <article key={offer.id} className="product-card product-card-money product-card-web" data-pack={offer.id}>
+                      <span className="coin-stack" data-discs={discs} aria-hidden="true">
+                        {Array.from({ length: discs }, (_, i) => (
+                          <i key={i} />
+                        ))}
+                      </span>
+                      <h3>{offer.label}</h3>
+                      <p className="product-coins">{formatPackCoins(offer.coins)}</p>
+                      <ul className="offer-contents">
+                        {offer.contents.map((line) => (
+                          <li key={line}>{line}</li>
+                        ))}
+                      </ul>
+                      <div className="product-card-foot">
+                        <span className="product-price">
+                          <span className="pay-mark" aria-hidden="true">💳</span> {formatCad(offer.cadCents)}
+                          {save > 0 ? <small>Save {formatCad(save)}</small> : null}
+                        </span>
+                        <OfflineBuyButton onClick={() => void onBuyCoins(offer.id)} />
+                      </div>
+                    </article>
+                  )
+                })}
+              </div>
+              <div className="bundle-shop">
+                {SHOP_OFFERS.filter((offer) => offer.pets.length > 0).map((offer) => {
+                  const save = savingsCents(offer)
+                  const owned = offer.once && starterOwned
+                  return (
+                    <article key={offer.id} className="product-card product-card-money starter-pack" data-testid={`${offer.id}-pack`}>
+                      {offer.id === 'starter' ? (
+                        <div className="starter-art">
+                          <PetArt id="lupa" size={52} title="Lupa" />
+                          <PetArt id="aquila" size={52} title="Aquila" />
+                        </div>
+                      ) : null}
+                      <h3>
+                        {offer.label}
+                        {offer.badge ? <span className="offer-badge">{offer.badge}</span> : null}
+                      </h3>
+                      <ul className="offer-contents">
+                        {offer.contents.map((line) => (
+                          <li key={line}>{line}</li>
+                        ))}
+                      </ul>
+                      <div className="product-card-foot">
+                        <span className="product-price" data-testid={offer.id === 'starter' ? 'starter-price' : undefined}>
+                          <span className="pay-mark" aria-hidden="true">💳</span> {formatCad(offer.cadCents)}
+                          {save > 0 ? <small>Save {formatCad(save)} vs buying separately</small> : null}
+                        </span>
+                        {owned ? (
+                          <button type="button" className="btn ghost product-buy" disabled data-testid="starter-buy">
+                            Already yours
+                          </button>
+                        ) : (
+                          <OfflineBuyButton onClick={() => void onBuyCoins(offer.id)}>
+                            <span data-testid={offer.id === 'starter' ? 'starter-buy' : undefined}>Buy</span>
+                          </OfflineBuyButton>
+                        )}
+                      </div>
+                    </article>
+                  )
+                })}
+              </div>
+              <LegalLine />
+            </section>
+            <section className="pay-coins" aria-label="Spend coins" data-testid="spend-coins">
+              <h3><span className="pay-mark" aria-hidden="true">🪙</span> Spend coins</h3>
+              <div className="balance-row">
+                <span data-testid="balance-coins"><span className="pay-mark" aria-hidden="true">🪙</span> {wallet.coins} coins</span>
+                <span data-testid="balance-treats"><span aria-hidden="true">🍖</span> {pets.treats.snack + pets.treats.feast} treats</span>
+              </div>
+              <p className="product-value">
+                Safe snacks become coins at {SNACK_COIN_RATE} each. Field treats and feasts stay. No cash-out.
+              </p>
+              {convertAsk ? (
+                <div className="convert-confirm" data-testid="convert-confirm">
+                  <p>
+                    Convert {pets.treats.snack} snacks into {(pets.treats.snack ?? 0) * SNACK_COIN_RATE} coins? They stay in the game.
+                  </p>
+                  <button type="button" className="btn primary btn-sm" data-testid="convert-yes" onClick={confirmConvertTreats}>
+                    Convert
+                  </button>
+                  <button type="button" className="btn ghost btn-sm" onClick={() => setConvertAsk(false)}>
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="btn ghost btn-sm"
+                  data-testid="convert-treats"
+                  disabled={(pets.treats.snack ?? 0) <= 0}
+                  onClick={() => setConvertAsk(true)}
+                >
+                  <span className="pay-mark" aria-hidden="true">🪙</span> Convert snacks
+                </button>
+              )}
+              <button type="button" className="btn ghost btn-sm" onClick={() => setScreen('stable')}>
+                <span className="pay-mark" aria-hidden="true">🪙</span> Animals in the Stable
+              </button>
+            </section>
+            {isStoreBuild() ? (
               <button type="button" className="btn ghost" onClick={() => void onRestorePurchases()}>
                 Restore unfinished purchases
               </button>
-              <p className="sub restore-note">
-                Coin packs are consumable. A finished purchase is not restored. This only adds a payment
-                that was charged but not yet turned into coins.
-              </p>
-            </>
-          )}
-          </>)}
+            ) : null}
+          </section>
 
-          <h3 className="ach-title">Badges · rank up</h3>
-          <div className="ach-grid badge-grid">
+          <h2>Rewards <HelpMark id="rewards" onOpen={openHelp} /></h2>
+          <p className="rewards-lead">Badges, streaks, and prizes you pick up by playing.</p>
+          <h3 className="ach-title">Badges</h3>
+          <div className="reward-row" aria-label="Badges">
             {ACHIEVEMENTS.map((a) => {
               const rank = badgeRank(wallet, a.id)
               const unlocked = rank >= 1
               const cost = unlocked ? upgradeBadgeCost(a.id, rank, totalBadgePower(wallet)) : 0
               return (
-                <div key={a.id} className={`product-card badge-card ${unlocked ? 'on' : 'is-locked'}`}>
+                <div key={a.id} className={`reward-card badge-card ${unlocked ? 'on' : 'is-locked'}`}>
                   <span className="ach-icon">{a.icon}</span>
                   <strong>{a.title}</strong>
                   <span className="badge-rank">{unlocked ? `Rank ${rank}` : 'Locked'}</span>
@@ -3619,7 +4207,7 @@ export default function App() {
                       className="btn ghost badge-upgrade"
                       onClick={() => onUpgradeBadge(a.id)}
                     >
-                      Upgrade · {cost}¢
+                      <span className="pay-mark" aria-hidden="true">🪙</span> Upgrade · {cost}
                     </button>
                   ) : (
                     <span className="badge-locked-hint">Earn by playing</span>
@@ -3628,55 +4216,110 @@ export default function App() {
               )
             })}
           </div>
+          <h3 className="ach-title">Streaks</h3>
+          <div className="reward-row" aria-label="Streaks">
+            <div className="reward-card"><span className="ach-icon">🔥</span><strong>{dailyStreakNow}-day</strong><span>streak</span></div>
+            <div className="reward-card"><span className="ach-icon">🏆</span><strong>{records.daily.bestStreak}</strong><span>best streak</span></div>
+            <div className="reward-card" data-testid="parade-rewards-today"><span className="ach-icon">🎉</span><strong>{paradeRewardsLine(rollLedger(econ, todayKey)).text}</strong><span>parade today</span></div>
+          </div>
+          <h3 className="ach-title">Daily prizes</h3>
+          <div className="reward-row" aria-label="Daily prizes" data-testid="econ-card">
+            {(() => {
+              const t = ledgerSummary(rollLedger(econ, todayKey))
+              return (
+                <>
+                  <div className="reward-card"><strong>{t.winsFull}/{t.winsFullMax}</strong><span>full-pay wins</span></div>
+                  <div className="reward-card"><strong>{t.sparks}/{t.sparksMax}</strong><span>sparks</span></div>
+                  <button type="button" className="reward-card reward-action" disabled={wallet.spins <= 0} onClick={openPrizeWheel}>
+                    <strong>{wallet.spins > 0 ? `Spin (${wallet.spins})` : 'No spin yet'}</strong>
+                    <span>Catch 5 sparks</span>
+                  </button>
+                </>
+              )
+            })()}
+          </div>
+          <h3 className="ach-title">To collect</h3>
+          <div className="reward-row" aria-label="Things to collect">
+            <button type="button" className="reward-card reward-action" onClick={() => setScreen('stable')}>
+              <span className="ach-icon">🐾</span><strong>Animals</strong><span>{wallet.coins} coins</span>
+            </button>
+            <div className="reward-card"><span className="ach-icon">🍖</span><strong>{pets.treats.snack + pets.treats.feast}</strong><span>treats</span></div>
+            <div className="reward-card"><span className="ach-icon">✨</span><strong>{wallet.critterStash ?? 0}/5</strong><span>sparks</span></div>
+            <div className="reward-card"><span className="ach-icon">🛡️</span><strong>{wallet.shields}</strong><span>shields</span></div>
+            <div className="reward-card"><span className="ach-icon">🃏</span><strong>{localCard(records).pieces}/{CARD_PIECES}</strong><span>Unseen card</span></div>
+          </div>
         </main>
       )}
 
       {screen === 'profile' && (
         <main className="panel profile scroll-pane">
-          <h2>Save & settings</h2>
-          {profile ? (
-            <div className="profile-card">
-              <p className="profile-name">{profile.displayName}</p>
-              <p className="profile-email">{profile.email}</p>
-              <button
-                type="button"
-                className="btn ghost"
-                onClick={() => {
-                  signOutKeepDevice()
-                  setProfile(null)
-                  setProgress(getProgress())
-                }}
-              >
-                Sign out
+          <h2>Account & settings <HelpMark id="account" onOpen={openHelp} /></h2>
+          <div className="profile-card account-line" data-testid="account-card">
+            <p className="profile-name" data-testid="account-signed-in">
+              {signedIn ? (
+                <>
+                  Signed in as <strong className="player-name-mark">{playerName}</strong>
+                  {cloud.email ? <> ({cloud.email})</> : null}
+                </>
+              ) : playerName ? (
+                <>Playing as <strong className="player-name-mark">{playerName}</strong></>
+              ) : (
+                'Not signed in'
+              )}
+            </p>
+            {signedIn ? <p className="account-sync" data-testid="score-sync">{scoreSaveLabel(cloud).replace(/^☁\s*/, '')}</p> : null}
+            <div className="account-actions">
+              <button type="button" className="btn ghost btn-sm" data-testid="edit-name" onClick={() => setEditingName((open) => !open)}>
+                Edit name
+              </button>
+              {signedIn ? (
+                <button type="button" className="btn ghost btn-sm" onClick={() => void cloudSignOut()}>
+                  Sign out
+                </button>
+              ) : (
+                <CloudScoresButton suggestedName={playerName} />
+              )}
+              <a className="btn ghost btn-sm" href="https://romansgame.com" target="_blank" rel="noopener" data-testid="account-website">
+                Website
+              </a>
+              <button type="button" className="btn ghost btn-sm" data-testid="account-help" onClick={() => openHelp('help-account')}>
+                Help / How to play
               </button>
             </div>
-          ) : (
-            <form className="auth-form" onSubmit={handleSignIn}>
-              <label>
-                Email
-                <input type="email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} required />
+            <LegalLine />
+            {editingName ? (
+              <label className="name-setting">
+                Name
+                <input
+                  type="text"
+                  value={nameField}
+                  maxLength={NAME_MAX}
+                  placeholder="Your name"
+                  aria-label="Your name"
+                  onFocus={() => {
+                    nameFocus.current = true
+                  }}
+                  onChange={(e) => setNameField(e.target.value.slice(0, NAME_MAX))}
+                  onBlur={(e) => {
+                    nameFocus.current = false
+                    const next = cleanPlayerName(e.target.value)
+                    setNameField(next)
+                    if (next && next !== playerName) void commitName(next)
+                  }}
+                />
               </label>
-              <label>
-                Display name
-                <input type="text" value={nameInput} onChange={(e) => setNameInput(e.target.value)} />
-              </label>
-              <button type="submit" className="btn primary">Save with email</button>
-            </form>
-          )}
+            ) : null}
+          </div>
+          <AccountSocial />
+          <section className="leaderboard">
+            <h3>Leaderboard</h3>
+            <p className="sub">Today's Daily, this week, and all-time. Your name is highlighted on the board.</p>
+            <button type="button" className="btn ghost" onClick={() => setScreen('leaderboard')}>
+              Open the leaderboard
+            </button>
+          </section>
           <section className="settings">
             <h3>Settings</h3>
-            <label className="name-setting">
-              Your name on shared scores
-              <input
-                type="text"
-                value={settings.playerName ?? ''}
-                maxLength={PLAYER_NAME_MAX}
-                placeholder="Blank = “I scored…”"
-                aria-label="Your name on shared scores"
-                onChange={(e) => saveSettingsPatch({ playerName: e.target.value.slice(0, PLAYER_NAME_MAX), namePrompted: true })}
-                onBlur={(e) => saveSettingsPatch({ playerName: cleanPlayerName(e.target.value) })}
-              />
-            </label>
             <label className="toggle">
               <input
                 type="checkbox"
@@ -3828,16 +4471,15 @@ export default function App() {
 
       {screen === 'challenge' && (
         <main className="panel challenge scroll-pane">
-          <h2>Share &amp; challenge</h2>
-          <p className="sub">
-            Share your best time. Friends open the link, play the same board, then send a head-to-head score back.
-          </p>
-          <ShareBar
-            url={shareLink || playUrl}
-            text={shareText || challengeMsg}
-            emailHref={challengeMailHref(shareLink || playUrl)}
-            onCopied={() => showToast('Copied')}
-          />
+          <h2>Share <HelpMark id="share" onOpen={openHelp} /></h2>
+          {playerName ? (
+            <p className="share-player" data-testid="share-player">
+              Sharing as <strong className="player-name-mark">{playerName}</strong>
+            </p>
+          ) : (
+            <p className="sub">Add your name in Account and it goes on every challenge.</p>
+          )}
+          <p className="sub">Share a score, or invite someone to play.</p>
           {incoming && (
             <div className="incoming">
               <p>
@@ -3898,8 +4540,17 @@ export default function App() {
               {linkBoardError ? <p className="link-board-error">{linkBoardError}</p> : null}
             </div>
           )}
+          <ShareBar
+            url={shareLink || playUrl}
+            text={shareText || challengeMsg}
+            inviteUrl={playUrl}
+            inviteText={playerName ? `${playerName} invited you to play Roman's Game.` : "Come play Roman's Game with me."}
+            emailHref={challengeMailHref(shareLink || playUrl)}
+            onCopied={() => showToast('Copied')}
+            onShareScore={() => makeScoreChallenge()}
+          >
           <label>
-            Board
+            Board to challenge
             <select
               value={puzzle?.id ?? PUZZLES[0].id}
               onChange={(e) => {
@@ -3915,27 +4566,15 @@ export default function App() {
             </select>
           </label>
           <label>
-            Friend email (optional)
-            <input type="email" value={challengeEmail} onChange={(e) => setChallengeEmail(e.target.value)} />
+            Friend's email
+            <input type="email" aria-label="Friend's email" placeholder="name@email.com" value={challengeEmail} onChange={(e) => setChallengeEmail(e.target.value)} />
           </label>
           <label>
-            Message
-            <input type="text" value={challengeMsg} onChange={(e) => setChallengeMsg(e.target.value)} maxLength={120} />
+            Note on the score link
+            <input type="text" aria-label="Note on the score link" value={challengeMsg} onChange={(e) => setChallengeMsg(e.target.value)} maxLength={120} />
           </label>
-          <button type="button" className="btn primary" onClick={handleCreateChallenge}>
-            Make score challenge link
-          </button>
-          {shareLink && (
-            <div className="share-box">
-              <code>{shareLink}</code>
-              <ShareBar
-                url={shareLink}
-                text={shareText || challengeMsg}
-                emailHref={challengeMailHref(shareLink)}
-                onCopied={() => showToast('Copied')}
-              />
-            </div>
-          )}
+          {shareLink ? <code className="share-link-preview">{shareLink}</code> : null}
+          </ShareBar>
         </main>
       )}
 
@@ -3977,6 +4616,8 @@ export default function App() {
           <ShareBar
             url={duelLink || shareLink || playUrl}
             text={shareText || duelShareText(duel)}
+            inviteUrl={playUrl}
+            inviteText={playerName ? `${playerName} invited you to play Roman's Game.` : "Come play Roman's Game with me."}
             onCopied={() => showToast('Copied')}
           />
           <div className="cta-row" style={{ marginTop: '1rem' }}>
@@ -4012,36 +4653,24 @@ export default function App() {
         onClose={() => setShowWheel(false)}
       />
 
-      <footer className={`foot ${screen === 'play' ? 'foot-hidden' : ''}`}>
-        <span>
-          Roman's Game <span className="build-tag build-tag-foot">{BUILD_TAG}</span>
-        </span>
-        <span className="foot-links">
-          {!isStoreBuild() && settings.analytics !== false ? <FeedbackChip onSend={sendFeedback} /> : null}
-          <a className="privacy-link" href="./privacy.html">
-            Privacy
-          </a>
-          <a className="privacy-link jrny-link" data-testid="jrny-link" href="https://jrny.fun" target="_blank">
-            A JRNY project
-          </a>
-          <button
-            type="button"
-            className="mute"
-            onClick={() => {
-              const next = { ...settings, sound: !settings.sound }
-              setSettings(next)
-              saveSettings(next)
-              setMuted(!next.sound)
-            }}
-          >
-            {settings.sound ? 'Sound on' : 'Sound off'}
-          </button>
-        </span>
-      </footer>
+      {/* Footer removed 2026-10-19: sound, version, feedback, privacy, legal all moved to About section */}
       {/* Keep clear of Netlify “Powered by” badge */}
       <div className="netlify-safe" aria-hidden />
       {/* 10.06: Unseen heckler pop-up — visual only, never blocks input */}
       <UnseenPopup pop={unseenPop} />
+      {/* PR #53 batch 2 (Tony 2026-10-19): the Unseen as guide character + silent pet pop-outs */}
+      <UnseenGuide
+        guide={guide}
+        onGo={goGuideTarget}
+        onDismiss={() => setGuide(null)}
+        onDone={() => setGuide(null)}
+      />
+      <PetPopout
+        pop={petPop}
+        onGo={() => { if (petPop) goGuideTarget({ screen: 'stable', pet: petPop.id }) }}
+        onDismiss={() => setPetPop(null)}
+        onDone={() => setPetPop(null)}
+      />
       {/* 10.06: treat defense — wild pets vs the field treat pile (home + play) */}
       <TreatDefense
         active={screen === 'play' && !celebrate && !defeated && !showWheel && !rotatePaused}
@@ -4059,26 +4688,61 @@ export default function App() {
   )
 }
 
-/** 9.30-r: small 👍/👎 in the footer; tapping one opens a one-line optional note */
-function FeedbackChip({ onSend }: { onSend: (vote: 'up' | 'down', note: string) => void }) {
-  const [vote, setVote] = useState<'up' | 'down' | null>(null)
-  const [note, setNote] = useState('')
-  const [sent, setSent] = useState(false)
-  if (sent) return <span className="fb-thanks" data-testid="fb-thanks">Thanks! 💛</span>
-  if (!vote)
-    return (
-      <span className="fb-chip" data-testid="fb-chip">
-        <button type="button" className="fb-btn" data-testid="fb-up" aria-label="Thumbs up: I like the game" onClick={() => setVote('up')}>👍</button>
-        <button type="button" className="fb-btn" data-testid="fb-down" aria-label="Thumbs down: something is wrong" onClick={() => setVote('down')}>👎</button>
-      </span>
-    )
-  return (
-    <span className="fb-form" data-testid="fb-form">
-      <span aria-hidden>{vote === 'up' ? '👍' : '👎'}</span>
-      <input value={note} maxLength={200} placeholder="Add a short note (optional)" aria-label="Optional note" data-testid="fb-note" onChange={(e) => setNote(e.target.value)} />
-      <button type="button" className="fb-send" data-testid="fb-send" onClick={() => { onSend(vote, note); setSent(true) }}>Send</button>
-      <button type="button" className="fb-btn" aria-label="Cancel" onClick={() => setVote(null)}>✕</button>
-    </span>
+/** First-share name. On a phone the card is pinned above the keyboard; desktop stays centered. */
+function NamePromptSheet({
+  touch,
+  nameDraft,
+  setNameDraft,
+  onClose,
+  signedIn,
+}: {
+  touch: boolean
+  nameDraft: string
+  setNameDraft: (value: string) => void
+  onClose: (save: boolean) => void
+  signedIn?: boolean
+}) {
+  const form = (
+    <form
+      className="start-sheet-card"
+      onSubmit={(e) => {
+        e.preventDefault()
+        onClose(true)
+      }}
+    >
+      <div className="kb-name-copy">
+        <h3>What should we call you?</h3>
+        <p className="start-sheet-tip">
+          Your name goes on the scores you share, like “{cleanPlayerName(nameDraft) || 'Sam'} scored 1,840 on Level 1”. {signedIn ? 'It updates your account too.' : 'It stays on this device.'} You can change it later in Account &amp; settings.
+        </p>
+      </div>
+      <input
+        className="name-input"
+        type="text"
+        value={nameDraft}
+        maxLength={PLAYER_NAME_MAX}
+        placeholder="Your name"
+        autoComplete="nickname"
+        enterKeyHint="done"
+        aria-label="Your name"
+        data-testid="share-name-input"
+        onChange={(e) => setNameDraft(e.target.value.slice(0, PLAYER_NAME_MAX))}
+      />
+      <button type="submit" className="btn primary" disabled={!cleanPlayerName(nameDraft)}>
+        Save
+      </button>
+      <button type="button" className="btn ghost" onClick={() => onClose(false)}>
+        Skip (share as “I scored…”)
+      </button>
+    </form>
+  )
+  if (touch) return <KeyboardNameSheet label="Your name">{form}</KeyboardNameSheet>
+  return createPortal(
+    <div className="start-sheet name-prompt" role="dialog" aria-modal="true" aria-label="Your name">
+      <div className="start-sheet-scrim" />
+      {form}
+    </div>,
+    document.body,
   )
 }
 

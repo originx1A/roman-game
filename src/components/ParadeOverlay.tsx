@@ -77,6 +77,8 @@ export function ParadeOverlay({
   const caughtIdx = useRef(new Set<number>())
   const rootRef = useRef<HTMLDivElement | null>(null)
   const [grabAllOn, setGrabAllOn] = useState(false)
+  /** Collected buddies: the x they were caught at, then 'go' once the dash to the right edge starts. */
+  const [dashed, setDashed] = useState<Record<number, number | 'go'>>({})
   const [holding, setHolding] = useState(false)
   const holdTimer = useRef<number | null>(null)
   const lastTap = useRef<{ at: number; x: number; y: number } | null>(null)
@@ -124,9 +126,23 @@ export function ParadeOverlay({
   const now = readWallet()
   const gain = { coins: now.coins - startWallet.current.coins, hints: now.hints - startWallet.current.hints, spins: now.spins - startWallet.current.spins }
 
+  /** Collected buddies stop the slow march and run off the right edge. */
+  const dashOff = (i: number, el: HTMLElement) => {
+    const buddy = el.closest<HTMLElement>('.parade-buddy')
+    const lane = buddy?.parentElement
+    if (!buddy || !lane) return
+    const x = Math.round(buddy.getBoundingClientRect().left - lane.getBoundingClientRect().left)
+    setDashed((prev) => (prev[i] != null ? prev : { ...prev, [i]: x }))
+    // Paint the current spot with the march turned off, then run to the right edge.
+    const go = () => setDashed((prev) => (typeof prev[i] === 'number' ? { ...prev, [i]: 'go' } : prev))
+    window.requestAnimationFrame(() => window.requestAnimationFrame(go))
+    window.setTimeout(go, 40)
+  }
+
   const grab = (i: number, t: Treasure, el: HTMLElement) => {
     if (caughtIdx.current.has(i)) return
     caughtIdx.current.add(i)
+    dashOff(i, el)
     let real: Treasure = t
     try {
       real = onCatch(t)
@@ -307,7 +323,20 @@ export function ParadeOverlay({
           const t = treasure[i]
           const mine = got[i]
           return (
-            <div key={b.id} className="parade-buddy" style={{ ['--i' as string]: i, ['--n' as string]: buddies.length }}>
+            <div
+              key={b.id}
+              data-dash={dashed[i] == null ? 'march' : String(dashed[i])}
+              className={`parade-buddy${dashed[i] != null ? ' is-dashing' : ''}`}
+              style={{
+                ['--i' as string]: i,
+                ['--n' as string]: buddies.length,
+                ...(typeof dashed[i] === 'number'
+                  ? { animation: 'none', transition: 'none', transform: `translate3d(${dashed[i]}px, 0, 0)` }
+                  : dashed[i] === 'go'
+                    ? { animation: 'none', transition: 'transform 0.34s cubic-bezier(0.12, 0.85, 0.2, 1)', transform: 'translate3d(calc(100vw + 48px), 0, 0)' }
+                    : {}),
+              }}
+            >
               <div className="parade-hop" data-parade-i={t ? i : undefined}>
                 {t ? (
                   <button

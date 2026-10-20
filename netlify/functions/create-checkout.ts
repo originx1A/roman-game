@@ -1,13 +1,17 @@
-import { webPackById } from '../lib/coinPacks.ts'
+import { CHECKOUT_TEST_ONLY, webPackById } from '../lib/coinPacks.ts'
 import { json, PURCHASES_UNAVAILABLE, siteBase } from '../lib/http.ts'
-import { readStripeKey, stripeClient } from '../lib/stripeServer.ts'
+import { bearer, supabaseAdmin, supabaseAsUser } from '../lib/supabaseAdmin.ts'
+import { isLiveStripeKey, readStripeKey, stripeClient } from '../lib/stripeServer.ts'
 
-/** Hosted Stripe Checkout. The price and coin count come from the server list. */
+/** Hosted Stripe Checkout. The price and coin count come from the server list. Test keys only. */
 export default async function createCheckout(req: Request): Promise<Response> {
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
 
   const key = readStripeKey()
   if (!key) return json({ error: PURCHASES_UNAVAILABLE }, 503)
+  if (CHECKOUT_TEST_ONLY && isLiveStripeKey(key)) {
+    return json({ error: 'Checkout is in test mode. A live key is not accepted yet.' }, 503)
+  }
 
   let packId: string | undefined
   try {
@@ -19,6 +23,25 @@ export default async function createCheckout(req: Request): Promise<Response> {
 
   const pack = webPackById(packId)
   if (!pack) return json({ error: 'That pack is not sold on the website.' }, 400)
+
+  if (pack.once) {
+    const token = bearer(req)
+    if (!token) return json({ error: 'Sign in first. The Starter Pack is once per account.' }, 401)
+    const admin = supabaseAdmin()
+    if (!admin) return json({ error: PURCHASES_UNAVAILABLE }, 503)
+    const userClient = supabaseAsUser(token)
+    const { data: userData, error: userError } = await userClient.auth.getUser(token)
+    const uid = userData.user?.id
+    if (userError || !uid) return json({ error: 'Sign in first. The Starter Pack is once per account.' }, 401)
+    const { data: owned } = await admin
+      .from('player_items')
+      .select('item_id')
+      .eq('player_id', uid)
+      .eq('item_type', 'bundle')
+      .eq('item_id', pack.id)
+      .maybeSingle()
+    if (owned) return json({ error: 'You already have the Starter Pack.' }, 409)
+  }
 
   const base = siteBase()
   try {
@@ -37,8 +60,8 @@ export default async function createCheckout(req: Request): Promise<Response> {
             currency: pack.currency,
             unit_amount: pack.unitAmount,
             product_data: {
-              name: `${pack.label} (${pack.coins} coins)`,
-              description: "Coins for Roman's Game",
+              name: pack.label,
+              description: pack.contents.join(', '),
             },
           },
         },

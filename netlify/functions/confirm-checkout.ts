@@ -2,7 +2,8 @@ import { getStore } from '@netlify/blobs'
 import { webPackById } from '../lib/coinPacks.ts'
 import { json, PURCHASES_UNAVAILABLE } from '../lib/http.ts'
 import { buildPurchaseRecord, PURCHASE_STORE } from '../lib/purchases.ts'
-import { isCheckoutSessionId, readStripeKey, stripeClient } from '../lib/stripeServer.ts'
+import { CHECKOUT_TEST_ONLY } from '../lib/coinPacks.ts'
+import { isCheckoutSessionId, isLiveStripeKey, readStripeKey, stripeClient } from '../lib/stripeServer.ts'
 
 
 /**
@@ -15,7 +16,7 @@ export default async function confirmCheckout(req: Request): Promise<Response> {
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
 
   const key = readStripeKey()
-  if (!key) return json({ error: PURCHASES_UNAVAILABLE }, 503)
+  if (!key || (CHECKOUT_TEST_ONLY && isLiveStripeKey(key))) return json({ error: PURCHASES_UNAVAILABLE }, 503)
 
   let sessionId: unknown
   try {

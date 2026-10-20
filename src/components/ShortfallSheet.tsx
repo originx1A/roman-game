@@ -1,7 +1,8 @@
 import { useEffect, useId } from 'react'
 import { createPortal } from 'react-dom'
-import { cheapestPackForGap, isStoreBuild, packValueBlurb, type CoinPack } from '../game/iap'
+import { cheapestPackForGap, isStoreBuild, packValueBlurb } from '../game/iap'
 import { cheapestWebPack, type WebPackOffer } from '../game/webPacks'
+import { useOnline } from '../game/useOnline'
 
 export type ShortfallAction = 'hint' | 'rescue' | 'revive' | 'upgrade'
 
@@ -21,7 +22,7 @@ export interface ShortfallSheetProps {
   onClose: () => void
   onPlay: () => void
   /** Buy the cheapest pack that covers the gap. Native uses store packs. Web uses webPacks. */
-  onBuyPack?: (pack: CoinPack) => void
+  onBuyPack?: (packId: string) => void
   /** Website catalog from the server. Omitted in the native app. */
   webPacks?: WebPackOffer[] | null
   /** Website shop could not reach the payment functions. */
@@ -41,6 +42,7 @@ export function ShortfallSheet({
   purchasesUnavailable = false,
 }: ShortfallSheetProps) {
   const titleId = useId()
+  const online = useOnline()
   const short = Math.max(0, need - have)
   const store = isStoreBuild()
   const pack = cheapestPackForGap(short || need)
@@ -84,24 +86,21 @@ export function ShortfallSheet({
           <button type="button" className="btn primary" onClick={onPlay}>
             Play for coins
           </button>
-          {store && onBuyPack ? (
-            <button type="button" className="btn ghost" onClick={() => onBuyPack(pack)}>
+          {!online && !store ? (
+            <button type="button" className="btn ghost" disabled>
+              Connect to buy
+            </button>
+          ) : null}
+          {online && store && onBuyPack ? (
+            <button type="button" className="btn ghost" onClick={() => onBuyPack(pack.id)}>
               Buy {pack.label} · +{pack.coins} ({pack.priceHint})
             </button>
           ) : null}
-          {!store && webOffer && onBuyPack ? (
+          {online && !store && webOffer && onBuyPack ? (
             <button
               type="button"
               className="btn ghost"
-              onClick={() =>
-                onBuyPack({
-                  id: webOffer.id,
-                  productId: webOffer.productId,
-                  label: webOffer.label,
-                  coins: webOffer.coins,
-                  priceHint: webOffer.priceLabel,
-                })
-              }
+              onClick={() => onBuyPack(webOffer.id)}
             >
               Buy {webOffer.label} · +{webOffer.coins} ({webOffer.priceLabel})
             </button>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { HelpMark } from './HelpMark'
 import {
   BUNDLES,
   bundleQuote,
@@ -8,27 +9,27 @@ import {
   giftLabel,
   type Gift,
   careInfo,
-  CARE_XP,
   hasPet,
   levelInfo,
-  milestonesReached,
+  MOOD_DECAY_PER_HOUR,
+  MOOD_FLOOR,
   moodKind,
-  nextMilestone,
-  SNACK_COIN_RATE,
-  TREATS,
-  type TreatId,
-  weaponFor,
+  type MoodKind,
+  moodNow,
   onSale,
   perkFor,
   petXp,
   PETS,
+  type PetDef,
   priceWith,
-  TIER_LABEL,
+  TREATS,
+  type TreatId,
   type Coupon,
   type PetId,
   type PetState,
 } from '../game/pets'
 import { PetArt } from './PetArt'
+import './Stable.css'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const md = (s: string) => `${MONTHS[Number(s.slice(0, 2)) - 1]} ${Number(s.slice(3))}`
@@ -47,6 +48,206 @@ const COUPON_FROM: Record<Coupon['source'], string> = {
   gift: GIFT_TAG,
 }
 
+// ---------- meters (PR #53 batch 2, Tony 2026-10-19) ----------
+// pets.ts tracks one underlying value (mood, 0-100, decays 2/hr, floor 20) plus a daily
+// feeding budget. The detail page shows two bars, both derived from that same state:
+//  - Happy = mood directly.
+//  - Fed = time until the pet goes hungry, drawn as a bar (a full bar = 12+ hours of food).
+// Feeding (Snack +20 mood, Feast +45 mood) pushes both bars back up, so the visuals stay
+// honest with the real game logic — no invented state.
+/** Mirrors the threshold inside moodKind() in pets.ts: mood < 35 reads as 'hungry'. */
+const HUNGRY_LINE = 35
+/** A full Fed bar = this many hours before the pet goes hungry. */
+const FED_BAR_HOURS = 12
+
+function feedPctFor(mood: number): number {
+  const hours = Math.max(0, (mood - HUNGRY_LINE) / MOOD_DECAY_PER_HOUR)
+  return Math.max(0, Math.min(100, (hours / FED_BAR_HOURS) * 100))
+}
+
+function hungerLabelFor(mood: number, kind: MoodKind): string {
+  if (kind === 'hungry') return 'Needs food now!'
+  const hours = Math.max(0, (mood - HUNGRY_LINE) / MOOD_DECAY_PER_HOUR)
+  if (hours >= 48) return `Hungry in ~${Math.floor(hours / 24)}d`
+  if (hours >= 1) return `Hungry in ~${Math.floor(hours)}h`
+  return `Hungry in ~${Math.max(1, Math.round(hours * 60))}m`
+}
+
+function meterClass(pct: number): string {
+  return pct >= 60 ? 'meter-high' : pct >= 35 ? 'meter-mid' : 'meter-low'
+}
+
+function moodLabelFor(mood: number, kind: MoodKind): string {
+  if (mood <= MOOD_FLOOR) return '😢 Sad'
+  if (kind === 'happy') return '😊 Happy'
+  if (kind === 'okay') return '🙂 Okay'
+  return '🥺 Hungry'
+}
+
+// ---------- pet detail page (internal navigation; App.tsx still renders <Stable/> as one screen) ----------
+type PetDetailProps = {
+  p: PetDef
+  pets: PetState
+  coins: number
+  now: number
+  today: string
+  owned: boolean
+  trial: boolean
+  isActive: boolean
+  freePickMode: boolean
+  onBack: () => void
+  onBuy: (id: PetId) => void
+  onClaimFree: (id: PetId) => void
+  onCare: (id: PetId) => void
+  onFeed: (id: PetId, treat: TreatId) => void
+  onEquip: (id: PetId | null) => void
+}
+
+function PetDetail({ p, pets, coins, now, today, owned, trial, isActive, freePickMode, onBack, onBuy, onClaimFree, onCare, onFeed, onEquip }: PetDetailProps) {
+  const lv = levelInfo(petXp(pets, p.id))
+  const perk = perkFor(p.id, lv.level, lv.stars)
+
+  // Locked: preview mode — darkened art, unlock button, meters + care hidden until owned.
+  if (!owned && !trial) {
+    const sale = onSale(p, now)
+    const coupon = sale ? couponFor(pets, p.id, now) : null
+    const cost = priceWith(p.price, coupon)
+    return (
+      <div className="stable-detail is-locked">
+        <button type="button" className="stable-detail-back" onClick={onBack}>
+          {'< Stable'}
+        </button>
+        <div className="stable-detail-hero">
+          <PetArt id={p.id} size={150} locked level={1} stars={0} title={`${p.name} (locked)`} />
+        </div>
+        <h3 className="stable-detail-name">
+          {p.name} <small>the {p.species}</small>
+        </h3>
+        <p className="stable-detail-blurb">{p.blurb}</p>
+        <p className="stable-detail-perk">✨ {perk.label}</p>
+        {freePickMode ? (
+          <button type="button" className="btn primary stable-detail-unlock stable-free-btn" onClick={() => onClaimFree(p.id)}>
+            🎉 Pick {p.name} — FREE!
+          </button>
+        ) : sale ? (
+          <>
+            {coupon ? (
+              <p className="stable-detail-coupon">
+                🏷️ {coupon.pct}% off <small>({COUPON_FROM[coupon.source]} · {leftLabel(coupon.expires - now)})</small>
+              </p>
+            ) : null}
+            <button type="button" className="btn primary stable-detail-unlock" onClick={() => onBuy(p.id)} disabled={coins < cost}>
+              {coins >= cost ? `🔒 Unlock for ${cost} 🪙` : `Need ${cost - coins} more 🪙`}
+            </button>
+          </>
+        ) : (
+          <p className="stable-detail-off">{p.limited ? `Only ${md(p.limited.from)} – ${md(p.limited.to)}` : 'Not for sale'}</p>
+        )}
+      </div>
+    )
+  }
+
+  const care = owned ? careInfo(pets, p.id, now, today) : null
+  // Trial buddies have no saved mood yet; the game treats a fresh buddy as MOOD_START (50).
+  const mood = care ? care.mood : moodNow(undefined, now)
+  const kind = care ? care.kind : moodKind(mood)
+  const feedPct = feedPctFor(mood)
+
+  return (
+    <div className="stable-detail">
+      <button type="button" className="stable-detail-back" onClick={onBack}>
+        {'< Stable'}
+      </button>
+      {trial ? (
+        <p className="stable-detail-trial">
+          🎁 Trial · {leftLabel(pets.trial!.until - now)}
+        </p>
+      ) : null}
+      <div className="stable-detail-hero">
+        <PetArt id={p.id} size={150} level={lv.level} stars={lv.stars} title={p.name} />
+      </div>
+      <h3 className="stable-detail-name">{p.name}</h3>
+      <p className="stable-detail-mood" aria-live="polite">
+        {moodLabelFor(mood, kind)}
+      </p>
+
+      <section className="stable-meter" aria-label={`Happy, ${mood} percent`}>
+        <div className="stable-meter-head">
+          <span>Happy</span>
+          <span>{mood}%</span>
+        </div>
+        <div className="stable-meter-bar">
+          <i className={meterClass(mood)} style={{ width: `${mood}%` }} />
+        </div>
+        <p className="stable-meter-sub">Stays happy when you solve boards cleanly. Drops on mistakes.</p>
+      </section>
+
+      <section className="stable-meter" aria-label={`Fed, ${hungerLabelFor(mood, kind)}`}>
+        <div className="stable-meter-head">
+          <span>Fed</span>
+          <span>{hungerLabelFor(mood, kind)}</span>
+        </div>
+        <div className="stable-meter-bar">
+          <i className={meterClass(feedPct)} style={{ width: `${feedPct}%` }} />
+        </div>
+        <p className="stable-meter-sub">Drains while defending. Feed to keep {p.name} active.</p>
+      </section>
+
+      <button type="button" className={`btn ${isActive ? 'ghost' : 'primary'} stable-detail-assign`} onClick={() => onEquip(isActive ? null : p.id)}>
+        {isActive ? '🛡️ Defending ✓ — Tap to recall' : '🛡️ Assign as Defender'}
+      </button>
+
+      {owned && care ? (
+        <div className="stable-detail-care" role="group" aria-label="Care actions">
+          <button type="button" className="btn tool" onClick={() => onCare(p.id)} disabled={!care.canPet}>
+            {care.canPet ? (
+              <>
+                👋 Pet<small>free</small>
+              </>
+            ) : (
+              <>
+                👋 Petted<small>today ✓</small>
+              </>
+            )}
+          </button>
+          {TREATS.map((t) => {
+            const stock = pets.treats[t.id] ?? 0
+            const fromStock = stock > 0
+            const short = t.cost - coins
+            const noFeeds = care.feedsLeft <= 0
+            // Costs always visible: free stock first, otherwise the real coin cost from TREATS,
+            // greyed with "Need X more" when the player can't afford it.
+            const costLabel = care.maxed ? 'fully grown' : noFeeds ? 'full today' : !fromStock && short > 0 ? `need ${short} more` : fromStock ? `free ×${stock}` : `${t.cost} 🪙`
+            return (
+              <button
+                key={t.id}
+                type="button"
+                className="btn tool"
+                onClick={() => onFeed(p.id, t.id)}
+                disabled={care.maxed || noFeeds || (!fromStock && short > 0)}
+              >
+                {t.id === 'snack' ? '🍪' : '🍖'} {t.name}
+                <small>{costLabel}</small>
+              </button>
+            )
+          })}
+        </div>
+      ) : null}
+
+      {trial ? (
+        <button type="button" className="btn primary stable-detail-keep" onClick={() => onBuy(p.id)} disabled={coins < priceWith(p.price, couponFor(pets, p.id, now))}>
+          {(() => {
+            const cost = priceWith(p.price, couponFor(pets, p.id, now))
+            return coins >= cost ? `Keep ${p.name} for ${cost} 🪙` : `Need ${cost - coins} more 🪙`
+          })()}
+        </button>
+      ) : null}
+
+      <p className="stable-detail-perk">✨ {perk.label}</p>
+    </div>
+  )
+}
+
 export type StableProps = {
   pets: PetState
   coins: number
@@ -59,8 +260,6 @@ export type StableProps = {
   /** 9.30-m: the free daily pet, and feeding a treat */
   onCare: (id: PetId) => void
   onFeed: (id: PetId, treat: TreatId) => void
-  /** 10.06: swap the safe snack stash for coins */
-  onSwapTreats: () => void
   /** Toronto date, for the once-a-day care */
   today: string
   onEquip: (id: PetId | null) => void
@@ -72,14 +271,32 @@ export type StableProps = {
   onBack: () => void
   /** Redeem link (?gift=CODE) prefill */
   giftCode?: string
+  /** PR #53 batch 2: deep-link from the Unseen guide — opens this pet's detail page */
+  focusPet?: { id: PetId; key: number } | null
   /** Owner gift codes need the website's functions */
   giftsOnline: boolean
+  /** Hide gift code box from guests (2026-10-19: registered players only) */
+  isSignedIn: boolean
+  /** Signed-in (or local) player name, highlighted in the stable */
+  playerName?: string
+  signedIn?: boolean
+  onHelp?: () => void
 }
 
-export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCare, onFeed, onSwapTreats, today, onEquip, onPeek, onRedeem, onShop, onBack, giftCode, giftsOnline }: StableProps) {
+export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCare, onFeed, today, onEquip, onPeek, onRedeem, onShop, onBack, giftCode, focusPet, giftsOnline, isSignedIn, playerName, signedIn, onHelp }: StableProps) {
   const [code, setCode] = useState(giftCode ?? '')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  /** PR #53 batch 2: pet detail page navigation lives inside Stable — no App.tsx changes. */
+  const [selectedPet, setSelectedPet] = useState<PetId | null>(null)
+  // PR #53 batch 2: the Unseen guide can deep-link to a pet's detail page.
+  const focusKeyRef = useRef(0)
+  useEffect(() => {
+    if (focusPet && focusPet.key !== focusKeyRef.current) {
+      focusKeyRef.current = focusPet.key
+      setSelectedPet(focusPet.id)
+    }
+  }, [focusPet])
   const active = pets.active && hasPet(pets, pets.active, now) ? pets.active : null
   /** 10.06: new player hasn't claimed their free buddy yet */
   const freePickMode = Object.keys(pets.owned).length === 0 && !pets.freePickUsed
@@ -125,6 +342,34 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [giftCode, giftsOnline])
 
+  // Pet detail page: dedicated full-screen view for one pet (Tony 2026-10-19 spec).
+  if (selectedPet) {
+    const p = PETS.find((x) => x.id === selectedPet)!
+    const owned = !!pets.owned[p.id]
+    const trial = !owned && pets.trial?.id === p.id && pets.trial.until > now
+    return (
+      <main className="panel scroll-pane stable" data-screen="stable">
+        <PetDetail
+          p={p}
+          pets={pets}
+          coins={coins}
+          now={now}
+          today={today}
+          owned={owned}
+          trial={trial}
+          isActive={active === p.id}
+          freePickMode={freePickMode}
+          onBack={() => setSelectedPet(null)}
+          onBuy={onBuy}
+          onClaimFree={onClaimFree}
+          onCare={onCare}
+          onFeed={onFeed}
+          onEquip={onEquip}
+        />
+      </main>
+    )
+  }
+
   return (
     <main className="panel scroll-pane stable" data-screen="stable">
       <div className="stable-head">
@@ -132,8 +377,14 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
           ←
         </button>
         <div>
-          <h2>The Stable</h2>
+          <h2>The Stable {onHelp ? <HelpMark id="buddies" onOpen={() => onHelp()} /> : null}</h2>
           <p className="stable-sub">Roman's buddies. Keep them forever, ride with one.</p>
+          {playerName ? (
+            <p className="stable-player" data-testid="stable-player">
+              {signedIn ? 'Signed in as ' : 'Playing as '}
+              <strong className="player-name-mark">{playerName}</strong>
+            </p>
+          ) : null}
         </div>
         <span className="stable-coins" aria-label={`${coins} coins`}>
           🪙 {coins}
@@ -160,15 +411,11 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
         </button>
       </div>
 
-      {/* 10.06: treat defense — safe stash (never stealable) + swap snacks for coins */}
       <div className="stable-stash" aria-label="Treat stash">
         <span>
           🍖 Stash: <strong>{pets.treats.snack}</strong> snacks · <strong>{pets.treats.feast}</strong> feasts
-          <small>safe from wild buddies · field pile: {pets.fieldTreats ?? 0}</small>
+          <small>safe from wild buddies · field pile: {pets.fieldTreats ?? 0} · buy more with coins</small>
         </span>
-        <button type="button" className="btn tool" onClick={onSwapTreats} disabled={(pets.treats.snack ?? 0) <= 0}>
-          Swap snacks → coins <small>1 🍖 = {SNACK_COIN_RATE} 🪙</small>
-        </button>
       </div>
 
       {pets.trial && pets.trial.until > now ? (
@@ -180,153 +427,57 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
       {Object.keys(pets.owned).length === 0 && !pets.freePickUsed ? (
         <div className="stable-freepick" role="region" aria-label="Pick your free buddy">
           <p className="stable-freepick-title">🎉 Pick your buddy — FREE!</p>
-          <p className="stable-freepick-sub">Choose one buddy to join you forever. Each has a special perk.</p>
+          <p className="stable-freepick-sub">Tap a buddy to meet it, then pick your free one.</p>
         </div>
       ) : null}
 
-      <div className="stable-grid">
+      {/* PR #53 batch 2: compact grid — tap a card for the pet detail page. Fits one phone screen. */}
+      <div className="stable-list-grid">
         {PETS.map((p) => {
           const owned = pets.owned[p.id]
           const trial = !owned && pets.trial?.id === p.id && pets.trial.until > now
           const have = !!owned || trial
           const lv = levelInfo(petXp(pets, p.id))
-          const weapon = have ? weaponFor(lv.level) : null
-          const perk = perkFor(p.id, have ? lv.level : 1, have ? lv.stars : 0)
-          const care = owned ? careInfo(pets, p.id, now, today) : null
-          const sale = onSale(p, now)
-          const coupon = !owned && sale ? couponFor(pets, p.id, now) : null
-          const cost = priceWith(p.price, coupon)
           const isActive = active === p.id
+          const care = owned ? careInfo(pets, p.id, now, today) : null
+          // Trial buddies have no saved mood yet; a fresh buddy starts at MOOD_START (50).
+          const mood = care ? care.mood : trial ? moodNow(undefined, now) : null
+          const feedPct = mood === null ? null : feedPctFor(mood)
+          // A buddy at the hungry line needs care: greyed card + wake-up prompt.
+          const dormant = !!care && care.kind === 'hungry'
           return (
-            <article
+            <button
               key={p.id}
-              className={`stable-card tier-${p.tier} ${have ? 'is-owned' : 'is-locked'} ${isActive ? 'is-active' : ''}`}
+              type="button"
+              className={`stable-mini ${have ? 'is-owned' : 'is-locked'} ${isActive ? 'is-active' : ''} ${dormant ? 'is-dormant' : ''}`}
               data-pet={p.id}
               data-owned={owned ? 'yes' : trial ? 'trial' : 'no'}
+              onClick={() => setSelectedPet(p.id)}
+              aria-label={`${p.name} the ${p.species} — open details`}
             >
-              <div className="stable-card-top">
-                <span className={`stable-tier tier-${p.tier}`}>{p.limited ? `Limited · ${p.limited.label}` : TIER_LABEL[p.tier]}</span>
-                {owned?.gift ? <span className="stable-gift">🎁 {GIFT_TAG}</span> : null}
-                {trial ? <span className="stable-gift is-trial">Trial · {leftLabel(pets.trial!.until - now)}</span> : null}
-              </div>
-              <div className="stable-art">
-                <PetArt id={p.id} size={92} locked={!have} level={lv.level} stars={lv.stars} title={have ? p.name : `${p.name} (locked)`} />
-                {coupon ? (
-                  <span className="stable-coupon" data-coupon={coupon.pct} title={`${COUPON_FROM[coupon.source]} coupon`}>
-                    {coupon.pct}% off
-                    <small>{leftLabel(coupon.expires - now)}</small>
+              <span className="stable-mini-art">
+                <PetArt id={p.id} size={80} locked={!have} level={lv.level} stars={lv.stars} title={have ? p.name : `${p.name} (locked)`} />
+              </span>
+              <span className="stable-mini-name">
+                {p.name}
+                {owned?.gift ? <small title={GIFT_TAG}> 🎁</small> : null}
+              </span>
+              {mood !== null && feedPct !== null ? (
+                <span className="stable-mini-bars" aria-hidden="true">
+                  <span className="stable-mini-bar" title={`Happy ${mood}%`}>
+                    <i className={meterClass(mood)} style={{ width: `${mood}%` }} />
                   </span>
-                ) : null}
-              </div>
-              <h3>
-                {p.name} <small>the {p.species}</small>
-              </h3>
-              <p className="stable-perk">{perk.label}</p>
-              {have ? (
-                <>
-                  <div className="stable-level" aria-label={`Level ${lv.level}`} data-testid="pet-level">
-                    <span>Lv {lv.level}</span>
-                    <span className="stable-bar">
-                      <i style={{ width: lv.max ? (lv.starNeedXp ? `${Math.round((lv.starInto / lv.starNeedXp) * 100)}%` : '100%') : `${Math.round((lv.into / lv.need) * 100)}%` }} />
-                    </span>
-                    <small>{lv.max ? (lv.starNeedXp ? `★ ${lv.starInto}/${lv.starNeedXp}` : 'All stars!') : `${lv.into}/${lv.need}`}</small>
-                  </div>
-                  {lv.stars > 0 ? <p className="stable-stars" aria-label={`${lv.stars} prestige stars`}>{'★'.repeat(lv.stars)}</p> : null}
-                  {milestonesReached(lv.level).length ? (
-                    <div className="stable-badges">
-                      {milestonesReached(lv.level).filter((m) => m.badge).map((m) => (
-                        <span key={m.level} className="stable-badge" title={m.text}>{m.badge}</span>
-                      ))}
-                    </div>
-                  ) : null}
-                  {weapon ? (
-                    <p className="stable-weapon" title={`${weapon.name} — earned at level ${weapon.level}. Purely cosmetic.`}>
-                      {weapon.icon} {weapon.name}
-                    </p>
-                  ) : null}
-                  {perk.next ? <p className="stable-next">{perk.next}</p> : <p className="stable-next">{p.blurb}</p>}
-                  {nextMilestone(lv.level) ? (
-                    <p className="stable-next" data-testid="next-milestone">Lv {nextMilestone(lv.level)!.level}: {nextMilestone(lv.level)!.text}</p>
-                  ) : lv.stars < 5 ? (
-                    <p className="stable-next">Prestige: earn ★ stars with care and wins</p>
-                  ) : null}
-                  {care ? (
-                    <div className="stable-care" data-testid="care">
-                      <div className={`stable-mood is-${care.kind}`} title="A happy buddy adds a few coins to each win. A hungry one still gives its normal perk.">
-                        <span>{care.kind === 'happy' ? '😊 Happy' : care.kind === 'okay' ? '🙂 Okay' : '🥺 Hungry'}</span>
-                        <span className="stable-bar"><i style={{ width: `${care.mood}%` }} /></span>
-                      </div>
-                      <div className="care-row">
-                        <button type="button" className="btn tool care-btn" data-testid="care-pet" onClick={() => onCare(p.id)} disabled={!care.canPet}>
-                          {care.canPet ? `Pet · free +${CARE_XP} XP` : 'Petted today ✓'}
-                        </button>
-                        {TREATS.map((t) => (
-                          <button
-                            key={t.id}
-                            type="button"
-                            className="btn tool care-btn"
-                            data-testid={`feed-${t.id}`}
-                            onClick={() => onFeed(p.id, t.id)}
-                            disabled={care.feedsLeft <= 0 || care.maxed || (pets.treats[t.id] <= 0 && coins < t.cost)}
-                          >
-                            {t.name} <small>{pets.treats[t.id] > 0 ? `free ×${pets.treats[t.id]}` : `${t.cost} 🪙`} · +{t.xp} XP</small>
-                          </button>
-                        ))}
-                      </div>
-                      <small className="stable-treats">{care.maxed ? 'Fully grown!' : `${care.feedsLeft} of 3 treats left today${moodKind(care.mood) === 'happy' ? ' · happy: +coins on wins' : ''}`}</small>
-                    </div>
-                  ) : null}
-                  <button type="button" className={`btn ${isActive ? 'ghost' : 'primary'} stable-btn`} onClick={() => onEquip(p.id)} disabled={isActive}>
-                    {isActive ? 'Riding ✓' : 'Ride with'}
-                  </button>
-                  {trial ? (
-                    <button type="button" className="btn tool stable-keep" onClick={() => onBuy(p.id)} disabled={coins < cost}>
-                      Keep for {cost} 🪙
-                    </button>
-                  ) : null}
-                </>
-              ) : sale ? (
-                <>
-                  <p className="stable-next">{p.blurb}</p>
-                  {freePickMode ? (
-                    <>
-                      <p className="stable-price is-free">
-                        <strong>FREE</strong> 🎉 <small>your first buddy</small>
-                      </p>
-                      <button type="button" className="btn primary stable-btn stable-free-btn" onClick={() => onClaimFree(p.id)}>
-                        Pick {p.name}!
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <p className="stable-price">
-                        {coupon ? <s>{p.price}</s> : null} <strong>{cost}</strong> 🪙
-                      </p>
-                      <button type="button" className="btn primary stable-btn" onClick={() => onBuy(p.id)} disabled={coins < cost}>
-                        {coins >= cost ? 'Adopt' : `Need ${cost - coins} more`}
-                      </button>
-                    </>
-                  )}
-                </>
-              ) : freePickMode ? (
-                <>
-                  <p className="stable-next">{p.blurb}</p>
-                  <p className="stable-price is-free">
-                    <strong>FREE</strong> 🎉 <small>your first buddy</small>
-                  </p>
-                  <button type="button" className="btn primary stable-btn stable-free-btn" onClick={() => onClaimFree(p.id)}>
-                    Pick {p.name}!
-                  </button>
-                </>
+                  <span className="stable-mini-bar" title={`Fed ${Math.round(feedPct)}%`}>
+                    <i className={meterClass(feedPct)} style={{ width: `${feedPct}%` }} />
+                  </span>
+                </span>
               ) : (
-                <>
-                  <p className="stable-next">{p.blurb}</p>
-                  <p className="stable-price is-off">
-                    {p.limited ? `Only ${md(p.limited.from)} – ${md(p.limited.to)}` : 'Not for sale'}
-                  </p>
-                </>
+                <span className="stable-mini-locked">🔒 tap to preview</span>
               )}
-            </article>
+              {isActive ? <span className="stable-mini-badge">🛡️ Defending</span> : null}
+              {trial ? <span className="stable-mini-badge is-trial">🎁 Trial</span> : null}
+              {dormant ? <span className="stable-mini-dormant">💤 Needs care</span> : null}
+            </button>
           )
         })}
       </div>
@@ -335,6 +486,8 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
         <section className="stable-bundles" aria-label="Bundles">
           <h3>Bundles</h3>
           {BUNDLES.map((b) => {
+            // Starter pack is real money, on the Shop. Animals here are coins only.
+            if (b.id === 'starter') return null
             const q = bundleQuote(pets, b.id, now)
             if (!q.available) return null
             const partial = q.missing.length < b.pets.length
@@ -367,6 +520,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
         </section>
       ) : null}
 
+      {isSignedIn ? (
       <section className="stable-redeem" aria-label="Gift code">
         <h3>Got a gift code?</h3>
         {giftsOnline ? (
@@ -429,6 +583,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
         ) : null}
         {msg ? <p className={`stable-msg ${msg.ok ? 'is-ok' : 'is-bad'}`}>{msg.text}</p> : null}
       </section>
+      ) : null}
 
       <p className="stable-note">
         Coins only, no random boxes. Win boards to earn coins, or grab more in the <button type="button" className="linkish" onClick={onShop}>Shop</button>. Coupons:

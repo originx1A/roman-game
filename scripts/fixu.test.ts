@@ -13,21 +13,21 @@ const sitemap = rd('../public/sitemap.xml')
 
 test('9.30-u: index.html has a real title, description, Open Graph, and valid VideoGame/WebApplication JSON-LD', () => {
   assert.match(idx, /<title>Roman's Game: free logic puzzle game/)
-  assert.match(idx, /<meta name="description" content="Roman's Game is a free, kid-friendly/)
+  assert.match(idx, /<meta name="description" content="Free, kid-friendly/)
   for (const p of ['og:title', 'og:description', 'og:image', 'og:url', 'og:site_name']) assert.ok(idx.includes(`property="${p}"`), p)
   const m = idx.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)!
   const ld = JSON.parse(m[1])
   assert.deepEqual(ld['@type'], ['VideoGame', 'WebApplication'])
   assert.equal(ld.isAccessibleForFree, true)
   assert.equal(ld.offers.price, '0')
-  assert.ok(ld.url.startsWith('https://romans-game.netlify.app'))
+  assert.ok(ld.url.startsWith('https://play.romansgame.com'))
   assert.match(idx, /<noscript>/)
 })
 
 test('9.30-u: robots.txt lets search + AI crawlers in, keeps /api/ out, points at the sitemap, never names the owner page', () => {
   for (const bot of ['GPTBot', 'ClaudeBot', 'PerplexityBot', 'Google-Extended', 'Googlebot', 'Bingbot', 'OAI-SearchBot', 'Applebot', 'CCBot']) assert.ok(robots.includes(`User-agent: ${bot}`), bot)
   assert.match(robots, /Disallow: \/api\//)
-  assert.match(robots, /Sitemap: https:\/\/romans-game\.netlify\.app\/sitemap\.xml/)
+  assert.match(robots, /Sitemap: https:\/\/play\.romansgame\.com\/sitemap\.xml/)
   assert.doesNotMatch(robots, /Disallow: \/\s*$/m)
   for (const t of [robots, llms, sitemap, idx]) {
     assert.doesNotMatch(t, /roman-owner/)
@@ -37,8 +37,8 @@ test('9.30-u: robots.txt lets search + AI crawlers in, keeps /api/ out, points a
 
 test('9.30-u: llms.txt describes the game plainly and links to the site; sitemap lists the public pages', () => {
   assert.match(llms, /^# Roman's Game/)
-  for (const w of ['free', 'no account', 'Remix', 'Endless', 'Daily Challenge', 'kid-friendly', 'https://romans-game.netlify.app/']) assert.ok(llms.toLowerCase().includes(w.toLowerCase()), w)
-  assert.match(sitemap, /<loc>https:\/\/romans-game\.netlify\.app\/<\/loc>/)
+  for (const w of ['free', 'no account', 'Remix', 'Endless', 'Daily Challenge', 'kid-friendly', 'https://play.romansgame.com/']) assert.ok(llms.toLowerCase().includes(w.toLowerCase()), w)
+  assert.match(sitemap, /<loc>https:\/\/play\.romansgame\.com\/<\/loc>/)
   assert.match(sitemap, /privacy\.html/)
 })
 

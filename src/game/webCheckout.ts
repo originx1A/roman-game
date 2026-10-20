@@ -1,4 +1,4 @@
-import { isStoreBuild, type CoinPackId } from './iap'
+import { isStoreBuild } from './iap'
 
 const REDEEMED_KEY = 'roman.stripe.sessions.v1'
 const CHECKOUT_HOST = 'https://checkout.stripe.com/'
@@ -35,12 +35,14 @@ export function rememberCheckoutRedeemed(sessionId: string): void {
 }
 
 /** Send the player to hosted Checkout. Never call this from the native app. */
-export async function startWebCheckout(packId: CoinPackId): Promise<{ ok: true } | { ok: false; reason: string }> {
+export async function startWebCheckout(packId: string, accessToken?: string): Promise<{ ok: true } | { ok: false; reason: string }> {
   if (isStoreBuild()) return { ok: false, reason: 'Purchases are unavailable right now.' }
   try {
+    const headers: Record<string, string> = { 'content-type': 'application/json', accept: 'application/json' }
+    if (accessToken) headers.authorization = `Bearer ${accessToken}`
     const res = await fetch('/api/create-checkout', {
       method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      headers,
       body: JSON.stringify({ packId }),
     })
     const data = (await res.json().catch(() => null)) as { url?: unknown; error?: unknown } | null
@@ -93,6 +95,61 @@ export async function confirmWebCheckout(sessionId: string): Promise<WebCheckout
       coins,
       label: typeof data.label === 'string' ? data.label : 'Coin pack',
       alreadyRedeemed: data.alreadyRedeemed === true || coins === 0,
+    }
+  } catch {
+    return { ok: false, reason: 'Purchases are unavailable right now. If you paid, open the return link again.' }
+  }
+}
+
+export interface WebClaim {
+  ok: true
+  duplicate: boolean
+  coins: number
+  treats: number
+  pets: string[]
+  label: string
+  offerId: string
+}
+
+/** Ask the server to credit this paid test session once. The device adds coins only when the claim is new. */
+export async function claimWebCredit(sessionId: string, accessToken: string): Promise<WebClaim | { ok: false; reason: string }> {
+  if (isStoreBuild()) return { ok: false, reason: 'Purchases are unavailable right now.' }
+  if (sessionId.startsWith('cs_live_')) return { ok: false, reason: 'Live checkout is not turned on yet.' }
+  try {
+    const res = await fetch('/api/coin-credit', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json',
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ sessionId }),
+    })
+    const data = (await res.json().catch(() => null)) as {
+      ok?: unknown
+      duplicate?: unknown
+      coins?: unknown
+      treats?: unknown
+      pets?: unknown
+      label?: unknown
+      offerId?: unknown
+      error?: unknown
+    } | null
+    if (!res.ok || !data || data.ok !== true) {
+      const reason = typeof data?.error === 'string' ? data.error : 'Purchases are unavailable right now. If you paid, open the return link again.'
+      return { ok: false, reason }
+    }
+    const coins = typeof data.coins === 'number' && Number.isInteger(data.coins) ? data.coins : 0
+    const treats = typeof data.treats === 'number' && Number.isInteger(data.treats) ? data.treats : 0
+    const pets = Array.isArray(data.pets) ? data.pets.filter((id): id is string => typeof id === 'string') : []
+    return {
+      ok: true,
+      duplicate: data.duplicate === true,
+      coins,
+      treats,
+      pets,
+      label: typeof data.label === 'string' ? data.label : 'Shop',
+      offerId: typeof data.offerId === 'string' ? data.offerId : '',
     }
   } catch {
     return { ok: false, reason: 'Purchases are unavailable right now. If you paid, open the return link again.' }

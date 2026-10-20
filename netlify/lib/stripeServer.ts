@@ -9,6 +9,11 @@ export function readStripeKey(): string | null {
   return key
 }
 
+/** A live secret would charge real cards. The shop stays on test keys until Tony says otherwise. */
+export function isLiveStripeKey(key: string): boolean {
+  return key.includes('_live_')
+}
+
 export function stripeClient(key: string): Stripe {
   return new Stripe(key, {
     apiVersion: '2026-07-29.dahlia',
@@ -18,4 +23,8 @@ export function stripeClient(key: string): Stripe {
 
 export function isCheckoutSessionId(value: unknown): value is string {
   return typeof value === 'string' && /^cs_(test|live)_[A-Za-z0-9]+$/.test(value)
+}
+
+export function isTestCheckoutSessionId(value: unknown): value is string {
+  return typeof value === 'string' && /^cs_test_[A-Za-z0-9]+$/.test(value)
 }

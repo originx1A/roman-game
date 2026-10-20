@@ -65,18 +65,26 @@ export function buildPurchaseRecord(
   }
 }
 
+/** Older website packs, before the CAD list. Used only when a stored row has no amount. */
+const LEGACY_USD: Record<string, { cents: number; label: string }> = {
+  coins_500: { cents: 499, label: '500 coins' },
+  coins_1200: { cents: 999, label: '1,200 coins' },
+  coins_3000: { cents: 1999, label: '3,000 coins' },
+}
+
 function toRow(key: string, raw: unknown): PurchaseRow | null {
   if (!raw || typeof raw !== 'object') return null
   const r = raw as Partial<PurchaseRecord>
   if (typeof r.at !== 'string' || Number.isNaN(Date.parse(r.at)) || typeof r.packId !== 'string') return null
   const pack = webPackById(r.packId)
-  const amountCents = typeof r.amountCents === 'number' ? r.amountCents : pack?.unitAmount ?? 0
+  const legacy = typeof r.amountCents === 'number' ? undefined : LEGACY_USD[r.packId]
+  const amountCents = typeof r.amountCents === 'number' ? r.amountCents : legacy?.cents ?? pack?.unitAmount ?? 0
   return {
     at: r.at,
-    item: pack ? `${pack.label} (${pack.coins} coins)` : r.packId.slice(0, 40),
+    item: pack ? `${pack.label} (${pack.coins} coins)` : legacy ? legacy.label : r.packId.slice(0, 40),
     coins: typeof r.coins === 'number' ? r.coins : pack?.coins ?? 0,
     amountCents,
-    currency: typeof r.currency === 'string' ? r.currency.toLowerCase().slice(0, 3) : pack?.currency ?? 'usd',
+    currency: typeof r.currency === 'string' ? r.currency.toLowerCase().slice(0, 3) : legacy ? 'usd' : pack?.currency ?? 'usd',
     status: r.status === 'paid' ? 'paid' : 'paid (older record)',
     live: typeof r.live === 'boolean' ? r.live : null,
     ref: typeof r.ref === 'string' ? r.ref.slice(0, 8) : key.slice(-8),

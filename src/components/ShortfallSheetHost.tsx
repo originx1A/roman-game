@@ -1,6 +1,5 @@
 import { ShortfallSheet, type ShortfallAction } from './ShortfallSheet'
-import { isStoreBuild, type CoinPack } from '../game/iap'
-import type { CoinPackId } from '../game/iap'
+import { isStoreBuild } from '../game/iap'
 import type { WebPackOffer } from '../game/webPacks'
 
 export interface ShortfallSheetHostProps {
@@ -11,7 +10,7 @@ export interface ShortfallSheetHostProps {
   detail?: string
   onClose: () => void
   onPlay: () => void
-  onBuyCoins: (packId: CoinPackId) => void | Promise<void>
+  onBuyCoins: (packId: string) => void | Promise<void>
   /** Website catalog. Leave unset in the native app. */
   webPacks?: WebPackOffer[] | null
   purchasesUnavailable?: boolean
@@ -45,9 +44,9 @@ export function ShortfallSheetHost({
       purchasesUnavailable={store ? false : purchasesUnavailable}
       onBuyPack={
         canBuy
-          ? (pack: CoinPack) => {
+          ? (packId: string) => {
               onClose()
-              void onBuyCoins(pack.id)
+              void onBuyCoins(packId)
             }
           : undefined
       }

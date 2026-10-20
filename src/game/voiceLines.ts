@@ -556,13 +556,101 @@ export const VOICE_LINES = {
   old_wrong_map: '/voices/old_wrong_map.mp3',
   old_wrong_cane: '/voices/old_wrong_cane.mp3',
   old_nearmiss_close: '/voices/old_nearmiss_close.mp3',
+  old_jab_computer: '/voices/old_jab_computer.mp3',
+  old_remind_pets: '/voices/old_remind_pets.mp3',
+  old_remind_signin: '/voices/old_remind_signin.mp3',
+  old_remind_signin_computer: '/voices/old_remind_signin_computer.mp3',
+  old_remind_coins: '/voices/old_remind_coins.mp3',
+  old_remind_daily: '/voices/old_remind_daily.mp3',
+  old_remind_remix: '/voices/old_remind_remix.mp3',
+  old_remind_streak: '/voices/old_remind_streak.mp3',
+  old_guide_hungry_lupa: '/voices/old_guide_hungry_lupa.mp3',
+  old_guide_hungry_aquila: '/voices/old_guide_hungry_aquila.mp3',
+  old_guide_hungry_leo: '/voices/old_guide_hungry_leo.mp3',
+  old_guide_hungry_invictus: '/voices/old_guide_hungry_invictus.mp3',
+  old_guide_hungry_nox: '/voices/old_guide_hungry_nox.mp3',
+  old_guide_drowsy: '/voices/old_guide_drowsy.mp3',
+  old_guide_meh_lupa: '/voices/old_guide_meh_lupa.mp3',
+  old_guide_meh_aquila: '/voices/old_guide_meh_aquila.mp3',
+  old_guide_meh_leo: '/voices/old_guide_meh_leo.mp3',
+  old_guide_meh_invictus: '/voices/old_guide_meh_invictus.mp3',
+  old_guide_meh_nox: '/voices/old_guide_meh_nox.mp3',
+  old_guide_nox: '/voices/old_guide_nox.mp3',
+  old_guide_afford: '/voices/old_guide_afford.mp3',
+  old_guide_badge: '/voices/old_guide_badge.mp3',
+  old_guide_card_01: '/voices/old_guide_card_01.mp3',
+  old_guide_card_02: '/voices/old_guide_card_02.mp3',
+  old_guide_card_03: '/voices/old_guide_card_03.mp3',
+  old_guide_card_04: '/voices/old_guide_card_04.mp3',
+  old_guide_card_05: '/voices/old_guide_card_05.mp3',
+  old_guide_card_06: '/voices/old_guide_card_06.mp3',
+  old_guide_card_07: '/voices/old_guide_card_07.mp3',
+  old_guide_card_08: '/voices/old_guide_card_08.mp3',
+  old_guide_card_09: '/voices/old_guide_card_09.mp3',
+  old_guide_card_10: '/voices/old_guide_card_10.mp3',
+  old_guide_coins_lupa: '/voices/old_guide_coins_lupa.mp3',
+  old_guide_coins_aquila: '/voices/old_guide_coins_aquila.mp3',
+  old_guide_coins_leo: '/voices/old_guide_coins_leo.mp3',
+  old_guide_coins_invictus: '/voices/old_guide_coins_invictus.mp3',
+  old_guide_coins_nox: '/voices/old_guide_coins_nox.mp3',
+  old_guide_streak: '/voices/old_guide_streak.mp3',
+  old_tease_low: '/voices/old_tease_low.mp3',
+  old_tease_best: '/voices/old_tease_best.mp3',
+  old_tease_top: '/voices/old_tease_top.mp3',
+  old_tease_passed: '/voices/old_tease_passed.mp3',
+  buddy_win_ave: '/voices/buddy_win_ave.mp3',
+  buddy_win_best: '/voices/buddy_win_best.mp3',
+  buddy_win_level_2: '/voices/buddy_win_level_2.mp3',
+  buddy_win_level_3: '/voices/buddy_win_level_3.mp3',
+  buddy_win_level_4: '/voices/buddy_win_level_4.mp3',
+  buddy_win_level_5: '/voices/buddy_win_level_5.mp3',
+  buddy_win_level_6: '/voices/buddy_win_level_6.mp3',
+  buddy_win_level_7: '/voices/buddy_win_level_7.mp3',
+  buddy_win_level_8: '/voices/buddy_win_level_8.mp3',
+  buddy_win_level_9: '/voices/buddy_win_level_9.mp3',
+  buddy_win_level_10: '/voices/buddy_win_level_10.mp3',
+  buddy_win_level_11: '/voices/buddy_win_level_11.mp3',
+  buddy_win_level_12: '/voices/buddy_win_level_12.mp3',
+  buddy_win_level_13: '/voices/buddy_win_level_13.mp3',
+  buddy_win_level_14: '/voices/buddy_win_level_14.mp3',
+  buddy_win_level_15: '/voices/buddy_win_level_15.mp3',
+  buddy_win_level_16: '/voices/buddy_win_level_16.mp3',
+  buddy_win_level_17: '/voices/buddy_win_level_17.mp3',
+  buddy_win_level_18: '/voices/buddy_win_level_18.mp3',
+  buddy_win_level_19: '/voices/buddy_win_level_19.mp3',
+  buddy_win_level_20: '/voices/buddy_win_level_20.mp3',
+  buddy_win_level_21: '/voices/buddy_win_level_21.mp3',
+  buddy_win_level_22: '/voices/buddy_win_level_22.mp3',
+  buddy_win_level_23: '/voices/buddy_win_level_23.mp3',
+  buddy_win_level_24: '/voices/buddy_win_level_24.mp3',
+  buddy_win_level_25: '/voices/buddy_win_level_25.mp3',
+  buddy_win_level_26: '/voices/buddy_win_level_26.mp3',
+  buddy_win_level_27: '/voices/buddy_win_level_27.mp3',
+  buddy_win_level_28: '/voices/buddy_win_level_28.mp3',
+  buddy_win_level_29: '/voices/buddy_win_level_29.mp3',
+  buddy_win_level_30: '/voices/buddy_win_level_30.mp3',
+  buddy_win_star: '/voices/buddy_win_star.mp3',
+  buddy_win_victory: '/voices/buddy_win_victory.mp3',
+  buddy_tap_ave: '/voices/buddy_tap_ave.mp3',
+  buddy_tap_again: '/voices/buddy_tap_again.mp3',
+  buddy_tap_heehee: '/voices/buddy_tap_heehee.mp3',
+  buddy_tap_play: '/voices/buddy_tap_play.mp3',
+  buddy_tap_roma: '/voices/buddy_tap_roma.mp3',
+  buddy_tap_pat: '/voices/buddy_tap_pat.mp3',
+  buddy_tap_more: '/voices/buddy_tap_more.mp3',
+  buddy_tap_best: '/voices/buddy_tap_best.mp3',
+  narrator_nudge_home: '/voices/narrator_nudge_home.mp3',
+  narrator_nudge_ping: '/voices/narrator_nudge_ping.mp3',
+  narrator_nudge_account: '/voices/narrator_nudge_account.mp3',
+  narrator_signin_sheet: '/voices/narrator_signin_sheet.mp3',
+  narrator_rotate: '/voices/narrator_rotate.mp3',
 } as const
 
 export type VoiceLineId = keyof typeof VOICE_LINES
 
 /**
  * Clips the voice channel may play: every catalog clip except the buddy giggles (those are a
- * synth sound effect now). All roman_* clips are the deeper Roman voice (en-US-BrianNeural,
+ * sound effect). Spoken buddy wins and taps are included. All roman_* clips are the deeper Roman voice (en-US-BrianNeural,
  * rate -8%, pitch -6Hz); old_* clips are the Unseen heckler (en-AU-WilliamMultilingualNeural,
  * rate -20%, pitch -16Hz, rasp); coach lines are en-US-JennyNeural — see scripts/voice-manifest.json.
  */
@@ -666,7 +754,10 @@ export const RETIRED_UNSEEN_CLIPS: ReadonlySet<string> = new Set([
 ])
 
 export function isPlayableVoiceClip(id: string): boolean {
-  return Object.prototype.hasOwnProperty.call(VOICE_LINES, id) && !id.startsWith('buddy_') && !RETIRED_UNSEEN_CLIPS.has(id)
+  if (!Object.prototype.hasOwnProperty.call(VOICE_LINES, id) || RETIRED_UNSEEN_CLIPS.has(id)) return false
+  // The three giggles are a sound effect. Spoken buddy lines (wins and taps) play on the shared queue.
+  if (id.startsWith('buddy_giggle')) return false
+  return true
 }
 
 /** Coach clips worth prefetching (short, used for hints, badges, prizes and spark progress) */
@@ -683,6 +774,22 @@ export const WARM_COACH_CLIPS = [
   'spark_4',
   'nice',
 ] as const
+
+/**
+ * Clips to fetch in the background, Roman first. A line that is still on the
+ * network when its moment arrives misses the iOS gesture and stays silent.
+ */
+export function preloadClipIds(): readonly string[] {
+  const warm = WARM_COACH_CLIPS as readonly string[]
+  const roman: string[] = []
+  const other: string[] = []
+  for (const id of Object.keys(VOICE_LINES)) {
+    if (!isPlayableVoiceClip(id) || warm.includes(id)) continue
+    if (id.startsWith('roman_') || (id.startsWith('tip_') && id.split('_')[2] === 'roman')) roman.push(id)
+    else other.push(id)
+  }
+  return [...warm, ...roman, ...other]
+}
 
 export type VoiceMood = 'excited' | 'happy' | 'neutral' | 'soft' | 'disappointed'
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { watchVoiceEnd } from '../game/sound'
 
 /**
  * The Unseen heckler visual pop-up (9.31-u; was the Unseen pop-up from 10.06).
@@ -9,7 +10,7 @@ import { useEffect, useRef, useState } from 'react'
  *
  * - The hooded Unseen sticker rises out of the bottom-right corner, pointing up and in at the board
  * - Speech bubble above him with the line's text, shown while its clip plays
- * - Auto-dismisses after ~4.5s; a new line replaces the current one
+ * - A voiced line stays up until that clip ends. Text-only lines dismiss on their hold.
  * - pointer-events: none — taps pass straight through, never blocks the board
  */
 
@@ -17,6 +18,10 @@ export interface UnseenPop {
   text: string
   /** Increment to re-trigger for a new line */
   key: number
+  /** Override the usual hold. Leaderboard teases are text-only and a little longer. */
+  holdMs?: number
+  /** Catalog clip played with this pop. Reminders on Home use their own hook. */
+  clip?: string
 }
 
 interface Props {
@@ -39,18 +44,40 @@ export function UnseenPopup({ pop, holdMs = 4500 }: Props) {
   const lastKey = useRef(-1)
 
   useEffect(() => {
-    if (!pop || pop.key === lastKey.current) return
+    if (!pop) {
+      window.clearTimeout(hideTimer.current)
+      window.clearTimeout(leaveTimer.current)
+      setVisible(false)
+      setLeaving(false)
+      return
+    }
+    if (pop.key === lastKey.current) return
     lastKey.current = pop.key
     window.clearTimeout(hideTimer.current)
     window.clearTimeout(leaveTimer.current)
+    // A clip that has started must not have its bubble torn down at 4.5s.
+    // The longest Unseen file is about 11s; 16s is the ceiling if the end event never arrives.
+    const voiced = Boolean(pop.clip)
+    const stay = voiced ? Math.max(pop.holdMs ?? holdMs, 16000) : (pop.holdMs ?? holdMs)
     setText(bubbleText(pop.text))
     setLeaving(false)
     setVisible(true)
-    hideTimer.current = window.setTimeout(() => setLeaving(true), holdMs)
-    leaveTimer.current = window.setTimeout(() => setVisible(false), holdMs + 450)
+    const arm = (ms: number) => {
+      window.clearTimeout(hideTimer.current)
+      window.clearTimeout(leaveTimer.current)
+      hideTimer.current = window.setTimeout(() => setLeaving(true), ms)
+      leaveTimer.current = window.setTimeout(() => setVisible(false), ms + 450)
+    }
+    arm(stay)
+    const stop = pop.clip
+      ? watchVoiceEnd((clip) => {
+          if (clip === pop.clip) arm(400)
+        })
+      : undefined
     return () => {
       window.clearTimeout(hideTimer.current)
       window.clearTimeout(leaveTimer.current)
+      stop?.()
     }
   }, [pop, holdMs])
 
