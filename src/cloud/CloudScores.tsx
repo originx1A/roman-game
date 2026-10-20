@@ -21,10 +21,12 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
   const [sheet, setSheet] = useState<Sheet>(null)
   const [email, setEmail] = useState('')
   const [sentEmail, setSentEmail] = useState('')
+  const [sentAt, setSentAt] = useState<number | null>(null)
   const [code, setCode] = useState('')
   const [notice, setNotice] = useState('')
   const [frame, setFrame] = useState<{ top: number; height: number } | null>(null)
   const sendingRef = useRef(false)
+  const verifyingRef = useRef(false)
   const [name, setName] = useState(suggestedName ?? '')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
@@ -114,6 +116,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
       }
       setSentEmail(r.email)
       setEmail(r.email)
+      setSentAt(r.sentAt ?? Date.now())
       setCode('')
       return true
     } finally {
@@ -206,12 +209,18 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                   e.preventDefault()
                   const digits = signInCode(code)
                   // The live code is 8 digits. Enter or a 6-digit prefix must not call verifyOtp.
-                  if (digits.length < 8) return
+                  // A second submit (double click, or Enter plus the button) must not start another check.
+                  if (digits.length < 8 || verifyingRef.current) return
+                  verifyingRef.current = true
                   setBusy(true)
-                  const r = await verifyEmailCode(sentEmail || signInEmail(email), digits)
-                  setBusy(false)
-                  if (!r.ok) setErr(r.error ?? 'Code expired or already used, send a new one.')
-                  // A good code signs them in. The listener closes this sheet, or asks for a name once.
+                  try {
+                    const r = await verifyEmailCode(sentEmail || signInEmail(email), digits)
+                    if (!r.ok) setErr(r.error ?? 'Code expired or already used, send a new one.')
+                    // A good code signs them in. The listener closes this sheet, or asks for a name once.
+                  } finally {
+                    verifyingRef.current = false
+                    setBusy(false)
+                  }
                 }}
               >
                 <h3>Check your email</h3>
@@ -220,6 +229,11 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                     ? <>We sent it to <b>{sentEmail || signInEmail(email)}</b>. Tap the link, or enter the 8-digit code, to finish switching. This device stays signed out until then.</>
                     : <>We sent it to <b>{sentEmail || signInEmail(email)}</b>. Tap the link in your email, or enter the 8-digit code.</>}
                 </p>
+                {sentAt && sentEmail && (
+                  <p className="start-sheet-tip" data-testid="signin-sent-at">
+                    Code sent at {new Date(sentAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })} to {sentEmail}. Use the newest email.
+                  </p>
+                )}
                 {notice && <p className="start-sheet-tip" data-testid="signin-notice">{notice}</p>}
                 <input
                   className="name-input cloud-code"
@@ -245,6 +259,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                     setErr('')
                   }}
                   onChange={(e) => {
+                    // Typing the 8th digit must not submit. Only the button or Enter does, and only once.
                     setCode(signInCode(e.target.value))
                     setErr('')
                   }}

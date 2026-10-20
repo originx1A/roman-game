@@ -242,6 +242,7 @@ import {
   loadWallet,
   cleanPlayerName,
   getPlayerName,
+  isUnsetAccountName,
   rememberPlayerName,
   PLAYER_NAME_MAX,
   PLAYER_NAME_EVENT,
@@ -1279,11 +1280,21 @@ export default function App() {
     return () => window.removeEventListener(PLAYER_NAME_EVENT, sync)
   }, [])
 
-  // The account name is the one that shows. Copy it into settings and the old profile so they can't drift.
+  // A chosen account name is the one name. A default like "Roman's Game official" gives way
+  // to the name already on this device, and that name is saved onto the account.
+  const adoptingName = useRef('')
   useEffect(() => {
     if (cloud.status !== 'signed-in') return
-    const account = getPlayerName({ publicName: cloud.publicName, name: cloud.name })
-    if (!account) return
+    const account = cleanPlayerName(cloud.publicName) || cleanPlayerName(cloud.name)
+    const local = cleanPlayerName(loadSettings().playerName) || cleanPlayerName(loadProfile()?.displayName)
+    if (account && isUnsetAccountName(account) && local && local.toLowerCase() !== account.toLowerCase()) {
+      if (adoptingName.current === local) return
+      adoptingName.current = local
+      void renamePlayer(local)
+      return
+    }
+    adoptingName.current = ''
+    if (!account || isUnsetAccountName(account)) return
     const settingsNow = loadSettings()
     const profileNow = loadProfile()
     if (settingsNow.playerName === account && (!profileNow || profileNow.displayName === account)) return
@@ -1292,8 +1303,8 @@ export default function App() {
 
   useEffect(() => {
     if (nameFocus.current) return
-    setNameField(signedIn ? cloud.name || playerName : playerName)
-  }, [signedIn, cloud.name, playerName])
+    setNameField(playerName)
+  }, [playerName])
 
   async function commitName(raw: string) {
     const name = cleanPlayerName(raw).slice(0, NAME_MAX)
@@ -3019,7 +3030,7 @@ export default function App() {
               Board
             </button>
             <button type="button" className={screen === 'profile' ? 'on' : ''} onClick={() => setScreen('profile')}>
-              {playerName ? <span className="player-name-mark nav-player">{playerName.split(' ')[0]}</span> : 'Account'}
+              {playerName ? <span className="player-name-mark nav-player" data-testid="nav-player" title={playerName}>{playerName}</span> : 'Account'}
             </button>
           </nav>
           <div className="hud-pills">
@@ -3234,7 +3245,7 @@ export default function App() {
       )}
 
       {screen === 'leaderboard' && (
-        <Leaderboard you={cloud.publicName || cloud.name || playerName} signedIn={signedIn} />
+        <Leaderboard you={playerName} signedIn={signedIn} />
       )}
 
       {screen === 'levels' && (
@@ -3844,7 +3855,7 @@ export default function App() {
                   nameFocus.current = false
                   const next = cleanPlayerName(e.target.value)
                   setNameField(next)
-                  if (next && next !== (signedIn ? cloud.name || playerName : playerName)) void commitName(next)
+                  if (next && next !== playerName) void commitName(next)
                 }}
               />
             </label>
