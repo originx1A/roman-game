@@ -24,6 +24,7 @@ import {
   shouldAttachVoiceGraph,
   shouldStartPrime,
 } from './voiceUnlock'
+import { clipAudible, desktopCaption, DESKTOP_PHONE_JAB, PHONE_JAB_CLIP } from './lineCaption'
 
 let ctx: AudioContext | null = null
 let muted = false
@@ -598,8 +599,30 @@ const FALLBACK_TEXT: Partial<Record<VoiceLineId, string>> = {
   tip_undo_roman_sock: "undo, undo, undo. Your score is shrinking like a wool sock.",
 }
 
+export { DESKTOP_PHONE_JAB, PHONE_JAB_CLIP }
+
+/** A computer: a fine pointer and no touch. Phones and touchscreens keep the phone line. */
+export function isComputerPlayer(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false
+  const fine = window.matchMedia('(pointer: fine)').matches
+  const touch =
+    (typeof navigator !== 'undefined' && (navigator.maxTouchPoints ?? 0) > 0) ||
+    window.matchMedia('(pointer: coarse)').matches ||
+    window.matchMedia('(any-pointer: coarse)').matches
+  return fine && !touch
+}
+
+export function captionForClip(id: string, computer: boolean): string | undefined {
+  return desktopCaption(id, computer) ?? FALLBACK_TEXT[id as VoiceLineId]
+}
+
+/** False only for the phone jab on a computer, so that recording never plays under the desktop caption. */
+export function shouldPlayClip(id: string, computer = isComputerPlayer()): boolean {
+  return clipAudible(id, computer)
+}
+
 export function voiceLineText(id: string): string | undefined {
-  return FALLBACK_TEXT[id as VoiceLineId]
+  return captionForClip(id, isComputerPlayer())
 }
 
 function ac(): AudioContext {
@@ -1314,7 +1337,9 @@ function clipObjectUrl(id: string): Promise<string | null> {
  */
 export function playVoice(id: string, opts: PlayVoiceOpts = {}) {
   if (muted || !voiceEnabled || !id) return
-  const queue = [id, ...(opts.alts ?? [])].filter((clip, i, all) => isPlayableVoiceClip(clip) && all.indexOf(clip) === i).slice(0, 5)
+  // Desktop caption for the phone jab has no matching recording. Don't play the phone audio or a different alt under it.
+  if (!shouldPlayClip(id)) return
+  const queue = [id, ...(opts.alts ?? [])].filter((clip, i, all) => isPlayableVoiceClip(clip) && shouldPlayClip(clip) && all.indexOf(clip) === i).slice(0, 5)
   if (!queue.length) {
     warnVoice(`${id}.mp3`, 'not in the playable voice catalog')
     return

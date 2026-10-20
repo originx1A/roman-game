@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { CRITTER_STASH_GOAL } from './SparkCritter'
 import { PetArt } from './PetArt'
+import { CloudScoresButton } from '../cloud/CloudScores'
 import { UnseenCardGain } from './UnseenCard'
 import type { PetId } from '../game/pets'
 
@@ -50,6 +51,9 @@ export type WinScreenProps = {
   cardGain?: { from: number; to: number }
   /** Local share-card name, offered as a starting leaderboard name if they sign in from here */
   suggestedName?: string
+  /** The player's name on this clear */
+  playerName?: string
+  signedIn?: boolean
 }
 
 export function WinScreen({
@@ -80,6 +84,8 @@ export function WinScreen({
   replay,
   cardGain,
   suggestedName,
+  playerName,
+  signedIn,
 }: WinScreenProps) {
   const [entered, setEntered] = useState(false)
   const [more, setMore] = useState(false)
@@ -200,6 +206,12 @@ export function WinScreen({
             <span className="win-sheet-handle" aria-hidden="true" />
             <div className="win-sheet-head">
               <h2 className="win-screen-title">Victory!</h2>
+              {playerName ? (
+                <p className="win-player" data-testid="win-player">
+                  {signedIn ? 'Signed in as ' : ''}
+                  <strong className="player-name-mark">{playerName}</strong>
+                </p>
+              ) : null}
               {replay?.showStars ? (
                 <span className="win-stars" aria-label={`${replay.stars} of 3 stars`} data-stars={replay.stars}>
                   {[1, 2, 3].map((i) => (

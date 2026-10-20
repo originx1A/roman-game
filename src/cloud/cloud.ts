@@ -1,4 +1,5 @@
 import { gaEvent } from '../game/analytics'
+import { rememberPlayerName } from '../game/storage'
 /**
  * Player accounts + score saving (Supabase, project romans-game).
  *
@@ -105,10 +106,15 @@ export async function subscribeNews(email: string): Promise<boolean> {
 }
 const MAX_QUEUE = 200
 let clientP: Promise<SupabaseClient | null> | null = null
-// Must be initialized before `state`: that line calls readQueue(), whose default
-// argument reads queueOwner. A `let` below that call is still in the temporal dead
-// zone in dev (native ESM) and the game white-screens. The production bundle
-// rewrites this to `var`, which is why the live site still boots.
+/**
+ * Queues are per player: signed in -> `rg.cloud.queue.v1.<user id>`, signed out -> the shared
+ * `rg.cloud.queue.v1` (games played before signing in; they go to whoever signs in next).
+ * Switching player signs out only after a new sign-in link is actually sent. Not now leaves
+ * player A signed in. Once A is signed out, A's unsent scores stay under A's id and only send
+ * when A signs in again; they are never mixed into player B.
+ * Declared before `state`: the first queue read runs while this module is still starting.
+ * A `let` below that call is still in the temporal dead zone in dev and the game white-screens.
+ */
 let queueOwner: string | null = null
 let state: CloudState = { status: 'off', pending: readQueue().length }
 const listeners = new Set<(s: CloudState) => void>()
@@ -126,12 +132,6 @@ export function onCloud(fn: (s: CloudState) => void): () => void {
   return () => listeners.delete(fn)
 }
 
-/**
- * Queues are per player: signed in -> `rg.cloud.queue.v1.<user id>`, signed out -> the shared
- * `rg.cloud.queue.v1` (games played before signing in; they go to whoever signs in next).
- * "Switch player" signs out, so player A's unsent scores stay under A's id and only send when A
- * signs in again; they are never mixed into player B.
- */
 function queueKey(owner: string | null = queueOwner): string {
   return owner ? `${QUEUE_KEY}.${owner}` : QUEUE_KEY
 }
@@ -205,31 +205,105 @@ export async function initCloud(): Promise<void> {
   }
 }
 
-export async function sendMagicLink(email: string): Promise<{ ok: boolean; error?: string }> {
-  const sb = await client()
-  if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
-  const redirect = `${window.location.origin}${window.location.pathname}`
-  const { error } = await sb.auth.signInWithOtp({ email: email.trim(), options: { emailRedirectTo: redirect, shouldCreateUser: true } })
-  if (error) return { ok: false, error: error.message.includes('rate') ? 'Too many tries. Wait a minute and try again.' : "Couldn't send the link. Check the email and try again." }
-  return { ok: true }
+/** Same string for signInWithOtp and verifyOtp. Trimmed and lowercased, nothing else. */
+export function signInEmail(email: string): string {
+  return email.trim().toLowerCase()
+}
+
+/** Digits from the email code. Spaces are dropped. The live email uses 8 digits. */
+export function signInCode(token: string): string {
+  return token.replace(/\s/g, '').replace(/\D/g, '').slice(0, 8)
+}
+
+/** The sheet shows Supabase's own words. The usual OTP failure gets a plain sentence. */
+export function explainCodeError(message: string | undefined): string {
+  const raw = message?.trim() ?? ''
+  if (!raw) return 'Code expired or already used, send a new one.'
+  if (/rate/i.test(raw)) return 'Too many tries. Wait a minute and try again.'
+  if (/expired|already used|otp_expired|is invalid/i.test(raw)) return `Code expired or already used, send a new one. ${raw}`
+  return raw
+}
+
+/** Wrong OTP type and a burned code look the same. Only those may try the next type. */
+function otpTypeMismatch(message: string | undefined): boolean {
+  const raw = message?.trim() ?? ''
+  return /expired|already used|otp_expired|is invalid/i.test(raw)
+}
+
+type SignInResult = { ok: boolean; error?: string; email?: string; sentAt?: number }
+
+/** One network send at a time, shared by every sign-in button (Home, Board, Victory). */
+let sendFlight: { email: string; promise: Promise<SignInResult> } | null = null
+/** One verify per address+code. A second tap reuses the first result instead of burning the code. */
+const verifyOnce = new Map<string, Promise<{ ok: boolean; error?: string }>>()
+
+export async function sendMagicLink(email: string): Promise<SignInResult> {
+  const address = signInEmail(email)
+  if (sendFlight) {
+    console.info(`[signin] send skipped email=${address} inFlight=${sendFlight.email}`)
+    return sendFlight.email === address ? sendFlight.promise : { ok: false, error: 'A code is already on its way.' }
+  }
+  const sentAt = Date.now()
+  console.info(`[signin] send email=${address} at=${new Date(sentAt).toISOString()}`)
+  const promise = (async (): Promise<SignInResult> => {
+    const sb = await client()
+    if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
+    // The link returns to the page the player is on, including a deploy preview.
+    // verifyOtp does not send this URL. A preview origin cannot change the code check.
+    const redirect = `${window.location.origin}${window.location.pathname}`
+    const { error } = await sb.auth.signInWithOtp({ email: address, options: { emailRedirectTo: redirect, shouldCreateUser: true } })
+    if (error) return { ok: false, error: error.message?.trim() || "Couldn't send the link. Check the email and try again." }
+    return { ok: true, email: address, sentAt }
+  })().finally(() => {
+    if (sendFlight?.promise === promise) sendFlight = null
+  })
+  sendFlight = { email: address, promise }
+  return promise
 }
 
 /**
- * The code from the same email as the magic link. The project sends 6 to 8 digits.
+ * The code from the same email as the magic link. The live email is 8 digits.
+ * A shorter prefix is refused here so it is never sent: Supabase would burn the real code.
  * verifyOtp signs the player in and fires SIGNED_IN. The listener in initCloud then runs
  * loadPlayer, which copies this device's queued scores onto the account and flushes them.
  * That is the same path as opening the link.
  */
 export async function verifyEmailCode(email: string, token: string): Promise<{ ok: boolean; error?: string }> {
-  const sb = await client()
-  if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
-  const code = token.replace(/\s/g, '')
-  if (!/^\d{6,8}$/.test(code)) return { ok: false, error: 'Enter the code from your email.' }
-  const { data, error } = await sb.auth.verifyOtp({ email: email.trim(), token: code, type: 'email' })
-  if (error || !data.session) {
-    return { ok: false, error: error?.message?.includes('rate') ? 'Too many tries. Wait a minute and try again.' : "That code didn't work. Check it and try again." }
+  const address = signInEmail(email)
+  const code = signInCode(token)
+  if (!/^\d{8}$/.test(code)) return { ok: false, error: 'Enter all 8 digits from your email.' }
+  const key = `${address}|${code}`
+  const existing = verifyOnce.get(key)
+  if (existing) {
+    console.info(`[signin] verify skipped email=${address} digits=${code.length}`)
+    return existing
   }
-  return { ok: true }
+  const promise = (async () => {
+    const sb = await client()
+    if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
+    // email is the type the merged sign-in uses. If Supabase stored the code as a magic link
+    // or a new-user signup, that call says the token is invalid and the next type is tried once.
+    let last = ''
+    for (const type of ['email', 'magiclink', 'signup'] as const) {
+      console.info(`[signin] verify type=${type} email=${address} digits=${code.length} at=${new Date().toISOString()}`)
+      const { data, error } = await sb.auth.verifyOtp({ email: address, token: code, type })
+      const message = error?.message
+      console.info(`[signin] verify result type=${type} ok=${!error && !!data.session} message=${message ?? ''}`)
+      if (!error && data.session) return { ok: true }
+      last = message ?? ''
+      if (!otpTypeMismatch(message)) return { ok: false, error: explainCodeError(message) }
+    }
+    return { ok: false, error: explainCodeError(last) }
+  })()
+  verifyOnce.set(key, promise)
+  // A burned or accepted code stays cached so a second tap does not call verify again.
+  // Offline and rate-limit failures are dropped so the same code can be tried once the wait is over.
+  void promise.then((result) => {
+    if (result.ok) return
+    if (/expired|already used|invalid/i.test(result.error ?? '')) return
+    if (verifyOnce.get(key) === promise) verifyOnce.delete(key)
+  })
+  return promise
 }
 
 export async function savePlayerName(name: string, consent: Consent): Promise<{ ok: boolean; error?: string; publicName?: string }> {
@@ -249,10 +323,99 @@ export async function savePlayerName(name: string, consent: Consent): Promise<{ 
   if (!row) return { ok: false, error: "Couldn't save your name. Try again." }
   if (error) return { ok: false, error: "Couldn't save your name. Try again." }
   set({ name: row.display_name, publicName: row.public_name })
+  rememberPlayerName(row.public_name || row.display_name)
   saveConsent(consent)
   if (consent.optIn && data.session?.user.email) void subscribeNews(data.session.user.email)
   void flushScores()
   return { ok: true, publicName: row.public_name }
+}
+
+/** Change the signed-in player's name. Does not touch consent, email, or the session. */
+export async function renamePlayer(name: string): Promise<{ ok: boolean; error?: string; publicName?: string }> {
+  const sb = await client()
+  if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
+  const { data } = await sb.auth.getSession()
+  const uid = data.session?.user.id
+  if (!uid) return { ok: false, error: 'Please sign in first.' }
+  const display_name = name.trim().replace(/\s+/g, ' ').slice(0, NAME_MAX)
+  if (!display_name) return { ok: false, error: 'Type a name.' }
+  const { data: row, error } = await sb.from('players').update({ display_name }).eq('id', uid).select('display_name, public_name').maybeSingle()
+  if (error || !row) return { ok: false, error: "Couldn't save your name. Try again." }
+  set({ name: row.display_name, publicName: row.public_name })
+  rememberPlayerName(row.public_name || row.display_name)
+  return { ok: true, publicName: row.public_name }
+}
+
+export interface LeaderboardRow {
+  name: string
+  level: number
+  best_score: number
+  best_time_seconds: number
+  rank: number
+}
+
+export interface PublicScoreRow {
+  name: string
+  score: number
+  time_seconds: number
+  mode: string
+  created_at: string
+  daily_date?: string | null
+}
+
+/**
+ * Read public.public_scores. Never writes.
+ * Asks for daily_date (migration 005). If that column is not on the view yet, reads the columns that already exist.
+ */
+export async function loadPublicScores(): Promise<PublicScoreRow[] | null> {
+  try {
+    const sb = await client()
+    if (!sb) return null
+    const withDate = await pagePublicScores(sb, 'name, score, time_seconds, mode, created_at, daily_date')
+    if (withDate !== 'no-daily-date') return withDate
+    const plain = await pagePublicScores(sb, 'name, score, time_seconds, mode, created_at')
+    return plain === 'no-daily-date' ? null : plain
+  } catch {
+    return null
+  }
+}
+
+async function pagePublicScores(sb: SupabaseClient, columns: string): Promise<PublicScoreRow[] | null | 'no-daily-date'> {
+  const pageSize = 1000
+  const out: PublicScoreRow[] = []
+  for (let page = 0; page < 8; page++) {
+    const from = page * pageSize
+    const { data, error } = await sb
+      .from('public_scores')
+      .select(columns)
+      .order('created_at', { ascending: false })
+      .range(from, from + pageSize - 1)
+    if (error) {
+      if (error.code === '42703' || /daily_date/i.test(error.message)) return 'no-daily-date'
+      return out.length ? out : null
+    }
+    const rows = (Array.isArray(data) ? data : []) as unknown as PublicScoreRow[]
+    out.push(...rows)
+    if (rows.length < pageSize) break
+  }
+  return out
+}
+
+/** Read the public leaderboard view. Never writes. */
+export async function loadLeaderboard(limit = 15): Promise<LeaderboardRow[]> {
+  try {
+    const sb = await client()
+    if (!sb) return []
+    const { data, error } = await sb
+      .from('leaderboard')
+      .select('name, level, best_score, best_time_seconds, rank')
+      .order('best_score', { ascending: false })
+      .limit(limit)
+    if (error || !Array.isArray(data)) return []
+    return data as LeaderboardRow[]
+  } catch {
+    return []
+  }
 }
 
 export async function signOut(): Promise<void> {

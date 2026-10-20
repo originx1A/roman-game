@@ -1,7 +1,7 @@
 import { useTapCount } from './components/useTapCount'
 import { loadAnon, openEvents, sendPing, PRIVACY_NOTE, ANON_KEY, gaEvent, setGaEnabled } from './game/analytics'
 import { OWNER_PATH, OWNER_TAP_WINDOW_MS, OWNER_TAPS } from './game/ownerDoor'
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Board } from './components/Board'
 import { HowToPlay } from './components/HowToPlay'
@@ -18,10 +18,16 @@ import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './componen
 import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
 import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
-import { KeyboardNameSheet, NameEntry, useKeyboardNameEntry } from './components/KeyboardNameSheet'
+import { KeyboardNameSheet, useKeyboardNameEntry } from './components/KeyboardNameSheet'
 /* PR #53 batch 2 (Tony 2026-10-19): the Unseen as guide character + silent pet pop-outs */
 import { UnseenGuide, PetPopout, type GuideItem, type PetPopoutInfo } from './components/UnseenGuide'
-import { initCloud, saveScore } from './cloud/cloud'
+import { HomeUnseenReminder } from './components/UnseenReminder'
+import { CloudScoresButton, useCloud } from './cloud/CloudScores'
+import { Leaderboard } from './cloud/Leaderboard'
+import { NAME_MAX, initCloud, loadPublicScores, renamePlayer, saveScore, signOut as cloudSignOut } from './cloud/cloud'
+import { cloudModeForWin } from './game/scoreMode'
+import { leaderboardTease, loadBoardSeen, saveBoardSeen } from './game/leaderboardTease'
+import { isProfane } from './cloud/profanity'
 import { UnseenCardTile } from './components/UnseenCard'
 import { noteCardWin, localCard, CARD_PIECES } from './game/unseenCard'
 import { guideCandidates, petPopoutPick, type GuideTarget } from './game/unseenGuide'
@@ -78,11 +84,17 @@ import {
   type PetId,
   type PetState,
   claimFreePet,
+  couponFor,
   earnFieldTreats,
   claimFieldTreats,
   jackpotFieldTreats,
+  lockedForSale,
   MAX_FIELD_TREATS,
+  moodKind,
+  moodNow,
+  priceWith,
   swapTreatsToCoins,
+  TREATS,
   stealFieldTreats,} from './game/pets'
 import {
   BUDDY_HUNT_PERFECT_WINS,
@@ -233,7 +245,11 @@ import {
   loadSettings,
   loadWallet,
   cleanPlayerName,
+  getPlayerName,
+  isUnsetAccountName,
+  rememberPlayerName,
   PLAYER_NAME_MAX,
+  PLAYER_NAME_EVENT,
   loadBuddyMeter,
   loadPets,
   savePets,
@@ -253,8 +269,6 @@ import {
   saveDraft,
   saveSettings,
   saveWallet,
-  signInWithEmail,
-  signOutKeepDevice,
   type Settings,
 } from './game/storage'
 import {
@@ -427,10 +441,35 @@ const MENU_CSS = `
 .daily-streakbtn:active { transform: scale(0.96); }
 `
 
+function anyHungryPet(pets: PetState, now: number): boolean {
+  return (Object.keys(pets.owned) as PetId[]).some((id) => moodKind(moodNow(pets.owned[id], now)) === 'hungry')
+}
+
+/** A treat, a buddy, or a badge upgrade they can pay for from Home. A 15-coin hint does not count. */
+function canSpendCoins(coins: number, pets: PetState, wallet: Wallet, now: number): boolean {
+  const today = torontoDateKey(new Date(now))
+  const snack = TREATS.find((t) => t.id === 'snack')?.cost ?? 30
+  const canTreat =
+    coins >= snack &&
+    (Object.keys(pets.owned) as PetId[]).some((id) => {
+      const info = careInfo(pets, id, now, today)
+      return !info.maxed && info.feedsLeft > 0
+    })
+  const buddy = lockedForSale(pets, now)[0]
+  const canBuddy = !!buddy && coins >= priceWith(buddy.price, couponFor(pets, buddy.id, now))
+  const power = totalBadgePower(wallet)
+  const canBadge = BADGES.some((b) => {
+    const rank = badgeRank(wallet, b.id)
+    return rank >= 1 && coins >= upgradeBadgeCost(b.id, rank, power)
+  })
+  return canTreat || canBuddy || canBadge
+}
+
 export default function App() {
   const [screen, setScreen] = useState<Screen>('home')
   const [{ layout }, setLayoutInfo] = useState(() => readLayout())
   const [profile, setProfile] = useState<Profile | null>(() => loadProfile())
+  const cloud = useCloud()
   const [progress, setProgress] = useState(() => getProgress())
   const [settings, setSettings] = useState<Settings>(() => loadSettings())
   // Level select difficulty tab — persisted so it survives reloads
@@ -522,6 +561,8 @@ export default function App() {
   /** Set the moment a board is won or lost (before any state update lands), cleared for the next
    *  board. Voice lines check it so nothing from the live board speaks after the result. */
   const boardOverRef = useRef<BoardOutcome>(null)
+  /** Set when a board is won or lost. Home reads it once, then a new board clears it. */
+  const afterGameRef = useRef(false)
   const [winLine, setWinLine] = useState('')
   const [loseLine, setLoseLine] = useState('')
   const [lives, setLives] = useState(MAX_LIVES)
@@ -542,6 +583,35 @@ export default function App() {
     if (!line.speak || line.silent || !line.text || !isUnseenClip(line.clip)) return
     unseenKey.current += 1
     setUnseenPop({ text: line.text, key: unseenKey.current })
+  }
+  const teaseTimer = useRef(0)
+  const teaseGen = useRef(0)
+  /** After a scored win, once the cheer has had its say. Never during a live board. Text only. */
+  function scheduleLeaderboardTease(score: number, timeSeconds: number, mode: string) {
+    const you = playerName.trim()
+    if (cloud.status !== 'signed-in' || !you) return
+    window.clearTimeout(teaseTimer.current)
+    const gen = ++teaseGen.current
+    teaseTimer.current = window.setTimeout(() => {
+      if (boardOverRef.current !== 'won') return
+      void loadPublicScores().then((rows) => {
+        if (gen !== teaseGen.current || boardOverRef.current !== 'won' || !rows) return
+        const seen = loadBoardSeen(you)
+        const tease = leaderboardTease({
+          you,
+          score,
+          timeSeconds,
+          mode,
+          rows,
+          previousRank: seen?.rank ?? null,
+          lastSituation: seen?.situation ?? null,
+        })
+        if (tease.rank != null) saveBoardSeen(you, tease.rank, tease.situation)
+        if (!tease.text || boardOverRef.current !== 'won') return
+        unseenKey.current += 1
+        setUnseenPop({ text: tease.text, key: unseenKey.current, holdMs: 8000 })
+      })
+    }, 7500)
   }
   // PR #53 batch 2 (Tony 2026-10-19): the Unseen as guide character.
   // Visual-only (his guide lines have no recorded audio); tappable deep-links.
@@ -575,11 +645,11 @@ export default function App() {
   const [shortfall, setShortfall] = useState<null | { action: ShortfallAction; need: number; detail?: string }>(null)
   const [incoming, setIncoming] = useState<Challenge | null>(null)
   const [, setChallenges] = useState(() => loadChallenges())
-  const [emailInput, setEmailInput] = useState('')
+  const [nameField, setNameField] = useState('')
+  const nameFocus = useRef(false)
   const [storePrices, setStorePrices] = useState<Record<string, string>>({})
   const [webPacks, setWebPacks] = useState<WebPackOffer[] | null>(null)
   const [webShop, setWebShop] = useState<'loading' | 'ready' | 'unavailable'>('loading')
-  const [nameInput, setNameInput] = useState('Roman')
   const [challengeEmail, setChallengeEmail] = useState('')
   const [challengeMsg, setChallengeMsg] = useState('Can you beat me on this board?')
   const [shareLink, setShareLink] = useState('')
@@ -657,6 +727,8 @@ export default function App() {
   /** Today's date key while this attempt is the scored (first) Daily try */
   const dailyRunRef = useRef<string | null>(null)
   const [dailyTag, setDailyTag] = useState<'' | 'scored' | 'practice'>('')
+  const practiceRef = useRef(false)
+  practiceRef.current = dailyTag === 'practice'
   const [startSheet, setStartSheet] = useState<Puzzle | null>(null)
 
   // ---- 9.30-i: Remix boards (a new set of 4 every 3 days at midnight Toronto) + Endless mode ----
@@ -696,8 +768,14 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, remixSet])
   const [winReplay, setWinReplay] = useState<WinReplay | null>(null)
-  // Player name for share cards (asked once: first share or first finished board)
-  const playerName = cleanPlayerName(settings.playerName)
+  // One name everywhere: account (public name, then chosen name), then this device, then the old profile.
+  const playerName = getPlayerName({
+    publicName: cloud.publicName,
+    name: cloud.name,
+    playerName: settings.playerName,
+    displayName: profile?.displayName,
+  })
+  const signedIn = cloud.status === 'signed-in' && !!(cloud.publicName || cloud.name)
   const [namePrompt, setNamePrompt] = useState<null | { then?: () => void }>(null)
   const [nameDraft, setNameDraft] = useState('')
   const touchName = useKeyboardNameEntry()
@@ -1009,6 +1087,7 @@ export default function App() {
     if (mode !== 'trial' || !running || !puzzle || celebrate || defeated || boardOverRef.current) return
     if (elapsedMs < trialTimeLimitMs(targetsFor(puzzle))) return
     boardOverRef.current = 'lost'
+    afterGameRef.current = true
     cancelVoiceBelow(VOICE_PRIORITY.lose)
     setRunning(false)
     setDefeated(true)
@@ -1213,10 +1292,71 @@ export default function App() {
     const active = document.activeElement
     if (active instanceof HTMLElement) active.blur()
     const name = save ? cleanPlayerName(nameDraft) : ''
-    saveSettingsPatch({ namePrompted: true, ...(name ? { playerName: name } : {}) })
+    if (name) {
+      rememberPlayerName(name)
+      setSettings(loadSettings())
+      setProfile(loadProfile())
+      if (cloud.status === 'signed-in') void renamePlayer(name)
+    } else {
+      saveSettingsPatch({ namePrompted: true })
+    }
     const then = namePrompt?.then
     setNamePrompt(null)
     if (then) window.setTimeout(then, 0)
+  }
+
+  useEffect(() => {
+    const sync = () => {
+      setSettings(loadSettings())
+      setProfile(loadProfile())
+    }
+    window.addEventListener(PLAYER_NAME_EVENT, sync)
+    return () => window.removeEventListener(PLAYER_NAME_EVENT, sync)
+  }, [])
+
+  // A chosen account name is the one name. A default like "Roman's Game official" gives way
+  // to the name already on this device, and that name is saved onto the account.
+  const adoptingName = useRef('')
+  useEffect(() => {
+    if (cloud.status !== 'signed-in') return
+    const account = cleanPlayerName(cloud.publicName) || cleanPlayerName(cloud.name)
+    const local = cleanPlayerName(loadSettings().playerName) || cleanPlayerName(loadProfile()?.displayName)
+    if (account && isUnsetAccountName(account) && local && local.toLowerCase() !== account.toLowerCase()) {
+      if (adoptingName.current === local) return
+      adoptingName.current = local
+      void renamePlayer(local)
+      return
+    }
+    adoptingName.current = ''
+    if (!account || isUnsetAccountName(account)) return
+    const settingsNow = loadSettings()
+    const profileNow = loadProfile()
+    if (settingsNow.playerName === account && (!profileNow || profileNow.displayName === account)) return
+    rememberPlayerName(account)
+  }, [cloud.status, cloud.publicName, cloud.name])
+
+  useEffect(() => {
+    if (nameFocus.current) return
+    setNameField(playerName)
+  }, [playerName])
+
+  async function commitName(raw: string) {
+    const name = cleanPlayerName(raw).slice(0, NAME_MAX)
+    if (!name) return
+    if (isProfane(name)) {
+      showToast("Let's pick a different name. Keep it friendly!")
+      return
+    }
+    rememberPlayerName(name)
+    setSettings(loadSettings())
+    setProfile(loadProfile())
+    if (cloud.status !== 'signed-in') {
+      showToast(`Name saved: ${name}`)
+      return
+    }
+    const r = await renamePlayer(name)
+    if (!r.ok) showToast(r.error || "Couldn't update your name")
+    else showToast(`Name saved: ${r.publicName || name}`)
   }
 
   /** Share text for this board: name, score, level, stars, best time, New best! */
@@ -1501,8 +1641,12 @@ export default function App() {
   }
 
   function startPuzzle(p: Puzzle, resume = false, opts: { mode?: RunMode; daily?: boolean; endless?: boolean } = {}) {
-    // 2026-10-19: No auto-tutorial. Play goes straight to the game. New players see a "New here?" link.
-    // (Old behavior showed How to Play on first tap, which was annoying and broke on preview URLs.)
+    // 2026-10-19: No auto-tutorial. Play goes straight to the game.
+    // A new board is live play: drop a scoreboard tease so it never sits over the grid.
+    window.clearTimeout(teaseTimer.current)
+    teaseGen.current += 1
+    afterGameRef.current = false
+    setUnseenPop(null)
     unlockAudio()
     dropWaitingVoice()
     sfxWhoosh()
@@ -1719,6 +1863,7 @@ export default function App() {
       persistWallet(w)
       if (nextLives <= 0) {
         boardOverRef.current = 'lost'
+    afterGameRef.current = true
         cancelVoiceBelow(VOICE_PRIORITY.lose)
         setDefeated(true)
         setRunning(false)
@@ -1741,6 +1886,7 @@ export default function App() {
     if (puzzle && isSolved(puzzle, next) && !recordedRef.current) {
       recordedRef.current = true
       boardOverRef.current = 'won'
+      afterGameRef.current = true
       // Drop anything queued from the live board (wrong move, stall, tip, Unseen) before the win line
       cancelVoiceBelow(VOICE_PRIORITY.win)
       setRunning(false)
@@ -1772,20 +1918,30 @@ export default function App() {
       setLastScore(score)
       // 9.32: save the finished game to the player's account (queued offline / until signed in)
       try {
-        if (!winSaveKeyRef.current) {
-          // One id for this result. Play again clears it; a re-render of this win does not.
-          winSaveKeyRef.current = `win:${puzzle.id}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`
-        }
-        saveScore({
-          score,
-          level: puzzle.size,
-          moves: hist.past.length,
-          time_seconds: elapsedMs / 1000,
-          mode: dailyRunRef.current ? 'daily' : endlessRef.current ? 'endless' : runMode === 'trial' ? 'trial' : runMode === 'normal' ? 'normal' : 'other',
-          puzzle_id: String(puzzle.id),
-          daily_date: dailyRunRef.current ?? undefined,
-          dedupeKey: winSaveKeyRef.current,
+        const cloudMode = cloudModeForWin({
+          practice: practiceRef.current,
+          daily: !!dailyRunRef.current,
+          endless: !!endlessRef.current,
+          trial: runMode === 'trial',
+          remix: !!parseRemixId(String(puzzle.id)),
         })
+        if (cloudMode) {
+          if (!winSaveKeyRef.current) {
+            winSaveKeyRef.current = `win:${puzzle.id}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`
+          }
+          const timeSeconds = elapsedMs / 1000
+          saveScore({
+            score,
+            level: puzzle.size,
+            moves: hist.past.length,
+            time_seconds: timeSeconds,
+            mode: cloudMode,
+            puzzle_id: String(puzzle.id),
+            daily_date: cloudMode === 'daily' ? dailyRunRef.current ?? undefined : undefined,
+            dedupeKey: winSaveKeyRef.current,
+          })
+          scheduleLeaderboardTease(score, timeSeconds, cloudMode)
+        }
       } catch {
         /* never block the win */
       }
@@ -1882,7 +2038,7 @@ export default function App() {
         activeChallenge.scoreMs != null &&
         activeChallenge.scorePts != null
       ) {
-        const myName = profile?.displayName || 'You'
+        const myName = playerName || 'You'
         const result = createDuelResult({
           code: activeChallenge.code,
           puzzleId: puzzle.id,
@@ -2215,6 +2371,7 @@ export default function App() {
     setLives(runMaxLives)
     setDefeated(false)
     setRunning(true)
+    afterGameRef.current = false
     showToast('Revived!')
   }
 
@@ -2321,19 +2478,6 @@ export default function App() {
         showToast(`Badge unlocked: ${badge?.title ?? badgeId}`)
       }, 2600 + i * 2600)
     })
-  }
-
-  function handleSignIn(e: FormEvent) {
-    e.preventDefault()
-    if (!emailInput.includes('@')) {
-      showToast('Enter a valid email')
-      return
-    }
-    const p = signInWithEmail(emailInput, nameInput)
-    setProfile(p)
-    setProgress(getProgress())
-    showToast(`Signed in as ${p.displayName}`)
-    unlockAudio()
   }
 
   function handleCritterCatch(reward: CritterReward) {
@@ -2495,7 +2639,7 @@ export default function App() {
       puzzleName: target.name,
       difficulty: DIFFICULTY_LABEL[target.difficulty],
       fromEmail: senderEmail(profile?.email),
-      fromName: playerName || profile?.displayName || 'A friend',
+      fromName: playerName || 'A friend',
       message: challengeMsg,
       toEmail: challengeEmail || undefined,
       scoreMs: clear?.bestMs,
@@ -2541,7 +2685,7 @@ export default function App() {
       puzzleName: puzzle.name,
       difficulty: DIFFICULTY_LABEL[puzzle.difficulty],
       fromEmail: senderEmail(profile?.email),
-      fromName: who || profile?.displayName || 'A friend',
+      fromName: who || playerName || 'A friend',
       scoreMs: elapsedMs,
       scorePts: lastScore,
       buddy: runPetRef.current,
@@ -2640,7 +2784,7 @@ export default function App() {
         puzzleName: board.name,
         difficulty: DIFFICULTY_LABEL[board.difficulty],
         fromEmail: senderEmail(profile?.email),
-        fromName: playerName || profile?.displayName || 'A friend',
+        fromName: playerName || 'A friend',
         message: challengeMsg,
         toEmail: to || undefined,
       })
@@ -2970,8 +3114,11 @@ export default function App() {
             <button type="button" className={screen === 'challenge' ? 'on' : ''} onClick={() => setScreen('challenge')}>
               Share
             </button>
+            <button type="button" className={screen === 'leaderboard' ? 'on' : ''} data-testid="nav-board" onClick={() => setScreen('leaderboard')}>
+              Board
+            </button>
             <button type="button" className={screen === 'profile' ? 'on' : ''} onClick={() => setScreen('profile')}>
-              {profile ? profile.displayName.split(' ')[0] : 'Save'}
+              {playerName ? <span className="player-name-mark nav-player" data-testid="nav-player" title={playerName}>{playerName}</span> : 'Account'}
             </button>
           </nav>
           <div className="hud-pills">
@@ -2998,10 +3145,17 @@ export default function App() {
         </header>
       )}
 
+      {screen !== 'play' && playerName && (
+        <p className="signed-in-bar" data-testid="signed-in-as">
+          {signedIn ? 'Signed in as ' : 'Playing as '}
+          <strong className="player-name-mark">{playerName}</strong>
+        </p>
+      )}
+
       {/* On a live board the toast text shows in the play caption slot instead (never over the board) */}
       {toast && (screen !== 'play' || celebrate || defeated) && <div className="toast">{toast}</div>}
 
-      {namePrompt && <NamePromptSheet touch={touchName} nameDraft={nameDraft} setNameDraft={setNameDraft} onClose={closeNamePrompt} />}
+      {namePrompt && <NamePromptSheet touch={touchName} nameDraft={nameDraft} setNameDraft={setNameDraft} onClose={closeNamePrompt} signedIn={signedIn} />}
 
       <ShortfallSheetHost
         open={!!shortfall}
@@ -3029,6 +3183,24 @@ export default function App() {
             <p className="lede">
               Drop animated buddies — one per row, column, and region. They hate cuddling (even corners).
             </p>
+            <HomeUnseenReminder
+              facts={{
+                now: Date.now(),
+                today: torontoDateKey(),
+                cloudKnown: cloud.status === 'signed-in' || cloud.status === 'signed-out',
+                signedIn,
+                afterGame: afterGameRef.current,
+                sessionSignIns: 0,
+                hungryPet: anyHungryPet(pets, Date.now()),
+                canSpend: canSpendCoins(wallet.coins, pets, wallet, Date.now()),
+                dailyPlayed: records.daily.days[torontoDateKey()]?.status === 'won',
+                streakAtRisk: liveStreak(records.daily, torontoDateKey()) > 0 && records.daily.lastWon !== torontoDateKey(),
+                remixSet,
+              }}
+              onConsumed={() => {
+                afterGameRef.current = false
+              }}
+            />
             <div className="cta-row">
               {draftPuzzle ? (
                 <button type="button" className="btn primary" onClick={() => startPuzzle(draftPuzzle, true)}>
@@ -3050,6 +3222,9 @@ export default function App() {
               )}
               <button type="button" className="btn ghost btn-sm" onClick={() => setScreen('how')}>
                 How to play
+              </button>
+              <button type="button" className="btn ghost btn-sm" data-testid="home-board" onClick={() => setScreen('leaderboard')}>
+                Leaderboard
               </button>
               <button type="button" className="btn ghost btn-sm" onClick={() => setScreen('bug')}>
                 🐛 Report a bug
@@ -3139,6 +3314,10 @@ export default function App() {
         <BugReport currentScreen={screen} onBack={() => setScreen('home')} />
       )}
 
+      {screen === 'leaderboard' && (
+        <Leaderboard you={playerName} signedIn={signedIn} />
+      )}
+
       {screen === 'levels' && (
         <main className="panel levels scroll-pane">
           <h2>Levels</h2>
@@ -3202,6 +3381,12 @@ export default function App() {
             </button>
             <div className="hud-title">
               <strong>{puzzle.name}</strong>
+              {playerName ? (
+                <em className="hud-you" data-testid="hud-player">
+                  {signedIn ? 'Signed in as ' : ''}
+                  <strong className="player-name-mark">{playerName}</strong>
+                </em>
+              ) : null}
               <span>
                 {mode === 'trial'
                   ? "⚔ Roman's Trial · 2× coins"
@@ -3469,6 +3654,8 @@ export default function App() {
               onShare={() => shareWinAsChallenge()}
               onDuel={duel && activeChallenge?.puzzleId === puzzle.id ? openDuelShare : undefined}
               suggestedName={playerName}
+              playerName={playerName}
+              signedIn={signedIn}
             />
           )}
 
@@ -3562,7 +3749,9 @@ export default function App() {
           focusPet={stableFocus}
           giftCode={giftPrefill}
           giftsOnline={!isStoreBuild()}
-          isSignedIn={!!profile}
+          isSignedIn={signedIn || !!profile}
+          playerName={playerName}
+          signedIn={signedIn}
         />
       )}
 
@@ -3707,61 +3896,68 @@ export default function App() {
 
       {screen === 'profile' && (
         <main className="panel profile scroll-pane">
-          <h2>Save & settings</h2>
-          {profile ? (
-            <div className="profile-card">
-              <p className="profile-name">{profile.displayName}</p>
-              <p className="profile-email">{profile.email}</p>
-              <button
-                type="button"
-                className="btn ghost"
-                onClick={() => {
-                  signOutKeepDevice()
-                  setProfile(null)
-                  setProgress(getProgress())
-                }}
-              >
-                Sign out
-              </button>
-            </div>
-          ) : (
-            <form className="auth-form" onSubmit={handleSignIn}>
-              <label>
-                Email
-                <input type="email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} required />
-              </label>
-              <label>
-                Display name
-                <NameEntry
-                  value={nameInput}
-                  onChange={setNameInput}
-                  onCommit={setNameInput}
-                  ariaLabel="Display name"
-                  placeholder="Your name"
-                  sheetTitle="Display name"
-                  sheetHint="This is the name saved with your email on this device."
-                  testId="display-name"
-                />
-              </label>
-              <button type="submit" className="btn primary">Save with email</button>
-            </form>
-          )}
-          <section className="settings">
-            <h3>Settings</h3>
+          <h2>Account & settings</h2>
+          <div className="profile-card" data-testid="account-card">
+            {signedIn ? (
+              <>
+                <p className="profile-name">
+                  Signed in as <strong className="player-name-mark">{playerName}</strong>
+                </p>
+                {cloud.email ? <p className="profile-email">{cloud.email}</p> : null}
+              </>
+            ) : (
+              <>
+                <p className="profile-name">{playerName ? <>Playing as <strong className="player-name-mark">{playerName}</strong></> : 'Not signed in'}</p>
+                <p className="profile-email">Scores stay on this device until you sign in. No password — we email you a link.</p>
+                <CloudScoresButton suggestedName={playerName} />
+              </>
+            )}
             <label className="name-setting">
               Your name on shared scores
-              <NameEntry
-                value={settings.playerName ?? ''}
-                maxLength={PLAYER_NAME_MAX}
+              <input
+                type="text"
+                value={nameField}
+                maxLength={NAME_MAX}
                 placeholder="Blank = “I scored…”"
-                ariaLabel="Your name on shared scores"
-                sheetTitle="Your name on shared scores"
-                sheetHint="Leave this blank to share as “I scored…”. It stays on this device."
-                testId="player-name"
-                onChange={(v) => saveSettingsPatch({ playerName: v.slice(0, PLAYER_NAME_MAX), namePrompted: true })}
-                onCommit={(v) => saveSettingsPatch({ playerName: cleanPlayerName(v) })}
+                aria-label="Your name on shared scores"
+                onFocus={() => {
+                  nameFocus.current = true
+                }}
+                onChange={(e) => setNameField(e.target.value.slice(0, NAME_MAX))}
+                onBlur={(e) => {
+                  nameFocus.current = false
+                  const next = cleanPlayerName(e.target.value)
+                  setNameField(next)
+                  if (next && next !== playerName) void commitName(next)
+                }}
               />
             </label>
+            {signedIn ? (
+              <div className="cta-row">
+                <button type="button" className="btn ghost" onClick={() => void commitName(nameField)}>
+                  Change name
+                </button>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={() => {
+                    void cloudSignOut()
+                  }}
+                >
+                  Sign out
+                </button>
+              </div>
+            ) : null}
+          </div>
+          <section className="leaderboard">
+            <h3>Leaderboard</h3>
+            <p className="sub">Today's Daily, this week, and all-time. Your name is highlighted on the board.</p>
+            <button type="button" className="btn ghost" onClick={() => setScreen('leaderboard')}>
+              Open the leaderboard
+            </button>
+          </section>
+          <section className="settings">
+            <h3>Settings</h3>
             <label className="toggle">
               <input
                 type="checkbox"
@@ -3914,8 +4110,17 @@ export default function App() {
       {screen === 'challenge' && (
         <main className="panel challenge scroll-pane">
           <h2>Share &amp; challenge</h2>
+          {playerName ? (
+            <p className="share-player" data-testid="share-player">
+              Sharing as <strong className="player-name-mark">{playerName}</strong>
+              {' · '}can you beat my score?
+            </p>
+          ) : (
+            <p className="sub">Add your name in Account & settings and it goes on every challenge.</p>
+          )}
           <p className="sub">
             Share your best time. Friends open the link, play the same board, then send a head-to-head score back.
+            {playerName ? ` The email and the link say ${playerName} challenged them.` : ''}
           </p>
           <ShareBar
             url={shareLink || playUrl}
@@ -4138,11 +4343,13 @@ function NamePromptSheet({
   nameDraft,
   setNameDraft,
   onClose,
+  signedIn,
 }: {
   touch: boolean
   nameDraft: string
   setNameDraft: (value: string) => void
   onClose: (save: boolean) => void
+  signedIn?: boolean
 }) {
   const form = (
     <form
@@ -4155,7 +4362,7 @@ function NamePromptSheet({
       <div className="kb-name-copy">
         <h3>What should we call you?</h3>
         <p className="start-sheet-tip">
-          Your name goes on the scores you share, like “{cleanPlayerName(nameDraft) || 'Sam'} scored 1,840 on Level 1”. It stays on this device. You can change it later in Save &amp; settings.
+          Your name goes on the scores you share, like “{cleanPlayerName(nameDraft) || 'Sam'} scored 1,840 on Level 1”. {signedIn ? 'It updates your account too.' : 'It stays on this device.'} You can change it later in Account &amp; settings.
         </p>
       </div>
       <input
