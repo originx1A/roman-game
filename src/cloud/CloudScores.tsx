@@ -4,7 +4,7 @@ import { isProfane } from './profanity'
 import { NAME_MAX, loadConsent, saveConsent, onCloud, savePlayerName, sendMagicLink, signOut, verifyEmailCode, type CloudState } from './cloud'
 
 /**
- * "Save my scores" button + sheets: email magic link or the 6-digit code from that email, then a one-time name prompt.
+ * "Save my scores" button + sheets: email magic link or the code from that email, then a one-time name prompt.
  * The whole chosen name is shown publicly (the server adds 02, 03... if it's taken); bad words are rejected on the spot.
  */
 export function useCloud(): CloudState {
@@ -122,7 +122,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
               >
                 <h3>Save your scores</h3>
                 <p className="start-sheet-tip">
-                  Get on the leaderboard and keep your scores on any device. We'll email you a sign-in link and a 6-digit code. No password.
+                  Get on the leaderboard and keep your scores on any device. We'll email you a sign-in link and the code from your email. No password.
                 </p>
                 <input className="name-input" type="email" inputMode="email" autoComplete="email" placeholder="Email address" aria-label="Email address" value={email} onChange={(e) => setEmail(e.target.value)} />
                 {consentChecks}
@@ -140,7 +140,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 className="start-sheet-card"
                 onSubmit={async (e) => {
                   e.preventDefault()
-                  if (!/^\d{6}$/.test(code)) return setErr('Enter the 6-digit code from the email.')
+                  if (!/^\d{6,8}$/.test(code)) return setErr('Enter the code from your email.')
                   setBusy(true)
                   const r = await verifyEmailCode(email, code)
                   setBusy(false)
@@ -149,23 +149,30 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
               >
                 <h3>Check your email</h3>
                 <p className="start-sheet-tip">
-                  We sent it to <b>{email.trim()}</b>. Tap the link in your email, or enter the 6-digit code.
+                  We sent it to <b>{email.trim()}</b>. Tap the link in your email, or enter the code from your email.
                 </p>
                 <input
                   className="name-input cloud-code"
                   inputMode="numeric"
                   autoComplete="one-time-code"
-                  maxLength={6}
-                  placeholder="6-digit code"
-                  aria-label="6-digit code"
+                  maxLength={8}
+                  placeholder="the code from your email"
+                  aria-label="the code from your email"
                   value={code}
+                  onPaste={(e) => {
+                    const text = e.clipboardData.getData('text').replace(/\s/g, '').replace(/\D/g, '').slice(0, 8)
+                    if (!text) return
+                    e.preventDefault()
+                    setCode(text)
+                    setErr('')
+                  }}
                   onChange={(e) => {
-                    setCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                    setCode(e.target.value.replace(/\s/g, '').replace(/\D/g, '').slice(0, 8))
                     setErr('')
                   }}
                 />
                 {err && <p className="cloud-err" role="alert">{err}</p>}
-                <button type="submit" className="btn primary" disabled={busy || code.length !== 6}>
+                <button type="submit" className="btn primary" disabled={busy || code.length < 6}>
                   {busy ? 'Checking…' : 'Sign in with code'}
                 </button>
                 <button type="button" className="btn ghost" onClick={() => setSheet(null)}>
