@@ -23,6 +23,7 @@ import {
   parseStoryPageImage,
   renderRss,
   storyForDate,
+  stripWrappingTitleQuotes,
 } from './newsSource.ts'
 import { torontoDateKey, torontoParts, torontoShouldSend } from './newsTime.ts'
 import { sendResend } from './resendMail.ts'
@@ -269,8 +270,9 @@ async function claimBroadcast(store: JsonStore, storyId: string, now: number, fo
 export function broadcastDraft(story: Story, target: { type: 'segment' | 'tag'; id: number }, sendAt: Date): BroadcastDraft {
   const published = new Date(`${story.date}T13:07:00.000Z`)
   const article = canonicalNewsUrl(story.link)
+  const title = stripWrappingTitleQuotes(story.title, story.keepTitleQuotes)
   const draft: BroadcastDraft = {
-    subject: sanitizeEmailText(story.title, article).slice(0, 200),
+    subject: sanitizeEmailText(title, article).slice(0, 200),
     preview_text: sanitizeEmailText(story.excerpt, article).slice(0, 140),
     description: sanitizeEmailText(story.excerpt, article).slice(0, 500),
     content: broadcastHtml(story),
@@ -281,7 +283,7 @@ export function broadcastDraft(story: Story, target: { type: 'segment' | 'tag'; 
   }
   if (story.image && !isAmazonUrl(story.image)) {
     draft.thumbnail_url = story.image
-    draft.thumbnail_alt = sanitizeEmailText(story.title, article).slice(0, 140)
+    draft.thumbnail_alt = sanitizeEmailText(title, article).slice(0, 140)
   }
   return draft
 }
