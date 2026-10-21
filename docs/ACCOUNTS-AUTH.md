@@ -6,7 +6,7 @@ Migration `supabase/migration-009-accounts-auth.sql` is additive. Do not run it 
 
 `account_type` is not a column. `derived_account_type(player)` returns `adult` only when `payment_eligibility` has the attestation time, the terms time, the terms version, and a receipt email. Otherwise it returns `player`. Signup does not write that row. Age is not collected and `players.age_13_plus` is not written.
 
-Cart tables (`carts`, `cart_items`) are created here with no currency column and no writer in this migration. Prices are a later step.
+Cart tables (`carts`, `cart_items`) have no currency column. `POST /api/cart` is the writer. Prices live in `config/products.json` (a USD list for US buyers and a CAD list for everyone else). Both lists are empty until tokenomics. Adaptive Pricing is on in addition to that choice. See `docs/ACCOUNTS-CART.md`.
 
 ## Endpoints
 

@@ -1,0 +1,29 @@
+{
+  "adaptivePricing": true,
+  "lists": {
+    "usd": {
+      "currency": "usd",
+      "buyers": "US",
+      "products": [
+        { "sku": "coins_500", "stripePriceId": "", "unitAmount": null },
+        { "sku": "coins_1400", "stripePriceId": "", "unitAmount": null },
+        { "sku": "coins_3200", "stripePriceId": "", "unitAmount": null },
+        { "sku": "starter_bundle", "stripePriceId": "", "unitAmount": null, "once": true },
+        { "sku": "adventurer", "stripePriceId": "", "unitAmount": null },
+        { "sku": "stable", "stripePriceId": "", "unitAmount": null }
+      ]
+    },
+    "cad": {
+      "currency": "cad",
+      "buyers": "everyone_else",
+      "products": [
+        { "sku": "coins_500", "stripePriceId": "", "unitAmount": null },
+        { "sku": "coins_1400", "stripePriceId": "", "unitAmount": null },
+        { "sku": "coins_3200", "stripePriceId": "", "unitAmount": null },
+        { "sku": "starter_bundle", "stripePriceId": "", "unitAmount": null, "once": true },
+        { "sku": "adventurer", "stripePriceId": "", "unitAmount": null },
+        { "sku": "stable", "stripePriceId": "", "unitAmount": null }
+      ]
+    }
+  }
+}

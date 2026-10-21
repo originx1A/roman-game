@@ -77,6 +77,12 @@
   status = 200
   force = true
 
+[[redirects]]
+  from = "/api/cart"
+  to = "/.netlify/functions/cart"
+  status = 200
+  force = true
+
 # Payment API before the single-page fallback. Static hosts ignore this file.
 [[redirects]]
   from = "/api/*"

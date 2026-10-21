@@ -167,6 +167,8 @@ create table if not exists public.carts (
   player_id uuid not null references public.players(id) on delete cascade,
   status text not null default 'pending' check (status in ('pending', 'completed', 'expired', 'cancelled')),
   holds_starter boolean not null default false,
+  gift_mode text check (gift_mode is null or gift_mode in ('linked_child', 'code')),
+  gift_child_id uuid references public.players(id) on delete set null,
   expires_at timestamptz,
   created_at timestamptz not null default now()
 );
