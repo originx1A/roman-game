@@ -3,6 +3,7 @@ import { webPackById } from '../lib/coinPacks.ts'
 import { json, PURCHASES_UNAVAILABLE } from '../lib/http.ts'
 import { buildPurchaseRecord, PURCHASE_STORE } from '../lib/purchases.ts'
 import { CHECKOUT_TEST_ONLY } from '../lib/coinPacks.ts'
+import { gateResponse, requestCountry, requireCheckoutGate, userToken } from '../lib/payGate.ts'
 import { isCheckoutSessionId, isLiveStripeKey, readStripeKey, stripeClient } from '../lib/stripeServer.ts'
 
 
@@ -26,6 +27,13 @@ export default async function confirmCheckout(req: Request): Promise<Response> {
     return json({ error: 'Missing session' }, 400)
   }
   if (!isCheckoutSessionId(sessionId)) return json({ error: 'Missing session' }, 400)
+
+  const gate = await requireCheckoutGate({
+    token: userToken(req),
+    country: requestCountry(req),
+    requireReauth: false,
+  })
+  if (!gate.ok) return gateResponse(gate)
 
   try {
     const stripe = stripeClient(key)
