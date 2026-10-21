@@ -1,5 +1,6 @@
 import { hashCard, hashCode, hashIp, hashUa, hashesEqual, newCardToken, scrubMetadata, sixDigitCode } from './authCrypto.ts'
-import { DAY, HOUR, nameLocked, notePasswordChange, noteRecoverAttempt, noteSigninAttempt, noteSigninFailure, noteSignupAttempt, passwordChangeBlocked, recoverIpBlocked, recoverNameBlocked, signinIpBlocked, signinNeedsTurnstile, signupIpBlocked } from './authLimits.ts'
+import { nameLocked, notePasswordChange, noteRecoverAttempt, noteSigninAttempt, noteSigninFailure, noteSignupAttempt, passwordChangeBlocked, recoverIpBlocked, recoverNameBlocked, signinIpBlocked, signinNeedsTurnstile, signupIpBlocked } from './authLimits.ts'
+import { ABSOLUTE_SHORT_MS, ABSOLUTE_STAY_MS, sessionExpired, sessionIdFromAccessToken } from './sessionClock.ts'
 import { decideName, publicDisplayName } from './namePolicy.ts'
 import { PASSWORD_HINT, passwordRejectReason } from './passwordPolicy.ts'
 import { hibpRange } from './hibp.ts'
@@ -15,6 +16,7 @@ export type AuthRoute =
   | 'recover-card'
   | 'recover-parent'
   | 'recovery-card-issue'
+  | 'refresh'
   | 'signout'
 
 const INVALID = { error: 'invalid_credentials' }
@@ -85,6 +87,8 @@ export async function handleAuth(req: Request, route: AuthRoute, deps: AuthDeps)
         return await recoverParent(ctx)
       case 'recovery-card-issue':
         return await issueCard(ctx)
+      case 'refresh':
+        return await refreshSession(ctx)
       case 'signout':
         return await signout(ctx)
       default:
@@ -157,7 +161,7 @@ async function signup(ctx: Ctx): Promise<Response> {
   if (created === 'captcha') return authResponse({ error: 'turnstile_required' }, 403, origin)
   if (created === 'failed') return authResponse({ error: 'unavailable' }, 503, origin)
   if (email && plainCode) await deps.sendCode(email, plainCode, 'verify').catch(() => undefined)
-  await rememberDevice(ctx, created.playerId)
+  await rememberDevice(ctx, created.playerId, created.session.access_token)
   await audit(ctx, 'signup', created.playerId, { name_normalized: name.normalized })
   return authResponse(sessionBody(created.playerId, shown, created.session, stayUntil(ctx)), 201, origin)
 }
@@ -205,7 +209,7 @@ async function signin(ctx: Ctx): Promise<Response> {
 
   const cleared = { ...nameRow, failures: [], lockedUntil: null }
   await deps.backend.putLimit('signin_name', name.normalized, cleared)
-  await rememberDevice(ctx, signed.playerId)
+  await rememberDevice(ctx, signed.playerId, signed.session.access_token)
   await audit(ctx, 'signin_ok', signed.playerId, { name_normalized: name.normalized })
   const shown = publicDisplayName(profile.displayName)
   return authResponse(sessionBody(signed.playerId, shown, signed.session, stayUntil(ctx)), 200, origin)
@@ -213,8 +217,9 @@ async function signin(ctx: Ctx): Promise<Response> {
 
 async function changePassword(ctx: Ctx): Promise<Response> {
   const { body, deps, now, origin } = ctx
-  const playerId = await bearerPlayer(ctx)
-  if (!playerId) return authResponse(INVALID, 401, origin)
+  const live = await livePlayer(ctx)
+  if (live instanceof Response) return live
+  const playerId = live.playerId
   const row = await deps.backend.getLimit('password_user', playerId)
   if (passwordChangeBlocked(row, now)) return authResponse(LIMITED, 429, origin)
   await deps.backend.putLimit('password_user', playerId, notePasswordChange(row, now))
@@ -326,7 +331,7 @@ async function recoverEmailFinish(ctx: Ctx): Promise<Response> {
   if (!signed) return authResponse({ error: 'unavailable' }, 503, origin)
   await deps.backend.saveRecovery(verifyRecovery(recovery, now))
   await deps.backend.revoke(profile.playerId, 'global').catch(() => undefined)
-  await rememberDevice(ctx, profile.playerId)
+  await rememberDevice(ctx, profile.playerId, signed.session.access_token)
   await audit(ctx, 'recovery_email_finish', profile.playerId, { ok: true })
   return authResponse(sessionBody(profile.playerId, publicDisplayName(profile.displayName), signed.session), 200, origin)
 }
@@ -356,15 +361,16 @@ async function recoverCard(ctx: Ctx): Promise<Response> {
   await deps.backend.revoke(playerId, 'global').catch(() => undefined)
   const qr = deps.newCard()
   await deps.backend.replaceCard(playerId, deps.hashCard(qr), new Date(now).toISOString())
-  await rememberDevice(ctx, playerId)
+  await rememberDevice(ctx, playerId, signed.session.access_token)
   await audit(ctx, 'recovery_card', playerId, { ok: true })
   return authResponse({ ...sessionBody(playerId, publicDisplayName(profile.displayName), signed.session), qr_payload: qr }, 200, origin)
 }
 
 async function recoverParent(ctx: Ctx): Promise<Response> {
   const { body, deps, origin } = ctx
-  const parentId = await bearerPlayer(ctx)
-  if (!parentId) return authResponse(INVALID, 401, origin)
+  const live = await livePlayer(ctx)
+  if (live instanceof Response) return live
+  const parentId = live.playerId
   const proof = await reauthOk(ctx, parentId)
   if (proof === 'captcha') return authResponse({ error: 'turnstile_required' }, 403, origin)
   if (!proof) return authResponse({ error: 'reauth_required' }, 401, origin)
@@ -387,8 +393,9 @@ async function recoverParent(ctx: Ctx): Promise<Response> {
 
 async function issueCard(ctx: Ctx): Promise<Response> {
   const { deps, now, origin } = ctx
-  const playerId = await bearerPlayer(ctx)
-  if (!playerId) return authResponse(INVALID, 401, origin)
+  const live = await livePlayer(ctx)
+  if (live instanceof Response) return live
+  const playerId = live.playerId
   const proof = await reauthOk(ctx, playerId)
   if (proof === 'captcha') return authResponse({ error: 'turnstile_required' }, 403, origin)
   if (!proof) return authResponse({ error: 'reauth_required' }, 401, origin)
@@ -400,11 +407,46 @@ async function issueCard(ctx: Ctx): Promise<Response> {
 
 async function signout(ctx: Ctx): Promise<Response> {
   const { body, deps, origin } = ctx
-  const playerId = await bearerPlayer(ctx)
+  const token = bearer(ctx.req)
+  if (!token) return authResponse(INVALID, 401, origin)
+  const playerId = await deps.backend.playerIdFromAccessToken(token)
   if (!playerId) return authResponse(INVALID, 401, origin)
+  await rejectExpiredSession(ctx, playerId, token, false)
   const scope = body.all_devices === true ? 'global' : 'local'
-  await deps.backend.revoke(playerId, scope, bearer(ctx.req))
+  await deps.backend.revoke(playerId, scope, token)
   return authResponse(null, 204, origin)
+}
+
+async function refreshSession(ctx: Ctx): Promise<Response> {
+  const { body, deps, now, origin } = ctx
+  const refreshToken = typeof body.refresh_token === 'string' ? body.refresh_token.trim() : ''
+  if (refreshToken.length < 10) return authResponse(INVALID, 401, origin)
+  const signed = await deps.backend.refresh(refreshToken)
+  if (!signed || signed === 'captcha') return authResponse(INVALID, 401, origin)
+  const profile = await deps.backend.profileById(signed.playerId)
+  if (profile?.banned) {
+    await deps.backend.revoke(signed.playerId, 'local', signed.session.access_token).catch(() => undefined)
+    return authResponse(INVALID, 401, origin)
+  }
+  const sessionId = sessionIdFromAccessToken(signed.session.access_token)
+  if (!sessionId) {
+    await deps.backend.revoke(signed.playerId, 'local', signed.session.access_token).catch(() => undefined)
+    return authResponse({ error: 'session_expired' }, 401, origin)
+  }
+  let device = await deps.backend.getDevice(sessionId)
+  if (!device && profile) {
+    await rememberDevice(ctx, signed.playerId, signed.session.access_token)
+    device = await deps.backend.getDevice(sessionId)
+  }
+  if (device && device.playerId === signed.playerId && sessionExpired(device, now)) {
+    await deps.backend.revoke(signed.playerId, 'local', signed.session.access_token).catch(() => undefined)
+    await audit(ctx, 'signin_fail', signed.playerId, { rejected: 'session_expired' })
+    return authResponse({ error: 'session_expired' }, 401, origin)
+  }
+  if (device) await deps.backend.touchDevice(sessionId, new Date(now).toISOString()).catch(() => undefined)
+  const shown = profile ? publicDisplayName(profile.displayName) : ''
+  const stay = device ? { stay_signed_in: device.stay, absolute_until: new Date(device.absoluteUntil).toISOString() } : stayUntil(ctx)
+  return authResponse(sessionBody(signed.playerId, shown, signed.session, stay), 200, origin)
 }
 
 function sessionBody(userId: string, displayName: string, session: SessionPair, extra?: Record<string, unknown>) {
@@ -413,7 +455,7 @@ function sessionBody(userId: string, displayName: string, session: SessionPair, 
 
 function stayUntil(ctx: Ctx): { absolute_until: string; stay_signed_in: boolean } {
   const stay = staySignedIn(ctx.body.stay_signed_in)
-  const ms = stay ? 90 * DAY : 12 * HOUR
+  const ms = stay ? ABSOLUTE_STAY_MS : ABSOLUTE_SHORT_MS
   return { stay_signed_in: stay, absolute_until: new Date(ctx.now + ms).toISOString() }
 }
 
@@ -445,22 +487,47 @@ export function readCaptchaToken(body: Record<string, unknown>): string | undefi
   return token
 }
 
-async function rememberDevice(ctx: Ctx, playerId: string): Promise<void> {
+async function rememberDevice(ctx: Ctx, playerId: string, accessToken: string): Promise<void> {
+  const sessionId = sessionIdFromAccessToken(accessToken)
+  if (!sessionId) return
   const stay = staySignedIn(ctx.body.stay_signed_in)
-  const ms = stay ? 90 * DAY : 12 * HOUR
+  const ms = stay ? ABSOLUTE_STAY_MS : ABSOLUTE_SHORT_MS
+  const seenAt = new Date(ctx.now).toISOString()
   await ctx.deps.backend.saveDevice({
     playerId,
+    sessionId,
     uaHash: ctx.deps.hashUa(ctx.req.headers.get('user-agent') ?? ''),
     stay,
     absoluteUntil: new Date(ctx.now + ms).toISOString(),
-    seenAt: new Date(ctx.now).toISOString(),
+    createdAt: seenAt,
+    seenAt,
   }).catch(() => undefined)
 }
 
-async function bearerPlayer(ctx: Ctx): Promise<string | null> {
+async function livePlayer(ctx: Ctx): Promise<{ playerId: string } | Response> {
   const token = bearer(ctx.req)
-  if (!token) return null
-  return ctx.deps.backend.playerIdFromAccessToken(token)
+  if (!token) return authResponse(INVALID, 401, ctx.origin)
+  const playerId = await ctx.deps.backend.playerIdFromAccessToken(token)
+  if (!playerId) return authResponse(INVALID, 401, ctx.origin)
+  if (await rejectExpiredSession(ctx, playerId, token, true)) {
+    return authResponse({ error: 'session_expired' }, 401, ctx.origin)
+  }
+  return { playerId }
+}
+
+/** Revokes a session whose own row is past the idle or absolute cap. A missing row is not expired. */
+async function rejectExpiredSession(ctx: Ctx, playerId: string, accessToken: string, touch: boolean): Promise<boolean> {
+  const sessionId = sessionIdFromAccessToken(accessToken)
+  if (!sessionId) return false
+  const device = await ctx.deps.backend.getDevice(sessionId)
+  if (!device || device.playerId !== playerId) return false
+  if (sessionExpired(device, ctx.now)) {
+    await ctx.deps.backend.revoke(playerId, 'local', accessToken).catch(() => undefined)
+    await audit(ctx, 'signin_fail', playerId, { rejected: 'session_expired' })
+    return true
+  }
+  if (touch) await ctx.deps.backend.touchDevice(sessionId, new Date(ctx.now).toISOString()).catch(() => undefined)
+  return false
 }
 
 async function reauthOk(ctx: Ctx, playerId: string): Promise<true | 'captcha' | false> {

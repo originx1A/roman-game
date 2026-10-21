@@ -101,16 +101,20 @@ alter table public.auth_rate_limits enable row level security;
 revoke all on public.auth_rate_limits from anon, authenticated;
 grant all on public.auth_rate_limits to service_role;
 
--- 5. Devices. Hashed user agent. Stay-signed-in and the absolute cap. --------
+-- 5. Sessions. Supabase Free leaves time-box and inactivity at 0 (never).
+--    This row is the clock: created_at is sign-in, last_seen_at is the last
+--    refresh or /api/auth use. Stay signed in: 30 days idle, 90 days absolute.
+--    Otherwise 12 hours absolute. The auth functions revoke via admin signOut.
 create table if not exists public.auth_devices (
   id uuid primary key default gen_random_uuid(),
   player_id uuid not null references public.players(id) on delete cascade,
+  session_id text not null check (char_length(session_id) between 8 and 128),
   ua_hash text not null check (char_length(ua_hash) between 16 and 128),
   stay_signed_in boolean not null default true,
   absolute_until timestamptz not null,
-  first_seen timestamptz not null default now(),
-  last_seen timestamptz not null default now(),
-  unique (player_id, ua_hash)
+  created_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now(),
+  unique (session_id)
 );
 alter table public.auth_devices enable row level security;
 drop policy if exists "devices: read own" on public.auth_devices;

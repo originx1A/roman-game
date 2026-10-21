@@ -52,6 +52,27 @@ export type CreateAccountInput = {
 
 export type PasswordSignIn = { playerId: string; session: SessionPair } | 'captcha' | null
 
+/** One row per Supabase session. createdAt starts at sign-in. lastSeenAt moves on refresh and /api/auth use. */
+export type DeviceRecord = {
+  playerId: string
+  sessionId: string
+  uaHash: string
+  stay: boolean
+  createdAt: number
+  lastSeenAt: number
+  absoluteUntil: number
+}
+
+export type DeviceWrite = {
+  playerId: string
+  sessionId: string
+  uaHash: string
+  stay: boolean
+  absoluteUntil: string
+  createdAt: string
+  seenAt: string
+}
+
 export interface AuthBackend {
   lookupName(normalized: string): Promise<ProfileRecord | null>
   profileById(playerId: string): Promise<ProfileRecord | null>
@@ -61,7 +82,10 @@ export interface AuthBackend {
   setPassword(playerId: string, password: string): Promise<boolean>
   revoke(playerId: string, scope: 'global' | 'others' | 'local', accessToken?: string): Promise<void>
   playerIdFromAccessToken(token: string): Promise<string | null>
-  saveDevice(input: { playerId: string; uaHash: string; stay: boolean; absoluteUntil: string; seenAt: string }): Promise<void>
+  refresh(refreshToken: string): Promise<PasswordSignIn>
+  saveDevice(input: DeviceWrite): Promise<void>
+  getDevice(sessionId: string): Promise<DeviceRecord | null>
+  touchDevice(sessionId: string, seenAt: string): Promise<void>
   getLimit(action: string, subject: string): Promise<LimitRow>
   putLimit(action: string, subject: string, row: LimitRow): Promise<void>
   getRecovery(playerId: string): Promise<RecoveryRecord | null>

@@ -22,9 +22,20 @@ The game host calls these. Cooper’s sign-in face should set `nameAuth.signIn` 
 | `POST /api/auth/recover/card` | `200` with a session and the new `qr_payload` |
 | `POST /api/auth/recover/parent` | `200 {ok:true}` for an active parent link. No child session |
 | `POST /api/auth/recovery-card/issue` | `200 {qr_payload}` |
+| `POST /api/auth/refresh` | `200` with a new session, or `401` `{error:"session_expired"}` |
 | `POST /api/auth/signout` | `204` |
 
-Signup and sign-in accept `email` or `recovery_email`, and `captchaToken` or `turnstile_token`. `stay_signed_in` defaults to true (90 days absolute). `false` is 12 hours absolute. The face’s age checkbox is not part of the POST body and is ignored if sent.
+Signup and sign-in accept `email` or `recovery_email`, and `captchaToken` or `turnstile_token`. `stay_signed_in` defaults to true. The face’s age checkbox is not part of the POST body and is ignored if sent.
+
+Name accounts are created with the admin API and `email_confirm: true`. Confirm email is on for the project, and the synthetic `@players.romansgame.invalid` address is not a mailbox, so it must be confirmed at create time.
+
+## Session length
+
+Supabase is on the Free plan. Time-box and inactivity timeout are Pro-only and stay at 0 (never). This server enforces the limits instead.
+
+Each sign-in writes an `auth_devices` row: `created_at` is the start, `last_seen_at` moves on `POST /api/auth/refresh` and on the bearer `/api/auth/*` calls. Stay signed in (the default): 30 days idle or 90 days from `created_at`, whichever comes first. Stay off: 12 hours from `created_at`. A row past either limit is revoked with `admin.signOut` and the call returns `401 {error:"session_expired"}`.
+
+Cooper should refresh through `POST /api/auth/refresh` with `{refresh_token}`, not the Supabase client’s automatic refresh. The automatic path talks to Supabase directly, and the Free plan will not expire it.
 
 Errors the face already matches: `401` `{error:"invalid_credentials"}` (unknown name, wrong password, and a banned account look the same), `409` `{error:"name_taken"}`, `429` `{error:"rate_limited"}`. `422` is `name_rejected` or `weak_password` (with `hint`). `403` is `{error:"turnstile_required"}`.
 
@@ -42,11 +53,10 @@ Signup requires a token before creating the user, then signs in with that same t
 
 ## What Tony clicks in Supabase
 
-Auth → Sessions:
+Auth → Sessions (Free plan):
 
-- JWT expiry `3600` seconds
-- Time-box `2160` hours (90 days)
-- Inactivity timeout `720` hours (30 days)
+- JWT expiry `3600` seconds, if that control is available
+- Leave time-box and inactivity at 0. They are Pro-only and this server enforces 30 days idle / 90 days absolute
 - Refresh token rotation on
 - Reuse interval short (10 seconds is enough)
 

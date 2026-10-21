@@ -1,9 +1,9 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { consumeReauth } from './reauth.ts'
 import { loginEmail } from './authCrypto.ts'
 import { emptyLimit, type LimitRow } from './authLimits.ts'
-import { SUPABASE_URL, supabaseAdmin } from './supabaseAdmin.ts'
-import { playerInsert, profileInsert, type AuthBackend, type PasswordSignIn, type ProfileRecord, type RecoveryRecord, type SessionPair } from './authTypes.ts'
+import { SUPABASE_PUBLISHABLE, SUPABASE_URL, supabaseAdmin } from './supabaseAdmin.ts'
+import { playerInsert, profileInsert, type AuthBackend, type DeviceRecord, type PasswordSignIn, type ProfileRecord, type RecoveryRecord, type SessionPair } from './authTypes.ts'
 import { scrubMetadata } from './authCrypto.ts'
 
 type Row = Record<string, unknown>
@@ -56,6 +56,8 @@ class SupabaseAuthBackend implements AuthBackend {
   }
 
   async createAccount(input: Parameters<AuthBackend['createAccount']>[0]): Promise<{ playerId: string; session: SessionPair } | 'taken' | 'failed' | 'captcha'> {
+    // Confirm email is ON for the project. The synthetic address is not a mailbox,
+    // so the admin create marks it confirmed. auth.signUp would leave it unconfirmed.
     const { data, error } = await this.admin.auth.admin.createUser({
       email: loginEmail(input.normalized),
       password: input.password,
@@ -129,17 +131,55 @@ class SupabaseAuthBackend implements AuthBackend {
     return data.user.id
   }
 
-  async saveDevice(input: { playerId: string; uaHash: string; stay: boolean; absoluteUntil: string; seenAt: string }): Promise<void> {
+  async refresh(refreshToken: string): Promise<PasswordSignIn> {
+    try {
+      const client = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      })
+      const { data, error } = await client.auth.refreshSession({ refresh_token: refreshToken })
+      if (error || !data.session || !data.user) return null
+      return { playerId: data.user.id, session: toSession(data.session) }
+    } catch {
+      return null
+    }
+  }
+
+  async saveDevice(input: Parameters<AuthBackend['saveDevice']>[0]): Promise<void> {
     await this.admin.from('auth_devices').upsert(
       {
         player_id: input.playerId,
+        session_id: input.sessionId,
         ua_hash: input.uaHash,
         stay_signed_in: input.stay,
         absolute_until: input.absoluteUntil,
-        last_seen: input.seenAt,
+        created_at: input.createdAt,
+        last_seen_at: input.seenAt,
       },
-      { onConflict: 'player_id,ua_hash' },
+      { onConflict: 'session_id' },
     )
+  }
+
+  async getDevice(sessionId: string): Promise<DeviceRecord | null> {
+    const { data, error } = await this.admin
+      .from('auth_devices')
+      .select('player_id, session_id, ua_hash, stay_signed_in, created_at, last_seen_at, absolute_until')
+      .eq('session_id', sessionId)
+      .maybeSingle()
+    if (error || !data) return null
+    const row = data as Row
+    return {
+      playerId: String(row.player_id),
+      sessionId: String(row.session_id),
+      uaHash: String(row.ua_hash),
+      stay: row.stay_signed_in !== false,
+      createdAt: Date.parse(String(row.created_at)),
+      lastSeenAt: Date.parse(String(row.last_seen_at)),
+      absoluteUntil: Date.parse(String(row.absolute_until)),
+    }
+  }
+
+  async touchDevice(sessionId: string, seenAt: string): Promise<void> {
+    await this.admin.from('auth_devices').update({ last_seen_at: seenAt }).eq('session_id', sessionId)
   }
 
   async getLimit(action: string, subject: string): Promise<LimitRow> {

@@ -4,6 +4,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import test from 'node:test'
 import { handleAuth, readCaptchaToken, type AuthDeps, type AuthRoute } from '../netlify/lib/authHandler.ts'
+import { ABSOLUTE_SHORT_MS, ABSOLUTE_STAY_MS, IDLE_MS, sessionExpired } from '../netlify/lib/sessionClock.ts'
 import { DAY, HOUR, MINUTE, emptyLimit, nextLockMs, noteSigninAttempt, noteSigninFailure, noteSignupAttempt, signinIpBlocked, signupIpBlocked } from '../netlify/lib/authLimits.ts'
 import { hashCard, hashCode, hashIp, hashUa, scrubMetadata } from '../netlify/lib/authCrypto.ts'
 import { COMMON_PASSWORDS } from '../netlify/lib/commonPasswords.ts'
@@ -314,6 +315,96 @@ test('audit rows keep no password, token, or email', async () => {
   assert.equal(dumped.includes(TOKEN), false)
   assert.equal(dumped.includes('kid@example.com'), false)
   assert.deepEqual(scrubMetadata({ password: PASSWORD, email: 'kid@example.com', ok: true, captchaToken: TOKEN }), { ok: true })
+})
+
+test('the session clock expires idle stay-signed-in rows and short rows at 12 hours', () => {
+  const start = NOW
+  assert.equal(sessionExpired({ stay: true, createdAt: start, lastSeenAt: start, absoluteUntil: start + ABSOLUTE_STAY_MS }, start + IDLE_MS - 1), null)
+  assert.equal(sessionExpired({ stay: true, createdAt: start, lastSeenAt: start, absoluteUntil: start + ABSOLUTE_STAY_MS }, start + IDLE_MS), 'idle')
+  assert.equal(
+    sessionExpired({ stay: true, createdAt: start, lastSeenAt: start + 80 * 24 * 60 * 60 * 1000, absoluteUntil: start + ABSOLUTE_STAY_MS }, start + ABSOLUTE_STAY_MS),
+    'absolute',
+  )
+  assert.equal(sessionExpired({ stay: false, createdAt: start, lastSeenAt: start, absoluteUntil: start + ABSOLUTE_SHORT_MS }, start + ABSOLUTE_SHORT_MS - 1), null)
+  assert.equal(sessionExpired({ stay: false, createdAt: start, lastSeenAt: start, absoluteUntil: start + ABSOLUTE_SHORT_MS }, start + ABSOLUTE_SHORT_MS), 'absolute')
+})
+
+test('refresh moves last_seen_at and revokes an idle or 90-day session', async () => {
+  const backend = new MemoryAuth()
+  const clock = { now: NOW }
+  const { authDeps } = deps(backend, NOW)
+  authDeps.now = () => clock.now
+  const created = await json(await call('signup', { name: 'Cool Kid', password: PASSWORD, captchaToken: TOKEN, stay_signed_in: true }, authDeps))
+  const first = created.session as { refresh_token: string }
+  const device = [...backend.devices.values()][0]
+  assert.ok(device)
+  assert.equal(device.createdAt, NOW)
+  assert.equal(device.lastSeenAt, NOW)
+
+  clock.now = NOW + 10 * 24 * 60 * 60 * 1000
+  const refreshed = await call('refresh', { refresh_token: first.refresh_token }, authDeps)
+  assert.equal(refreshed.status, 200)
+  const next = await json(refreshed)
+  assert.equal(typeof (next.session as { access_token: string }).access_token, 'string')
+  assert.equal(device.createdAt, NOW)
+  assert.equal(device.lastSeenAt, clock.now)
+  const rotated = (next.session as { refresh_token: string }).refresh_token
+  assert.notEqual(rotated, first.refresh_token)
+
+  clock.now = NOW + ABSOLUTE_STAY_MS
+  const tooOld = await call('refresh', { refresh_token: rotated }, authDeps)
+  assert.equal(tooOld.status, 401)
+  assert.deepEqual(await json(tooOld), { error: 'session_expired' })
+  assert.equal(backend.revokes.some((row) => row.scope === 'local'), true)
+})
+
+test('an idle stay-signed-in refresh is revoked before the 90-day cap', async () => {
+  const backend = new MemoryAuth()
+  const clock = { now: NOW }
+  const { authDeps } = deps(backend, NOW)
+  authDeps.now = () => clock.now
+  const created = await json(await call('signup', { name: 'Cool Kid', password: PASSWORD, captchaToken: TOKEN }, authDeps))
+  const refreshToken = (created.session as { refresh_token: string }).refresh_token
+  clock.now = NOW + IDLE_MS
+  const idle = await call('refresh', { refresh_token: refreshToken }, authDeps)
+  assert.equal(idle.status, 401)
+  assert.deepEqual(await json(idle), { error: 'session_expired' })
+})
+
+test('stay_signed_in false expires 12 hours after sign-in', async () => {
+  const backend = new MemoryAuth()
+  const clock = { now: NOW }
+  const { authDeps } = deps(backend, NOW)
+  authDeps.now = () => clock.now
+  const created = await json(await call('signup', { name: 'Cool Kid', password: PASSWORD, captchaToken: TOKEN, stay_signed_in: false }, authDeps))
+  const refreshToken = (created.session as { refresh_token: string }).refresh_token
+  clock.now = NOW + ABSOLUTE_SHORT_MS - 60_000
+  const ok = await call('refresh', { refresh_token: refreshToken }, authDeps)
+  assert.equal(ok.status, 200)
+  const rotated = ((await json(ok)).session as { refresh_token: string }).refresh_token
+  clock.now = NOW + ABSOLUTE_SHORT_MS
+  const expired = await call('refresh', { refresh_token: rotated }, authDeps)
+  assert.equal(expired.status, 401)
+  assert.deepEqual(await json(expired), { error: 'session_expired' })
+})
+
+test('a bearer auth call rejects an expired session', async () => {
+  const backend = new MemoryAuth()
+  const clock = { now: NOW }
+  const { authDeps } = deps(backend, NOW)
+  authDeps.now = () => clock.now
+  const created = await json(await call('signup', { name: 'Cool Kid', password: PASSWORD, captchaToken: TOKEN }, authDeps))
+  const access = (created.session as { access_token: string }).access_token
+  clock.now = NOW + IDLE_MS
+  const changed = await call(
+    'password-change',
+    { current_password: PASSWORD, new_password: 'river-stone-lantern', captchaToken: TOKEN },
+    authDeps,
+    { authorization: `Bearer ${access}` },
+  )
+  assert.equal(changed.status, 401)
+  assert.deepEqual(await json(changed), { error: 'session_expired' })
+  assert.equal(backend.revokes.some((row) => row.scope === 'local'), true)
 })
 
 test('signup writes no age and no account type', () => {

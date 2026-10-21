@@ -1,9 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import { emptyLimit, type LimitRow } from '../netlify/lib/authLimits.ts'
+import { accessTokenForSession } from '../netlify/lib/sessionClock.ts'
 import type {
   AuditRow,
   AuthBackend,
   CreateAccountInput,
+  DeviceRecord,
+  DeviceWrite,
   PasswordSignIn,
   ProfileRecord,
   RecoveryRecord,
@@ -23,9 +26,10 @@ export class MemoryAuth implements AuthBackend {
   parents = new Set<string>()
   reauths = new Set<string>()
   audits: AuditRow[] = []
-  devices: { playerId: string; uaHash: string; stay: boolean; absoluteUntil: string }[] = []
+  devices = new Map<string, DeviceRecord>()
   revokes: { playerId: string; scope: 'global' | 'others' | 'local'; accessToken?: string }[] = []
   tokens = new Map<string, string>()
+  refreshIndex = new Map<string, { playerId: string; sessionId: string }>()
   captchaUses: { where: string; token?: string }[] = []
   failCaptcha = false
   private seq = 0
@@ -34,13 +38,15 @@ export class MemoryAuth implements AuthBackend {
     this.cards.push({ hash, playerId, usedAt: null })
   }
 
-  private session(playerId: string): SessionPair {
+  private session(playerId: string, sessionId = randomUUID()): SessionPair {
     this.seq += 1
-    const access = `access-${playerId}-${this.seq}`
+    const access = accessTokenForSession(sessionId, playerId)
+    const refresh = `refresh.${sessionId}.${this.seq}`
     this.tokens.set(access, playerId)
+    this.refreshIndex.set(refresh, { playerId, sessionId })
     return {
       access_token: access,
-      refresh_token: `refresh-${playerId}-${this.seq}`,
+      refresh_token: refresh,
       expires_in: 3600,
       token_type: 'bearer',
     }
@@ -128,13 +134,34 @@ export class MemoryAuth implements AuthBackend {
     return this.tokens.get(token) ?? null
   }
 
-  async saveDevice(input: { playerId: string; uaHash: string; stay: boolean; absoluteUntil: string; seenAt: string }): Promise<void> {
-    this.devices.push({
+  async refresh(refreshToken: string): Promise<PasswordSignIn> {
+    const found = this.refreshIndex.get(refreshToken)
+    if (!found) return null
+    this.refreshIndex.delete(refreshToken)
+    return { playerId: found.playerId, session: this.session(found.playerId, found.sessionId) }
+  }
+
+  async saveDevice(input: DeviceWrite): Promise<void> {
+    this.devices.set(input.sessionId, {
       playerId: input.playerId,
+      sessionId: input.sessionId,
       uaHash: input.uaHash,
       stay: input.stay,
-      absoluteUntil: input.absoluteUntil,
+      createdAt: Date.parse(input.createdAt),
+      lastSeenAt: Date.parse(input.seenAt),
+      absoluteUntil: Date.parse(input.absoluteUntil),
     })
+  }
+
+  async getDevice(sessionId: string): Promise<DeviceRecord | null> {
+    const row = this.devices.get(sessionId)
+    return row ? structuredClone(row) : null
+  }
+
+  async touchDevice(sessionId: string, seenAt: string): Promise<void> {
+    const row = this.devices.get(sessionId)
+    if (!row) return
+    row.lastSeenAt = Date.parse(seenAt)
   }
 
   async getLimit(action: string, subject: string): Promise<LimitRow> {
