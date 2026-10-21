@@ -1,3 +1,12 @@
+/api/auth/signup /.netlify/functions/auth-signup 200!
+/api/auth/signin /.netlify/functions/auth-signin 200!
+/api/auth/password/change /.netlify/functions/auth-password-change 200!
+/api/auth/recover/email/start /.netlify/functions/auth-recover-email-start 200!
+/api/auth/recover/email/finish /.netlify/functions/auth-recover-email-finish 200!
+/api/auth/recover/card /.netlify/functions/auth-recover-card 200!
+/api/auth/recover/parent /.netlify/functions/auth-recover-parent 200!
+/api/auth/recovery-card/issue /.netlify/functions/auth-recovery-card-issue 200!
+/api/auth/signout /.netlify/functions/auth-signout 200!
 /api/* /.netlify/functions/:splat 200!
 # Netlify reads this file before netlify.toml, and the first match wins.
 # The /* rule below would otherwise serve the game's index.html for the feed.

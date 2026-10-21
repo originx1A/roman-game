@@ -29,6 +29,54 @@
     Content-Type = "text/plain; charset=utf-8"
     Cache-Control = "public, max-age=3600"
 
+# Name+password auth. These must sit above /api/* because the first match wins
+# and the splat would look for a function named auth/signup.
+[[redirects]]
+  from = "/api/auth/signup"
+  to = "/.netlify/functions/auth-signup"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/signin"
+  to = "/.netlify/functions/auth-signin"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/password/change"
+  to = "/.netlify/functions/auth-password-change"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/recover/email/start"
+  to = "/.netlify/functions/auth-recover-email-start"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/recover/email/finish"
+  to = "/.netlify/functions/auth-recover-email-finish"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/recover/card"
+  to = "/.netlify/functions/auth-recover-card"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/recover/parent"
+  to = "/.netlify/functions/auth-recover-parent"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/recovery-card/issue"
+  to = "/.netlify/functions/auth-recovery-card-issue"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/signout"
+  to = "/.netlify/functions/auth-signout"
+  status = 200
+  force = true
+
 # Payment API before the single-page fallback. Static hosts ignore this file.
 [[redirects]]
   from = "/api/*"

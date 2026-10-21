@@ -1,0 +1,401 @@
+import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+import test from 'node:test'
+import { handleAuth, readCaptchaToken, type AuthDeps, type AuthRoute } from '../netlify/lib/authHandler.ts'
+import { DAY, HOUR, MINUTE, emptyLimit, nextLockMs, noteSigninAttempt, noteSigninFailure, noteSignupAttempt, signinIpBlocked, signupIpBlocked } from '../netlify/lib/authLimits.ts'
+import { hashCard, hashCode, hashIp, hashUa, scrubMetadata } from '../netlify/lib/authCrypto.ts'
+import { COMMON_PASSWORDS } from '../netlify/lib/commonPasswords.ts'
+import { hibpRange } from '../netlify/lib/hibp.ts'
+import { NAME_FILTER } from '../netlify/lib/nameFilterData.ts'
+import { decideName, publicDisplayName } from '../netlify/lib/namePolicy.ts'
+import { passwordRejectReason } from '../netlify/lib/passwordPolicy.ts'
+import { playerInsert, profileInsert } from '../netlify/lib/authTypes.ts'
+import { TURNSTILE_HOSTS, TURNSTILE_SITE_KEY } from '../src/game/turnstileSite.ts'
+import { MemoryAuth } from './authMemory.ts'
+
+const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8')
+const TOKEN = '0x4AAAAAAFfTs2hm1baT01HK'
+const PASSWORD = 'lantern-river-stone'
+const NOW = Date.parse('2026-10-21T16:00:00.000Z')
+
+function deps(backend: MemoryAuth, now = NOW) {
+  let cards = 0
+  const sent: { email: string; code: string; purpose: string }[] = []
+  const authDeps: AuthDeps = {
+    now: () => now,
+    backend,
+    hibp: async (password) => (password.includes('pwned-secret') ? 'pwned' : 'clear'),
+    hashIp,
+    hashUa,
+    hashCode,
+    hashCard,
+    newCode: () => '654321',
+    newCard: () => {
+      cards += 1
+      return `CARD-NEW${cards}-NEW${cards}-NEW${cards}`
+    },
+    sendCode: async (email, code, purpose) => {
+      sent.push({ email, code, purpose })
+    },
+  }
+  return { authDeps, sent }
+}
+
+function call(
+  route: AuthRoute,
+  body: unknown,
+  authDeps: AuthDeps,
+  headers: Record<string, string> = {},
+  method = 'POST',
+) {
+  const init: RequestInit = {
+    method,
+    headers: {
+      'content-type': 'application/json',
+      origin: 'https://play.romansgame.com',
+      'x-nf-client-connection-ip': '203.0.113.10',
+      ...headers,
+    },
+  }
+  if (method !== 'GET' && method !== 'OPTIONS') init.body = JSON.stringify(body)
+  const req = new Request(`https://play.romansgame.com/api/auth/${route}`, init)
+  return handleAuth(req, route, authDeps)
+}
+
+async function json(res: Response): Promise<Record<string, unknown>> {
+  return (await res.json()) as Record<string, unknown>
+}
+
+test('names normalize, and the filter rejects reserved, leet, and PII', () => {
+  const cool = decideName('Cool Kid')
+  assert.equal(cool.ok, true)
+  if (cool.ok) assert.equal(cool.normalized, 'cool-kid')
+  const wide = decideName('Ｃｏｏｌ')
+  assert.equal(wide.ok, true)
+  if (wide.ok) assert.equal(wide.normalized, 'cool')
+  assert.equal(decideName('ab').ok, false)
+  assert.equal(decideName('1abc').ok, false)
+  assert.equal(decideName('ab_c').ok, false)
+  assert.equal(decideName('admin').ok, false)
+  assert.equal(decideName('ad-min').ok, false)
+  const leet = decideName('sh1t')
+  assert.equal(leet.ok, false)
+  if (!leet.ok) assert.equal(leet.reason, 'profanity')
+  const exact = decideName('a55')
+  assert.equal(exact.ok, false)
+  assert.equal(decideName('Cassidy').ok, true)
+  const phone = decideName('phone-5551234')
+  assert.equal(phone.ok, false)
+  if (!phone.ok) {
+    assert.equal(phone.reason, 'pii')
+    assert.equal(phone.normalized, null)
+  }
+  const handle = decideName('kid@mail.com')
+  assert.equal(handle.ok, false)
+  if (!handle.ok) assert.equal(handle.normalized, null)
+  assert.equal(publicDisplayName('Cool Kid'), 'Cool')
+  assert.equal(publicDisplayName('shit head'), '')
+})
+
+test('passwords reject length, the player name, and the common list', () => {
+  assert.equal(passwordRejectReason('short', []), 'short')
+  assert.equal(passwordRejectReason('x'.repeat(129), []), 'long')
+  assert.equal(passwordRejectReason('coolkidxxxx', ['Cool Kid', 'cool-kid']), 'name')
+  assert.equal(passwordRejectReason('qwertyuiop', []), 'common')
+  assert.equal(passwordRejectReason(PASSWORD, ['Cool Kid', 'cool-kid']), null)
+  assert.equal(COMMON_PASSWORDS.size, 10000)
+})
+
+test('HIBP uses the first five SHA-1 characters and fails open', async () => {
+  const sha1 = createHash('sha1').update('secret').digest('hex').toUpperCase()
+  const prefix = sha1.slice(0, 5)
+  const suffix = sha1.slice(5)
+  let called = ''
+  const hit = await hibpRange('secret', async (url) => {
+    called = String(url)
+    return new Response(`${suffix}:10\nABCDE:1\n`)
+  })
+  assert.equal(hit, 'pwned')
+  assert.ok(called.endsWith(`/${prefix}`))
+  assert.equal(await hibpRange('secret', async () => { throw new Error('down') }), 'unknown')
+})
+
+test('sign-in locks grow from 15 minutes to an hour, and IP and signup windows hold', () => {
+  let name = emptyLimit()
+  let ip = emptyLimit()
+  const start = NOW
+  for (let i = 0; i < 4; i++) {
+    const noted = noteSigninFailure(name, ip, start + i)
+    name = noted.name
+    ip = noted.ip
+    assert.equal(noted.locked, false)
+  }
+  const fifth = noteSigninFailure(name, ip, start + 4)
+  assert.equal(fifth.locked, true)
+  assert.equal(fifth.name.lockedUntil, start + 4 + nextLockMs(0))
+  assert.equal(nextLockMs(0), 15 * MINUTE)
+  assert.equal(nextLockMs(1), 30 * MINUTE)
+  assert.equal(nextLockMs(2), 60 * MINUTE)
+  assert.equal(nextLockMs(3), 60 * MINUTE)
+
+  let hits = emptyLimit()
+  for (let i = 0; i < 19; i++) hits = noteSigninAttempt(hits, start)
+  assert.equal(signinIpBlocked(hits, start), false)
+  hits = noteSigninAttempt(hits, start)
+  assert.equal(signinIpBlocked(hits, start), true)
+
+  let signups = emptyLimit()
+  for (let i = 0; i < 4; i++) signups = noteSignupAttempt(signups, start)
+  assert.equal(signupIpBlocked(signups, start), false)
+  signups = noteSignupAttempt(signups, start)
+  assert.equal(signupIpBlocked(signups, start), true)
+})
+
+test('signup returns the face session and the public first word', async () => {
+  const backend = new MemoryAuth()
+  const { authDeps } = deps(backend)
+  const created = await call('signup', { name: 'Cool Kid', password: PASSWORD, email: 'kid@example.com', captchaToken: TOKEN, stay_signed_in: true }, authDeps)
+  assert.equal(created.status, 201)
+  const body = await json(created)
+  const session = body.session as { access_token: string; refresh_token: string }
+  assert.equal(typeof session.access_token, 'string')
+  assert.equal(typeof session.refresh_token, 'string')
+  assert.equal(body.display_name, 'Cool')
+  assert.equal(body.stay_signed_in, true)
+  const until = Date.parse(String(body.absolute_until))
+  assert.equal(until - NOW, 90 * DAY)
+  assert.equal(backend.captchaUses.some((use) => use.token === TOKEN), true)
+
+  const again = await call('signup', { name: 'Cool Kid', password: PASSWORD, captchaToken: TOKEN }, authDeps)
+  assert.equal(again.status, 409)
+  assert.deepEqual(await json(again), { error: 'name_taken' })
+})
+
+test('signup rejects a bad name, a weak password, and a missing captcha token', async () => {
+  const backend = new MemoryAuth()
+  const { authDeps } = deps(backend)
+  const unnamed = await call('signup', { name: 'ab', password: PASSWORD, captchaToken: TOKEN }, authDeps)
+  assert.equal(unnamed.status, 422)
+  assert.equal((await json(unnamed)).error, 'name_rejected')
+  const weak = await call('signup', { name: 'Bright Fox', password: 'short', captchaToken: TOKEN }, authDeps)
+  assert.equal(weak.status, 422)
+  assert.equal((await json(weak)).error, 'weak_password')
+  const bare = await call('signup', { name: 'Bright Fox', password: PASSWORD }, authDeps)
+  assert.equal(bare.status, 403)
+  assert.equal((await json(bare)).error, 'turnstile_required')
+  assert.equal(backend.profiles.size, 0)
+})
+
+test('unknown names and wrong passwords return the same body', async () => {
+  const backend = new MemoryAuth()
+  const { authDeps } = deps(backend)
+  assert.equal((await call('signup', { name: 'Cool Kid', password: PASSWORD, captchaToken: TOKEN }, authDeps)).status, 201)
+  const unknown = await call('signin', { name: 'Other Kid', password: 'not-the-one' }, authDeps)
+  const wrong = await call('signin', { name: 'Cool Kid', password: 'not-the-one' }, authDeps)
+  assert.equal(unknown.status, wrong.status)
+  assert.equal(unknown.status, 401)
+  const unknownBody = await json(unknown)
+  const wrongBody = await json(wrong)
+  assert.deepEqual(unknownBody, wrongBody)
+  assert.deepEqual(wrongBody, { error: 'invalid_credentials' })
+})
+
+test('a captcha rejection is not counted as a password failure', async () => {
+  const backend = new MemoryAuth()
+  const { authDeps } = deps(backend)
+  await call('signup', { name: 'Cool Kid', password: PASSWORD, captchaToken: TOKEN }, authDeps)
+  backend.failCaptcha = true
+  const rejected = await call('signin', { name: 'Cool Kid', password: 'not-the-one', turnstile_token: `  ${TOKEN}  ` }, authDeps)
+  assert.equal(rejected.status, 403)
+  const row = await backend.getLimit('signin_name', 'cool-kid')
+  assert.equal(row.failures.length, 0)
+  assert.equal(backend.captchaUses.at(-1)?.token, TOKEN)
+})
+
+test('stay_signed_in false expires in 12 hours', async () => {
+  const backend = new MemoryAuth()
+  const { authDeps } = deps(backend)
+  const created = await call('signup', { name: 'Cool Kid', password: PASSWORD, captchaToken: TOKEN, stay_signed_in: false }, authDeps)
+  const body = await json(created)
+  assert.equal(body.stay_signed_in, false)
+  assert.equal(Date.parse(String(body.absolute_until)) - NOW, 12 * HOUR)
+})
+
+test('the fifth sign-in failure locks the name', async () => {
+  const backend = new MemoryAuth()
+  const { authDeps } = deps(backend)
+  await call('signup', { name: 'Cool Kid', password: PASSWORD, captchaToken: TOKEN }, authDeps)
+  let last = 0
+  for (let i = 0; i < 5; i++) {
+    const res = await call('signin', { name: 'Cool Kid', password: 'not-the-one', captchaToken: TOKEN }, authDeps)
+    last = res.status
+  }
+  assert.equal(last, 429)
+  const locked = await call('signin', { name: 'Cool Kid', password: PASSWORD, captchaToken: TOKEN }, authDeps)
+  assert.equal(locked.status, 429)
+  assert.deepEqual(await json(locked), { error: 'rate_limited' })
+})
+
+test('the 21st sign-in from one IP is limited', async () => {
+  const backend = new MemoryAuth()
+  const { authDeps } = deps(backend)
+  for (let i = 0; i < 20; i++) {
+    const res = await call('signin', { name: `player${i}x`, password: 'not-the-one', captchaToken: TOKEN }, authDeps)
+    assert.equal(res.status, 401)
+  }
+  const blocked = await call('signin', { name: 'player99x', password: 'not-the-one', captchaToken: TOKEN }, authDeps)
+  assert.equal(blocked.status, 429)
+})
+
+test('a recovery card works once and returns a new payload', async () => {
+  const backend = new MemoryAuth()
+  const { authDeps } = deps(backend)
+  const created = await json(await call('signup', { name: 'Cool Kid', password: PASSWORD, captchaToken: TOKEN }, authDeps))
+  const playerId = String(created.user_id)
+  const card = 'CARD-ABCD-EFGH-JKLM'
+  backend.addCard(playerId, hashCard(card))
+  const weak = await call('recover-card', { card_token: card, new_password: 'short', captchaToken: TOKEN }, authDeps)
+  assert.equal(weak.status, 422)
+  assert.equal(backend.cards[0]?.usedAt, null)
+  const ok = await call('recover-card', { card_token: card, new_password: 'river-stone-lantern', turnstile_token: TOKEN }, authDeps)
+  assert.equal(ok.status, 200)
+  const body = await json(ok)
+  assert.equal(typeof body.qr_payload, 'string')
+  assert.match(String(body.qr_payload), /^CARD-/)
+  const again = await call('recover-card', { card_token: card, new_password: 'river-stone-lantern', captchaToken: TOKEN }, authDeps)
+  assert.equal(again.status, 401)
+  const rotated = await call('recover-card', { card_token: body.qr_payload, new_password: 'lantern-stone-river', captchaToken: TOKEN }, authDeps)
+  assert.equal(rotated.status, 200)
+})
+
+test('a parent can reset a linked child and cannot reset anyone else', async () => {
+  const backend = new MemoryAuth()
+  const { authDeps } = deps(backend)
+  const parent = await json(await call('signup', { name: 'Cool Kid', password: PASSWORD, captchaToken: TOKEN }, authDeps))
+  const child = await json(await call('signup', { name: 'Bright Fox', password: PASSWORD, captchaToken: TOKEN }, authDeps))
+  const parentId = String(parent.user_id)
+  const childId = String(child.user_id)
+  const headers = { authorization: `Bearer ${(parent.session as { access_token: string }).access_token}` }
+  const missing = await call('recover-parent', { child_user_id: childId, new_password: 'river-stone-lantern', current_password: PASSWORD }, authDeps, headers)
+  assert.equal(missing.status, 403)
+  assert.deepEqual(await json(missing), { error: 'not_parent' })
+  backend.parents.add(`${parentId}:${childId}`)
+  const ok = await call('recover-parent', { child_user_id: childId, new_password: 'river-stone-lantern', current_password: PASSWORD, captchaToken: TOKEN }, authDeps, headers)
+  assert.equal(ok.status, 200)
+  assert.deepEqual(await json(ok), { ok: true })
+  assert.equal(backend.passwords.get('bright-fox'), 'river-stone-lantern')
+  assert.equal(backend.revokes.some((row) => row.playerId === childId && row.scope === 'global'), true)
+})
+
+test('password change revokes other sessions and sign-out is 204', async () => {
+  const backend = new MemoryAuth()
+  const { authDeps } = deps(backend)
+  const created = await json(await call('signup', { name: 'Cool Kid', password: PASSWORD, captchaToken: TOKEN }, authDeps))
+  const access = (created.session as { access_token: string }).access_token
+  const headers = { authorization: `Bearer ${access}` }
+  const changed = await call('password-change', { current_password: PASSWORD, new_password: 'river-stone-lantern', captchaToken: TOKEN }, authDeps, headers)
+  assert.equal(changed.status, 200)
+  assert.equal(backend.revokes.some((row) => row.scope === 'others'), true)
+  const signedOut = await call('signout', { all_devices: true }, authDeps, headers)
+  assert.equal(signedOut.status, 204)
+  assert.equal(backend.revokes.some((row) => row.scope === 'global'), true)
+  const missing = await call('signout', {}, authDeps)
+  assert.equal(missing.status, 401)
+})
+
+test('audit rows keep no password, token, or email', async () => {
+  const backend = new MemoryAuth()
+  const { authDeps } = deps(backend)
+  await call('signup', { name: 'Cool Kid', password: PASSWORD, email: 'kid@example.com', captchaToken: TOKEN }, authDeps)
+  const dumped = JSON.stringify(backend.audits)
+  assert.equal(dumped.includes(PASSWORD), false)
+  assert.equal(dumped.includes(TOKEN), false)
+  assert.equal(dumped.includes('kid@example.com'), false)
+  assert.deepEqual(scrubMetadata({ password: PASSWORD, email: 'kid@example.com', ok: true, captchaToken: TOKEN }), { ok: true })
+})
+
+test('signup writes no age and no account type', () => {
+  assert.deepEqual(Object.keys(playerInsert('id', 'Cool')).sort(), ['display_name', 'id'])
+  assert.deepEqual(Object.keys(profileInsert('id', 'Cool Kid', 'cool-kid')).sort(), ['display_name', 'name_normalized', 'player_id'])
+})
+
+test('captcha tokens accept either field name', () => {
+  assert.equal(readCaptchaToken({ captchaToken: TOKEN }), TOKEN)
+  assert.equal(readCaptchaToken({ turnstile_token: ` ${TOKEN} ` }), TOKEN)
+  assert.equal(readCaptchaToken({ turnstile_token: 'short' }), undefined)
+})
+
+test('migration 009 adds new tables only', () => {
+  const raw = read('../supabase/migration-009-accounts-auth.sql')
+  const sql = raw.replace(/--[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+  assert.equal(/drop table/i.test(sql), false)
+  assert.equal(/update public\./i.test(sql), false)
+  assert.equal(/\baccount_type\b/.test(sql), false)
+  assert.equal(sql.includes('age_13_plus'), false)
+  assert.equal(/\bchat\b/i.test(sql), false)
+  assert.equal(/\bcurrency\b/i.test(sql), false)
+  assert.equal(/\busd\b/i.test(sql), false)
+  assert.match(sql, /profiles_name_normalized_uniq/)
+  assert.match(sql, /deny_row_change/)
+  assert.match(sql, /receive_gifts/)
+  assert.match(sql, /request_purchase/)
+  assert.match(sql, /request_challenge/)
+  assert.match(sql, /request_story/)
+  assert.match(sql, /play_hours/)
+  const altered = [...sql.matchAll(/alter table public\.([a-z_]+)/g)].map((match) => match[1])
+  const allowed = new Set([
+    'profiles',
+    'account_recovery',
+    'recovery_cards',
+    'auth_rate_limits',
+    'auth_devices',
+    'payment_eligibility',
+    'carts',
+    'cart_items',
+    'wallet_ledger',
+    'game_saves',
+    'account_status',
+    'admin_actions',
+    'audit_events',
+    'parent_restrictions',
+  ])
+  for (const table of altered) assert.ok(allowed.has(table), table)
+  assert.match(raw, /derived_account_type/)
+})
+
+test('the auth backend forwards captcha tokens and confirms synthetic mail', () => {
+  const source = read('../netlify/lib/authBackend.ts')
+  assert.match(source, /email_confirm:\s*true/)
+  assert.match(source, /options:\s*\{\s*captchaToken\s*\}/)
+  assert.equal(source.includes('age_13_plus'), false)
+  assert.equal(source.includes('TURNSTILE_SECRET'), false)
+  assert.equal(source.includes('siteverify'), false)
+  const filter = JSON.parse(read('../config/name-filter.json')) as unknown
+  assert.deepEqual(filter, NAME_FILTER)
+  assert.equal(TURNSTILE_SITE_KEY, '0x4AAAAAAFfTs2hm1baT01HK')
+  assert.deepEqual([...TURNSTILE_HOSTS], ['romansgame.com', 'play.romansgame.com', 'www.romansgame.com'])
+})
+
+test('the repo has no Turnstile secret and no siteverify call', () => {
+  const hits: string[] = []
+  const skip = new Set(['node_modules', 'dist', '.git', 'commonPasswords.ts'])
+  const walk = (dir: string) => {
+    for (const name of readdirSync(dir)) {
+      if (skip.has(name)) continue
+      const path = join(dir, name)
+      if (statSync(path).isDirectory()) {
+        walk(path)
+        continue
+      }
+      if (name.endsWith('.test.ts')) continue
+      if (!/\.(ts|json|sql|toml)$/.test(name)) continue
+      const text = readFileSync(path, 'utf8')
+      if (text.includes('TURNSTILE_SECRET') || text.includes('siteverify') || text.includes('challenges.cloudflare.com/turnstile')) hits.push(path)
+    }
+  }
+  walk(new URL('..', import.meta.url).pathname)
+  assert.deepEqual(hits, [])
+  assert.equal(existsSync(new URL('../netlify/lib/turnstile.ts', import.meta.url)), false)
+})
