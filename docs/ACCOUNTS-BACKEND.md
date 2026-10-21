@@ -18,7 +18,35 @@ Do not run `supabase/migration-008-accounts-payments.sql` against the live proje
 - Passkeys are registered for `romansgame.com`, so `play.romansgame.com` and later subdomains share them.
 - The server does not store card numbers, billing addresses, or a switch that skips the purchase check. Stripe collects the billing address. Link stays off so a saved-card button cannot skip the phone check.
 
-`public.save_progress` is not defined in migrations 001–007 or anywhere else in this repository. Migration 008 does not replace an existing function of that name. If the live database already has `save_progress`, the script leaves it unchanged. If it does not, the script creates `save_progress(profile_id text, blob jsonb, chapters jsonb, videos jsonb, cards jsonb)`, which writes only `player_saves` and `site_progress` for `auth.uid()`. The Netlify route `/api/save-progress` writes those same two tables with the service role and does not drop or alter the RPC.
+`public.save_progress` is not defined in migrations 001–007 or anywhere else in this repository. Migration 008 does not replace an existing function of that name. If the live database already has `save_progress`, the script leaves it unchanged, including its grants. If it does not, the script creates `save_progress(profile_id text, blob jsonb, chapters jsonb, videos jsonb, cards jsonb)`, which writes only `player_saves` and `site_progress` for `auth.uid()`. The Netlify route `/api/save-progress` writes those same two tables with the service role and does not drop or alter the RPC.
+
+## Grants (30 October 2026)
+
+From 30 October 2026, a new table in `public` gets no default privileges for `anon`, `authenticated`, or `service_role`. Existing tables keep the grants they already have. Migration 008 does not grant or revoke anything on those older tables.
+
+Each new table is granted in the same migration that creates it. `service_role` gets full access (`grant all`), because the Netlify functions use the service role and that role bypasses RLS. `authenticated` gets `select` only where a select policy exists. `anon` gets nothing. There is no insert, update, or delete grant for `authenticated`: writes go through the service role or through `save_progress`.
+
+| New table | anon | authenticated | service_role |
+| --- | --- | --- | --- |
+| `account_payments` | none | select (own row) | all |
+| `parent_links` | none | select (child or parent) | all |
+| `purchase_reauths` | none | none | all |
+| `purchases` | none | select (own row) | all |
+| `entitlements` | none | select (own row) | all |
+| `gift_codes` | none | select (buyer or redeemer) | all |
+| `recovery_codes` | none | none | all |
+| `player_saves` | none | select (own row) | all |
+| `site_progress` | none | select (own row) | all |
+| `coin_reversals` | none | select (own row) | all |
+| `stripe_events` | none | none | all |
+
+New functions:
+
+- `parent_links_cap()` — execute for `service_role` only. It is the insert trigger. `anon` and `authenticated` cannot call it.
+- `save_progress(text, jsonb, jsonb, jsonb, jsonb)` — execute for `authenticated` and `service_role`, and only when this migration creates the function. An existing function is left alone.
+- `revoke_stripe_coins(uuid, text, integer)` — execute for `service_role` only.
+
+Sequences: none. New ids are `gen_random_uuid()`, and `account_payments` uses the player id. This migration does not grant on any sequence.
 
 ## Env vars
 

@@ -305,6 +305,38 @@ test('migration 008 adds saves and payments without touching players or PR 59 fu
   assert.doesNotMatch(gift, /expir/i)
   assert.match(gift, /redeemed_by/)
   assert.match(sql, /revoke_stripe_coins/)
+  const newTables = [
+    'account_payments',
+    'parent_links',
+    'purchase_reauths',
+    'purchases',
+    'entitlements',
+    'gift_codes',
+    'recovery_codes',
+    'player_saves',
+    'site_progress',
+    'coin_reversals',
+    'stripe_events',
+  ]
+  for (const table of newTables) {
+    assert.match(sql, new RegExp(`grant all on public\\.${table} to service_role`))
+    assert.match(sql, new RegExp(`revoke all on public\\.${table} from anon, authenticated`))
+  }
+  const readable = ['account_payments', 'parent_links', 'purchases', 'entitlements', 'gift_codes', 'player_saves', 'site_progress', 'coin_reversals']
+  for (const table of readable) {
+    assert.match(sql, new RegExp(`grant select on public\\.${table} to authenticated`))
+  }
+  for (const table of ['purchase_reauths', 'recovery_codes', 'stripe_events']) {
+    assert.doesNotMatch(sql, new RegExp(`grant select on public\\.${table} to authenticated`))
+  }
+  assert.doesNotMatch(sql, /grant [^;\n]* to anon/i)
+  assert.doesNotMatch(sql, /grant [^;\n]* on public\.players/i)
+  assert.doesNotMatch(sql, /grant [^;\n]* on (all tables|all sequences)/i)
+  assert.match(sql, /grant execute on function public\.parent_links_cap\(\) to service_role/)
+  assert.match(sql, /grant execute on function public\.revoke_stripe_coins\(uuid, text, integer\) to service_role/)
+  assert.match(sql, /grant execute on function public\.save_progress\(text, jsonb, jsonb, jsonb, jsonb\) to authenticated/)
+  assert.match(sql, /grant execute on function public\.save_progress\(text, jsonb, jsonb, jsonb, jsonb\) to service_role/)
+  assert.match(sql, /tables own no sequences/)
 })
 
 test('passkeys use the romansgame.com relying party on every subdomain', () => {

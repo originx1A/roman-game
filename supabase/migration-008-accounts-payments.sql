@@ -27,6 +27,14 @@
 -- The unapplied draft supabase/migration-005-coin-ledger.sql on branch
 -- cursor/stage1-economy-gates-99cc defined player_saves(user_id). Do not apply
 -- that draft. If that shape is already present, this script stops and changes nothing.
+--
+-- From 30 October 2026, a new table in public has no default privileges for
+-- anon, authenticated, or service_role. Each new table below is granted
+-- explicitly. service_role gets full table access (it bypasses RLS and is
+-- what the Netlify functions use). authenticated gets select only on tables
+-- that have a select policy. anon gets nothing. Existing tables are not
+-- granted or revoked here. Primary keys are gen_random_uuid(), so these
+-- tables own no sequences and this script grants none.
 
 do $guard$
 begin
@@ -64,6 +72,7 @@ create policy "payments: read own" on public.account_payments
   for select to authenticated using (player_id = auth.uid());
 revoke all on public.account_payments from anon, authenticated;
 grant select on public.account_payments to authenticated;
+grant all on public.account_payments to service_role;
 
 -- 2. Parent links. At most two pending or active parents per child. ----------
 create table if not exists public.parent_links (
@@ -84,6 +93,7 @@ create policy "parent_links: read own" on public.parent_links
   for select to authenticated using (auth.uid() = child_id or auth.uid() = parent_id);
 revoke all on public.parent_links from anon, authenticated;
 grant select on public.parent_links to authenticated;
+grant all on public.parent_links to service_role;
 
 create or replace function public.parent_links_cap() returns trigger
 language plpgsql
@@ -103,6 +113,7 @@ drop trigger if exists parent_links_cap on public.parent_links;
 create trigger parent_links_cap before insert on public.parent_links
   for each row execute function public.parent_links_cap();
 revoke all on function public.parent_links_cap() from public, anon, authenticated;
+grant execute on function public.parent_links_cap() to service_role;
 
 -- 3. Per-purchase re-auth. Short lived on purpose. Not a gift code. ----------
 create table if not exists public.purchase_reauths (
@@ -115,6 +126,7 @@ create table if not exists public.purchase_reauths (
 );
 alter table public.purchase_reauths enable row level security;
 revoke all on public.purchase_reauths from anon, authenticated;
+grant all on public.purchase_reauths to service_role;
 
 -- 4. Purchases ledger. Test charges included. Live rows are refused in code. -
 create table if not exists public.purchases (
@@ -142,6 +154,7 @@ create policy "purchases: read own" on public.purchases
   for select to authenticated using (player_id = auth.uid());
 revoke all on public.purchases from anon, authenticated;
 grant select on public.purchases to authenticated;
+grant all on public.purchases to service_role;
 
 -- 5. Entitlements. Repeatable packs get one row per purchase. ----------------
 create table if not exists public.entitlements (
@@ -165,6 +178,7 @@ create policy "entitlements: read own" on public.entitlements
   for select to authenticated using (player_id = auth.uid());
 revoke all on public.entitlements from anon, authenticated;
 grant select on public.entitlements to authenticated;
+grant all on public.entitlements to service_role;
 
 -- 6. Gift codes. Single use. No end date. First redeemer keeps it. -----------
 create table if not exists public.gift_codes (
@@ -193,6 +207,7 @@ create policy "gift_codes: read party" on public.gift_codes
   for select to authenticated using (auth.uid() = buyer_id or auth.uid() = redeemed_by);
 revoke all on public.gift_codes from anon, authenticated;
 grant select on public.gift_codes to authenticated;
+grant all on public.gift_codes to service_role;
 
 -- 7. Recovery save cards. Stored as hashes. One use. No end date. ------------
 create table if not exists public.recovery_codes (
@@ -205,6 +220,7 @@ create table if not exists public.recovery_codes (
 create index if not exists recovery_codes_player_idx on public.recovery_codes (player_id, created_at desc);
 alter table public.recovery_codes enable row level security;
 revoke all on public.recovery_codes from anon, authenticated;
+grant all on public.recovery_codes to service_role;
 
 -- 8. Per-profile saves. New table. Keyed on (player_id, profile_id). ---------
 create table if not exists public.player_saves (
@@ -221,6 +237,7 @@ create policy "saves: read own" on public.player_saves
   for select to authenticated using (player_id = auth.uid());
 revoke all on public.player_saves from anon, authenticated;
 grant select on public.player_saves to authenticated;
+grant all on public.player_saves to service_role;
 
 -- 9. Site progress (chapters, videos, card unlocks) per profile. -------------
 create table if not exists public.site_progress (
@@ -239,6 +256,7 @@ create policy "site_progress: read own" on public.site_progress
   for select to authenticated using (player_id = auth.uid());
 revoke all on public.site_progress from anon, authenticated;
 grant select on public.site_progress to authenticated;
+grant all on public.site_progress to service_role;
 
 -- 10. Coin reversals. Does not change the coin_ops check constraint. ---------
 create table if not exists public.coin_reversals (
@@ -254,6 +272,7 @@ create policy "reversals: read own" on public.coin_reversals
   for select to authenticated using (player_id = auth.uid());
 revoke all on public.coin_reversals from anon, authenticated;
 grant select on public.coin_reversals to authenticated;
+grant all on public.coin_reversals to service_role;
 
 -- 11. Webhook idempotency. Service role only. --------------------------------
 create table if not exists public.stripe_events (
@@ -263,6 +282,7 @@ create table if not exists public.stripe_events (
 );
 alter table public.stripe_events enable row level security;
 revoke all on public.stripe_events from anon, authenticated;
+grant all on public.stripe_events to service_role;
 
 -- 12. save_progress, only when the database does not already have one. -------
 do $migrate$
@@ -321,6 +341,7 @@ begin
     $fn$;
     execute 'revoke all on function public.save_progress(text, jsonb, jsonb, jsonb, jsonb) from public, anon';
     execute 'grant execute on function public.save_progress(text, jsonb, jsonb, jsonb, jsonb) to authenticated';
+    execute 'grant execute on function public.save_progress(text, jsonb, jsonb, jsonb, jsonb) to service_role';
   end if;
 end
 $migrate$;
@@ -360,3 +381,7 @@ exception when unique_violation then
 end $$;
 revoke all on function public.revoke_stripe_coins(uuid, text, integer) from public, anon, authenticated;
 grant execute on function public.revoke_stripe_coins(uuid, text, integer) to service_role;
+
+-- No sequence grants. account_payments uses the player id as its key. Every
+-- other new id is uuid default gen_random_uuid(), which does not create a
+-- sequence. Do not grant usage on sequences that belong to older tables.
