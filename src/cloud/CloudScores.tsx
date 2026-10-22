@@ -16,7 +16,7 @@ export function useCloud(): CloudState {
 
 type Sheet = null | 'email' | 'sent' | 'name' | 'account' | 'parent'
 
-export function CloudScoresButton({ suggestedName, compact, short, onInfo }: { suggestedName?: string; compact?: boolean; short?: boolean; onInfo?: () => void }) {
+export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta }: { suggestedName?: string; compact?: boolean; short?: boolean; onInfo?: () => void; cta?: string }) {
   const cloud = useCloud()
   const [sheet, setSheet] = useState<Sheet>(null)
   const [email, setEmail] = useState('')
@@ -93,13 +93,13 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo }: { s
     <>
       <button
         type="button"
-        className={`btn ghost cloud-btn${compact ? ' is-compact' : ''}${short ? ' is-short' : ''}`}
+        className={cta ? 'btn primary board-cta' : `btn ghost cloud-btn${compact ? ' is-compact' : ''}${short ? ' is-short' : ''}`}
         onClick={() => {
           setErr('')
           setSheet(cloud.status === 'signed-in' ? (cloud.name ? 'account' : 'name') : 'email')
         }}
       >
-        {label}
+        {cta ?? label}
       </button>
       {!short && cloud.status === 'signed-in' && cloud.name && (
         <button type="button" className={`btn ghost cloud-switch${compact ? ' is-compact' : ''}`} onClick={() => void switchPlayer()}>

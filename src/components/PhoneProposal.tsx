@@ -37,6 +37,7 @@ export function PhoneHome({
   onAccount,
   onStable,
   onShare,
+  onBoard,
   onBug,
   onFamily,
   onInfo,
@@ -50,6 +51,7 @@ export function PhoneHome({
   onAccount: () => void
   onStable: () => void
   onShare: () => void
+  onBoard: () => void
   onBug: () => void
   onFamily: () => void
   onInfo: () => void
@@ -81,6 +83,7 @@ export function PhoneHome({
         <button type="button" onClick={onHow}><span aria-hidden>?</span>How</button>
         <button type="button" onClick={onStable}><span aria-hidden>🐾</span>Buddies</button>
         <button type="button" onClick={onShare}><span aria-hidden>↗</span>Share</button>
+        <button type="button" onClick={onBoard}>Board</button>
       </div>
       {unseen}
       <button type="button" className="phone-quiet" onClick={onBug}>Report a bug</button>

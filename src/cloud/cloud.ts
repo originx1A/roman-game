@@ -301,6 +301,9 @@ export async function flushScores(): Promise<void> {
     if (sess.session?.user.id !== owner) return // switched player mid-send: leave the queue alone
     const { error } = await sb.from('scores').insert(rows)
     if (!error) {
+      const best = rows.reduce((top, row) => Math.max(top, row.score), 0)
+      // One number on the board, and only for this signed-in player. A miss here still keeps the saved games.
+      await sb.rpc('save_my_board_score', { new_score: best })
       // keep anything queued while we were sending
       writeQueue(readQueue(owner).slice(q.length), owner)
       set({ lastSync: new Date().toISOString() })
@@ -310,6 +313,33 @@ export async function flushScores(): Promise<void> {
     /* stays queued */
   } finally {
     flushing = false
+  }
+}
+
+export interface BoardRow {
+  name: string
+  score: number
+  place: number
+}
+
+/** Public board. Names and scores only. Guests can read it. */
+export async function loadPlayerBoard(): Promise<{ ok: true; rows: BoardRow[] } | { ok: false; error: string }> {
+  try {
+    const sb = await client()
+    if (!sb) return { ok: false, error: "You're offline." }
+    const { data, error } = await sb.from('player_board').select('name, score, place').order('place', { ascending: true }).limit(100)
+    if (error) return { ok: false, error: "The board isn't up yet." }
+    const rows: BoardRow[] = []
+    for (const row of data ?? []) {
+      if (typeof row.name !== 'string' || !row.name.trim()) continue
+      const score = Number(row.score)
+      const place = Number(row.place)
+      if (!Number.isFinite(score) || !Number.isFinite(place)) continue
+      rows.push({ name: row.name, score, place })
+    }
+    return { ok: true, rows }
+  } catch {
+    return { ok: false, error: "The board isn't up yet." }
   }
 }
 

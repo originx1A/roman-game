@@ -6558,6 +6558,37 @@ html[data-device='phone'] .phone-grid .cloud-btn.is-short::before { content: 'â˜
   min-height: 44px;
   cursor: pointer;
 }
+.phone-board {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  max-width: 480px;
+  padding: 0.55rem 0.9rem 1rem;
+}
+.phone-board h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  color: var(--sun);
+  font-size: 1.45rem;
+}
+.phone-board-empty { margin: 0.2rem 0 0; opacity: 0.75; font-weight: 700; }
+.phone-board ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.phone-board li {
+  display: grid;
+  grid-template-columns: 2.1rem minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: center;
+  min-height: 48px;
+  padding: 0.35rem 0.75rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  font-weight: 800;
+}
+.phone-board li.is-you { box-shadow: inset 0 0 0 1px rgba(255, 209, 102, 0.75); }
+.phone-board .place { opacity: 0.65; font-variant-numeric: tabular-nums; }
+.phone-board .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.phone-board .score { font-variant-numeric: tabular-nums; }
+.phone-board .board-cta { width: 100%; min-height: 48px; }
 html[data-device='phone'] .phone-home .home-pet-row { margin: 0; }
 html[data-device='phone'] .phone-home .unseen-tile { margin: 0; max-width: none; }
 /* Home-screen tap on wide layouts only. Fixed, so the home does not reflow.

@@ -19,6 +19,7 @@ import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
 import { UnseenPopup } from './components/UnseenPopup'
 import { CloudScoresButton } from './cloud/CloudScores'
+import { PhoneBoard } from './components/PhoneBoard'
 import { FamilySheet, HomeUnseen, InfoSheet, PhoneHome, PhoneSettings, PhoneVote, PlayerPanel } from './components/PhoneProposal'
 import { initCloud, saveScore } from './cloud/cloud'
 import { UnseenCardTile } from './components/UnseenCard'
@@ -439,6 +440,9 @@ export default function App() {
     if (screen !== 'play') resetBoardAudio()
   }, [screen])
   const [{ layout, device }, setLayoutInfo] = useState(() => readLayout())
+  useEffect(() => {
+    if (device !== 'phone' && screen === 'board') setScreen('home')
+  }, [device, screen])
   const [infoOpen, setInfoOpen] = useState(false)
   const [playerOpen, setPlayerOpen] = useState(false)
   const [familyOpen, setFamilyOpen] = useState(false)
@@ -3090,6 +3094,7 @@ export default function App() {
           onAccount={() => setScreen('profile')}
           onStable={() => setScreen('stable')}
           onShare={() => setScreen('challenge')}
+          onBoard={() => setScreen('board')}
           onBug={() => setScreen('bug')}
           onFamily={() => setFamilyOpen(true)}
           onInfo={() => setInfoOpen(true)}
@@ -3116,6 +3121,10 @@ export default function App() {
           }
           unseen={<UnseenCardTile records={records} />}
         />
+      )}
+
+      {screen === 'board' && device === 'phone' && (
+        <PhoneBoard playerName={playerName} onInfo={() => setInfoOpen(true)} />
       )}
 
       {screen === 'home' && device !== 'phone' && (
