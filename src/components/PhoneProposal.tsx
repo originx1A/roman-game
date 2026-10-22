@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { CloudScoresButton, LogOutButton, useCloud } from '../cloud/CloudScores'
+import { CloudScoresButton, useCloud } from '../cloud/CloudScores'
 import { loadSavedVote, saveSavedVote } from '../game/analytics'
 
 /** Hooded figure on a wide home screen. Hidden on phones and on narrower windows, where he covers buttons. The bubble is up only while his line plays. */
@@ -216,7 +216,6 @@ export function PlayerPanel({
           <button type="button" className="btn primary" data-testid="coin-shop" onClick={onShop}>Coin shop</button>
           <button type="button" className="btn ghost" onClick={onAccount}>You</button>
         </div>
-        <LogOutButton onDone={onClose} />
       </div>
     </div>,
     document.body,
@@ -264,7 +263,6 @@ export function PhoneSettings({
           <small>{signed ? 'Saved to your account' : 'On this device'}</small>
         </p>
         <CloudScoresButton suggestedName={playerName} short onInfo={onInfo} />
-        <LogOutButton />
         <button type="button" className="family-link" onClick={onFamily}>
           Parent & kid accounts
         </button>

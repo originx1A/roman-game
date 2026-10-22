@@ -40,8 +40,8 @@ test('email is the existing sheet, and the age gate points at save without email
   assert.doesNotMatch(cloud, /signInWithPassword/)
 })
 
-test('a phone first win or new best asks later, and desktop sign-in starts with one box', () => {
-  assert.match(sheet, /phoneSaveCard\(\) \? 'offer' : 'who'/)
+test('a phone first win or new best asks later, and desktop sign-in stays on email', () => {
+  assert.match(sheet, /phoneSaveCard\(\) \? 'offer' : 'email'/)
   assert.match(app, /replay\.firstClear \|\| replay\.newBestTime \|\| replay\.newBestScore/)
   assert.match(app, /device === 'phone' && cloudState\(\)\.status !== 'signed-in'/)
   assert.match(app, /forceOffer hidden/)

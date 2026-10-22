@@ -2,13 +2,9 @@ import { gaEvent } from '../game/analytics'
 /**
  * Player accounts + score saving (Supabase, project romans-game).
  *
- * - Sign-in: email, then the 6-digit code from that email (Supabase email OTP). The same
- *   email still includes a link. A player who set a password can instead sign in with their
- *   name and that password (POST /api/auth/signin). The session stays in localStorage until
- *   Log out or the storage is cleared. Closing the app keeps it. Log out uses scope global,
- *   so romansgame.com is revoked too. On load and when the window is focused, getUser()
- *   checks the session and drops it if it was revoked. A network miss keeps it.
- *   The code is {{ .Token }} in the Magic Link email; Tony adds that.
+ * - Sign-in: email magic link, or the code from that same email (no passwords). The session
+ *   lives in localStorage, but the player row and every score live on the server, so a cache clear
+ *   only means "sign in again". The code is {{ .Token }} in the Magic Link email; Tony adds that.
  * - Scores: queued locally first, then sent. Offline / Supabase down / not signed in = they wait
  *   in the queue (max 200) and flush on sign-in, on `online`, and after each new game.
  * - supabase-js is loaded lazily, so the game never waits on it and works fully without it.
@@ -43,12 +39,6 @@ export interface CloudState {
   name?: string | null
   /** The unique name shown on the leaderboard (server adds 02, 03... if the name was taken) */
   publicName?: string
-  /**
-   * true: the account already has age_confirmed_at (or an existing players.age_13_plus row).
-   * false: this sign-in still needs the one-time boxes.
-   * undefined: signed out, or the read failed and a named account is already there.
-   */
-  ageConfirmed?: boolean
   pending: number
   lastSync?: string
 }
@@ -62,10 +52,7 @@ export interface Consent {
   age13: boolean
   optIn: boolean
 }
-/**
- * Device copy of the boxes, kept only until the account row is written.
- * It is not the gate. A new device asks again until account_flags.age_confirmed_at is set.
- */
+/** Choices made on the sign-in sheet, kept until the account row is created after the magic link */
 export function loadConsent(): Consent | null {
   try {
     const c = JSON.parse(localStorage.getItem(CONSENT_KEY) || 'null')
@@ -178,32 +165,10 @@ function client(): Promise<SupabaseClient | null> {
   return clientP
 }
 
-/** true / false when the read settled. undefined when the network failed and we cannot tell. */
-async function readAgeConfirmed(sb: SupabaseClient, userId: string, age13Plus: boolean | null): Promise<boolean | undefined> {
-  const flags = await sb.from('account_flags').select('age_confirmed_at').eq('user_id', userId).maybeSingle()
-  if (!flags.error && flags.data?.age_confirmed_at) return true
-  if (flags.error && flags.error.code !== 'PGRST205' && flags.error.code !== '42P01' && !/account_flags/.test(flags.error.message || '')) {
-    // Offline or a real error. An existing 13+ player is not asked again. A brand-new account is.
-    if (age13Plus === true) return true
-    if (age13Plus === null) return undefined
-    return false
-  }
-  if (age13Plus === true) {
-    // Existing account that confirmed before this table existed. Copy it once. Ignore a missing table.
-    if (!flags.error && !flags.data) {
-      const at = new Date().toISOString()
-      void sb.from('account_flags').insert({ user_id: userId, age_confirmed_at: at, terms_confirmed_at: at, news_opt_in: false })
-    }
-    return true
-  }
-  if (age13Plus === null && flags.error) return undefined
-  return false
-}
-
 async function loadPlayer(sb: SupabaseClient, session: Session | null) {
   if (!session) {
     queueOwner = null
-    return set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined, ageConfirmed: undefined })
+    return set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined })
   }
   if (queueOwner !== session.user.id) {
     queueOwner = session.user.id
@@ -214,82 +179,25 @@ async function loadPlayer(sb: SupabaseClient, session: Session | null) {
       writeQueue([], null)
     }
   }
-  const { data, error } = await sb.from('players').select('display_name, public_name, age_13_plus').eq('id', session.user.id).maybeSingle()
-  const age13Plus = error ? null : data?.age_13_plus === true ? true : data ? false : null
-  let ageConfirmed = await readAgeConfirmed(sb, session.user.id, age13Plus)
-  if (confirmedHint && confirmedHint === session.user.id) ageConfirmed = true
-  if (error) return set({ status: 'signed-in', email: session.user.email, name: state.name ?? null, ageConfirmed })
-  set({ status: 'signed-in', email: session.user.email, name: data?.display_name ?? null, publicName: data?.public_name, ageConfirmed })
+  const { data, error } = await sb.from('players').select('display_name, public_name').eq('id', session.user.id).maybeSingle()
+  if (error) return set({ status: 'signed-in', email: session.user.email, name: state.name ?? null })
+  set({ status: 'signed-in', email: session.user.email, name: data?.display_name ?? null, publicName: data?.public_name })
   if (data) void flushScores().then(() => syncCard())
 }
 
-function sessionRejected(error: { status?: number; name?: string; message?: string; code?: string } | null): boolean {
-  if (!error) return false
-  if (error.name === 'AuthRetryableFetchError') return false
-  if (error.name === 'AuthSessionMissingError') return true
-  const code = (error.code || '').toLowerCase()
-  if (code === 'session_not_found' || code === 'user_not_found' || code === 'bad_jwt' || code === 'refresh_token_not_found') return true
-  const status = error.status ?? 0
-  if (status === 401 || status === 403) return true
-  if (status >= 500 || status === 0) return false
-  const msg = (error.message || '').toLowerCase()
-  if (msg.includes('fetch') || msg.includes('network')) return false
-  return msg.includes('jwt') || msg.includes('session') || msg.includes('revoked')
-}
-
-/** Set when name+password sign-in already returned age_confirmed_at, before the table read finishes. */
-let confirmedHint: string | null = null
-
-/** Ask the auth server if this device's session still exists. A network miss keeps the saved session. */
-async function recheckSession(sb: SupabaseClient): Promise<void> {
-  const { data: local } = await sb.auth.getSession()
-  if (!local.session) {
-    queueOwner = null
-    if (state.status !== 'signed-out') {
-      set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined, ageConfirmed: undefined })
-    }
-    return
-  }
-  // Paint the saved login first, so a reload or a restarted phone is already signed in.
-  if (state.status !== 'signed-in') await loadPlayer(sb, local.session)
-  const { data, error } = await sb.auth.getUser()
-  if (error && !sessionRejected(error)) return
-  if (error || !data.user) {
-    // Already revoked on the server (including from romansgame.com). Clear this device only.
-    await sb.auth.signOut({ scope: 'local' }).catch(() => undefined)
-    queueOwner = null
-    confirmedHint = null
-    set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined, ageConfirmed: undefined })
-    return
-  }
-  await loadPlayer(sb, local.session)
-}
-
-let cloudStarted = false
-
 /** Call once at startup. Never throws, never blocks. */
 export async function initCloud(): Promise<void> {
-  if (cloudStarted) return
-  cloudStarted = true
   try {
     const sb = await client()
-    if (!sb) {
-      cloudStarted = false
-      return set({ status: 'off' })
-    }
-    await recheckSession(sb)
+    if (!sb) return set({ status: 'off' })
+    const { data } = await sb.auth.getSession()
+    await loadPlayer(sb, data.session)
     sb.auth.onAuthStateChange((_e, session) => {
       if (_e === 'SIGNED_IN' && state.status !== 'signed-in') gaEvent('sign_in')
-      if (_e === 'INITIAL_SESSION' || _e === 'TOKEN_REFRESHED') return
       void loadPlayer(sb, session)
     })
     window.addEventListener('online', () => void flushScores())
-    window.addEventListener('focus', () => { void recheckSession(sb) })
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') void recheckSession(sb)
-    })
   } catch {
-    cloudStarted = false
     set({ status: 'off' })
   }
 }
@@ -347,160 +255,19 @@ export async function savePlayerName(name: string, consent: Consent): Promise<{ 
   }
   if (!row) return { ok: false, error: "Couldn't save your name. Try again." }
   if (error) return { ok: false, error: "Couldn't save your name. Try again." }
-  const at = new Date().toISOString()
-  await sb.from('account_flags').insert({
-    user_id: uid,
-    age_confirmed_at: at,
-    terms_confirmed_at: at,
-    news_opt_in: consent.optIn,
-  })
-  set({ name: row.display_name, publicName: row.public_name, ageConfirmed: true })
+  set({ name: row.display_name, publicName: row.public_name })
   saveConsent(consent)
   if (consent.optIn && data.session?.user.email) void subscribeNews(data.session.user.email)
   void flushScores()
   return { ok: true, publicName: row.public_name }
 }
 
-/**
- * Keep a name+password API session in the same localStorage slot this game already restores.
- * Call this after POST /api/auth/signin returns session tokens.
- */
-export async function persistServerSession(accessToken: string, refreshToken: string): Promise<boolean> {
-  const sb = await client()
-  if (!sb) return false
-  const { data, error } = await sb.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
-  if (error || !data.session) return false
-  await loadPlayer(sb, data.session)
-  return true
-}
-
-const accountChecks: number[] = []
-
-/**
- * Does this player name already have an account? Sends the name only.
- * An address is never looked up, so the answer cannot reveal which addresses exist.
- * Limited to 30 checks in 15 minutes. A failure is "wait", never "new".
- */
-export async function lookupAccount(name: string): Promise<'existing' | 'new' | 'wait' | 'no'> {
-  const player = name.trim().replace(/\s+/g, ' ')
-  if (!player || player.includes('@')) return 'wait'
-  const now = Date.now()
-  while (accountChecks.length && now - accountChecks[0] > 15 * 60 * 1000) accountChecks.shift()
-  if (accountChecks.length >= 30) return 'wait'
-  accountChecks.push(now)
-  let res: Response
-  try {
-    res = await fetch('/api/auth/account', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({ name: player }),
-    })
-  } catch {
-    return 'wait'
-  }
-  if (res.status === 429) return 'wait'
-  if (res.status === 422) return 'no'
-  if (!res.ok) return 'wait'
-  const data = (await res.json().catch(() => null)) as { account?: string } | null
-  if (data?.account === 'existing' || data?.account === 'new') return data.account
-  return 'wait'
-}
-
-/** Recovery code. Unknown addresses get the same ok as known ones. A limit says to wait. */
-export async function sendRecoveryCode(email: string, captchaToken?: string): Promise<{ ok: boolean; error?: string }> {
-  if (!captchaToken) return { ok: false, error: "This page couldn't complete the check. Try again." }
-  const sb = await client()
-  if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
-  const redirect = `${window.location.origin}${window.location.pathname}`
-  const { error } = await sb.auth.signInWithOtp({
-    email: email.trim(),
-    options: { emailRedirectTo: redirect, shouldCreateUser: false, captchaToken },
-  })
-  if (!error) return { ok: true }
-  const status = (error as { status?: number }).status ?? 0
-  const message = error.message || ''
-  if (status === 429 || /rate|too many/i.test(message)) return { ok: false, error: 'Try again in a little while.' }
-  if (/captcha|turnstile/i.test(message)) return { ok: false, error: "This page couldn't complete the check. Try again." }
-  return { ok: true }
-}
-
-/** Create the account after the one-time questions. Same endpoint as PR #63. */
-export async function signUpWithName(name: string, password: string, captchaToken?: string, news = false): Promise<{ ok: boolean; error?: string }> {
-  const player = name.trim().replace(/\s+/g, ' ')
-  if (player.length < 3) return { ok: false, error: 'Type your player name.' }
-  if (!password) return { ok: false, error: 'Choose a password.' }
-  if (!captchaToken) return { ok: false, error: "This page couldn't complete the check. Try again." }
-  let res: Response
-  try {
-    res = await fetch('/api/auth/signup', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({ name: player, password, age_choice: '13_plus', captchaToken, stay_signed_in: true, marketing_opt_in: news }),
-    })
-  } catch {
-    return { ok: false, error: "You're offline. Try again when you're connected." }
-  }
-  const data = (await res.json().catch(() => null)) as {
-    error?: string
-    user_id?: string
-    flags?: { age_confirmed_at?: string | null }
-    session?: { access_token?: string; refresh_token?: string }
-  } | null
-  if (res.status === 429) return { ok: false, error: 'Try again in a little while.' }
-  if (!res.ok || !data?.session?.access_token || !data.session.refresh_token) {
-    if (data?.error === 'name_taken') return { ok: false, error: 'That name or password did not match.' }
-    if (data?.error === 'weak_password') return { ok: false, error: 'Use a longer password that is not the name.' }
-    if (data?.error === 'turnstile_required') return { ok: false, error: "This page couldn't complete the check. Try again." }
-    return { ok: false, error: 'Could not create the account. Try again.' }
-  }
-  if (data.user_id) confirmedHint = data.user_id
-  const saved = await persistServerSession(data.session.access_token, data.session.refresh_token)
-  if (!saved) return { ok: false, error: 'Could not create the account. Try again.' }
-  return { ok: true }
-}
-
-/** Name and password. Same endpoint as PR #63. */
-export async function signInWithName(name: string, password: string, captchaToken?: string): Promise<{ ok: boolean; error?: string }> {
-  const player = name.trim().replace(/\s+/g, ' ')
-  if (player.length < 3) return { ok: false, error: 'Type your player name.' }
-  if (!password) return { ok: false, error: 'Type your password.' }
-  if (!captchaToken) return { ok: false, error: "This page couldn't complete the check. Try again." }
-  let res: Response
-  try {
-    res = await fetch('/api/auth/signin', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({ name: player, password, captchaToken, stay_signed_in: true }),
-    })
-  } catch {
-    return { ok: false, error: "You're offline. Try again when you're connected." }
-  }
-  const data = (await res.json().catch(() => null)) as {
-    error?: string
-    user_id?: string
-    flags?: { age_confirmed_at?: string | null }
-    session?: { access_token?: string; refresh_token?: string }
-  } | null
-  if (!res.ok || !data?.session?.access_token || !data.session.refresh_token) {
-    if (data?.error === 'invalid_credentials') return { ok: false, error: 'That name or password did not match.' }
-    if (data?.error === 'turnstile_required') return { ok: false, error: "This page couldn't complete the check. Try again." }
-    if (res.status === 429) return { ok: false, error: 'Try again in a little while.' }
-    return { ok: false, error: 'Could not sign in.' }
-  }
-  if (data.user_id && data.flags?.age_confirmed_at) confirmedHint = data.user_id
-  const saved = await persistServerSession(data.session.access_token, data.session.refresh_token)
-  if (!saved) return { ok: false, error: 'Could not sign in.' }
-  return { ok: true }
-}
-
 export async function signOut(): Promise<void> {
   const sb = await client()
-  // Global: revokes this account on every device, including romansgame.com.
-  // Unsent scores stay queued on this device under the player id.
-  await sb?.auth.signOut({ scope: 'global' }).catch(() => undefined)
+  // local scope: only this device; this player's unsent scores stay queued under their id
+  await sb?.auth.signOut({ scope: 'local' }).catch(() => undefined)
   queueOwner = null
-  confirmedHint = null
-  set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined, ageConfirmed: undefined })
+  set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined })
 }
 
 /** Queue a finished game and try to send everything queued. Safe to call offline. */
