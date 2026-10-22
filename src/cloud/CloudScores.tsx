@@ -4,14 +4,16 @@ import { isProfane } from './profanity'
 import { NAME_MAX, loadConsent, saveConsent, onCloud, savePlayerName, sendMagicLink, signOut, verifyEmailCode, type CloudState } from './cloud'
 
 /**
- * The login door (LOGIN-EXPERIENCE-SPEC-v1, Tony 2026-10-22): one field — player name
- * or email — then one question per screen, modelled on the Muse login Tony uses.
- * Returning players are NEVER asked the sign-up questions again: email -> code -> in,
- * name -> password -> in. The 13+/Terms checks live ONLY on the create path and on
- * the one-time name prompt that completes a first sign-in. "Remember this device"
- * is honoured by rg_remember: a device that said "don't remember" signs out on the
- * next fresh visit. Name + password sign-in itself lands with the accounts backend
- * (PR #62) — until then that screen says so honestly instead of faking a sign-in.
+ * The login door (Tony's settled rule, 2026-10-22): ONE sign-in screen — player
+ * name + password, that's the whole way in. Email is NEVER a sign-in method; it's
+ * an optional recovery address, collected at create and used by "Can't get in?".
+ * The 13+/Terms checks live ONLY on the create path and on the one-time name
+ * prompt that completes a first sign-in — returning players are never re-asked.
+ * Sessions persist (no remember-me switch): log out is the way off a device.
+ * Name + password itself lands with the accounts backend (PR #62) — until then
+ * the sign-in and create screens say so honestly instead of faking a sign-in.
+ * Compact pass (GB's tighten list + Tony's item 38): one screen, "Log in",
+ * small emblem, no chunky pill buttons, no helper rows, no dead space.
  */
 export function useCloud(): CloudState {
   const [s, setS] = useState<CloudState>({ status: 'off', pending: 0 })
@@ -19,40 +21,21 @@ export function useCloud(): CloudState {
   return s
 }
 
-type Sheet = null | 'entry' | 'sent' | 'namepw' | 'create' | 'name' | 'account' | 'parent'
-const REMEMBER_KEY = 'rg_remember'
+type Sheet = null | 'entry' | 'recover' | 'sent' | 'create' | 'name' | 'account' | 'parent'
 
 export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: string; compact?: boolean }) {
   const cloud = useCloud()
   const [sheet, setSheet] = useState<Sheet>(null)
-  const [idv, setIdv] = useState('')
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
   const [name, setName] = useState(suggestedName ?? '')
   const [pw, setPw] = useState('')
-  const [remember, setRemember] = useState(true)
   const [err, setErr] = useState('')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [age13, setAge13] = useState(() => loadConsent()?.age13 ?? false)
   const [optIn, setOptIn] = useState(() => loadConsent()?.optIn ?? false)
   const [terms, setTerms] = useState(false)
-
-  /* Remember-this-device enforcement: a previous sign-in that unchecked the box
-     gets signed out when a fresh browser session first renders this button. */
-  useEffect(() => {
-    try {
-      if (localStorage.getItem(REMEMBER_KEY) === '0' && !sessionStorage.getItem('rg_alive')) {
-        sessionStorage.setItem('rg_alive', '1')
-        void signOut()
-      } else {
-        sessionStorage.setItem('rg_alive', '1')
-      }
-    } catch {
-      /* storage unavailable: stay signed in */
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   const consentChecks = (
     <div className="cloud-checks">
@@ -81,8 +64,8 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
     </div>
   )
 
-  // Signed in from the link or the code. No name yet: ask once (that prompt IS part
-  // of creating the account). A named returning player just lands on the account.
+  // Back in from the recovery code. No name yet: ask once (that prompt IS part of
+  // creating the account). A named returning player just lands on the account.
   useEffect(() => {
     if (cloud.status !== 'signed-in') return
     if (cloud.name === null) setSheet((s) => (s === 'account' ? s : 'name'))
@@ -99,7 +82,6 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
   /** Families sharing a phone: log this player out (their unsent scores stay theirs) and start the door fresh */
   async function switchPlayer() {
     await signOut()
-    setIdv('')
     setEmail('')
     setCode('')
     setName('')
@@ -118,6 +100,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
     setSheet(null)
   }
 
+  /** Recovery only: email a code to the address on the account ("Can't get in?") */
   async function sendCode(to: string) {
     setBusy(true)
     const r = await sendMagicLink(to)
@@ -163,70 +146,82 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
             {sheet === 'entry' && (
               <form
                 className="start-sheet-card"
-                onSubmit={async (e) => {
+                onSubmit={(e) => {
                   e.preventDefault()
-                  const v = idv.trim()
-                  if (!v) return setErr('Type your player name or your email.')
+                  if (!name.trim()) return setErr('Type your player name.')
+                  if (!pw) return setErr('Type your password.')
                   setErr('')
-                  if (v.includes('@')) {
-                    if (!/^\S+@\S+\.\S+$/.test(v)) return setErr('Type a full email address.')
-                    await sendCode(v)
-                  } else {
-                    setName(v)
-                    setSheet('namepw')
-                  }
+                  /* Name + password sign-in runs on the accounts backend (PR #62).
+                     Until it lands this screen is honest instead of fake. */
+                  setNote('Name + password sign-in switches on with the accounts update. Until then, everything in the game works without an account — scores just stay on this device.')
                 }}
               >
                 {emblem}
-                <h3>Log in or create an account</h3>
-                <p className="start-sheet-tip">One account for the game and romansgame.com. Kids: your player name. Grown-ups: your email.</p>
+                <h3>Log in</h3>
                 <input
                   className="name-input"
                   type="text"
                   autoComplete="username"
                   autoCapitalize="none"
-                  placeholder="Player name or email"
-                  aria-label="Player name or email"
-                  value={idv}
-                  onChange={(e) => setIdv(e.target.value)}
+                  placeholder="Player name"
+                  aria-label="Player name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+                <input
+                  className="name-input"
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="Your password"
+                  aria-label="Your password"
+                  value={pw}
+                  onChange={(e) => setPw(e.target.value)}
                 />
                 {note && <p className="cloud-note">{note}</p>}
                 {err && <p className="cloud-err" role="alert">{err}</p>}
-                <button type="submit" className="btn primary" disabled={busy}>
-                  {busy ? 'Sending…' : 'Continue'}
+                <button type="submit" className="btn primary">
+                  Log in
                 </button>
-                <button type="button" className="btn ghost" onClick={() => { setErr(''); setSheet('create') }}>
-                  New here? Create an account
-                </button>
+                <div className="login-altrow">
+                  <button type="button" className="login-linklike" onClick={() => { setErr(''); setSheet('recover') }}>
+                    Can't get in?
+                  </button>
+                  <button type="button" className="login-linklike" onClick={() => { setErr(''); setSheet('create') }}>
+                    New here? Create an account
+                  </button>
+                </div>
                 <button type="button" className="btn ghost" onClick={() => setSheet(null)}>
                   Not now
                 </button>
               </form>
             )}
-            {sheet === 'namepw' && (
+            {sheet === 'recover' && (
               <form
                 className="start-sheet-card"
-                onSubmit={(e) => {
+                onSubmit={async (e) => {
                   e.preventDefault()
-                  /* Name + password sign-in runs on the accounts backend (PR #62).
-                     Until it lands this screen is honest instead of fake. */
+                  const v = email.trim()
+                  if (!/^\S+@\S+\.\S+$/.test(v)) return setErr('Type the email on your account.')
                   setErr('')
-                  setNote('Name + password sign-in switches on with the accounts update. If your account has an email, go back and type it — you\'ll get a code and you\'re in.')
-                  setSheet('entry')
+                  await sendCode(v)
                 }}
               >
                 {emblem}
-                <h3>Welcome back</h3>
-                <p className="start-sheet-tip">
-                  Signing in as <b>{name}</b>
-                </p>
-                <input className="name-input" type="password" autoComplete="current-password" placeholder="Your password" aria-label="Your password" value={pw} onChange={(e) => setPw(e.target.value)} />
-                <label className="cloud-check">
-                  <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-                  <span>Remember this device</span>
-                </label>
-                <button type="submit" className="btn primary">
-                  Log in
+                <h3>Can't get in?</h3>
+                <p className="start-sheet-tip">If your account has a recovery email, we'll send a code to it. A linked grown-up can also get you back in.</p>
+                <input
+                  className="name-input"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  placeholder="Email on your account"
+                  aria-label="Email on your account"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+                {err && <p className="cloud-err" role="alert">{err}</p>}
+                <button type="submit" className="btn primary" disabled={busy}>
+                  {busy ? 'Sending…' : 'Send me a code'}
                 </button>
                 <button type="button" className="btn ghost" onClick={() => setSheet('entry')}>
                   ← Back
@@ -242,17 +237,11 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                   setBusy(true)
                   const r = await verifyEmailCode(email, code)
                   setBusy(false)
-                  if (r.ok) {
-                    try {
-                      localStorage.setItem(REMEMBER_KEY, remember ? '1' : '0')
-                    } catch {
-                      /* private mode: stays signed in */
-                    }
-                  } else setErr(r.error ?? 'Something went wrong.')
+                  if (!r.ok) setErr(r.error ?? 'Something went wrong.')
                 }}
               >
                 {emblem}
-                <h3>Enter your code to log in</h3>
+                <h3>Get back into your account</h3>
                 <p className="start-sheet-tip">
                   We sent it to <b>{email.trim()}</b>. Tap the link in your email, or enter the code from your email.
                 </p>
@@ -280,17 +269,13 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                   <button type="button" className="login-linklike" onClick={() => void sendCode(email)} disabled={busy}>
                     Resend code
                   </button>
-                  <button type="button" className="login-linklike" onClick={() => setSheet('entry')}>
+                  <button type="button" className="login-linklike" onClick={() => setSheet('recover')}>
                     Use a different email
                   </button>
                 </div>
-                <label className="cloud-check">
-                  <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-                  <span>Remember this device</span>
-                </label>
                 {err && <p className="cloud-err" role="alert">{err}</p>}
                 <button type="submit" className="btn primary" disabled={busy || code.length < 6}>
-                  {busy ? 'Checking…' : 'Next'}
+                  {busy ? 'Checking…' : 'Log in'}
                 </button>
                 <button type="button" className="btn ghost" onClick={() => setSheet(null)}>
                   Not now
@@ -300,33 +285,31 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
             {sheet === 'create' && (
               <form
                 className="start-sheet-card"
-                onSubmit={async (e) => {
+                onSubmit={(e) => {
                   e.preventDefault()
                   setErr('')
                   if (!name.trim() || nameProblem) return setErr(nameProblem || 'Pick a player name.')
+                  if (!pw) return setErr('Pick a password.')
                   if (!age13) return setSheet('parent')
                   if (!terms) return setErr('Please agree to the Terms and Privacy.')
+                  if (email.trim() && !/^\S+@\S+\.\S+$/.test(email.trim())) return setErr('Type a full email address, or clear it.')
                   saveConsent({ age13, optIn })
-                  if (email.trim()) {
-                    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setErr('Type a full email address, or clear it to use just a name.')
-                    await sendCode(email.trim())
-                  } else {
-                    setNote('Name + password accounts switch on with the accounts update. Add an email above to start today — or keep playing: everything in the game works without an account, scores just stay on this device.')
-                    setSheet('entry')
-                  }
+                  /* Creating the account row runs on the accounts backend (PR #62).
+                     Until it lands this screen is honest instead of fake. */
+                  setNote('Name + password accounts switch on with the accounts update — nothing was sent anywhere. Keep playing: everything works without an account, scores just stay on this device.')
+                  setSheet('entry')
                 }}
               >
                 {emblem}
                 <h3>Create your account</h3>
-                <p className="start-sheet-tip">
-                  The questions on this screen are asked <b>once</b> — never when you log in.
-                </p>
+                <p className="start-sheet-tip">Asked once — never when you log in.</p>
                 <input className="name-input" type="text" maxLength={NAME_MAX} autoComplete="nickname" placeholder="Player name" aria-label="Player name" value={name} onChange={(e) => setName(e.target.value)} />
-                <input className="name-input" type="email" inputMode="email" autoComplete="email" placeholder="Email (optional for kids, needed for grown-up accounts)" aria-label="Email (optional)" value={email} onChange={(e) => setEmail(e.target.value)} />
+                <input className="name-input" type="password" autoComplete="new-password" placeholder="Pick a password" aria-label="Pick a password" value={pw} onChange={(e) => setPw(e.target.value)} />
+                <input className="name-input" type="email" inputMode="email" autoComplete="email" placeholder="Email (optional, for recovery)" aria-label="Email (optional, for recovery)" value={email} onChange={(e) => setEmail(e.target.value)} />
                 {consentChecks}
                 {err && <p className="cloud-err" role="alert">{err}</p>}
                 <button type="submit" className="btn primary" disabled={busy}>
-                  {busy ? 'Sending…' : 'Create my account'}
+                  Create my account
                 </button>
                 <button type="button" className="btn ghost" onClick={() => setSheet('entry')}>
                   ← Back

@@ -6372,7 +6372,12 @@ html[data-motion='reduce'] .td-invader {
 
 /* Login face v1 (LOGIN-EXPERIENCE-SPEC-v1): one field, one question per screen */
 .cloud-note { margin: 0.25rem 0 0; color: var(--sun); font-size: 0.82rem; font-weight: 600; }
-.login-emblem { width: 60px; height: 60px; margin: 0.1rem auto 0; display: block; border-radius: 14px; }
+.login-emblem { width: 48px; height: 48px; margin: 0 auto 0; display: block; border-radius: 12px; }
+/* Compact login pass (GB tighten list + Tony item 38): the sheet's own buttons
+   shrink — less padding, modest radius, no chunky pills — while the game's
+   shared .btn stays as it is everywhere else. Tap targets stay >= 40px. */
+.cloud-sheet .start-sheet-card { padding: 0.85rem 1rem; gap: 0.45rem; }
+.cloud-sheet .btn { min-height: 40px; padding: 0.55rem 1rem; border-radius: 10px; }
 .login-brand { margin: 0; text-align: center; font-family: var(--font-display); letter-spacing: 0.32em; font-size: 0.72rem; color: var(--sun); }
 .cloud-sheet .start-sheet-card h3 { text-align: center; }
 .login-code { font-size: 1.3rem; padding: 0.7rem; border-radius: 12px; border: 1px solid rgba(255, 209, 102, 0.4); background: rgba(255, 255, 255, 0.07); }
