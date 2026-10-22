@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { CRITTER_STASH_GOAL } from './SparkCritter'
 import { PetArt } from './PetArt'
-import { CloudScoresButton } from '../cloud/CloudScores'
 import { UnseenCardGain } from './UnseenCard'
 import type { PetId } from '../game/pets'
 
@@ -240,7 +239,6 @@ export function WinScreen({
             {nextLabel ?? 'Next board'}
           </button>
           {cardGain ? <UnseenCardGain from={cardGain.from} to={cardGain.to} /> : null}
-          <CloudScoresButton compact />
           <div className="win-screen-row">
             <button type="button" className="btn ghost win-cta" onClick={onReplay}>
               Play again

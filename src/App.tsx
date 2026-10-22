@@ -4,7 +4,7 @@ import { OWNER_PATH, OWNER_TAP_WINDOW_MS, OWNER_TAPS } from './game/ownerDoor'
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Board } from './components/Board'
-import { HowToPlay, HOW_NEW_START } from './components/HowToPlay'
+import { HowToPlay } from './components/HowToPlay'
 import { BugReport } from './components/BugReport'
 import { PrizeWheel } from './components/PrizeWheel'
 import { ResultOverlay } from './components/ResultOverlay'
@@ -18,10 +18,12 @@ import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './componen
 import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
 import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
-import { CloudScoresButton } from './cloud/CloudScores'
+/* PR #53 batch 2 (Tony 2026-10-19): the Unseen as guide character + silent pet pop-outs */
+import { UnseenGuide, PetPopout, type GuideItem, type PetPopoutInfo } from './components/UnseenGuide'
 import { initCloud, saveScore } from './cloud/cloud'
 import { UnseenCardTile } from './components/UnseenCard'
-import { noteCardWin } from './game/unseenCard'
+import { noteCardWin, localCard, CARD_PIECES } from './game/unseenCard'
+import { guideCandidates, petPopoutPick, type GuideTarget } from './game/unseenGuide'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
 import { TapButton } from './components/TapButton'
 import { BuddyHunt } from './components/BuddyHunt'
@@ -539,6 +541,35 @@ export default function App() {
     if (!line.speak || line.silent || !line.text || !isUnseenClip(line.clip)) return
     unseenKey.current += 1
     setUnseenPop({ text: line.text, key: unseenKey.current })
+  }
+  // PR #53 batch 2 (Tony 2026-10-19): the Unseen as guide character.
+  // Visual-only (his guide lines have no recorded audio); tappable deep-links.
+  // Appearing never touches the timer — he's a distraction mid-board; the timer
+  // only pauses via the existing navigation behavior when the player taps through.
+  const [guide, setGuide] = useState<GuideItem | null>(null)
+  const [petPop, setPetPop] = useState<PetPopoutInfo | null>(null)
+  const guideKey = useRef(0)
+  const petPopKey = useRef(0)
+  // Frequency caps (per session): max 1 warning, max 1 opportunity, progress
+  // tags once each; never interrupt the same board twice (boardSeqRef below).
+  const guideWarnShownRef = useRef(false)
+  const guideOppShownRef = useRef(false)
+  const guideProgressFiredRef = useRef<Set<string>>(new Set())
+  const petPopFiredRef = useRef<Set<PetId>>(new Set())
+  const boardSeqRef = useRef(0)
+  const guideBoardRef = useRef(-1)
+  /** Don't stack notifications: at least 45 s between guide/pop-out appearances. */
+  const guideLastAtRef = useRef(0)
+  // PR #53 batch 2: deep-link target for the guide / pet pop-out — opens the
+  // Stable with a specific pet's detail page selected.
+  const [stableFocus, setStableFocus] = useState<{ id: PetId; key: number } | null>(null)
+  const stableFocusKey = useRef(0)
+  function goGuideTarget(t: GuideTarget) {
+    if (t.pet) {
+      stableFocusKey.current += 1
+      setStableFocus({ id: t.pet, key: stableFocusKey.current })
+    }
+    setScreen(t.screen)
   }
   const [shortfall, setShortfall] = useState<null | { action: ShortfallAction; need: number; detail?: string }>(null)
   const [incoming, setIncoming] = useState<Challenge | null>(null)
@@ -1156,10 +1187,6 @@ export default function App() {
     if (isStoreBuild() || settingsRef.current.analytics === false) return
     sendPing({ id: loadAnon(safeLocalStorage()).id, ev: 'level_clear', size, ms: Math.round(ms) })
   }
-  function sendFeedback(vote: 'up' | 'down', note: string) {
-    if (isStoreBuild() || settingsRef.current.analytics === false) return
-    sendPing({ id: loadAnon(safeLocalStorage()).id, ev: 'feedback', vote, note: note.slice(0, 200) })
-  }
 
   function saveSettingsPatch(patch: Partial<Settings>) {
     if (patch.analytics !== undefined) setGaEnabled(patch.analytics !== false)
@@ -1468,14 +1495,8 @@ export default function App() {
   }
 
   function startPuzzle(p: Puzzle, resume = false, opts: { mode?: RunMode; daily?: boolean; endless?: boolean } = {}) {
-    // First board ever: How to play opens first (returning players start at the new cards)
-    if (!resume && !settingsRef.current.howSeen) {
-      pendingStartRef.current = { p, opts }
-      setStartSheet(null)
-      setHowStart(progress.clears.length > 0 ? HOW_NEW_START : 0)
-      setScreen('how')
-      return
-    }
+    // 2026-10-19: No auto-tutorial. Play goes straight to the game. New players see a "New here?" link.
+    // (Old behavior showed How to Play on first tap, which was annoying and broke on preview URLs.)
     unlockAudio()
     dropWaitingVoice()
     sfxWhoosh()
@@ -1585,6 +1606,7 @@ export default function App() {
         setHintsUsed(d.hintsUsed)
         flawedRef.current = d.flawed === true || d.hintsUsed > 0
         setRunning(true)
+        boardSeqRef.current += 1 // PR #53 batch 2: a fresh board started (guide frequency caps)
         setScreen('play')
         return
       }
@@ -1596,6 +1618,7 @@ export default function App() {
     setHintsUsed(0)
     setRescuesUsed(0)
     setRunning(true)
+    boardSeqRef.current += 1 // PR #53 batch 2: a fresh board started (guide frequency caps)
     setScreen('play')
     saveDraft({
       puzzleId: p.id,
@@ -2628,6 +2651,59 @@ export default function App() {
   )
   const dailyToday = records.daily.days[todayKey]
   const dailyStreakNow = liveStreak(records.daily, todayKey)
+
+  // PR #53 batch 2 (Tony 2026-10-19): Unseen guide + pet pop-out triggers.
+  // Evaluates ~2s after relevant state settles; the highest-priority candidate
+  // wins. Caps: 1 warning/session, 1 opportunity/session, progress tags once
+  // each, never interrupt the same board twice. Appearing never pauses the
+  // timer — the existing navigation behavior covers the tap-through case.
+  useEffect(() => {
+    if (guide || petPop) return
+    if (celebrate || defeated || showWheel || shortfall || parade || showHunt) return
+    if (screen === 'play' && guideBoardRef.current === boardSeqRef.current) return
+    const t = window.setTimeout(() => {
+      if (Date.now() - guideLastAtRef.current < 45_000) return
+      const snapshot = {
+        now: petNow,
+        today: todayKey,
+        pets,
+        wallet,
+        pieces: localCard(records).pieces,
+        piecesTotal: CARD_PIECES,
+        streak: dailyStreakNow,
+      }
+      const pick = guideCandidates(snapshot).find((c) =>
+        c.category === 'warning'
+          ? !guideWarnShownRef.current
+          : c.category === 'opportunity'
+            ? !guideOppShownRef.current
+            : !guideProgressFiredRef.current.has(c.tag),
+      )
+      if (pick) {
+        if (pick.category === 'warning') guideWarnShownRef.current = true
+        else if (pick.category === 'opportunity') guideOppShownRef.current = true
+        else guideProgressFiredRef.current.add(pick.tag)
+        guideBoardRef.current = boardSeqRef.current
+        guideLastAtRef.current = Date.now()
+        guideKey.current += 1
+        setGuide({ kind: pick.kind, text: pick.text, target: pick.target, key: guideKey.current })
+        return
+      }
+      // No guide: silent pet pop-out (lowest-mood pet needing care), once per
+      // pet per session, never mid-board.
+      if (screen === 'play') return
+      const needy = petPopoutPick(snapshot)
+      if (needy && !petPopFiredRef.current.has(needy.id)) {
+        petPopFiredRef.current.add(needy.id)
+        guideBoardRef.current = boardSeqRef.current
+        guideLastAtRef.current = Date.now()
+        petPopKey.current += 1
+        setPetPop({ id: needy.id, kind: needy.kind, mood: needy.mood, key: petPopKey.current })
+      }
+    }, 2000)
+    return () => window.clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, pets, petNow, wallet.coins, records, celebrate, defeated, showWheel, shortfall, parade, showHunt, guide, petPop])
   const dailyDateLabel = new Date(`${todayKey}T12:00:00Z`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })
   function buildRemix(size: RemixSize, openAfter = false) {
     const set = remixSet
@@ -2866,7 +2942,7 @@ export default function App() {
             }}
           >
             <span className="brand-mark" />
-            <span className="brand-name">Roman</span>
+            <span className="brand-name">Roman's Game</span>
           </button>
           <nav className="nav">
             <button type="button" className={screen === 'levels' ? 'on' : ''} onClick={() => setScreen('levels')}>
@@ -2886,10 +2962,25 @@ export default function App() {
             </button>
           </nav>
           <div className="hud-pills">
-            <div className="score-pill coin" title="Coins">
+            <a
+              className="site-link"
+              href="https://romansgame.com"
+              target="_blank"
+              rel="noopener"
+              title="romansgame.com"
+              aria-label="Visit romansgame.com"
+            >
+              🏰
+            </a>
+            <button
+              type="button"
+              className="score-pill coin"
+              title="Coins — tap to get more"
+              onClick={() => setScreen('rewards')}
+            >
               {wallet.coins}
               <span>¢</span>
-            </div>
+            </button>
           </div>
         </header>
       )}
@@ -2952,7 +3043,7 @@ export default function App() {
           <section className="hero no-callout">
             <p className="eyebrow">Logic puzzle</p>
             <h1 className="logo-hero no-callout" {...ownerDoor}>
-              Roman
+              Roman's Game
             </h1>
             <p className="lede">
               Drop animated buddies — one per row, column, and region. They hate cuddling (even corners).
@@ -2976,13 +3067,12 @@ export default function App() {
                   Play
                 </button>
               )}
-              <button type="button" className="btn ghost" onClick={() => setScreen('how')}>
+              <button type="button" className="btn ghost btn-sm" onClick={() => setScreen('how')}>
                 How to play
               </button>
-              <button type="button" className="btn ghost" onClick={() => setScreen('bug')}>
+              <button type="button" className="btn ghost btn-sm" onClick={() => setScreen('bug')}>
                 🐛 Report a bug
               </button>
-              <CloudScoresButton suggestedName={playerName} />
               <UnseenCardTile records={records} />
             </div>
           </section>
@@ -3487,8 +3577,10 @@ export default function App() {
           onRedeem={onRedeemGift}
           onShop={() => setScreen('rewards')}
           onBack={() => setScreen('home')}
+          focusPet={stableFocus}
           giftCode={giftPrefill}
           giftsOnline={!isStoreBuild()}
+          isSignedIn={!!profile}
         />
       )}
 
@@ -4012,36 +4104,24 @@ export default function App() {
         onClose={() => setShowWheel(false)}
       />
 
-      <footer className={`foot ${screen === 'play' ? 'foot-hidden' : ''}`}>
-        <span>
-          Roman's Game <span className="build-tag build-tag-foot">{BUILD_TAG}</span>
-        </span>
-        <span className="foot-links">
-          {!isStoreBuild() && settings.analytics !== false ? <FeedbackChip onSend={sendFeedback} /> : null}
-          <a className="privacy-link" href="./privacy.html">
-            Privacy
-          </a>
-          <a className="privacy-link jrny-link" data-testid="jrny-link" href="https://jrny.fun" target="_blank">
-            A JRNY project
-          </a>
-          <button
-            type="button"
-            className="mute"
-            onClick={() => {
-              const next = { ...settings, sound: !settings.sound }
-              setSettings(next)
-              saveSettings(next)
-              setMuted(!next.sound)
-            }}
-          >
-            {settings.sound ? 'Sound on' : 'Sound off'}
-          </button>
-        </span>
-      </footer>
+      {/* Footer removed 2026-10-19: sound, version, feedback, privacy, legal all moved to About section */}
       {/* Keep clear of Netlify “Powered by” badge */}
       <div className="netlify-safe" aria-hidden />
       {/* 10.06: Unseen heckler pop-up — visual only, never blocks input */}
       <UnseenPopup pop={unseenPop} />
+      {/* PR #53 batch 2 (Tony 2026-10-19): the Unseen as guide character + silent pet pop-outs */}
+      <UnseenGuide
+        guide={guide}
+        onGo={goGuideTarget}
+        onDismiss={() => setGuide(null)}
+        onDone={() => setGuide(null)}
+      />
+      <PetPopout
+        pop={petPop}
+        onGo={() => { if (petPop) goGuideTarget({ screen: 'stable', pet: petPop.id }) }}
+        onDismiss={() => setPetPop(null)}
+        onDone={() => setPetPop(null)}
+      />
       {/* 10.06: treat defense — wild pets vs the field treat pile (home + play) */}
       <TreatDefense
         active={screen === 'play' && !celebrate && !defeated && !showWheel && !rotatePaused}
@@ -4056,29 +4136,6 @@ export default function App() {
         onStolen={handleDefenseStolen}
       />
     </div>
-  )
-}
-
-/** 9.30-r: small 👍/👎 in the footer; tapping one opens a one-line optional note */
-function FeedbackChip({ onSend }: { onSend: (vote: 'up' | 'down', note: string) => void }) {
-  const [vote, setVote] = useState<'up' | 'down' | null>(null)
-  const [note, setNote] = useState('')
-  const [sent, setSent] = useState(false)
-  if (sent) return <span className="fb-thanks" data-testid="fb-thanks">Thanks! 💛</span>
-  if (!vote)
-    return (
-      <span className="fb-chip" data-testid="fb-chip">
-        <button type="button" className="fb-btn" data-testid="fb-up" aria-label="Thumbs up: I like the game" onClick={() => setVote('up')}>👍</button>
-        <button type="button" className="fb-btn" data-testid="fb-down" aria-label="Thumbs down: something is wrong" onClick={() => setVote('down')}>👎</button>
-      </span>
-    )
-  return (
-    <span className="fb-form" data-testid="fb-form">
-      <span aria-hidden>{vote === 'up' ? '👍' : '👎'}</span>
-      <input value={note} maxLength={200} placeholder="Add a short note (optional)" aria-label="Optional note" data-testid="fb-note" onChange={(e) => setNote(e.target.value)} />
-      <button type="button" className="fb-send" data-testid="fb-send" onClick={() => { onSend(vote, note); setSent(true) }}>Send</button>
-      <button type="button" className="fb-btn" aria-label="Cancel" onClick={() => setVote(null)}>✕</button>
-    </span>
   )
 }
 
