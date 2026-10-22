@@ -8,9 +8,13 @@ const E = await import('../src/game/dailyEconomy.ts')
 const P = await import('../src/game/parade.ts')
 const T = await import('../src/game/paradeTreasure.ts')
 
-test('9.30-p: the march is slow (12-16 s) so a phone tap can land', () => {
-  assert.equal(P.PARADE_MIN_MS, 12000)
-  assert.equal(P.PARADE_MAX_MS, 16000)
+test('9.32-k: each buddy crosses in 1.5–2.5s and the parade stays under 10s', () => {
+  assert.equal(P.PARADE_CROSS_MIN_MS, 1500)
+  assert.equal(P.PARADE_CROSS_MAX_MS, 2500)
+  assert.ok(P.PARADE_MAX_MS < 10000)
+  const march = P.paradeMarch(5, () => 0.5)
+  assert.ok(march.every((b) => b.crossMs >= 1500 && b.crossMs <= 2500))
+  assert.ok(P.paradeSpanMs(march) < 10000)
 })
 
 test('9.30-p: a parade only uses one of the 3 daily treasure parades when something is caught, and the ledger lists it', () => {
@@ -52,4 +56,6 @@ test('9.30-p: source checks: wallet delta on the summary, tap-the-buddy, fly-to-
   assert.match(ov, /data-testid="parade-buddy-body"/)
   assert.match(app, /data-testid="parade-rewards-today"/)
   assert.match(app, /Parade rewards today/)
+  assert.match(ov, /--cross/)
+  assert.doesNotMatch(app, /undosRef\.current\} undo/)
 })

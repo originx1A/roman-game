@@ -5,6 +5,8 @@ import {
   newParade,
   paradeDone,
   paradeLengthMs,
+  paradeMarch,
+  paradeSpanMs,
   paradeWin,
   pickEvery,
   sanitizeParade,
@@ -89,13 +91,31 @@ test('hint text: wins left, then minutes left, then ready', () => {
   assert.equal(paradeHint({ ...s, wins: 8, due: true }, 21 * MIN).ready, true)
 })
 
-test('length is 12-16 s', () => {
-  assert.equal(paradeLengthMs(() => 0), 12000)
-  assert.equal(paradeLengthMs(() => 1), 16000)
-  for (let i = 0; i < 100; i++) {
-    const ms = paradeLengthMs()
-    assert.ok(ms >= 12000 && ms <= 16000)
+test('each buddy crosses in 1.5–2.5s, gaps stay short, and the parade ends under 10s', () => {
+  const slow = paradeMarch(5, () => 0)
+  const fast = paradeMarch(5, () => 1)
+  assert.equal(slow[0].crossMs, 1500)
+  assert.equal(fast[0].crossMs, 2500)
+  assert.equal(slow[1].delayMs - slow[0].delayMs, 260)
+  assert.equal(fast[1].delayMs - fast[0].delayMs, 420)
+  assert.equal(paradeLengthMs(() => 0), paradeSpanMs(slow))
+  assert.equal(paradeLengthMs(() => 1), paradeSpanMs(fast))
+  assert.ok(paradeSpanMs(fast) < 10000)
+  for (let n = 1; n <= 12; n++) {
+    for (let i = 0; i < 30; i++) {
+      const march = paradeMarch(n)
+      const span = paradeSpanMs(march)
+      assert.ok(span < 10000, `roster ${n} ran ${span}ms`)
+      assert.ok(march.every((b) => b.crossMs >= 1500 && b.crossMs <= 2500))
+      for (let k = 1; k < march.length; k++) assert.ok(march[k].delayMs >= march[k - 1].delayMs)
+    }
   }
+  const pulls = [0, 0.1, 0.1, 0.3, 1, 0.9, 0.9, 0.3, 0.5, 0.4, 0.4]
+  let n = 0
+  const mixed = paradeMarch(3, () => pulls[n++])
+  assert.equal(mixed[0].crossMs, 1500)
+  assert.equal(mixed[1].crossMs, 2500)
+  assert.ok(mixed[0].delayMs < mixed[1].delayMs && mixed[1].delayMs < mixed[2].delayMs)
 })
 
 test('junk saves become a fresh cycle; good saves round-trip; an old 5-7 cycle becomes 8-9 (wins kept)', () => {

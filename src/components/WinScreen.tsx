@@ -234,7 +234,7 @@ export function WinScreen({
           ) : null}
           <button
             type="button"
-            className={`btn ${onShare || (buddyMeter?.pending && onBuddyHunt) ? 'ghost' : 'primary'} win-cta`}
+            className={`btn ${onShare || (buddyMeter?.pending && onBuddyHunt) ? 'ghost' : 'primary'} win-cta win-next`}
             onClick={onNext}
           >
             {nextLabel ?? 'Next board'}
@@ -242,11 +242,11 @@ export function WinScreen({
           {cardGain ? <UnseenCardGain from={cardGain.from} to={cardGain.to} /> : null}
           <CloudScoresButton compact />
           <div className="win-screen-row">
-            <button type="button" className="btn ghost win-cta" onClick={onReplay}>
+            <button type="button" className="btn ghost win-cta win-again" onClick={onReplay}>
               Play again
             </button>
             {onDuel ? (
-              <button type="button" className="btn ghost win-cta" onClick={onDuel}>
+              <button type="button" className="btn ghost win-cta win-duel" onClick={onDuel}>
                 Head-to-head
               </button>
             ) : null}
@@ -257,10 +257,10 @@ export function WinScreen({
             ) : null}
           </div>
           <div className="win-screen-secondary">
-            <button type="button" className="btn tool" onClick={onLevels}>
+            <button type="button" className="btn tool win-levels" onClick={onLevels}>
               Levels
             </button>
-            <button type="button" className="btn tool" onClick={onHome}>
+            <button type="button" className="btn tool win-home" onClick={onHome}>
               Home
             </button>
           </div>

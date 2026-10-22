@@ -92,7 +92,7 @@ import {
   startHunt,
 } from './game/buddyHunt'
 import { createVoiceGate } from './game/voiceGate'
-import { loadParade, paradeDone, paradeHint, paradeLengthMs, paradeReady, paradeWin, saveParade, type ParadeState } from './game/parade'
+import { loadParade, paradeDone, paradeHint, paradeMarch, paradeReady, paradeSpanMs, paradeWin, saveParade, type BuddyMarch, type ParadeState } from './game/parade'
 import { ParadeOverlay, type ParadeBuddy } from './components/ParadeOverlay'
 import { makeCappedTreasure, makeTreasure, type Treasure } from './game/paradeTreasure'
 import {
@@ -591,6 +591,7 @@ export default function App() {
     featured: PetId | null
     featuredKind: DayPerkKind
     capped?: boolean
+    march: BuddyMarch[]
   } | null>(null)
   // Buddy of the day (9.30-l): the featured buddy's perk for 3 boards after a parade
   const dayRef = useRef<BuddyDay>(loadDay(typeof window === 'undefined' ? null : safeLocalStorage()))
@@ -1460,9 +1461,11 @@ export default function App() {
     const budget = treasureBudget(ledP)
     const treasureOk = budget > 0
     paradeCountedRef.current = !treasureOk // a capped parade never uses up another treasure parade
+    const march = paradeMarch(buddies.length)
     setParade({
       buddies,
-      ms: paradeLengthMs(),
+      ms: paradeSpanMs(march),
+      march,
       go,
       treasure: treasureOk ? makeTreasure(buddies.length, Math.random, budget, canEarnSpin(ledP)) : makeCappedTreasure(buddies.length),
       capped: !treasureOk,
@@ -1995,7 +1998,7 @@ export default function App() {
         if (runMode === 'trial' && trialMult === 2) parts.unshift('2× coins')
         else if (runMode === 'trial') parts.unshift('Trial 2× is used up for today')
         const c = comboRef.current
-        const bits = [`combo ×${c.bestMult}`, `${undosRef.current} undo${undosRef.current === 1 ? '' : 's'}`]
+        const bits = [`combo ×${c.bestMult}`]
         if (perfect) bits.unshift('perfect')
         if (replay?.tooFast) bits.push('that time looked too fast to be real, so it was not saved as a best')
         else if (hintsUsed > 0 || rescuesUsed > 0) bits.push('help used: a clean run can replace this time')
@@ -3567,6 +3570,7 @@ export default function App() {
               onCatch={catchTreasure}
               readWallet={() => { const w = loadWallet(); return { coins: w.coins, hints: w.freeHints, spins: w.spins } }}
               durationMs={parade.ms}
+              march={parade.march}
               reduce={settings.reduceMotion}
               onDone={() => {
                 const go = parade.go
