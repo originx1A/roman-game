@@ -14,6 +14,7 @@ export function PhoneHome({
   onBug,
   onFamily,
   onInfo,
+  onUnseen,
   buddy,
   unseen,
 }: {
@@ -27,12 +28,15 @@ export function PhoneHome({
   onBug: () => void
   onFamily: () => void
   onInfo: () => void
+  /** Home only. Returns the line he says, or '' if nothing played. */
+  onUnseen: () => string
   buddy: ReactNode
   unseen: ReactNode
 }) {
   const cloud = useCloud()
   const signed = cloud.status === 'signed-in' && !!cloud.name
   const who = signed ? cloud.publicName || cloud.name : playerName || 'Guest'
+  const [line, setLine] = useState('')
   return (
     <main className="phone-home scroll-pane">
       <div className="phone-who">
@@ -57,6 +61,18 @@ export function PhoneHome({
         <button type="button" onClick={onShare}><span aria-hidden>↗</span>Share</button>
       </div>
       {unseen}
+      <button
+        type="button"
+        className="home-unseen"
+        aria-label="The Unseen"
+        onClick={() => setLine(onUnseen().replace(/^(The Unseen):\s*/i, ''))}
+      >
+        {line ? <span className="home-unseen-line">{line}</span> : null}
+        <picture>
+          <source srcSet="/images/unseen.webp" type="image/webp" />
+          <img src="/images/unseen.png" alt="" draggable={false} />
+        </picture>
+      </button>
       <button type="button" className="phone-quiet" onClick={onBug}>Report a bug</button>
     </main>
   )

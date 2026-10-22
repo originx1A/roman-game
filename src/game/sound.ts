@@ -15,7 +15,7 @@ import {
   type VoiceLineId,
   type VoiceMood,
 } from './voiceLines'
-import { boardEndCancel, clipEndsAt, decideVoice, replacesWaiting, type ChannelLine } from './voiceChannel'
+import { boardEndCancel, clipEndsAt, decideVoice, replacesWaiting, SPEAKER_GAP_MS, WAIT_LIMIT_MS, type ChannelLine } from './voiceChannel'
 
 let ctx: AudioContext | null = null
 let muted = false
@@ -40,9 +40,12 @@ let currentClip: string | null = null
 let voiceFreeSince = 0
 let voiceGeneration = 0
 let voiceSafetyTimer: number | null = null
+let voiceGapTimer: number | null = null
 let voiceUnlocked = false
-/** One waiting line (e.g. a badge right after a win) that plays when the channel frees up */
+/** One waiting line. A newer same-or-higher line replaces it so lower lines don't pile up. */
 let waitingLine: { id: string; opts: PlayVoiceOpts; until: number } | null = null
+/** The line that currently owns the channel, so a higher line can park it instead of dropping it. */
+let heldVoice: { id: string; opts: PlayVoiceOpts; at: number } | null = null
 
 const FALLBACK_TEXT: Partial<Record<VoiceLineId, string>> = {
   nice: 'Nice.',
@@ -625,20 +628,41 @@ function clearVoiceSafety() {
   }
 }
 
-/** Free the channel if `gen` is still the current line, then start a waiting line if any */
+function clearVoiceGap() {
+  if (voiceGapTimer != null) {
+    window.clearTimeout(voiceGapTimer)
+    voiceGapTimer = null
+  }
+}
+
+/** Free the channel if `gen` is still the current line, then start a waiting line after a short gap. */
 function releaseVoice(gen: number) {
   if (gen !== voiceGeneration) return
   clearVoiceSafety()
-  currentLine = null
-  voiceFreeSince = 0
   const next = waitingLine
-  waitingLine = null
-  if (next && performance.now() <= next.until) {
-    // Small gap so two voices don't run into each other
-    window.setTimeout(() => {
-      if (!currentLine) playVoice(next.id, { ...next.opts, waitMs: 0 })
-    }, 250)
+  if (!next || performance.now() > next.until) {
+    waitingLine = null
+    currentLine = null
+    currentClip = null
+    heldVoice = null
+    voiceFreeSince = 0
+    return
   }
+  // Hold the channel through the gap so a new line waits instead of starting on top of the silence.
+  currentLine = { priority: 0, gen, audible: true, endsAt: performance.now() + SPEAKER_GAP_MS }
+  currentClip = null
+  heldVoice = null
+  clearVoiceGap()
+  voiceGapTimer = window.setTimeout(() => {
+    voiceGapTimer = null
+    if (gen !== voiceGeneration) return
+    const queued = waitingLine
+    waitingLine = null
+    currentLine = null
+    currentClip = null
+    if (queued && performance.now() <= queued.until) playVoice(queued.id, { ...queued.opts, waitMs: 0 })
+    else voiceFreeSince = 0
+  }, SPEAKER_GAP_MS)
 }
 
 /** 9.30-f: told when a clip actually starts playing (the line bags only count heard lines) */
@@ -660,7 +684,10 @@ export function setVoiceHeardListener(fn: ((clip: string) => void) | null) {
 function stopVoice() {
   voiceGeneration += 1
   clearVoiceSafety()
+  clearVoiceGap()
   currentLine = null
+  currentClip = null
+  heldVoice = null
   voiceFreeSince = 0
   const el = voiceEl
   if (!el) return
@@ -1113,31 +1140,39 @@ function clipObjectUrl(id: string): Promise<string | null> {
 
 /**
  * Play one voice line on the shared channel.
- * - Only catalog clips play (Roman = Brian, coach = Jenny); anything else is ignored (silent).
- * - While a line is loading or playing, a new line interrupts it only if its priority is higher;
- *   equal/lower priority is skipped (or waits, with waitMs), so lines never stack or overlap.
+ * One character speaks at a time. A new line waits for the current one (and a short gap) instead
+ * of cutting it off. If it would still be waiting after about 2s, it is skipped. A higher line
+ * that arrives while nothing has been heard yet plays first; the other line waits.
  */
 export function playVoice(id: string, opts: PlayVoiceOpts = {}) {
   if (muted || !voiceEnabled || !id) return
   const queue = [id, ...(opts.alts ?? [])].filter((clip, i, all) => isPlayableVoiceClip(clip) && all.indexOf(clip) === i).slice(0, 5)
   if (!queue.length) return
   const priority = opts.priority ?? 1
-  // 9.30-f: the same clip already playing or waiting its turn isn't asked for twice (a line only
+  // The same clip already playing or waiting its turn isn't asked for twice (a line only
   // counts as played once heard, so its bag can offer it again while it waits)
   if ((currentLine && currentClip === id) || waitingLine?.id === id) return
-  // 9.30-e: a line that has started always finishes; higher lines wait their turn (or go stale)
   const d = decideVoice(currentLine, { priority, waitMs: opts.waitMs }, performance.now())
   if (d.kind === 'skip') return
   if (d.kind === 'wait') {
     if (replacesWaiting(waitingLine ? (waitingLine.opts.priority ?? 1) : null, priority)) waitingLine = { id, opts, until: d.until }
     return
   }
-  if (waitingLine && priority >= (waitingLine.opts.priority ?? 1)) waitingLine = null
+  const displaced = d.kind === 'preempt' ? heldVoice : null
+  if (d.kind === 'play' && waitingLine && priority >= (waitingLine.opts.priority ?? 1)) waitingLine = null
   const el = voicePlayer()
   if (!el) return
 
   stopVoice()
+  if (displaced) {
+    const until = displaced.at + WAIT_LIMIT_MS
+    const wp = displaced.opts.priority ?? 1
+    if (performance.now() <= until && replacesWaiting(waitingLine ? (waitingLine.opts.priority ?? 1) : null, wp)) {
+      waitingLine = { id: displaced.id, opts: displaced.opts, until }
+    }
+  }
   const gen = voiceGeneration
+  heldVoice = { id, opts, at: performance.now() }
   currentLine = { priority, gen, audible: false, endsAt: 0 }
   currentClip = id
   voiceFreeSince = 0

@@ -1,12 +1,15 @@
 /*
- * 9.30-e: rules for the one shared voice channel (Roman, the coach and the Unseen), kept pure so
- * they are unit-tested.
+ * Rules for the one shared voice channel (Roman, the coach and the Unseen), kept pure so they
+ * are unit-tested. Trigger moments stay where they are; only the spacing changes.
  *
- * - A line that has STARTED PLAYING always finishes. No other voice, board end or screen change
- *   stops it (only muting, turning voices off, or closing the game does).
- * - A new line that outranks the one playing waits its turn instead of cutting in, and is dropped
- *   if it would be stale by then. Equal/lower lines are skipped unless they asked to wait.
- * - A line that is still LOADING (nothing heard yet) can still be replaced by a higher one.
+ * - One speaker at a time. A line the player can already hear always finishes.
+ * - A short gap (SPEAKER_GAP_MS) sits between speakers.
+ * - Two triggers at once: the higher-priority line plays first. The other waits, but only
+ *   until WAIT_LIMIT_MS after it was asked for.
+ * - A waiting line is skipped once that wait has passed (the move it answers is old).
+ * - One line waits. A same-or-higher line replaces it, so lower-priority lines don't pile up.
+ * - A line still LOADING (nothing heard) yields to a higher one that fired with it. The yielded
+ *   line waits; it is not cut off after it has started.
  * - At a board end only QUEUED lines below the win/lose line are dropped.
  */
 export interface ChannelLine {
@@ -21,25 +24,24 @@ export interface VoiceRequest {
   waitMs?: number
 }
 
-/** How long past the current line's end a line that outranks it is still worth saying */
-export const STALE_AFTER_MS = { high: 4000, normal: 1500 } as const
+/** Silence between two speakers, inside the 400–600ms range. */
+export const SPEAKER_GAP_MS = 500
+/** A waiting line is stale after this long: the move it answers is old. */
+export const WAIT_LIMIT_MS = 2000
 /** Win / lose lines and up */
 export const HIGH_PRIORITY = 5
-/** Wait assumed when the playing line's end isn't known yet */
-export const UNKNOWN_REMAINING_MS = 7000
 
 export type VoiceDecision = { kind: 'play' } | { kind: 'preempt' } | { kind: 'wait'; until: number } | { kind: 'skip' }
 
 export function decideVoice(current: ChannelLine | null, req: VoiceRequest, now: number): VoiceDecision {
   if (!current) return { kind: 'play' }
+  // Nothing heard yet: the higher line goes first. The caller keeps the other one waiting.
   if (req.priority > current.priority && !current.audible) return { kind: 'preempt' }
-  if (req.priority > current.priority) {
-    const remaining = current.endsAt > now ? current.endsAt - now : current.endsAt ? 0 : UNKNOWN_REMAINING_MS
-    const grace = req.priority >= HIGH_PRIORITY ? STALE_AFTER_MS.high : STALE_AFTER_MS.normal
-    return { kind: 'wait', until: now + Math.max(req.waitMs ?? 0, remaining + grace) }
-  }
-  if (req.waitMs) return { kind: 'wait', until: now + req.waitMs }
-  return { kind: 'skip' }
+  const remaining = current.endsAt > now ? current.endsAt - now : 0
+  // priority 0 is the gap already being held; its endsAt is the gap, so don't add another.
+  const gap = current.priority === 0 ? 0 : SPEAKER_GAP_MS
+  if (remaining + gap > WAIT_LIMIT_MS) return { kind: 'skip' }
+  return { kind: 'wait', until: now + WAIT_LIMIT_MS }
 }
 
 /** Only one line waits; a new waiter replaces it if it ranks the same or higher */

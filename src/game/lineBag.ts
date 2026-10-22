@@ -64,11 +64,15 @@ interface SavedBags {
   /** 9.29-a: the last few lines handed out by any bag, newest last. A line shared by two
    *  categories (or a tip and its original spot) waits until these have moved on. */
   recent?: string[]
+  /** Last lines each speaker actually started, newest last. */
+  bySpeaker?: Record<string, string[]>
   bags: Record<string, SavedBag>
 }
 
 /** How many recently spoken lines (across every category) a bag steps around when it can. */
 export const RECENT_AVOID = 8
+/** Per speaker: don't repeat one of these if another line in the pool can go instead. */
+export const SPEAKER_AVOID = 5
 
 import type { HeardLog } from './heardLog'
 
@@ -126,7 +130,15 @@ export function memoryBagStore(): BagStore & { data: Map<string, string> } {
 }
 
 export function createBagSet(
-  opts: { store?: BagStore | null; rng?: () => number; key?: string; commitOnPlay?: boolean; heard?: HeardLog } = {},
+  opts: {
+    store?: BagStore | null
+    rng?: () => number
+    key?: string
+    commitOnPlay?: boolean
+    heard?: HeardLog
+    /** Groups clips by speaker so each voice avoids its own last few lines. */
+    speakerOf?: (id: string) => string
+  } = {},
 ): BagSet {
   const commitOnPlay = !!opts.commitOnPlay
   /** bag name → the line it last offered that hasn't been heard yet */
@@ -144,12 +156,19 @@ export function createBagSet(
       const v = raw ? (JSON.parse(raw) as Partial<SavedBags>) : null
       if (v && typeof v === 'object' && v.bags && typeof v.bags === 'object') {
         const recent = Array.isArray(v.recent) ? v.recent.filter((x): x is string => typeof x === 'string').slice(-RECENT_AVOID) : []
-        parsed = { last: typeof v.last === 'string' ? v.last : null, recent, bags: v.bags as Record<string, SavedBag> }
+        const bySpeaker: Record<string, string[]> = {}
+        if (v.bySpeaker && typeof v.bySpeaker === 'object') {
+          for (const [name, arr] of Object.entries(v.bySpeaker as Record<string, unknown>)) {
+            if (!Array.isArray(arr)) continue
+            bySpeaker[name] = arr.filter((x): x is string => typeof x === 'string').slice(-SPEAKER_AVOID)
+          }
+        }
+        parsed = { last: typeof v.last === 'string' ? v.last : null, recent, bySpeaker, bags: v.bags as Record<string, SavedBag> }
       }
     } catch {
       parsed = null
     }
-    state = parsed ?? { last: null, recent: [], bags: {} }
+    state = parsed ?? { last: null, recent: [], bySpeaker: {}, bags: {} }
     return state
   }
 
@@ -207,8 +226,18 @@ export function createBagSet(
       const heard = opts.heard
       return () => {
         const s = load()
-        const soft = new Set<string>([...(s.recent ?? []), ...(s.last ? [s.last] : [])])
-        const ties = leastHeard(items, (x) => heard.count(x), soft, new Set(s.last ? [s.last] : []))
+        const recentFor = (id: string) => {
+          const who = opts.speakerOf?.(id)
+          return who ? (s.bySpeaker?.[who] ?? []).slice(-SPEAKER_AVOID) : []
+        }
+        // Least-heard first, then step around that speaker's last few lines, then lines heard
+        // lately in any category. Each step keeps the previous set when it would leave nothing.
+        let ties = leastHeard(items, (x) => heard.count(x), new Set(), new Set(s.last ? [s.last] : []))
+        const notMine = ties.filter((x) => !recentFor(x).includes(x))
+        if (notMine.length) ties = notMine
+        const recent = new Set<string>([...(s.recent ?? []), ...(s.last ? [s.last] : [])])
+        const fresh = ties.filter((x) => !recent.has(x))
+        if (fresh.length) ties = fresh
         return ties[Math.floor(rng() * ties.length)] as T
       }
     }
@@ -246,11 +275,19 @@ export function createBagSet(
     }
   }
 
+  function rememberSpeaker(s: SavedBags, pick: string) {
+    const who = opts.speakerOf?.(pick)
+    if (!who) return
+    const prev = s.bySpeaker?.[who] ?? []
+    s.bySpeaker = { ...(s.bySpeaker ?? {}), [who]: [...prev.filter((x) => x !== pick), pick].slice(-SPEAKER_AVOID) }
+  }
+
   function advance(s: SavedBags, name: string, b: SavedBag, pick: string) {
     b.pos += 1
     s.bags[name] = b
     s.last = pick
     s.recent = [...(s.recent ?? []).filter((x) => x !== pick), pick].slice(-RECENT_AVOID)
+    rememberSpeaker(s, pick)
     save()
   }
 
@@ -273,6 +310,7 @@ export function createBagSet(
       // Heard from outside any bag (a spark count, a one-off): still counts for no-back-to-back
       s.last = item
       s.recent = [...(s.recent ?? []).filter((x) => x !== item), item].slice(-RECENT_AVOID)
+      rememberSpeaker(s, item)
       save()
     }
   }

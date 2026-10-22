@@ -185,6 +185,7 @@ import {
 import { publicLinkWithHash, publicPlayUrl } from './game/publicUrl'
 import {
   banterFor,
+  unseenHomeSaying,
   unheardShare,
   heardSummary,
   heardLog,
@@ -3044,6 +3045,11 @@ export default function App() {
           onBug={() => setScreen('bug')}
           onFamily={() => setFamilyOpen(true)}
           onInfo={() => setInfoOpen(true)}
+          onUnseen={() => {
+            const line = unseenHomeSaying()
+            if (line.speak && line.clip) playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
+            return line.speak && line.text ? line.text : ''
+          }}
           buddy={
             <section className="home-pet-row" aria-label="Your buddy">
               <HomePet

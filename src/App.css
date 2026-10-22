@@ -6547,6 +6547,43 @@ html[data-device='phone'] .phone-grid .cloud-btn.is-short::before { content: 'â˜
 }
 html[data-device='phone'] .phone-home .home-pet-row { margin: 0; }
 html[data-device='phone'] .phone-home .unseen-tile { margin: 0; max-width: none; }
+html[data-device='phone'] .home-unseen {
+  position: fixed;
+  right: 0.35rem;
+  bottom: calc(4.2rem + env(safe-area-inset-bottom));
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  width: max-content;
+  max-width: min(260px, 78vw);
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+html[data-device='phone'] .home-unseen img {
+  width: 120px;
+  height: auto;
+  display: block;
+  margin-right: -8px;
+  pointer-events: none;
+}
+html[data-device='phone'] .home-unseen-line {
+  display: block;
+  margin: 0 0 0.35rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 12px;
+  background: rgba(8, 16, 36, 0.92);
+  color: var(--foam);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: left;
+  max-width: 220px;
+}
 
 .phone-sheet {
   position: fixed;

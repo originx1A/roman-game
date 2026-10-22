@@ -1061,7 +1061,7 @@ function oldtimerTurn(share = OLDTIMER_SHARE, oldPool?: readonly VoiceClipId[], 
 // 9.30-k: a saved heard count per clip (roman.heard.v1, not tied to the build). Each moment offers its
 // LEAST-heard lines first (random among ties), so an unheard line always comes before a repeat.
 export const heardLog = createHeardLog({ store: browserBagStore() })
-const voiceBags = createBagSet({ store: browserBagStore(), commitOnPlay: true, heard: heardLog })
+const voiceBags = createBagSet({ store: browserBagStore(), commitOnPlay: true, heard: heardLog, speakerOf: roleForClip })
 /** The voice channel started this clip: its bag moves on (and it counts for no-back-to-back) */
 export function noteVoicePlayed(clip: string) {
   voiceBags.markPlayed(clip)
@@ -1277,6 +1277,11 @@ function voiced(
 }
 
 const roman = (clip: VoiceClipId, pool: readonly VoiceClipId[]) => ({ clip, pool })
+
+/** Home-screen tap on the Unseen: one line from his aside sayings, through the same bags and queue. */
+export function unseenHomeSaying(): Banter {
+  return voiced(pickOld(oldAside), 'neutral', 'neutral', VOICE_PRIORITY.idle)
+}
 
 export function banterFor(
   event:

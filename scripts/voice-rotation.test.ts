@@ -55,6 +55,26 @@ test('9.30-f: an alt from the same pool that played instead counts for that pool
   assert.deepEqual([alt, ...rest].sort(), ['a', 'b', 'c'])
 })
 
+test('each speaker skips their own last 5 lines while the pool still has others', async () => {
+  const H = await import('../src/game/heardLog.ts')
+  const store = L.memoryBagStore()
+  const heard = H.createHeardLog({ store: L.memoryBagStore() })
+  const set = L.createBagSet({ store, rng, commitOnPlay: true, heard, speakerOf: () => 'roman' })
+  const items = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+  const next = set.bag('roman.sample', items)
+  const spoken: string[] = []
+  for (let k = 0; k < items.length; k++) {
+    const pick = next()
+    if (k >= L.SPEAKER_AVOID) assert.ok(!spoken.slice(-L.SPEAKER_AVOID).includes(pick), `repeated ${pick}`)
+    set.markPlayed(pick)
+    heard.record(pick)
+    spoken.push(pick)
+  }
+  assert.equal(new Set(spoken).size, items.length, 'the whole pool is used before anyone is stuck on a few lines')
+  const extra = next()
+  assert.ok(!spoken.slice(-L.SPEAKER_AVOID).includes(extra), 'no quick repeat once every line has been heard')
+})
+
 test('9.30-f: game voices: bags only move on when a line is heard (banterFor + noteVoicePlayed)', async () => {
   ;(globalThis as { window?: unknown }).window ??= { setTimeout: () => 0, clearTimeout: () => {} }
   const C = await import('../src/game/comments.ts')
