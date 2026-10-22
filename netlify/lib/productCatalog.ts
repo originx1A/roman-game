@@ -2,6 +2,7 @@
  * Bundled copy of config/products.json so the Netlify function does not
  * read the file from disk. The cart test keeps the two copies equal.
  * unitAmount stays null and stripePriceId stays empty until tokenomics.
+ * The Starter price is not in this file. The cart prices it from the account's prior Starters.
  * US buyers use the usd list. Everyone else uses the cad list.
  * Adaptive Pricing is on in addition to that choice.
  */

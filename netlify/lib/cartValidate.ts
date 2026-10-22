@@ -1,4 +1,5 @@
 import type { Catalog, CatalogProduct, PriceList } from './productCatalog.ts'
+import { starterPriceCents } from '../../src/game/shopOffers.ts'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -9,7 +10,6 @@ export type CartError =
   | 'bad_qty'
   | 'duplicate_sku'
   | 'starter_qty'
-  | 'starter_owned'
   | 'prices_not_ready'
   | 'bad_gift'
 
@@ -39,13 +39,14 @@ export function listForCountry(catalog: Catalog, country: string | null | undefi
 
 /**
  * Check a cart against one price list. Client price and currency fields are ignored.
- * A line is priced only when config has a positive amount and a Stripe price id.
+ * A Starter is priced from how many that receiving account already has.
+ * Other lines are priced only when config has a positive amount and a Stripe price id.
  */
 export function validateCart(
   body: unknown,
   catalog: Catalog,
   country: string | null,
-  starterHeld: boolean,
+  starterPrior: number,
 ): CartDecision {
   const list = listForCountry(catalog, country)
   const currency = list.currency
@@ -76,7 +77,16 @@ export function validateCart(
       return { ok: false, error: 'bad_qty', currency }
     }
     if (product.once && line.qty !== 1) return { ok: false, error: 'starter_qty', currency }
-    if (product.once) holdsStarter = true
+    if (product.once) {
+      holdsStarter = true
+      items.push({
+        sku,
+        qty: line.qty,
+        stripePriceId: '',
+        unitAmount: starterPriceCents(currency, starterPrior),
+      })
+      continue
+    }
     const amount = product.unitAmount
     const priceId = product.stripePriceId.trim()
     if (typeof amount !== 'number' || !Number.isInteger(amount) || amount < 1 || !priceId) pricesReady = false
@@ -87,7 +97,6 @@ export function validateCart(
       unitAmount: typeof amount === 'number' ? amount : 0,
     })
   }
-  if (holdsStarter && starterHeld) return { ok: false, error: 'starter_owned', currency }
   if (!pricesReady) return { ok: false, error: 'prices_not_ready', currency }
   return {
     ok: true,
@@ -113,4 +122,11 @@ function readGift(value: unknown): { mode: 'linked_child' | 'code'; childId: str
     return { mode: 'linked_child', childId }
   }
   return 'bad'
+}
+
+/** Self uses the buyer. A linked child uses that child. A gift code has no account yet. */
+export function receivingAccount(buyerId: string, plan: Pick<CartPlan, 'giftMode' | 'giftChildId'>): string | null {
+  if (plan.giftMode === 'code') return null
+  if (plan.giftMode === 'linked_child') return plan.giftChildId
+  return buyerId
 }

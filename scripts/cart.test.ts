@@ -7,8 +7,8 @@ import { PRODUCT_CATALOG, type Catalog } from '../netlify/lib/productCatalog.ts'
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8')
 
-function decisionError(body: unknown, country: string | null, held = false): string | null {
-  const decision = validateCart(body, PRODUCT_CATALOG, country, held)
+function decisionError(body: unknown, country: string | null, prior = 0): string | null {
+  const decision = validateCart(body, PRODUCT_CATALOG, country, prior)
   return decision.ok ? null : decision.error
 }
 
@@ -29,22 +29,37 @@ test('the price file has empty USD and CAD lists and matches the bundled copy', 
   assert.equal(/"unitAmount":\s*[0-9]/.test(read('../config/products.json')), false)
 })
 
-test('cart rules reject a bad quantity, an unknown SKU, and a second starter', () => {
+test('cart rules reject a bad quantity and an unknown SKU, and price a repeat starter', () => {
   assert.equal(decisionError({ items: [{ sku: 'coins_500', qty: 6 }] }, 'CA'), 'bad_qty')
   assert.equal(decisionError({ items: [{ sku: 'made-up', qty: 1 }] }, 'CA'), 'unknown_sku')
   assert.equal(decisionError({ items: [{ sku: 'starter_bundle', qty: 2 }] }, 'CA'), 'starter_qty')
-  assert.equal(decisionError({ items: [{ sku: 'starter_bundle', qty: 1 }] }, 'CA', true), 'starter_owned')
+  const first = validateCart({ items: [{ sku: 'starter_bundle', qty: 1 }] }, PRODUCT_CATALOG, 'CA', 0)
+  assert.equal(first.ok, true)
+  if (first.ok) {
+    assert.equal(first.plan.currency, 'cad')
+    assert.equal(first.plan.items[0]?.unitAmount, 299)
+    assert.equal(first.plan.holdsStarter, true)
+  }
+  const second = validateCart({ items: [{ sku: 'starter_bundle', qty: 1 }] }, PRODUCT_CATALOG, 'US', 1)
+  assert.equal(second.ok, true)
+  if (second.ok) {
+    assert.equal(second.plan.currency, 'usd')
+    assert.equal(second.plan.items[0]?.unitAmount, 199)
+  }
+  const later = validateCart({ items: [{ sku: 'starter_bundle', qty: 1 }] }, PRODUCT_CATALOG, null, 3)
+  assert.equal(later.ok, true)
+  if (later.ok) assert.equal(later.plan.items[0]?.unitAmount, 449)
   assert.equal(decisionError({ items: Array.from({ length: 11 }, () => ({ sku: 'coins_500', qty: 1 })) }, 'US'), 'too_many_lines')
   const priced = validateCart(
     { items: [{ sku: 'coins_500', qty: 1, price: 1, currency: 'eur', unitAmount: 1 }] },
     PRODUCT_CATALOG,
     'US',
-    false,
+    0,
   )
   assert.equal(priced.ok, false)
   if (!priced.ok) assert.equal(priced.currency, 'usd')
   assert.equal(JSON.stringify(priced).includes('eur'), false)
-  const canada = validateCart({ items: [{ sku: 'coins_500', qty: 1 }] }, PRODUCT_CATALOG, null, false)
+  const canada = validateCart({ items: [{ sku: 'coins_500', qty: 1 }] }, PRODUCT_CATALOG, null, 0)
   assert.equal(canada.ok, false)
   if (!canada.ok) {
     assert.equal(canada.error, 'prices_not_ready')
@@ -83,7 +98,7 @@ function deps(catalog: Catalog, country: string | null): { auth: CartDeps; sessi
         ok: true,
         row: { paymentsEnabled: true, parentLocked: false, age13Plus: true, email: null },
       }),
-      starterHeld: async () => false,
+      starterCount: async () => 0,
       consumeReauth: async () => true,
       readKey: () => 'sk_test_123',
       isLive: () => false,
@@ -123,6 +138,43 @@ test('a priced cart uses the config price id and Adaptive Pricing', async () => 
   assert.equal(sessions[0]?.plan.items[0]?.stripePriceId, 'price_usd_500')
   assert.equal(sessions[0]?.plan.items[0]?.unitAmount, 250)
   assert.equal(sessions[0]?.plan.currency, 'usd')
+})
+
+test('a starter cart charges the receiving account, and a gift code stays on the first price', async () => {
+  const child = '11111111-1111-4111-8111-111111111111'
+  const { auth, sessions } = deps(PRODUCT_CATALOG, 'CA')
+  const counted: string[] = []
+  auth.starterCount = async (accountId) => {
+    counted.push(accountId)
+    return accountId === child ? 1 : 4
+  }
+  const linked = await handleCart(
+    post({
+      items: [{ sku: 'starter_bundle', qty: 1 }],
+      gift: { mode: 'linked_child', child_user_id: child },
+      reauth_token: 'reauth-token-value-ok',
+    }, 'CA'),
+    auth,
+  )
+  assert.equal(linked.status, 200)
+  assert.deepEqual(counted, [child])
+  assert.equal(sessions[0]?.plan.currency, 'cad')
+  assert.equal(sessions[0]?.plan.holdsStarter, true)
+  assert.equal(sessions[0]?.plan.items[0]?.unitAmount, 349)
+  assert.equal(sessions[0]?.plan.items[0]?.stripePriceId, '')
+
+  const code = await handleCart(
+    post({
+      items: [{ sku: 'starter_bundle', qty: 1 }],
+      gift: { mode: 'code' },
+      reauth_token: 'reauth-token-value-ok',
+    }, 'CA'),
+    auth,
+  )
+  assert.equal(code.status, 200)
+  assert.deepEqual(counted, [child])
+  assert.equal(sessions[1]?.plan.currency, 'cad')
+  assert.equal(sessions[1]?.plan.items[0]?.unitAmount, 299)
 })
 
 function post(body: unknown, country: string): Request {

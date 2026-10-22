@@ -1,10 +1,11 @@
-import { validateCart, type CartPlan } from './cartValidate.ts'
+import { receivingAccount, validateCart, type CartPlan } from './cartValidate.ts'
 import { json, PURCHASES_UNAVAILABLE, siteBase } from './http.ts'
 import { checkoutAllowed, loadPayRow, requestCountry, requireUser } from './payGate.ts'
 import { PRODUCT_CATALOG, type Catalog } from './productCatalog.ts'
 import { consumeReauth } from './reauth.ts'
 import { CHECKOUT_TEST_ONLY } from './coinPacks.ts'
 import { isLiveStripeKey, readStripeKey, stripeClient } from './stripeServer.ts'
+import { countStarterReceipts } from './starterReceipts.ts'
 import { supabaseAdmin } from './supabaseAdmin.ts'
 
 const CART_TTL_MS = 30 * 60_000
@@ -17,7 +18,6 @@ const STATUS: Record<string, number> = {
   duplicate_sku: 422,
   starter_qty: 422,
   bad_gift: 422,
-  starter_owned: 409,
   prices_not_ready: 409,
 }
 
@@ -44,7 +44,7 @@ export type CartDeps = {
   country: (req: Request) => string | null
   userId: (token: string) => Promise<string | null>
   payRow: (playerId: string) => Promise<{ ok: true; row: { paymentsEnabled: boolean; parentLocked: boolean; age13Plus: boolean | null; email: string | null } } | { ok: false; status: number; error: string }>
-  starterHeld: (playerId: string) => Promise<boolean | 'unavailable'>
+  starterCount: (accountId: string) => Promise<number | 'unavailable'>
   consumeReauth: (playerId: string, token: string) => Promise<boolean>
   readKey: () => string | null
   isLive: (key: string) => boolean
@@ -68,26 +68,8 @@ export function productionCartDeps(): CartDeps | null {
     country: requestCountry,
     userId: requireUser,
     payRow: loadPayRow,
-    async starterHeld(playerId) {
-      const entitled = await admin
-        .from('entitlements')
-        .select('id')
-        .eq('player_id', playerId)
-        .in('item_id', ['starter', 'starter_bundle'])
-        .is('revoked_at', null)
-        .limit(1)
-      if (entitled.error) return 'unavailable'
-      if (Array.isArray(entitled.data) && entitled.data.length > 0) return true
-      const pending = await admin
-        .from('carts')
-        .select('id')
-        .eq('player_id', playerId)
-        .eq('holds_starter', true)
-        .eq('status', 'pending')
-        .gt('expires_at', new Date().toISOString())
-        .limit(1)
-      if (pending.error) return 'unavailable'
-      return Array.isArray(pending.data) && pending.data.length > 0
+    async starterCount(accountId) {
+      return countStarterReceipts(admin, accountId)
     },
     async consumeReauth(playerId, token) {
       return consumeReauth(admin, playerId, token, Date.now())
@@ -131,7 +113,18 @@ export function productionCartDeps(): CartDeps | null {
           mode: 'payment',
           client_reference_id: input.cartId,
           adaptive_pricing: { enabled: input.plan.adaptivePricing },
-          line_items: input.plan.items.map((item) => ({ price: item.stripePriceId, quantity: item.qty })),
+          line_items: input.plan.items.map((item) => (
+            item.stripePriceId
+              ? { price: item.stripePriceId, quantity: item.qty }
+              : {
+                  quantity: item.qty,
+                  price_data: {
+                    currency: input.plan.currency,
+                    unit_amount: item.unitAmount,
+                    product_data: { name: 'Starter Pack', description: '8,000 coins and 5 treats' },
+                  },
+                }
+          )),
           metadata: { cart_id: input.cartId, user_id: input.playerId },
           customer_email: input.email || undefined,
           success_url: `${siteBase()}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
@@ -155,33 +148,18 @@ export async function handleCart(req: Request, deps: CartDeps | null = productio
   } catch {
     return json({ error: 'bad_request' }, 400)
   }
-  const structural = validateCart(body, catalog, country, false)
-  if (!structural.ok && structural.error !== 'prices_not_ready') {
+  const structural = validateCart(body, catalog, country, 0)
+  if (!structural.ok) {
     return json({ error: structural.error, currency: structural.currency }, STATUS[structural.error] ?? 422)
   }
-  if (!deps) {
-    if (!structural.ok) return json({ error: structural.error, currency: structural.currency }, STATUS[structural.error] ?? 422)
-    return json({ error: 'unavailable' }, 503)
-  }
+  if (!deps) return json({ error: 'unavailable' }, 503)
 
   const playerId = await deps.userId(bearer(req))
-  if (!structural.ok) {
-    if (playerId) {
-      const held = await deps.starterHeld(playerId)
-      if (held === 'unavailable') return json({ error: 'unavailable' }, 503)
-      if (held) {
-        const owned = validateCart(body, catalog, country, true)
-        if (!owned.ok && owned.error === 'starter_owned') {
-          return json({ error: owned.error, currency: owned.currency }, 409)
-        }
-      }
-    }
-    return json({ error: structural.error, currency: structural.currency }, STATUS[structural.error] ?? 422)
-  }
   if (!playerId) return json({ error: 'Sign in first.' }, 401)
-  const held = await deps.starterHeld(playerId)
-  if (held === 'unavailable') return json({ error: 'unavailable' }, 503)
-  const owned = validateCart(body, catalog, country, held === true)
+  const recipient = receivingAccount(playerId, structural.plan)
+  const prior = recipient ? await deps.starterCount(recipient) : 0
+  if (prior === 'unavailable') return json({ error: 'unavailable' }, 503)
+  const owned = validateCart(body, catalog, country, prior)
   if (!owned.ok) return json({ error: owned.error, currency: owned.currency }, STATUS[owned.error] ?? 422)
 
   const loaded = await deps.payRow(playerId)
