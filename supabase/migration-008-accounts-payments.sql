@@ -169,9 +169,6 @@ create table if not exists public.entitlements (
   revoked_at timestamptz
 );
 create index if not exists entitlements_player_idx on public.entitlements (player_id, item_id);
-create unique index if not exists entitlements_starter_once
-  on public.entitlements (player_id)
-  where item_id = 'starter' and revoked_at is null;
 alter table public.entitlements enable row level security;
 drop policy if exists "entitlements: read own" on public.entitlements;
 create policy "entitlements: read own" on public.entitlements

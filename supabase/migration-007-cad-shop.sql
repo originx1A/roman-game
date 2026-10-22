@@ -11,7 +11,7 @@
 alter table public.stripe_receipts drop constraint if exists stripe_receipts_coins_check;
 alter table public.stripe_receipts
   add constraint stripe_receipts_coins_check
-  check (coins in (300, 500, 1000, 1400, 2500, 3200));
+  check (coins in (5000, 8000, 14000, 32000));
 
 create or replace function public.apply_stripe_credit(player uuid, op text, amount integer)
 returns jsonb
@@ -24,7 +24,7 @@ begin
   if coalesce(auth.role(), '') is distinct from 'service_role' then
     raise exception 'forbidden';
   end if;
-  if amount not in (300, 500, 1000, 1400, 2500, 3200) then
+  if amount not in (5000, 8000, 14000, 32000) then
     return jsonb_build_object('ok', false, 'error', 'bad_amount');
   end if;
   opu := md5(op)::uuid;
