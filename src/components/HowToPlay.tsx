@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { worldLinkProps } from '../game/publicUrl'
 import { HowDemo, type HowDemoId } from './HowDemo'
 
 const STEPS = [
@@ -39,11 +40,14 @@ export function HowToPlay({
   onBack,
   startAt = 0,
   doneLabel = 'Choose a level',
+  sameTab = false,
 }: {
   onDone: () => void
   onBack?: () => void
   startAt?: number
   doneLabel?: string
+  /** Phone opens romansgame.com in this tab. Wider screens open a new one. */
+  sameTab?: boolean
 }) {
   const [step, setStep] = useState(() => Math.max(0, Math.min(STEPS.length - 1, startAt)))
   const current = STEPS[step]
@@ -63,6 +67,9 @@ export function HowToPlay({
           </button>
         )}
         <h2>How to play</h2>
+        <a className="site-link" {...worldLinkProps(sameTab)}>
+          romansgame.com
+        </a>
       </div>
       <p className="sub how-sub">Watch the demo, then jump in.</p>
       <div className="how-stage" data-demo={current.demo}>

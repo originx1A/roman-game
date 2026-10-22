@@ -20,6 +20,7 @@ import { TreatDefense } from './components/TreatDefense'
 import { UnseenPopup } from './components/UnseenPopup'
 import { CloudScoresButton } from './cloud/CloudScores'
 import { PhoneBoard } from './components/PhoneBoard'
+import { LiveBoard } from './components/LiveBoard'
 import { FamilySheet, HomeUnseen, InfoSheet, PhoneHome, PhoneSettings, PhoneVote, PlayerPanel } from './components/PhoneProposal'
 import { cloudState, initCloud, saveScore } from './cloud/cloud'
 import { UnseenCardTile } from './components/UnseenCard'
@@ -182,7 +183,7 @@ import {
   parseDuelFromHash,
   rankLabel,
 } from './game/challenges'
-import { publicLinkWithHash, publicPlayUrl } from './game/publicUrl'
+import { publicLinkWithHash, publicPlayUrl, worldLinkProps } from './game/publicUrl'
 import {
   banterFor,
   unseenHomeSaying,
@@ -439,7 +440,7 @@ export default function App() {
   }, [screen])
   const [{ layout, device }, setLayoutInfo] = useState(() => readLayout())
   useEffect(() => {
-    if (device !== 'phone' && screen === 'board') setScreen('home')
+    if (device === 'tablet' && screen === 'board') setScreen('home')
   }, [device, screen])
   const [infoOpen, setInfoOpen] = useState(false)
   const [playerOpen, setPlayerOpen] = useState(false)
@@ -655,6 +656,8 @@ export default function App() {
   const [remixBuilding, setRemixBuilding] = useState<RemixSize[]>([])
   const [remixFailed, setRemixFailed] = useState<RemixSize[]>([])
   const remixJobsRef = useRef(new Set<string>())
+  /** A tap during "Building…" should still open that board when the build finishes. */
+  const remixOpenAfterRef = useRef(new Set<string>())
   const [endless, setEndless] = useState<EndlessStats>(() => loadEndless())
   const [endlessBusy, setEndlessBusy] = useState<Difficulty | null>(null)
   /** Difficulty while this run is an Endless board (Next makes another fresh one) */
@@ -2645,20 +2648,24 @@ export default function App() {
   function buildRemix(size: RemixSize, openAfter = false) {
     const set = remixSet
     const key = `${set}-${size}`
+    if (openAfter) remixOpenAfterRef.current.add(key)
     if (remixJobsRef.current.has(key)) return
     remixJobsRef.current.add(key)
     setRemixBuilding((b) => [...b.filter((x) => x !== size), size])
     setRemixFailed((f) => f.filter((x) => x !== size))
     void buildRemixInBackground(set, size).then((p) => {
       remixJobsRef.current.delete(key)
+      const wantOpen = remixOpenAfterRef.current.has(key)
+      remixOpenAfterRef.current.delete(key)
       setRemixBuilding((b) => b.filter((x) => x !== size))
       if (!p) {
         setRemixFailed((f) => [...f.filter((x) => x !== size), size])
+        if (wantOpen) showToast('Try Remix again')
         return
       }
       saveRemixBoard(set, p)
       setRemixBoards((r) => (r.set === set ? { set, boards: { ...r.boards, [size]: p } } : r))
-      if (openAfter && screenNowRef.current === 'remix') setStartSheet(p)
+      if (wantOpen && screenNowRef.current === 'remix') setStartSheet(p)
     })
   }
 
@@ -2677,27 +2684,6 @@ export default function App() {
       const board = p ?? createFreshPuzzle(difficulty)
       rememberGeneratedPuzzle(board)
       startPuzzleRef.current(board, false, { endless: true })
-    })
-  }
-
-  /** Shared Remix board of this size. Remix is the same set for everyone, not a random board. */
-  function startRemixSameSize() {
-    if (!puzzle) return
-    const size: RemixSize = (REMIX_SIZES as readonly number[]).includes(puzzle.size) ? (puzzle.size as RemixSize) : 5
-    const ready = liveRemix[size]
-    if (ready) {
-      startPuzzle(ready)
-      return
-    }
-    showToast('Remix…')
-    void buildRemixInBackground(remixSet, size).then((built) => {
-      if (!built) {
-        showToast('Try Remix again')
-        return
-      }
-      saveRemixBoard(remixSet, built)
-      setRemixBoards((r) => (r.set === remixSet ? { set: remixSet, boards: { ...r.boards, [size]: built } } : r))
-      startPuzzleRef.current(built)
     })
   }
 
@@ -2753,7 +2739,11 @@ export default function App() {
     const freshMs = (REMIX_DAYS - 1) * 24 * 3600 * 1000
     const isFresh = remixMsLeft > freshMs
     return (
-      <section className="daily-card remix-entry" aria-label="Remix boards">
+      <section
+        className="daily-card remix-entry"
+        aria-label="Remix boards"
+        onClick={() => setScreen('remix')}
+      >
         <div className="daily-text">
           <strong>
             Remix boards
@@ -2766,7 +2756,16 @@ export default function App() {
           <button type="button" className={`btn ${isFresh ? 'primary' : 'ghost'} daily-btn`} data-open-remix onClick={() => setScreen('remix')}>
             Remix
           </button>
-          <button type="button" className="btn ghost daily-btn mix-btn" onClick={mixItUp} disabled={endlessBusy != null} title="A fresh Endless board at a random size">
+          <button
+            type="button"
+            className="btn ghost daily-btn mix-btn"
+            onClick={(e) => {
+              e.stopPropagation()
+              mixItUp()
+            }}
+            disabled={endlessBusy != null}
+            title="A fresh Endless board at a random size"
+          >
             {endlessBusy ? 'Making…' : '🎲 Mix it up'}
           </button>
         </div>
@@ -2906,17 +2905,11 @@ export default function App() {
       <style>{MENU_CSS}</style>
       {!hideChrome && (
         <header className="topbar topbar-slim">
-          <button
-            type="button"
-            className="brand"
-            onClick={() => {
-              setScreen('home')
-              sfxWhoosh()
-            }}
-          >
-            <span className="brand-mark" />
+          <a className="brand" {...worldLinkProps(device === 'phone')} aria-label="Roman's Game at romansgame.com">
+            <span className="brand-mark" aria-hidden="true" />
             <span className="brand-name">Roman</span>
-          </button>
+            <span className="site-link">romansgame.com</span>
+          </a>
           <nav className="nav">
             <button type="button" className={screen === 'levels' ? 'on' : ''} onClick={() => setScreen('levels')}>
               Play
@@ -3080,7 +3073,7 @@ export default function App() {
         />
       )}
 
-      {screen === 'board' && device === 'phone' && (
+      {screen === 'board' && device !== 'tablet' && (
         <PhoneBoard playerName={playerName} onInfo={() => setInfoOpen(true)} />
       )}
 
@@ -3188,6 +3181,7 @@ export default function App() {
         <HowToPlay
           key={`how-${howStart}`}
           startAt={howStart}
+          sameTab={device === 'phone'}
           doneLabel={pendingStartRef.current ? "Let's play" : 'Choose a level'}
           onDone={() => {
             settingsRef.current = { ...settingsRef.current, howSeen: true }
@@ -3403,7 +3397,7 @@ export default function App() {
               <button type="button" className={dailyTag ? 'on' : ''} onClick={() => startPuzzle(dailyBoard, false, { daily: true })}>
                 Daily
               </button>
-              <button type="button" className={parseRemixId(puzzle.id) ? 'on' : ''} onClick={startRemixSameSize}>
+              <button type="button" className={parseRemixId(puzzle.id) ? 'on' : ''} data-open-remix onClick={() => setScreen('remix')}>
                 Remix
               </button>
               <button
@@ -3437,9 +3431,14 @@ export default function App() {
             <button type="button" className="btn tool" onClick={resetBoard}>
               Reset
             </button>
-            {device === 'phone' && mode !== 'trial' && !dailyTag && !parseRemixId(puzzle.id) ? (
+            {device === 'phone' && mode !== 'trial' && !dailyTag && !parseRemixId(puzzle.id) && !endlessRef.current ? (
               <button type="button" className="btn tool" onClick={newBoardSameSize} aria-label="New board">
                 <span className="tool-label">New</span>
+              </button>
+            ) : null}
+            {device === 'phone' ? (
+              <button type="button" className="btn tool hud-board" onClick={() => setScreen('board')} aria-label="Leaderboard">
+                <span className="tool-label">🏆 Leaderboard</span>
               </button>
             ) : null}
           </div>
@@ -3471,6 +3470,9 @@ export default function App() {
               </div>
             )
           })()}
+          {device === 'desktop' ? (
+            <LiveBoard playerName={playerName} onSeeAll={() => setScreen('board')} />
+          ) : null}
           </div>
           <p className="build-tag" data-build={BUILD_TAG}>{BUILD_TAG}</p>
 
@@ -3521,7 +3523,7 @@ export default function App() {
               perfect={hintsUsed === 0}
               replay={winReplay ?? undefined}
               cardGain={cardGain ?? undefined}
-              nextLabel={endlessRef.current ? 'Next Endless board' : parseRemixId(puzzle.id) ? 'Next Remix board' : 'Next board'}
+              nextLabel="Next board"
               paradeHint={settings.parade === false ? undefined : paradeHint(paradeRef.current).text}
               modeNote={endlessRef.current ? `Endless mode · ${endless.cleared} cleared. Levels list and Home are below.` : parseRemixId(puzzle.id) ? boardKindNote(puzzle.id) : undefined}
               onNext={() => maybeParade(() => {
