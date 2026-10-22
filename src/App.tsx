@@ -3399,10 +3399,12 @@ export default function App() {
               {mode === 'trial' ? 'No undo' : 'Undo'}
               <kbd className="kbd" aria-hidden="true">Z</kbd>
             </TapButton>
-            <TapButton className="btn tool" onTap={redo} disabled={!future.length || celebrate || defeated || mode === 'trial'}>
-              Redo
-              <kbd className="kbd" aria-hidden="true">Y</kbd>
-            </TapButton>
+            {device !== 'phone' ? (
+              <TapButton className="btn tool" onTap={redo} disabled={!future.length || celebrate || defeated || mode === 'trial'}>
+                Redo
+                <kbd className="kbd" aria-hidden="true">Y</kbd>
+              </TapButton>
+            ) : null}
             <button type="button" className="btn tool" onClick={onHint} disabled={celebrate || defeated}>
               <span className="tool-label">Hint</span>
               <span className="tool-cost">
@@ -3780,12 +3782,18 @@ export default function App() {
         <PhoneSettings
           playerName={playerName || profile?.displayName || ''}
           soundOn={settings.sound}
+          reduceMotion={settings.reduceMotion}
           buildTag={BUILD_TAG}
           onToggleSound={() => {
             const next = { ...settings, sound: !settings.sound }
             setSettings(next)
             saveSettings(next)
             setMuted(!next.sound)
+          }}
+          onToggleMotion={() => {
+            const next = { ...settings, reduceMotion: !settings.reduceMotion }
+            setSettings(next)
+            saveSettings(next)
           }}
           onInfo={() => setInfoOpen(true)}
           onFamily={() => setFamilyOpen(true)}

@@ -178,14 +178,18 @@ export function PlayerPanel({
 export function PhoneSettings({
   playerName,
   soundOn,
+  reduceMotion,
   onToggleSound,
+  onToggleMotion,
   onInfo,
   onFamily,
   buildTag,
 }: {
   playerName: string
   soundOn: boolean
+  reduceMotion: boolean
   onToggleSound: () => void
+  onToggleMotion: () => void
   onInfo: () => void
   onFamily: () => void
   buildTag: string
@@ -199,6 +203,10 @@ export function PhoneSettings({
       <button type="button" className="set-row" onClick={onToggleSound}>
         <span>Sound</span>
         <small>{soundOn ? 'On' : 'Off'}</small>
+      </button>
+      <button type="button" className="set-row" onClick={onToggleMotion}>
+        <span>Reduce motion</span>
+        <small>{reduceMotion ? 'On' : 'Off'}</small>
       </button>
       <section className="set-block">
         <h3>Account</h3>
@@ -238,7 +246,7 @@ export function FamilySheet({ open, onClose }: { open: boolean; onClose: () => v
           <li>Under 13, a parent signs up.</li>
           <li>They can read the news with you.</li>
           <li>Scores stay on this device until you sign in.</li>
-          <li>A parent approves purchases.</li>
+          <li>Payments are for adults. Kids get gifts from a linked grown-up.</li>
         </ul>
         <button type="button" className="btn primary" onClick={onClose}>OK</button>
       </div>
