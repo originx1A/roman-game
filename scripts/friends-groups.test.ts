@@ -110,7 +110,7 @@ test('the full board, with friends and groups, opens on the desktop too', () => 
   assert.doesNotMatch(app, /Mix it up/)
   assert.doesNotMatch(app, /no undos/)
   assert.doesNotMatch(app, /no undo</)
-  assert.match(tag, /build 9\.33-e/)
+  assert.match(tag, /build 9\.33-f/)
 })
 
 test('migration 014 stores the one-time age confirmation and logout revokes the session', () => {
@@ -141,6 +141,16 @@ test('migration 014 stores the one-time age confirmation and logout revokes the 
   assert.match(scores, /6-digit code/)
   assert.match(scores, /Email me a code/)
   assert.match(scores, />\s*Log out\s*</)
+  assert.match(scores, /Use your name and password/)
+  assert.match(scores, /s !== 'sent' && s !== 'email' && s !== 'password' && s !== 'name'/)
+  const passwordForm = scores.split("sheet === 'password' &&")[1]?.split("sheet === 'name'")[0] ?? ''
+  assert.match(passwordForm, /aria-label="Password"/)
+  assert.match(passwordForm, /signInWithName\(passwordName, password, token\)/)
+  assert.doesNotMatch(passwordForm, /consentChecks/)
+  assert.doesNotMatch(passwordForm, /I'm 13 or older/)
+  assert.match(cloud, /\/api\/auth\/signin/)
+  assert.match(cloud, /stay_signed_in: true/)
+  assert.match(cloud, /export async function persistServerSession/)
 })
 
 test('migration 012 adds ranks and listed names without touching old tables', () => {

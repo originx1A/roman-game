@@ -2,11 +2,13 @@ import { gaEvent } from '../game/analytics'
 /**
  * Player accounts + score saving (Supabase, project romans-game).
  *
- * - Sign-in: email, then the 6-digit code from that email (Supabase email OTP, no passwords).
- *   The same email still includes a link. The session stays in localStorage until Log out
- *   or the storage is cleared. Log out uses scope global, so romansgame.com is revoked too.
- *   On load and when the window is focused, getUser() checks the session and drops it if
- *   it was revoked. The code is {{ .Token }} in the Magic Link email; Tony adds that.
+ * - Sign-in: email, then the 6-digit code from that email (Supabase email OTP). The same
+ *   email still includes a link. A player who set a password can instead sign in with their
+ *   name and that password (POST /api/auth/signin). The session stays in localStorage until
+ *   Log out or the storage is cleared. Closing the app keeps it. Log out uses scope global,
+ *   so romansgame.com is revoked too. On load and when the window is focused, getUser()
+ *   checks the session and drops it if it was revoked. A network miss keeps it.
+ *   The code is {{ .Token }} in the Magic Link email; Tony adds that.
  * - Scores: queued locally first, then sent. Offline / Supabase down / not signed in = they wait
  *   in the queue (max 200) and flush on sign-in, on `online`, and after each new game.
  * - supabase-js is loaded lazily, so the game never waits on it and works fully without it.
@@ -214,7 +216,8 @@ async function loadPlayer(sb: SupabaseClient, session: Session | null) {
   }
   const { data, error } = await sb.from('players').select('display_name, public_name, age_13_plus').eq('id', session.user.id).maybeSingle()
   const age13Plus = error ? null : data?.age_13_plus === true ? true : data ? false : null
-  const ageConfirmed = await readAgeConfirmed(sb, session.user.id, age13Plus)
+  let ageConfirmed = await readAgeConfirmed(sb, session.user.id, age13Plus)
+  if (confirmedHint && confirmedHint === session.user.id) ageConfirmed = true
   if (error) return set({ status: 'signed-in', email: session.user.email, name: state.name ?? null, ageConfirmed })
   set({ status: 'signed-in', email: session.user.email, name: data?.display_name ?? null, publicName: data?.public_name, ageConfirmed })
   if (data) void flushScores().then(() => syncCard())
@@ -234,6 +237,9 @@ function sessionRejected(error: { status?: number; name?: string; message?: stri
   return msg.includes('jwt') || msg.includes('session') || msg.includes('revoked')
 }
 
+/** Set when name+password sign-in already returned age_confirmed_at, before the table read finishes. */
+let confirmedHint: string | null = null
+
 /** Ask the auth server if this device's session still exists. A network miss keeps the saved session. */
 async function recheckSession(sb: SupabaseClient): Promise<void> {
   const { data: local } = await sb.auth.getSession()
@@ -244,12 +250,15 @@ async function recheckSession(sb: SupabaseClient): Promise<void> {
     }
     return
   }
+  // Paint the saved login first, so a reload or a restarted phone is already signed in.
+  if (state.status !== 'signed-in') await loadPlayer(sb, local.session)
   const { data, error } = await sb.auth.getUser()
   if (error && !sessionRejected(error)) return
   if (error || !data.user) {
     // Already revoked on the server (including from romansgame.com). Clear this device only.
     await sb.auth.signOut({ scope: 'local' }).catch(() => undefined)
     queueOwner = null
+    confirmedHint = null
     set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined, ageConfirmed: undefined })
     return
   }
@@ -352,12 +361,59 @@ export async function savePlayerName(name: string, consent: Consent): Promise<{ 
   return { ok: true, publicName: row.public_name }
 }
 
+/**
+ * Keep a name+password API session in the same localStorage slot this game already restores.
+ * Call this after POST /api/auth/signin returns session tokens.
+ */
+export async function persistServerSession(accessToken: string, refreshToken: string): Promise<boolean> {
+  const sb = await client()
+  if (!sb) return false
+  const { data, error } = await sb.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+  if (error || !data.session) return false
+  await loadPlayer(sb, data.session)
+  return true
+}
+
+/** Name and password, for a player who set one. Same endpoint as PR #63. Email code stays available. */
+export async function signInWithName(name: string, password: string, captchaToken?: string): Promise<{ ok: boolean; error?: string }> {
+  const player = name.trim().replace(/\s+/g, ' ')
+  if (player.length < 3) return { ok: false, error: 'Type your player name.' }
+  if (!password) return { ok: false, error: 'Type your password.' }
+  if (!captchaToken) return { ok: false, error: "This page couldn't complete the check. Try again." }
+  let res: Response
+  try {
+    res = await fetch('/api/auth/signin', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ name: player, password, captchaToken, stay_signed_in: true }),
+    })
+  } catch {
+    return { ok: false, error: "You're offline. Try again when you're connected." }
+  }
+  const data = (await res.json().catch(() => null)) as {
+    error?: string
+    user_id?: string
+    flags?: { age_confirmed_at?: string | null }
+    session?: { access_token?: string; refresh_token?: string }
+  } | null
+  if (!res.ok || !data?.session?.access_token || !data.session.refresh_token) {
+    if (data?.error === 'invalid_credentials') return { ok: false, error: 'That name or password did not match.' }
+    if (data?.error === 'turnstile_required') return { ok: false, error: "This page couldn't complete the check. Try again." }
+    return { ok: false, error: 'Could not sign in. You can use the email code instead.' }
+  }
+  if (data.user_id && data.flags?.age_confirmed_at) confirmedHint = data.user_id
+  const saved = await persistServerSession(data.session.access_token, data.session.refresh_token)
+  if (!saved) return { ok: false, error: 'Could not sign in. You can use the email code instead.' }
+  return { ok: true }
+}
+
 export async function signOut(): Promise<void> {
   const sb = await client()
   // Global: revokes this account on every device, including romansgame.com.
   // Unsent scores stay queued on this device under the player id.
   await sb?.auth.signOut({ scope: 'global' }).catch(() => undefined)
   queueOwner = null
+  confirmedHint = null
   set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined, ageConfirmed: undefined })
 }
 

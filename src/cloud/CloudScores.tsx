@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { isProfane } from './profanity'
-import { NAME_MAX, onCloud, savePlayerName, sendMagicLink, signOut, verifyEmailCode, type CloudState } from './cloud'
+import { NAME_MAX, onCloud, savePlayerName, sendMagicLink, signInWithName, signOut, verifyEmailCode, type CloudState } from './cloud'
 import { useTurnstile } from './useTurnstile'
 
 /**
@@ -22,13 +22,15 @@ export function useCloud(): CloudState {
   return s
 }
 
-type Sheet = null | 'offer' | 'email' | 'sent' | 'name' | 'account' | 'parent' | 'noemail' | 'parentlink'
+type Sheet = null | 'offer' | 'email' | 'sent' | 'password' | 'name' | 'account' | 'parent' | 'noemail' | 'parentlink'
 
 export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, forceOffer, forceSignIn, note, hidden, onClose }: { suggestedName?: string; compact?: boolean; short?: boolean; onInfo?: () => void; cta?: string; forceOffer?: boolean; forceSignIn?: boolean; note?: string; hidden?: boolean; onClose?: () => void }) {
   const cloud = useCloud()
   const [sheet, setSheet] = useState<Sheet>(forceOffer ? 'offer' : forceSignIn ? (phoneSaveCard() ? 'offer' : 'email') : null)
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
+  const [passwordName, setPasswordName] = useState('')
+  const [password, setPassword] = useState('')
   const [name, setName] = useState(suggestedName ?? '')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
@@ -36,7 +38,7 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, 
   const [optIn, setOptIn] = useState(false)
   const [terms, setTerms] = useState(false)
   const askAge = cloud.status === 'signed-in' && cloud.ageConfirmed !== true && (cloud.ageConfirmed === false || cloud.name == null)
-  const captchaOn = sheet === 'email' || sheet === 'sent'
+  const captchaOn = sheet === 'email' || sheet === 'sent' || sheet === 'password'
   const captcha = useTurnstile(captchaOn)
   const consentChecks = (
     <div className="cloud-checks">
@@ -68,11 +70,12 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, 
   // Signed in from the link or the code. No name yet: ask once. Code sign-in of a named player: show the account.
   useEffect(() => {
     if (cloud.status !== 'signed-in') return
-    if (askAge || cloud.name == null) {
-      setSheet((s) => (s === 'parent' || s === 'noemail' || s === 'parentlink' ? s : 'name'))
-      return
-    }
-    setSheet((s) => (s === 'sent' || s === 'email' || s === 'name' ? 'account' : s))
+    // A reload starts with no sheet. Do not open one just because the saved session came back.
+    setSheet((s) => {
+      if (s !== 'sent' && s !== 'email' && s !== 'password' && s !== 'name') return s
+      if (askAge || cloud.name == null) return 'name'
+      return 'account'
+    })
   }, [cloud.status, cloud.name, askAge])
 
   function closeSheet() {
@@ -164,12 +167,15 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, 
               >
                 <h3>Sign in</h3>
                 <p className="start-sheet-tip">
-                  Enter your email. We'll send a 6-digit code. No password.
+                  Enter your email. We'll send a 6-digit code.
                 </p>
                 <input className="name-input" type="email" inputMode="email" autoComplete="email" placeholder="Email address" aria-label="Email address" value={email} onChange={(e) => setEmail(e.target.value)} />
                 {err && <p className="cloud-err" role="alert">{err}</p>}
                 <button type="submit" className="btn primary" disabled={busy}>
                   {busy ? 'Sending…' : 'Email me a code'}
+                </button>
+                <button type="button" className="btn ghost" onClick={() => { setErr(''); setPassword(''); setSheet('password') }}>
+                  Use your name and password
                 </button>
                 <button type="button" className="btn ghost" onClick={closeSheet}>
                   Not now
@@ -224,6 +230,43 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, 
                 {err && <p className="cloud-err" role="alert">{err}</p>}
                 <button type="submit" className="btn primary" disabled={busy || code.length < 6}>
                   {busy ? 'Checking…' : 'Sign in'}
+                </button>
+                <button type="button" className="btn ghost" onClick={closeSheet}>
+                  Not now
+                </button>
+              </form>
+                )}
+                {sheet === 'password' && (
+              <form
+                className="cloud-auth-form"
+                onSubmit={async (e) => {
+                  e.preventDefault()
+                  setBusy(true)
+                  setErr('')
+                  const token = await captcha.takeToken()
+                  if (!token) {
+                    setErr(captcha.reason() || "This page couldn't complete the check. Try again.")
+                    captcha.reset()
+                    setBusy(false)
+                    return
+                  }
+                  const r = await signInWithName(passwordName, password, token)
+                  captcha.reset()
+                  setPassword('')
+                  setBusy(false)
+                  if (!r.ok) setErr(r.error ?? 'Something went wrong.')
+                }}
+              >
+                <h3>Sign in</h3>
+                <p className="start-sheet-tip">Use the player name and password you set. Otherwise use the email code.</p>
+                <input className="name-input" type="text" autoComplete="username" aria-label="Player name" placeholder="Player name" value={passwordName} onChange={(e) => setPasswordName(e.target.value)} />
+                <input className="name-input" type="password" autoComplete="current-password" aria-label="Password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
+                {err && <p className="cloud-err" role="alert">{err}</p>}
+                <button type="submit" className="btn primary" disabled={busy || passwordName.trim().length < 3 || !password}>
+                  {busy ? 'Checking…' : 'Sign in'}
+                </button>
+                <button type="button" className="btn ghost" onClick={() => { setErr(''); setPassword(''); setSheet('email') }}>
+                  Email me a code
                 </button>
                 <button type="button" className="btn ghost" onClick={closeSheet}>
                   Not now
