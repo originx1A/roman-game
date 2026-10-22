@@ -83,7 +83,7 @@ export function PhoneHome({
         <button type="button" onClick={onHow}><span aria-hidden>?</span>How</button>
         <button type="button" onClick={onStable}><span aria-hidden>🐾</span>Buddies</button>
         <button type="button" onClick={onShare}><span aria-hidden>↗</span>Share</button>
-        <button type="button" onClick={onBoard}>Board</button>
+        <button type="button" onClick={onBoard}><span aria-hidden>🏆</span>Leaderboard</button>
       </div>
       {unseen}
       <button type="button" className="phone-quiet" onClick={onBug}>Report a bug</button>

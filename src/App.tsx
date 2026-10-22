@@ -25,7 +25,6 @@ import { cloudState, initCloud, saveScore } from './cloud/cloud'
 import { UnseenCardTile } from './components/UnseenCard'
 import { noteCardWin } from './game/unseenCard'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
-import { TapButton } from './components/TapButton'
 import { BuddyHunt } from './components/BuddyHunt'
 import { PetArt } from './components/PetArt'
 import { Stable } from './components/Stable'
@@ -117,7 +116,7 @@ import {
 } from './game/dailyEconomy'
 import { dayCoins, dayShort, loadDay, saveDay, startBuddyDay, useDayBoard, type BuddyDay, type DayPerkKind } from './game/buddyDay'
 import { BUILD_TAG } from './buildTag'
-import { amendMove, createHistory, pushMove, redoMove, restoreHistory, stepsToSave, undoMove } from './game/history'
+import { amendMove, createHistory, pushMove, restoreHistory, stepsToSave } from './game/history'
 import {
   applyHint,
   clearBuddy,
@@ -269,7 +268,6 @@ import {
   sfxHint,
   sfxLose,
   sfxRecord,
-  sfxUndo,
   sfxWhoosh,
   sfxWin,
   resetVoiceQuietClock,
@@ -526,8 +524,6 @@ export default function App() {
   const [econ, setEconState] = useState<Ledger>(() => loadLedger(typeof window === 'undefined' ? null : safeLocalStorage(), torontoDateKey()))
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null)
   const [cells, setCells] = useState<CellState[]>([])
-  const [history, setHistory] = useState<CellState[][]>([])
-  const [future, setFuture] = useState<CellState[][]>([])
   const [elapsedMs, setElapsedMs] = useState(0)
   const [running, setRunning] = useState(false)
   const [hintsUsed, setHintsUsed] = useState(0)
@@ -612,7 +608,6 @@ export default function App() {
   const shellRef = useRef<HTMLDivElement>(null)
   const tickRef = useRef<number | null>(null)
   const idleRef = useRef<number | null>(null)
-  const undoTimesRef = useRef<number[]>([])
   const lastActionRef = useRef(Date.now())
   // ---- Voice tips (9.28-b) ----
   const tipsRef = useRef<TipState>(loadTips())
@@ -966,24 +961,18 @@ export default function App() {
     }
   }, [running, rotatePaused])
 
-  // PC keyboard shortcuts on a live board: Z undo, Y redo, H hint (plus Ctrl/Cmd+Z, Ctrl+Y, Ctrl+Shift+Z)
-  const keysRef = useRef<{ undo: () => void; redo: () => void; hint: () => void }>({ undo: () => {}, redo: () => {}, hint: () => {} })
+  // PC keyboard shortcut on a live board: H hint
+  const keysRef = useRef<{ hint: () => void }>({ hint: () => {} })
   useEffect(() => {
     if (screen !== 'play') return
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return
-      if (e.altKey || e.repeat) return
+      if (e.altKey || e.ctrlKey || e.metaKey || e.repeat) return
       if (document.querySelector('.start-sheet, .win-screen, .buddy-hunt, .prize-overlay, .shortfall-overlay, .result-overlay, .rotate-prompt.is-on')) return
-      const k = e.key.toLowerCase()
-      const mod = e.ctrlKey || e.metaKey
-      let act: 'undo' | 'redo' | 'hint' | null = null
-      if (k === 'z' && !e.shiftKey) act = 'undo'
-      else if ((k === 'z' && e.shiftKey && mod) || k === 'y') act = 'redo'
-      else if (k === 'h' && !mod) act = 'hint'
-      if (!act) return
+      if (e.key.toLowerCase() !== 'h') return
       e.preventDefault()
-      keysRef.current[act]()
+      keysRef.current.hint()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -1412,8 +1401,6 @@ export default function App() {
 
   function commitHistory(nextHist: ReturnType<typeof createHistory>) {
     historyRef.current = nextHist
-    setHistory(nextHist.past)
-    setFuture(nextHist.future)
     setCells(nextHist.present)
   }
 
@@ -2078,55 +2065,6 @@ export default function App() {
         }, 2200)
       }
     }
-  }
-
-  /** Undo/redo spam (4 within 5s) gives the Unseen an opening */
-  function noteUndoRedo() {
-    const now = Date.now()
-    const recent = [...undoTimesRef.current.filter((t) => now - t < 5000), now]
-    if (recent.length >= 4) {
-      undoTimesRef.current = []
-      pushBanter('undo-spam')
-    } else {
-      undoTimesRef.current = recent
-    }
-  }
-
-  function undo() {
-    if (historyRef.current.past.length === 0 || celebrate || defeated || modeRef.current === 'trial') return
-    // Board first: a sound or voice hiccup must never cost the undo itself.
-    const hist = undoMove(historyRef.current)
-    replaceBoard(hist)
-    try {
-      // Each undo costs points and breaks the combo
-      undosRef.current += 1
-      comboRef.current = comboMove(comboRef.current, 'undo', -1, Date.now()).combo
-      showToast(`Undo · −${UNDO_COST} pts`)
-      // Repeated undos: a voice tip about what undo costs (once the heckle, if any, has finished)
-      if (undosRef.current >= TIP_TRIGGERS.undoCount) window.setTimeout(() => fireTip('undo-spam', undefined, { quietMs: 800 }), 1400)
-    } catch {
-      /* scoring only */
-    }
-    // Without this the saved board kept the undone X's: Resume (or iOS reloading the tab) put them back.
-    saveBoardDraft(hist)
-    afterUndoRedo()
-  }
-
-  function afterUndoRedo() {
-    try {
-      sfxUndo()
-      noteUndoRedo()
-    } catch {
-      /* sound only */
-    }
-  }
-
-  function redo() {
-    if (historyRef.current.future.length === 0 || celebrate || defeated || modeRef.current === 'trial') return
-    const hist = redoMove(historyRef.current)
-    replaceBoard(hist)
-    saveBoardDraft(hist)
-    afterUndoRedo()
   }
 
   function onHint() {
@@ -2953,7 +2891,7 @@ export default function App() {
   }
   const trialLeftMs = puzzle && mode === 'trial' ? Math.max(0, trialTimeLimitMs(targetsFor(puzzle)) - elapsedMs) : 0
 
-  keysRef.current = { undo, redo, hint: onHint }
+  keysRef.current = { hint: onHint }
 
   return (
     <div
@@ -3476,16 +3414,6 @@ export default function App() {
             </div>
           ) : null}
           <div className="toolbar play-toolbar">
-            <TapButton className="btn tool" onTap={undo} disabled={!history.length || celebrate || defeated || mode === 'trial'}>
-              {mode === 'trial' ? 'No undo' : 'Undo'}
-              <kbd className="kbd" aria-hidden="true">Z</kbd>
-            </TapButton>
-            {device !== 'phone' ? (
-              <TapButton className="btn tool" onTap={redo} disabled={!future.length || celebrate || defeated || mode === 'trial'}>
-                Redo
-                <kbd className="kbd" aria-hidden="true">Y</kbd>
-              </TapButton>
-            ) : null}
             <button type="button" className="btn tool" onClick={onHint} disabled={celebrate || defeated}>
               <span className="tool-label">Hint</span>
               <span className="tool-cost">

@@ -1,6 +1,8 @@
--- Roman's Game · migration 005 · one score per player on the phone board
--- Safe to run more than once. Run after migration 004.
--- Does not change players, scores, or any other existing table.
+-- Roman's Game · migration 010 · one score per player on the phone leaderboard
+-- Safe to run more than once, including after migrations 005 through 009.
+-- Those already created public.leaderboard, a per-level view. This file does not replace it.
+-- New objects only: player_board_row, player_board, and save_my_board_score.
+-- Does not alter players, scores, profiles, parent_links, or any other existing table.
 -- Tony runs this in the Supabase SQL editor. The app does not run it.
 
 -- One row per player. The number is that player's own best.

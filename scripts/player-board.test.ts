@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-const sql = readFileSync(new URL('../supabase/migration-005-player-board.sql', import.meta.url), 'utf8')
+const sql = readFileSync(new URL('../supabase/migration-010-player-board.sql', import.meta.url), 'utf8')
 const cloud = readFileSync(new URL('../src/cloud/cloud.ts', import.meta.url), 'utf8')
 const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8')
 const home = readFileSync(new URL('../src/components/PhoneProposal.tsx', import.meta.url), 'utf8')
@@ -18,6 +18,9 @@ test('the board migration only adds a new table, a view, and a function', () => 
   assert.match(sql, /new_score > current/)
   assert.doesNotMatch(sql, /alter table public\.players/i)
   assert.doesNotMatch(sql, /alter table public\.scores/i)
+  assert.doesNotMatch(sql, /alter table public\.profiles/i)
+  assert.doesNotMatch(sql, /alter table public\.parent_links/i)
+  assert.doesNotMatch(sql, /create or replace view public\.leaderboard/i)
   assert.doesNotMatch(sql, /email/i)
   assert.doesNotMatch(sql, /auth\.users/i)
 })
@@ -32,7 +35,10 @@ test('the board is a phone screen and the desktop home is unchanged', () => {
   assert.match(app, /screen === 'board' && device === 'phone'/)
   assert.match(app, /device !== 'phone' && screen === 'board'/)
   assert.match(home, /onBoard/)
-  assert.match(home, />Board</)
+  assert.match(home, /🏆/)
+  assert.match(home, />Leaderboard</)
+  assert.doesNotMatch(app, /onTap=\{undo\}/)
+  assert.doesNotMatch(app, />\s*Undo\s*</)
   const desktop = app.split("screen === 'home' && device !== 'phone'")[1]?.split("screen === 'how'")[0] ?? ''
   assert.equal(desktop.includes('onBoard'), false)
   assert.equal(desktop.includes('PhoneBoard'), false)

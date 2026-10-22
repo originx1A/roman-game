@@ -30,7 +30,7 @@ export function PhoneBoard({ playerName, onInfo }: { playerName: string; onInfo?
 
   return (
     <main className="phone-board scroll-pane" data-testid="phone-board">
-      <h2>Board</h2>
+      <h2>Leaderboard</h2>
       {rows === null ? null : note ? (
         <p className="cloud-err" role="alert">{note}</p>
       ) : rows.length === 0 ? (
