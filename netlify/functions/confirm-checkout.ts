@@ -1,8 +1,10 @@
 import { getStore } from '@netlify/blobs'
+import { chargeMatchesPack } from '../../src/game/shopOffers.ts'
 import { webPackById } from '../lib/coinPacks.ts'
 import { json, PURCHASES_UNAVAILABLE } from '../lib/http.ts'
 import { buildPurchaseRecord, PURCHASE_STORE } from '../lib/purchases.ts'
 import { CHECKOUT_TEST_ONLY } from '../lib/coinPacks.ts'
+import { gateResponse, requestCountry, requireCheckoutGate, userToken } from '../lib/payGate.ts'
 import { isCheckoutSessionId, isLiveStripeKey, readStripeKey, stripeClient } from '../lib/stripeServer.ts'
 
 
@@ -27,6 +29,13 @@ export default async function confirmCheckout(req: Request): Promise<Response> {
   }
   if (!isCheckoutSessionId(sessionId)) return json({ error: 'Missing session' }, 400)
 
+  const gate = await requireCheckoutGate({
+    token: userToken(req),
+    country: requestCountry(req),
+    requireReauth: false,
+  })
+  if (!gate.ok) return gateResponse(gate)
+
   try {
     const stripe = stripeClient(key)
     const session = await stripe.checkout.sessions.retrieve(sessionId)
@@ -38,7 +47,7 @@ export default async function confirmCheckout(req: Request): Promise<Response> {
     if (!pack || session.metadata?.productId !== pack.productId) {
       return json({ ok: false, reason: 'That pack is not sold on the website.' })
     }
-    if (session.currency !== pack.currency || session.amount_total !== pack.unitAmount) {
+    if (!chargeMatchesPack(pack, session.currency, session.amount_total)) {
       return json({ ok: false, reason: 'Payment did not match this pack. No coins were added.' })
     }
 

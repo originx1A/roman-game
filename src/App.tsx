@@ -14,7 +14,7 @@ import { ShortfallSheetHost } from './components/ShortfallSheetHost'
 import { OfflineBuyButton } from './components/CoinPackCard'
 import { HelpMark } from './components/HelpMark'
 import { LegalLine } from './components/LegalLine'
-import { formatCad, savingsCents, SHOP_OFFERS, shopOfferById } from './game/shopOffers'
+import { formatCad, formatStarterLadder, savingsCents, SHOP_OFFERS, shopOfferById } from './game/shopOffers'
 import { coinStackDiscs, formatPackCoins } from './game/coinPackDisplay'
 import './styles/store-layer.css'
 import { ShareBar } from './components/ShareBar'
@@ -2891,18 +2891,8 @@ export default function App() {
       return
     }
     if (!isStoreBuild()) {
-      const offer = shopOfferById(packId)
-      if (offer?.once && starterOwned) {
-        showToast('You already have the Starter Pack.')
-        return
-      }
       const sb = await getSupabase()
       const token = sb ? (await sb.auth.getSession()).data.session?.access_token : undefined
-      if (offer?.once && !token) {
-        showToast('Sign in first. The Starter Pack is once per account.')
-        setScreen('profile')
-        return
-      }
       const { startWebCheckout } = await import('./game/webCheckout')
       const started = await startWebCheckout(packId, token)
       if (!started.ok) showToast(started.reason)
@@ -4088,11 +4078,14 @@ export default function App() {
                         ))}
                       </ul>
                       <div className="product-card-foot">
-                        <span className="product-price">
-                          <span className="pay-mark" aria-hidden="true">💳</span> {formatCad(offer.cadCents)}
+                        <span className="product-price" data-testid={offer.id === 'starter' ? 'starter-price' : undefined}>
+                          <span className="pay-mark" aria-hidden="true">💳</span>{' '}
+                          {offer.id === 'starter' ? formatStarterLadder('cad') : formatCad(offer.cadCents)}
                           {save > 0 ? <small>Save {formatCad(save)}</small> : null}
                         </span>
-                        <OfflineBuyButton onClick={() => void onBuyCoins(offer.id)} />
+                        <OfflineBuyButton onClick={() => void onBuyCoins(offer.id)}>
+                          <span data-testid={offer.id === 'starter' ? 'starter-buy' : undefined}>Buy</span>
+                        </OfflineBuyButton>
                       </div>
                     </article>
                   )

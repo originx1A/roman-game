@@ -1,13 +1,15 @@
+import { chargeMatchesPack } from '../../src/game/shopOffers.ts'
 import { CHECKOUT_TEST_ONLY, webPackById } from '../lib/coinPacks.ts'
 import { json } from '../lib/http.ts'
 import { isLiveStripeKey, isTestCheckoutSessionId, readStripeKey, stripeClient } from '../lib/stripeServer.ts'
+import { dbNotReady, gateResponse, requestCountry, requireCheckoutGate } from '../lib/payGate.ts'
 import { bearer, supabaseAdmin, supabaseAsUser } from '../lib/supabaseAdmin.ts'
 
 /**
  * Credits a paid Checkout session once, on the server.
  * A webhook records the receipt. The signed-in player claims it.
  * Coins land in player_balances. Treats and buddies are listed for the device
- * to apply only when this claim is new. The Starter Pack is once per account.
+ * to apply only when this claim is new. A Starter can be claimed again.
  * Live sessions are ignored until Tony turns test-only off.
  */
 export default async function coinCredit(req: Request): Promise<Response> {
@@ -27,7 +29,7 @@ export default async function coinCredit(req: Request): Promise<Response> {
         const session = event.data.object
         const pack = webPackById(session.metadata?.packId)
         if (session.livemode && CHECKOUT_TEST_ONLY) return json({ ok: true, ignored: 'live' })
-        if (session.id && pack && session.payment_status === 'paid' && session.currency === pack.currency && session.amount_total === pack.unitAmount) {
+        if (session.id && pack && session.payment_status === 'paid' && chargeMatchesPack(pack, session.currency, session.amount_total)) {
           await admin.from('stripe_receipts').upsert({
             session_id: session.id,
             pack_id: pack.id,
@@ -62,10 +64,31 @@ export default async function coinCredit(req: Request): Promise<Response> {
   const uid = userData.user?.id
   if (userError || !uid) return json({ ok: false, error: 'Sign in first.' }, 401)
 
+  const gate = await requireCheckoutGate({
+    token,
+    country: requestCountry(req),
+    requireReauth: false,
+  })
+  if (!gate.ok) return gateResponse(gate)
+
   const key = readStripeKey()
   if (!key || (CHECKOUT_TEST_ONLY && isLiveStripeKey(key))) {
     return json({ ok: false, error: 'Purchases are unavailable right now.' }, 503)
   }
+
+  const { data: purchase, error: purchaseError } = await admin
+    .from('purchases')
+    .select('status, device_claimed_at, player_id')
+    .eq('session_id', sessionId)
+    .maybeSingle()
+  if (purchaseError && !dbNotReady(purchaseError)) return json({ ok: false, error: 'Purchases are unavailable right now.' }, 502)
+  if (!purchaseError && purchase && purchase.player_id && purchase.player_id !== uid) {
+    return json({ ok: true, duplicate: true, coins: 0, treats: 0, pets: [], label: '', offerId: '' })
+  }
+  if (!purchaseError && purchase && (purchase.status === 'revoked' || purchase.status === 'blocked')) {
+    return json({ ok: false, error: 'That payment was reversed.' }, 402)
+  }
+  const deviceClaimed = !purchaseError && !!purchase?.device_claimed_at
 
   const { data: receipt } = await admin.from('stripe_receipts').select('coins, pack_id, player_id').eq('session_id', sessionId).maybeSingle()
   let pack = webPackById(typeof receipt?.pack_id === 'string' ? receipt.pack_id : undefined)
@@ -77,7 +100,7 @@ export default async function coinCredit(req: Request): Promise<Response> {
     if (!pack || session.payment_status !== 'paid' || session.metadata?.productId !== pack.productId) {
       return json({ ok: false, error: 'That payment is not ready.' }, 402)
     }
-    if (session.livemode || session.currency !== pack.currency || session.amount_total !== pack.unitAmount) {
+    if (session.livemode || !chargeMatchesPack(pack, session.currency, session.amount_total)) {
       return json({ ok: false, error: 'That payment does not match this pack.' }, 402)
     }
     await admin.from('stripe_receipts').upsert({ session_id: sessionId, pack_id: pack.id, coins: pack.coins, player_id: uid })
@@ -101,8 +124,13 @@ export default async function coinCredit(req: Request): Promise<Response> {
   const result = (data ?? {}) as { ok?: boolean; duplicate?: boolean; error?: string }
   if (result.ok === false) return json({ ok: false, error: 'Coin credit is waiting on the shop database update.' }, 502)
   if (!receipt?.player_id) await admin.from('stripe_receipts').update({ player_id: uid }).eq('session_id', sessionId)
-  const duplicate = result.duplicate === true
-  if (!duplicate && pack.once) {
+  const serverDuplicate = result.duplicate === true
+  let duplicate = serverDuplicate
+  if (purchase && !deviceClaimed) {
+    await admin.from('purchases').update({ device_claimed_at: new Date().toISOString() }).eq('session_id', sessionId).is('device_claimed_at', null)
+    duplicate = false
+  }
+  if (!serverDuplicate && pack.once) {
     await admin.from('player_items').insert({
       player_id: uid,
       item_type: 'bundle',

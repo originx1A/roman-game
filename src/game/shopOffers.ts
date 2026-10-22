@@ -10,6 +10,42 @@
 
 export const SHOP_CURRENCY = 'cad' as const
 
+/** First, second, and third-or-later Starter price. Contents do not change. */
+export const STARTER_PRICE_CENTS = {
+  cad: [299, 349, 449],
+  usd: [149, 199, 249],
+} as const
+
+export type StarterCurrency = keyof typeof STARTER_PRICE_CENTS
+
+/** How many Starters this account already has. The third price stays for every later one. */
+export function starterPriceCents(currency: StarterCurrency, alreadyReceived: number): number {
+  const steps = STARTER_PRICE_CENTS[currency]
+  const index = Math.min(steps.length - 1, Math.max(0, Math.floor(alreadyReceived)))
+  return steps[index]
+}
+
+export function formatStarterLadder(currency: StarterCurrency): string {
+  const [first, second, later] = STARTER_PRICE_CENTS[currency]
+  const symbol = currency === 'cad' ? 'C$' : 'US$'
+  const money = (cents: number) => `${symbol}${(cents / 100).toFixed(2)}`
+  return `${money(first)} first, ${money(second)} second, ${money(later)} after`
+}
+
+/** A Starter charge is legal at any of the three steps. Other packs stay on their one price. */
+export function chargeMatchesPack(
+  pack: { id: string; currency: string; unitAmount: number },
+  currency: string | null | undefined,
+  amount: number | null | undefined,
+): boolean {
+  const cur = (currency ?? '').toLowerCase()
+  if (pack.id === 'starter') {
+    if (cur !== 'cad' && cur !== 'usd') return false
+    return typeof amount === 'number' && (STARTER_PRICE_CENTS[cur] as readonly number[]).includes(amount)
+  }
+  return cur === pack.currency && amount === pack.unitAmount
+}
+
 export type ShopOfferId =
   | 'coins_500'
   | 'coins_1400'
@@ -24,7 +60,7 @@ export interface ShopOffer {
   label: string
   /** Short ribbon. Empty when the card has no badge. */
   badge: string
-  /** One purchase per account. */
+  /** Quantity stays one. A Starter may still be bought again. */
   once: boolean
   coins: number
   treats: number
@@ -81,13 +117,13 @@ export const SHOP_OFFERS: readonly ShopOffer[] = [
     productId: 'roman.cad.bundle.starter',
     label: 'Starter Pack',
     badge: 'Best first buy',
-    once: true,
-    coins: 300,
-    treats: 10,
-    pets: ['lupa', 'aquila'],
+    once: false,
+    coins: 8000,
+    treats: 5,
+    pets: [],
     cadCents: 299,
-    contents: ['Lupa', 'Aquila', '300 coins', '10 treats'],
-    separateCadCents: 3184,
+    contents: ['8,000 coins', '5 treats'],
+    separateCadCents: 2544,
   },
   {
     id: 'adventurer',

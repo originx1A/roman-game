@@ -7,6 +7,8 @@ import {
 } from '@simplewebauthn/server'
 import type { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/server'
 import { json } from '../lib/http.ts'
+import { passkeyRequest, PASSKEY_RP_ID, PASSKEY_RP_NAME } from '../lib/passkeyRp.ts'
+import { issueReauth } from '../lib/reauth.ts'
 import { bearer, supabaseAdmin, supabaseAsUser } from '../lib/supabaseAdmin.ts'
 
 function ticketSecret(): string {
@@ -32,12 +34,6 @@ function readTicket(ticket: string): { challenge: string; playerId: string } | n
   return { challenge: data.challenge, playerId: data.playerId }
 }
 
-function originOf(req: Request): { origin: string; rpID: string } {
-  const host = (req.headers.get('x-forwarded-host') || req.headers.get('host') || 'play.romansgame.com').split(',')[0].trim()
-  const proto = (req.headers.get('x-forwarded-proto') || 'https').split(',')[0].trim()
-  const hostname = host.split(':')[0]
-  return { origin: `${proto}://${host}`, rpID: hostname }
-}
 
 async function mint(admin: NonNullable<ReturnType<typeof supabaseAdmin>>, playerId: string) {
   const { data: userData } = await admin.auth.admin.getUserById(playerId)
@@ -56,7 +52,10 @@ export default async function passkey(req: Request): Promise<Response> {
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
   const admin = supabaseAdmin()
   if (!admin) return json({ ok: false, configured: false }, 503)
-  const { origin, rpID } = originOf(req)
+  const party = passkeyRequest(req)
+  if (!party) return json({ ok: false, error: 'Passkeys are for romansgame.com.' }, 400)
+  const { origin, rpID } = party
+  if (rpID !== PASSKEY_RP_ID) return json({ ok: false, error: 'Passkeys are for romansgame.com.' }, 400)
 
   let body: { action?: string; ticket?: string; response?: unknown; credentialId?: string }
   try {
@@ -70,8 +69,8 @@ export default async function passkey(req: Request): Promise<Response> {
     const uid = token ? (await supabaseAsUser(token).auth.getUser(token)).data.user?.id : ''
     if (!uid) return json({ ok: false }, 401)
     const options = await generateRegistrationOptions({
-      rpName: "Roman's Game",
-      rpID,
+      rpName: PASSKEY_RP_NAME,
+      rpID: PASSKEY_RP_ID,
       userName: uid,
       userID: new TextEncoder().encode(uid),
       attestationType: 'none',
@@ -89,7 +88,7 @@ export default async function passkey(req: Request): Promise<Response> {
       response: body.response as RegistrationResponseJSON,
       expectedChallenge: ticket.challenge,
       expectedOrigin: origin,
-      expectedRPID: rpID,
+      expectedRPID: PASSKEY_RP_ID,
     })
     if (!verified.verified) return json({ ok: false }, 400)
     const cred = verified.registrationInfo.credential
@@ -104,7 +103,7 @@ export default async function passkey(req: Request): Promise<Response> {
   }
 
   if (body.action === 'login-options') {
-    const options = await generateAuthenticationOptions({ rpID, userVerification: 'preferred' })
+    const options = await generateAuthenticationOptions({ rpID: PASSKEY_RP_ID, userVerification: 'preferred' })
     return json({ ok: true, options, ticket: signTicket(options.challenge, 'login') })
   }
 
@@ -118,7 +117,7 @@ export default async function passkey(req: Request): Promise<Response> {
       response,
       expectedChallenge: ticket.challenge,
       expectedOrigin: origin,
-      expectedRPID: rpID,
+      expectedRPID: PASSKEY_RP_ID,
       credential: {
         id: response.id,
         publicKey: Buffer.from(row.public_key, 'base64url'),
@@ -130,6 +129,41 @@ export default async function passkey(req: Request): Promise<Response> {
     const tokenHash = await mint(admin, row.player_id)
     if (!tokenHash) return json({ ok: false }, 502)
     return json({ ok: true, token_hash: tokenHash })
+  }
+
+  if (body.action === 'purchase-options') {
+    const token = bearer(req)
+    const uid = token ? (await supabaseAsUser(token).auth.getUser(token)).data.user?.id : ''
+    if (!uid) return json({ ok: false }, 401)
+    const options = await generateAuthenticationOptions({ rpID: PASSKEY_RP_ID, userVerification: 'required' })
+    return json({ ok: true, options, ticket: signTicket(options.challenge, uid) })
+  }
+
+  if (body.action === 'purchase-verify') {
+    const ticket = readTicket(body.ticket || '')
+    const token = bearer(req)
+    const uid = token ? (await supabaseAsUser(token).auth.getUser(token)).data.user?.id : ''
+    const response = body.response as AuthenticationResponseJSON | undefined
+    if (!ticket || !uid || ticket.playerId !== uid || !response?.id) return json({ ok: false }, 401)
+    const { data: row } = await admin.from('passkeys').select('player_id, public_key, counter').eq('credential_id', response.id).maybeSingle()
+    if (!row || row.player_id !== uid) return json({ ok: false }, 404)
+    const verified = await verifyAuthenticationResponse({
+      response,
+      expectedChallenge: ticket.challenge,
+      expectedOrigin: origin,
+      expectedRPID: PASSKEY_RP_ID,
+      credential: {
+        id: response.id,
+        publicKey: Buffer.from(row.public_key, 'base64url'),
+        counter: Number(row.counter) || 0,
+      },
+      requireUserVerification: true,
+    })
+    if (!verified.verified) return json({ ok: false }, 400)
+    await admin.from('passkeys').update({ counter: verified.authenticationInfo.newCounter }).eq('credential_id', response.id)
+    const issued = await issueReauth(admin, uid, 'passkey')
+    if (!issued) return json({ ok: false }, 502)
+    return json({ ok: true, reauthToken: issued.token, expiresAt: issued.expiresAt })
   }
 
   return json({ ok: false }, 400)
