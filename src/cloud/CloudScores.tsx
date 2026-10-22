@@ -15,7 +15,7 @@ export function useCloud(): CloudState {
 
 type Sheet = null | 'email' | 'sent' | 'name' | 'account' | 'parent'
 
-export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: string; compact?: boolean }) {
+export function CloudScoresButton({ suggestedName, compact, short, onInfo }: { suggestedName?: string; compact?: boolean; short?: boolean; onInfo?: () => void }) {
   const cloud = useCloud()
   const [sheet, setSheet] = useState<Sheet>(null)
   const [email, setEmail] = useState('')
@@ -60,8 +60,11 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
     else setSheet((s) => (s === 'sent' ? 'account' : s))
   }, [cloud.status, cloud.name])
 
-  const label =
-    cloud.status === 'signed-in' && cloud.name
+  const label = short
+    ? cloud.status === 'signed-in' && cloud.name
+      ? 'Scores'
+      : 'Sign in'
+    : cloud.status === 'signed-in' && cloud.name
       ? `☁ Scores saving as ${cloud.publicName ?? cloud.name}${cloud.pending ? ` (${cloud.pending} waiting)` : ''}`
       : cloud.pending
         ? `☁ Save my scores (${cloud.pending} waiting)`
@@ -87,7 +90,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
     <>
       <button
         type="button"
-        className={`btn ghost cloud-btn${compact ? ' is-compact' : ''}`}
+        className={`btn ghost cloud-btn${compact ? ' is-compact' : ''}${short ? ' is-short' : ''}`}
         onClick={() => {
           setErr('')
           setSheet(cloud.status === 'signed-in' ? (cloud.name ? 'account' : 'name') : 'email')
@@ -95,7 +98,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
       >
         {label}
       </button>
-      {cloud.status === 'signed-in' && cloud.name && (
+      {!short && cloud.status === 'signed-in' && cloud.name && (
         <button type="button" className={`btn ghost cloud-switch${compact ? ' is-compact' : ''}`} onClick={() => void switchPlayer()}>
           Switch player
         </button>
@@ -104,6 +107,11 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
         createPortal(
           <div className="start-sheet cloud-sheet" role="dialog" aria-modal="true" aria-label="Save my scores">
             <div className="start-sheet-scrim" onClick={() => setSheet(null)} />
+            {onInfo ? (
+              <button type="button" className="sheet-info" onClick={onInfo}>
+                Info
+              </button>
+            ) : null}
             {sheet === 'email' && (
               <form
                 className="start-sheet-card"

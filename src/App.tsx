@@ -19,6 +19,7 @@ import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
 import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
 import { CloudScoresButton } from './cloud/CloudScores'
+import { FamilySheet, InfoSheet, PhoneHome, PlayerPanel } from './components/PhoneProposal'
 import { initCloud, saveScore } from './cloud/cloud'
 import { UnseenCardTile } from './components/UnseenCard'
 import { noteCardWin } from './game/unseenCard'
@@ -426,7 +427,10 @@ const MENU_CSS = `
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('home')
-  const [{ layout }, setLayoutInfo] = useState(() => readLayout())
+  const [{ layout, device }, setLayoutInfo] = useState(() => readLayout())
+  const [infoOpen, setInfoOpen] = useState(false)
+  const [playerOpen, setPlayerOpen] = useState(false)
+  const [familyOpen, setFamilyOpen] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(() => loadProfile())
   const [progress, setProgress] = useState(() => getProgress())
   const [settings, setSettings] = useState<Settings>(() => loadSettings())
@@ -2666,6 +2670,19 @@ export default function App() {
     })
   }
 
+  /** Proposal: one fresh board of the size already on screen. Endless stays endless. */
+  function newBoardSameSize() {
+    if (!puzzle) return
+    const runningEndless = endlessRef.current
+    if (runningEndless) {
+      startEndless(runningEndless)
+      return
+    }
+    const difficulty = puzzle.difficulty
+    showToast('New board…')
+    window.setTimeout(() => startPuzzleRef.current(createFreshPuzzle(difficulty)), 30)
+  }
+
   /** 9.32-f: menu "Mix it up" — a fresh Endless board at a random size */
   function mixItUp() {
     const diffs = ['easy', 'medium', 'hard', 'expert'] as const
@@ -2718,7 +2735,7 @@ export default function App() {
           <button type="button" className={`btn ${isFresh ? 'primary' : 'ghost'} daily-btn`} data-open-remix onClick={() => setScreen('remix')}>
             Remix
           </button>
-          <button type="button" className="btn ghost daily-btn" onClick={mixItUp} disabled={endlessBusy != null} title="A fresh Endless board at a random size">
+          <button type="button" className="btn ghost daily-btn mix-btn" onClick={mixItUp} disabled={endlessBusy != null} title="A fresh Endless board at a random size">
             {endlessBusy ? 'Making…' : '🎲 Mix it up'}
           </button>
         </div>
@@ -2764,24 +2781,26 @@ export default function App() {
                 ) : (
                   <p className="start-sheet-locked">⚔ Roman's Trial unlocks at 3 stars</p>
                 )}
-                {sheetRec?.bestMs != null ? (
-                  <button
-                    type="button"
-                    className="btn tool"
-                    data-testid="reset-best"
-                    onClick={() => {
-                      if (window.confirm(`Reset your best time on ${startSheet.name}? Your stars and top score stay.`)) {
-                        persistRecords(resetBestTime(records, startSheet.id))
-                        showToast('Best time reset. Set a new one!')
-                      }
-                    }}
-                  >
-                    Reset best time
+                <div className="cta-pair">
+                  {sheetRec?.bestMs != null ? (
+                    <button
+                      type="button"
+                      className="btn tool"
+                      data-testid="reset-best"
+                      onClick={() => {
+                        if (window.confirm(`Reset your best time on ${startSheet.name}? Your stars and top score stay.`)) {
+                          persistRecords(resetBestTime(records, startSheet.id))
+                          showToast('Best time reset. Set a new one!')
+                        }
+                      }}
+                    >
+                      Reset best time
+                    </button>
+                  ) : null}
+                  <button type="button" className="btn ghost" onClick={() => setStartSheet(null)}>
+                    Cancel
                   </button>
-                ) : null}
-                <button type="button" className="btn ghost" onClick={() => setStartSheet(null)}>
-                  Cancel
-                </button>
+                </div>
               </div>
             </div>,
             document.body,
@@ -2885,12 +2904,48 @@ export default function App() {
             </button>
           </nav>
           <div className="hud-pills">
-            <div className="score-pill coin" title="Coins">
-              {wallet.coins}
-              <span>¢</span>
-            </div>
+            {device === 'phone' ? (
+              <button type="button" className="info-peek" onClick={() => setInfoOpen(true)}>
+                Info
+              </button>
+            ) : null}
+            {device === 'phone' ? (
+              <button
+                type="button"
+                className="score-pill coin"
+                aria-label={`${wallet.coins} coins`}
+                onClick={() => setPlayerOpen(true)}
+              >
+                {wallet.coins}
+                <span>¢</span>
+              </button>
+            ) : (
+              <div className="score-pill coin" title="Coins">
+                {wallet.coins}
+                <span>¢</span>
+              </div>
+            )}
           </div>
         </header>
+      )}
+
+      {device === 'phone' && screen !== 'play' && screen !== 'how' && (
+        <nav className="phone-tabs" aria-label="Sections">
+          <button type="button" className={screen === 'levels' ? 'on' : ''} onClick={() => setScreen('levels')}>
+            Play
+          </button>
+          <button type="button" className={screen === 'rewards' ? 'on' : ''} onClick={() => setScreen('rewards')}>
+            Shop
+          </button>
+          <button type="button" className={screen === 'profile' ? 'on' : ''} onClick={() => setScreen('profile')}>
+            You
+          </button>
+        </nav>
+      )}
+      {device === 'phone' && screen === 'how' && (
+        <button type="button" className="info-peek info-peek-fixed" onClick={() => setInfoOpen(true)}>
+          Info
+        </button>
       )}
 
       {/* On a live board the toast text shows in the play caption slot instead (never over the board) */}
@@ -2919,12 +2974,15 @@ export default function App() {
                 aria-label="Your name"
                 onChange={(e) => setNameDraft(e.target.value.slice(0, PLAYER_NAME_MAX + 8))}
               />
-              <button type="submit" className="btn primary" disabled={!cleanPlayerName(nameDraft)}>
-                Save
-              </button>
-              <button type="button" className="btn ghost" onClick={() => closeNamePrompt(false)}>
-                Skip (share as “I scored…”)
-              </button>
+              <div className="cta-pair">
+                <button type="submit" className="btn primary" disabled={!cleanPlayerName(nameDraft)}>
+                  Save
+                </button>
+                <button type="button" className="btn ghost" onClick={() => closeNamePrompt(false)}>
+                  <span className="skip-full">Skip (share as “I scored…”)</span>
+                  <span className="skip-short">Skip</span>
+                </button>
+              </div>
             </form>
           </div>,
           document.body,
@@ -2946,7 +3004,54 @@ export default function App() {
         purchasesUnavailable={webShop === 'unavailable'}
       />
 
-      {screen === 'home' && (
+      {screen === 'home' && device === 'phone' && (
+        <PhoneHome
+          playerName={playerName}
+          streak={dailyStreakNow}
+          onPlay={() => {
+            if (draftPuzzle) startPuzzle(draftPuzzle, true)
+            else {
+              const uncleared = PUZZLES.find((p) => !done.has(p.id))
+              if (uncleared) startPuzzle(uncleared)
+              else setScreen('levels')
+            }
+          }}
+          onHow={() => setScreen('how')}
+          onShop={() => setScreen('rewards')}
+          onAccount={() => setScreen('profile')}
+          onStable={() => setScreen('stable')}
+          onShare={() => setScreen('challenge')}
+          onDaily={() => startPuzzle(dailyBoard, false, { daily: true })}
+          onRemix={() => setScreen('remix')}
+          onBug={() => setScreen('bug')}
+          onFamily={() => setFamilyOpen(true)}
+          onInfo={() => setInfoOpen(true)}
+          buddy={
+            <section className="home-pet-row" aria-label="Your buddy">
+              <HomePet
+                id={activePet(pets, petNow)}
+                xp={(() => {
+                  const a = activePet(pets, petNow)
+                  return a ? petXp(pets, a) : 0
+                })()}
+                mood={(() => {
+                  const a = activePet(pets, petNow)
+                  return a && pets.owned[a] ? careInfo(pets, a, petNow, todayKey).kind : undefined
+                })()}
+                canPet={(() => {
+                  const a = activePet(pets, petNow)
+                  return !!a && !!pets.owned[a] && careInfo(pets, a, petNow, todayKey).canPet
+                })()}
+                onTap={() => petGiggle()}
+                onStable={() => setScreen('stable')}
+              />
+            </section>
+          }
+          unseen={<UnseenCardTile records={records} />}
+        />
+      )}
+
+      {screen === 'home' && device !== 'phone' && (
         <main className="home scroll-pane">
           <section className="hero no-callout">
             <p className="eyebrow">Logic puzzle</p>
@@ -3282,6 +3387,11 @@ export default function App() {
             <button type="button" className="btn tool" onClick={resetBoard}>
               Reset
             </button>
+            {device === 'phone' && mode !== 'trial' && !dailyTag ? (
+              <button type="button" className="btn tool" onClick={newBoardSameSize} aria-label="New board">
+                <span className="tool-label">New</span>
+              </button>
+            ) : null}
           </div>
           {/* Wide screens: the buddy riding along on this board (9.30-a) */}
           {(() => {
@@ -3633,6 +3743,11 @@ export default function App() {
       {screen === 'profile' && (
         <main className="panel profile scroll-pane">
           <h2>Save & settings</h2>
+          {device === 'phone' ? (
+            <button type="button" className="family-link" onClick={() => setFamilyOpen(true)}>
+              Parent & kid accounts
+            </button>
+          ) : null}
           {profile ? (
             <div className="profile-card">
               <p className="profile-name">{profile.displayName}</p>
@@ -4025,6 +4140,47 @@ export default function App() {
         onDone={handlePrize}
         onClose={() => setShowWheel(false)}
       />
+
+      <InfoSheet
+        open={device === 'phone' && infoOpen}
+        onClose={() => setInfoOpen(false)}
+        buildTag={BUILD_TAG}
+        soundOn={settings.sound}
+        onToggleSound={() => {
+          const next = { ...settings, sound: !settings.sound }
+          setSettings(next)
+          saveSettings(next)
+          setMuted(!next.sound)
+        }}
+        feedback={!isStoreBuild() && settings.analytics !== false ? <FeedbackChip onSend={sendFeedback} /> : <span className="info-muted">Likes are off</span>}
+        onFamily={() => {
+          setInfoOpen(false)
+          setFamilyOpen(true)
+        }}
+      />
+      <PlayerPanel
+        open={device === 'phone' && playerOpen}
+        onClose={() => setPlayerOpen(false)}
+        fallbackName={playerName || profile?.displayName || ''}
+        coins={wallet.coins}
+        stats={[
+          { label: 'Cleared', value: String(progress.clears.length) },
+          { label: 'Wins', value: String(wallet.totalWins) },
+          { label: 'Streak', value: String(dailyStreakNow) },
+          { label: 'Badges', value: String(totalBadgePower(wallet)) },
+          { label: 'Hints', value: String(wallet.freeHints) },
+          { label: 'Spins', value: String(wallet.spins) },
+        ]}
+        onShop={() => {
+          setPlayerOpen(false)
+          setScreen('rewards')
+        }}
+        onAccount={() => {
+          setPlayerOpen(false)
+          setScreen('profile')
+        }}
+      />
+      <FamilySheet open={device === 'phone' && familyOpen} onClose={() => setFamilyOpen(false)} />
 
       {/* Footer bar removed 2026-10-22 (Tony): it was eating screen space on every menu screen.
           Its contents live in Save & settings now — Sound effects toggle in Settings, and the
