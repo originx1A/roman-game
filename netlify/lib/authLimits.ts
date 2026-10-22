@@ -104,3 +104,16 @@ export function notePasswordChange(row: LimitRow, now: number): LimitRow {
   next.hits = [...next.hits, now]
   return next
 }
+
+/** Name lookups. 30 in 15 minutes, or 120 in a day, from one IP. Email is not a key. */
+export function accountCheckIpBlocked(ip: LimitRow, now: number): boolean {
+  const hits = within(ip.hits, now, DAY)
+  const recent = hits.filter((time) => now - time < 15 * MINUTE)
+  return recent.length >= 30 || hits.length >= 120
+}
+
+export function noteAccountCheck(ip: LimitRow, now: number): LimitRow {
+  const next = prune(ip, now)
+  next.hits = [...next.hits, now]
+  return next
+}

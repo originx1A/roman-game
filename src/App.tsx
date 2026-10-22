@@ -33,7 +33,7 @@ import { UnseenGuide, PetPopout, type GuideItem, type PetPopoutInfo } from './co
 import { HomeUnseenReminder } from './components/UnseenReminder'
 import { CloudScoresButton, useCloud } from './cloud/CloudScores'
 import { Leaderboard } from './cloud/Leaderboard'
-import { NAME_MAX, getSupabase, initCloud, loadPublicScores, renamePlayer, saveScore, scoreSaveLabel, signOut as cloudSignOut } from './cloud/cloud'
+import { NAME_MAX, getSupabase, initCloud, loadPublicScores, renamePlayer, saveScore, scoreSaveLabel, signOutEverywhere as cloudSignOut } from './cloud/cloud'
 import { noteWalletCoins, type CoinMeta } from './social/coins'
 import { armRound, isFriend, noteRoundScore, sendChallenge, sendLive, setPlaying, startSocial, type InboxItem } from './social/hub'
 import { setQuietRound } from './game/quietQueue'

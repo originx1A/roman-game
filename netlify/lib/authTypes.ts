@@ -1,3 +1,4 @@
+import type { AccountFlags } from './accountFlags.ts'
 import type { LimitRow } from './authLimits.ts'
 
 export type SessionPair = {
@@ -96,6 +97,8 @@ export interface AuthBackend {
   activeParent(parentId: string, childId: string): Promise<boolean>
   consumeReauth(playerId: string, token: string, now: number): Promise<boolean>
   audit(row: AuditRow): Promise<void>
+  getFlags(userId: string): Promise<AccountFlags>
+  saveFlags(userId: string, flags: AccountFlags, updatedAt: string): Promise<void>
 }
 
 /** The players insert written at signup. Age and account type are not fields. */

@@ -1,5 +1,6 @@
+import { accountFlagsBody, flagsChanged, mergeAccountFlags } from './accountFlags.ts'
 import { hashCard, hashCode, hashIp, hashUa, hashesEqual, newCardToken, scrubMetadata, sixDigitCode } from './authCrypto.ts'
-import { nameLocked, notePasswordChange, noteRecoverAttempt, noteSigninAttempt, noteSigninFailure, noteSignupAttempt, passwordChangeBlocked, recoverIpBlocked, recoverNameBlocked, signinIpBlocked, signupIpBlocked } from './authLimits.ts'
+import { accountCheckIpBlocked, nameLocked, noteAccountCheck, notePasswordChange, noteRecoverAttempt, noteSigninAttempt, noteSigninFailure, noteSignupAttempt, passwordChangeBlocked, recoverIpBlocked, recoverNameBlocked, signinIpBlocked, signupIpBlocked } from './authLimits.ts'
 import { ABSOLUTE_SHORT_MS, ABSOLUTE_STAY_MS, sessionExpired, sessionIdFromAccessToken } from './sessionClock.ts'
 import { decideName, publicDisplayName } from './namePolicy.ts'
 import { PASSWORD_HINT, passwordRejectReason } from './passwordPolicy.ts'
@@ -18,6 +19,9 @@ export type AuthRoute =
   | 'recovery-card-issue'
   | 'refresh'
   | 'signout'
+  | 'account'
+  | 'flags'
+  | 'session'
 
 const INVALID = { error: 'invalid_credentials' }
 const LIMITED = { error: 'rate_limited' }
@@ -91,6 +95,12 @@ export async function handleAuth(req: Request, route: AuthRoute, deps: AuthDeps)
         return await refreshSession(ctx)
       case 'signout':
         return await signout(ctx)
+      case 'account':
+        return await accountCheck(ctx)
+      case 'flags':
+        return await saveFlags(ctx)
+      case 'session':
+        return await sessionCheck(ctx)
       default:
         return authResponse({ error: 'bad_request' }, 400, origin)
     }
@@ -163,7 +173,7 @@ async function signup(ctx: Ctx): Promise<Response> {
   if (email && plainCode) await deps.sendCode(email, plainCode, 'verify').catch(() => undefined)
   await rememberDevice(ctx, created.playerId, created.session.access_token)
   await audit(ctx, 'signup', created.playerId, { name_normalized: name.normalized })
-  return authResponse(sessionBody(created.playerId, shown, created.session, stayUntil(ctx)), 201, origin)
+  return authResponse(await withFlags(ctx, created.playerId, sessionBody(created.playerId, shown, created.session, stayUntil(ctx))), 201, origin)
 }
 
 async function signin(ctx: Ctx): Promise<Response> {
@@ -210,7 +220,7 @@ async function signin(ctx: Ctx): Promise<Response> {
   await rememberDevice(ctx, signed.playerId, signed.session.access_token)
   await audit(ctx, 'signin_ok', signed.playerId, { name_normalized: name.normalized })
   const shown = publicDisplayName(profile.displayName)
-  return authResponse(sessionBody(signed.playerId, shown, signed.session, stayUntil(ctx)), 200, origin)
+  return authResponse(await withFlags(ctx, signed.playerId, sessionBody(signed.playerId, shown, signed.session, stayUntil(ctx))), 200, origin)
 }
 
 async function changePassword(ctx: Ctx): Promise<Response> {
@@ -331,7 +341,11 @@ async function recoverEmailFinish(ctx: Ctx): Promise<Response> {
   await deps.backend.revoke(profile.playerId, 'global').catch(() => undefined)
   await rememberDevice(ctx, profile.playerId, signed.session.access_token)
   await audit(ctx, 'recovery_email_finish', profile.playerId, { ok: true })
-  return authResponse(sessionBody(profile.playerId, publicDisplayName(profile.displayName), signed.session), 200, origin)
+  return authResponse(
+    await withFlags(ctx, profile.playerId, sessionBody(profile.playerId, publicDisplayName(profile.displayName), signed.session)),
+    200,
+    origin,
+  )
 }
 
 async function recoverCard(ctx: Ctx): Promise<Response> {
@@ -361,7 +375,11 @@ async function recoverCard(ctx: Ctx): Promise<Response> {
   await deps.backend.replaceCard(playerId, deps.hashCard(qr), new Date(now).toISOString())
   await rememberDevice(ctx, playerId, signed.session.access_token)
   await audit(ctx, 'recovery_card', playerId, { ok: true })
-  return authResponse({ ...sessionBody(playerId, publicDisplayName(profile.displayName), signed.session), qr_payload: qr }, 200, origin)
+  return authResponse(
+    await withFlags(ctx, playerId, { ...sessionBody(playerId, publicDisplayName(profile.displayName), signed.session), qr_payload: qr }),
+    200,
+    origin,
+  )
 }
 
 async function recoverParent(ctx: Ctx): Promise<Response> {
@@ -444,7 +462,85 @@ async function refreshSession(ctx: Ctx): Promise<Response> {
   if (device) await deps.backend.touchDevice(sessionId, new Date(now).toISOString()).catch(() => undefined)
   const shown = profile ? publicDisplayName(profile.displayName) : ''
   const stay = device ? { stay_signed_in: device.stay, absolute_until: new Date(device.absoluteUntil).toISOString() } : stayUntil(ctx)
-  return authResponse(sessionBody(signed.playerId, shown, signed.session, stay), 200, origin)
+  return authResponse(await withFlags(ctx, signed.playerId, sessionBody(signed.playerId, shown, signed.session, stay)), 200, origin)
+}
+
+/**
+ * New or existing by player name. An email in the body is ignored and never looked up,
+ * so this cannot tell anyone whether an address is registered.
+ */
+async function accountCheck(ctx: Ctx): Promise<Response> {
+  const { body, deps, now, origin, req } = ctx
+  const ip = clientIp(req)
+  const ipKey = deps.hashIp(ip) ?? 'missing'
+  const ipRow = await deps.backend.getLimit('account_check_ip', ipKey)
+  if (accountCheckIpBlocked(ipRow, now)) {
+    await deps.backend.putLimit('account_check_ip', ipKey, noteAccountCheck(ipRow, now))
+    return authResponse(LIMITED, 429, origin)
+  }
+  await deps.backend.putLimit('account_check_ip', ipKey, noteAccountCheck(ipRow, now))
+  const name = decideName(body.name)
+  if (!name.ok) {
+    await audit(ctx, 'account_check', null, { rejected: name.reason })
+    return authResponse({ error: 'name_rejected' }, 422, origin)
+  }
+  const profile = await deps.backend.lookupName(name.normalized)
+  const account = profile ? 'existing' : 'new'
+  await audit(ctx, 'account_check', profile?.playerId ?? null, { name_normalized: name.normalized, account })
+  return authResponse({ account }, 200, origin)
+}
+
+async function saveFlags(ctx: Ctx): Promise<Response> {
+  const live = await livePlayer(ctx)
+  if (live instanceof Response) return live
+  const flags = await rememberFlags(ctx, live.playerId)
+  await audit(ctx, 'account_flags', live.playerId, { age_confirmed: flags.ageConfirmedAt != null, terms_accepted: flags.termsAcceptedAt != null })
+  return authResponse({ flags: accountFlagsBody(flags) }, 200, ctx.origin)
+}
+
+/** Load and focus check. A dead or idle session is 401. The saved login otherwise stays. */
+async function sessionCheck(ctx: Ctx): Promise<Response> {
+  const live = await livePlayer(ctx)
+  if (live instanceof Response) return live
+  const profile = await ctx.deps.backend.profileById(live.playerId)
+  if (profile?.banned) {
+    const token = bearer(ctx.req)
+    await ctx.deps.backend.revoke(live.playerId, 'local', token).catch(() => undefined)
+    return authResponse(INVALID, 401, ctx.origin)
+  }
+  const flags = await rememberFlags(ctx, live.playerId)
+  const sessionId = sessionIdFromAccessToken(bearer(ctx.req))
+  const device = sessionId ? await ctx.deps.backend.getDevice(sessionId) : null
+  const stay = device
+    ? { stay_signed_in: device.stay, absolute_until: new Date(device.absoluteUntil).toISOString() }
+    : { stay_signed_in: true, absolute_until: null }
+  return authResponse(
+    {
+      user_id: live.playerId,
+      display_name: profile ? publicDisplayName(profile.displayName) : '',
+      flags: accountFlagsBody(flags),
+      ...stay,
+    },
+    200,
+    ctx.origin,
+  )
+}
+
+async function rememberFlags(ctx: Ctx, playerId: string) {
+  const current = await ctx.deps.backend.getFlags(playerId)
+  const next = mergeAccountFlags(current, ctx.body, new Date(ctx.now).toISOString())
+  if (!flagsChanged(current, next)) return current
+  try {
+    await ctx.deps.backend.saveFlags(playerId, next, new Date(ctx.now).toISOString())
+  } catch {
+    return current
+  }
+  return next
+}
+
+async function withFlags(ctx: Ctx, playerId: string, body: Record<string, unknown>) {
+  const flags = await rememberFlags(ctx, playerId)
+  return { ...body, flags: accountFlagsBody(flags) }
 }
 
 function sessionBody(userId: string, displayName: string, session: SessionPair, extra?: Record<string, unknown>) {

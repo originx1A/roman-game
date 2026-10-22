@@ -4,7 +4,7 @@ Migration `supabase/migration-009-accounts-auth.sql` is additive. Do not run it 
 
 `public.parent_links` has no `can_recover` column and this migration does not add one. An active parent link (`status = active`) is the recovery grant. It does not approve a payment.
 
-`account_type` is not a column. `derived_account_type(player)` returns `adult` only when `payment_eligibility` has the attestation time, the terms time, the terms version, and a receipt email. Otherwise it returns `player`. Signup does not write that row. Age is not collected and `players.age_13_plus` is not written.
+`account_type` is not a column. `derived_account_type(player)` returns `adult` only when `payment_eligibility` has the attestation time, the terms time, the terms version, and a receipt email. Otherwise it returns `player`. Signup does not write that row. `players.age_13_plus` is not written. The 13+ answer and the other one-time confirmations live on `account_flags` (migration 010). The screen contract is `docs/auth-api.md`.
 
 Cart tables (`carts`, `cart_items`) have no currency column. `POST /api/cart` is the writer. Prices live in `config/products.json` (a USD list for US buyers and a CAD list for everyone else). Both lists are empty until tokenomics. Adaptive Pricing is on in addition to that choice. See `docs/ACCOUNTS-CART.md`.
 
@@ -25,7 +25,7 @@ The game host calls these. Cooper’s sign-in face should set `nameAuth.signIn` 
 | `POST /api/auth/refresh` | `200` with a new session, or `401` `{error:"session_expired"}` |
 | `POST /api/auth/signout` | `204` |
 
-Signup and sign-in accept `email` or `recovery_email`, and `captchaToken` or `turnstile_token`. `stay_signed_in` defaults to true. The face’s age checkbox is not part of the POST body and is ignored if sent.
+Signup and sign-in accept `email` or `recovery_email` as the recovery mailbox, not as the login, and `captchaToken` or `turnstile_token`. `stay_signed_in` defaults to true. `age_confirmed: true` sets `flags.age_confirmed_at` once. See `docs/auth-api.md`.
 
 Name accounts are created with the admin API and `email_confirm: true`. Confirm email is on for the project, and the synthetic `@players.romansgame.invalid` address is not a mailbox, so it must be confirmed at create time.
 
@@ -43,7 +43,7 @@ Errors the face already matches: `401` `{error:"invalid_credentials"}` (unknown 
 
 Public site key, committed for the client: `0x4AAAAAAFfTs2hm1baT01HK`.
 
-Hostnames already on the widget: `romansgame.com`, `play.romansgame.com`, `www.romansgame.com`, and the PR #67 preview. The PR #63 preview hostname that still needs adding is `deploy-preview-63--romans-game.netlify.app`.
+Hostnames already on the widget: `romansgame.com`, `play.romansgame.com`, `www.romansgame.com`, the PR #67 preview, and `deploy-preview-63--romans-game.netlify.app`.
 
 `GET /api/auth-config` returns `turnstileSiteKey` and `turnstileHosts`. The existing passkey, Google, and VAPID fields are unchanged.
 

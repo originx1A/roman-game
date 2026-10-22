@@ -5,9 +5,10 @@ import { rememberPlayerName } from '../game/storage'
 /**
  * Player accounts + score saving (Supabase, project romans-game).
  *
- * - Sign-in: email magic link, or the code from that same email (no passwords). The session
- *   lives in localStorage, but the player row and every score live on the server, so a cache clear
- *   only means "sign in again". The code is {{ .Token }} in the Magic Link email; Tony adds that.
+ * - Primary sign-in is player name + password (POST /api/auth/signin). The session
+ *   lives in localStorage. Load and window focus check it again. A cache clear means "sign in again".
+ * - Email is recovery: a code to the address saved on the account. The email-code sheet still
+ *   works (magic link and the code from that email). Tony may keep that sheet as an option.
  * - Scores: queued locally first, then sent. Offline / Supabase down / not signed in = they wait
  *   in the queue (max 200) and flush on sign-in, on `online`, and after each new game.
  * - supabase-js is loaded lazily, so the game never waits on it and works fully without it.
@@ -462,10 +463,12 @@ export async function initCloud(): Promise<void> {
       refreshIfDue(sb)
       void flushScores()
     })
+    window.addEventListener('focus', () => { void recheckSession() })
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') refreshIfDue(sb)
+      if (document.visibilityState === 'visible') void recheckSession()
     })
     window.setInterval(() => refreshIfDue(sb), 60_000)
+    void recheckSession()
     if (!data.session && !readStoredSession()) void ensureAnonymous()
   } catch {
     if (!readStoredSession()) set({ status: 'off' })
@@ -714,17 +717,146 @@ export async function signOut(): Promise<void> {
   explicitSignOut = true
   try {
     const sb = await client()
-    // local scope: only this device; this player's unsent scores stay queued under their id
+    // local scope: only this device. Profile switch uses this. Logout of every device is signOutEverywhere.
     await sb?.auth.signOut({ scope: 'local' }).catch(() => undefined)
-    try {
-      localStorage.removeItem(AUTH_STORAGE_KEY)
-      localStorage.removeItem(PROFILE_CACHE_KEY)
-    } catch { /* ignore */ }
-    queueOwner = null
+    clearSavedLogin()
     set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined })
   } finally {
     explicitSignOut = false
     if (!anonHeld) void ensureAnonymous()
+  }
+}
+
+const RECHECK_GAP_MS = 4000
+let recheckAt = 0
+
+function clearSavedLogin(): void {
+  try {
+    localStorage.removeItem(AUTH_STORAGE_KEY)
+    localStorage.removeItem(PROFILE_CACHE_KEY)
+  } catch { /* ignore */ }
+  queueOwner = null
+}
+
+function authRejection(status: number | undefined, message: string | undefined): boolean {
+  if (status === 401 || status === 403) return true
+  return /invalid jwt|session not found|refresh token|user not found|session_expired/i.test(message ?? '')
+}
+
+/** Another device signed out everywhere, or this session is past its idle or absolute limit. */
+async function dropRevokedSession(): Promise<void> {
+  explicitSignOut = true
+  try {
+    const sb = await client()
+    await sb?.auth.signOut({ scope: 'local' }).catch(() => undefined)
+    clearSavedLogin()
+    set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined })
+  } finally {
+    explicitSignOut = false
+    if (!anonHeld) void ensureAnonymous()
+  }
+}
+
+/**
+ * Sign this player out on every device. Other open games drop the session on their next load or focus.
+ * This device then starts a guest session so play can continue.
+ */
+export async function signOutEverywhere(): Promise<void> {
+  explicitSignOut = true
+  try {
+    const saved = readStoredSession()
+    if (saved?.access_token) {
+      await fetch('/api/auth/signout', {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${saved.access_token}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ all_devices: true }),
+      }).catch(() => undefined)
+    }
+    const sb = await client()
+    await sb?.auth.signOut({ scope: 'global' }).catch(() => undefined)
+    clearSavedLogin()
+    set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined })
+  } finally {
+    explicitSignOut = false
+    if (!anonHeld) void ensureAnonymous()
+  }
+}
+
+/**
+ * Keep a name+password API session in the same localStorage slot the game already restores.
+ * Call this after POST /api/auth/signin or /api/auth/signup returns session tokens.
+ */
+export async function persistServerSession(accessToken: string, refreshToken: string): Promise<boolean> {
+  const sb = await client()
+  if (!sb) return false
+  const { data, error } = await sb.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+  if (error || !data.session) return false
+  await loadPlayer(sb, data.session)
+  return true
+}
+
+/**
+ * Ask the server whether the saved login is still good. Called on startup and when the window focuses.
+ * A network failure keeps the saved session. A 401 drops it.
+ */
+export async function recheckSession(): Promise<void> {
+  if (explicitSignOut) return
+  const now = Date.now()
+  if (now - recheckAt < RECHECK_GAP_MS) return
+  recheckAt = now
+  const saved = readStoredSession()
+  if (!saved) return
+  try {
+    const sb = await client()
+    if (!sb) return
+    let access = saved.access_token
+    const expiresAt = (saved.expires_at ?? 0) * 1000
+    if (!expiresAt || expiresAt - Date.now() <= 60_000) {
+      const refreshed = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ refresh_token: saved.refresh_token }),
+      }).catch(() => null)
+      if (!refreshed) return
+      if (refreshed.status === 401) {
+        await dropRevokedSession()
+        return
+      }
+      if (refreshed.ok) {
+        const body = (await refreshed.json()) as { session?: { access_token?: string; refresh_token?: string } }
+        if (body.session?.access_token && body.session.refresh_token) {
+          await sb.auth.setSession({ access_token: body.session.access_token, refresh_token: body.session.refresh_token })
+          access = body.session.access_token
+        }
+      }
+    }
+    const { data, error } = await sb.auth.getUser(access)
+    if (error) {
+      const status = (error as { status?: number }).status
+      if (authRejection(status, error.message)) await dropRevokedSession()
+      return
+    }
+    if (!data.user) {
+      await dropRevokedSession()
+      return
+    }
+    const checked = await fetch('/api/auth/session', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${access}`, 'content-type': 'application/json' },
+      body: '{}',
+    }).catch(() => null)
+    if (!checked) return
+    if (checked.status === 401) {
+      await dropRevokedSession()
+      return
+    }
+    const { data: sessionData } = await sb.auth.getSession()
+    await loadPlayer(sb, sessionData.session ?? sessionFromStore())
+  } catch {
+    /* offline: the saved session stays */
   }
 }
 

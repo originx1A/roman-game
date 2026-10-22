@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { handleAuth, readCaptchaToken, type AuthDeps, type AuthRoute } from '../netlify/lib/authHandler.ts'
 import { ABSOLUTE_SHORT_MS, ABSOLUTE_STAY_MS, IDLE_MS, sessionExpired } from '../netlify/lib/sessionClock.ts'
-import { DAY, HOUR, MINUTE, emptyLimit, nextLockMs, noteSigninAttempt, noteSigninFailure, noteSignupAttempt, signinIpBlocked, signupIpBlocked } from '../netlify/lib/authLimits.ts'
+import { DAY, HOUR, MINUTE, accountCheckIpBlocked, emptyLimit, nextLockMs, noteAccountCheck, noteSigninAttempt, noteSigninFailure, noteSignupAttempt, signinIpBlocked, signupIpBlocked } from '../netlify/lib/authLimits.ts'
 import { hashCard, hashCode, hashIp, hashUa, scrubMetadata } from '../netlify/lib/authCrypto.ts'
 import { COMMON_PASSWORDS } from '../netlify/lib/commonPasswords.ts'
 import { hibpRange } from '../netlify/lib/hibp.ts'
@@ -413,6 +413,87 @@ test('a bearer auth call rejects an expired session', async () => {
   assert.equal(backend.revokes.some((row) => row.scope === 'local'), true)
 })
 
+test('account check says new or existing and never returns an email', async () => {
+  const backend = new MemoryAuth()
+  const { authDeps } = deps(backend)
+  await call('signup', { name: 'Cool Kid', password: PASSWORD, email: 'kid@example.com', captchaToken: TOKEN }, authDeps)
+  const existing = await call('account', { name: 'Cool Kid', email: 'kid@example.com' }, authDeps)
+  const fresh = await call('account', { name: 'Other Kid', email: 'other@example.com' }, authDeps)
+  assert.equal(existing.status, 200)
+  assert.equal(fresh.status, 200)
+  assert.deepEqual(await json(existing), { account: 'existing' })
+  assert.deepEqual(await json(fresh), { account: 'new' })
+  const onlyEmail = await call('account', { email: 'secret@example.com' }, authDeps)
+  assert.equal(onlyEmail.status, 422)
+  assert.deepEqual(await json(onlyEmail), { error: 'name_rejected' })
+  const dumped = JSON.stringify(backend.audits)
+  assert.equal(dumped.includes('kid@example.com'), false)
+  assert.equal(dumped.includes('secret@example.com'), false)
+  assert.equal(dumped.includes('other@example.com'), false)
+})
+
+test('account check rate limit is the same response for every name', async () => {
+  const backend = new MemoryAuth()
+  const { authDeps } = deps(backend)
+  for (let i = 0; i < 30; i++) {
+    const res = await call('account', { name: `kidname${i}` }, authDeps)
+    assert.equal(res.status, 200)
+  }
+  const blocked = await call('account', { name: 'Cool Kid', email: 'kid@example.com' }, authDeps)
+  assert.equal(blocked.status, 429)
+  assert.deepEqual(await json(blocked), { error: 'rate_limited' })
+  let row = emptyLimit()
+  for (let i = 0; i < 29; i++) row = noteAccountCheck(row, NOW)
+  assert.equal(accountCheckIpBlocked(row, NOW), false)
+  row = noteAccountCheck(row, NOW)
+  assert.equal(accountCheckIpBlocked(row, NOW), true)
+})
+
+test('the 13+ answer is stored once and returned on the next sign-in', async () => {
+  const backend = new MemoryAuth()
+  const { authDeps } = deps(backend)
+  const created = await json(await call('signup', {
+    name: 'Cool Kid',
+    password: PASSWORD,
+    captchaToken: TOKEN,
+    age_confirmed: true,
+    terms_accepted: true,
+    terms_version: '2026-10-20',
+    marketing_opt_in: false,
+  }, authDeps))
+  const flags = created.flags as { age_confirmed_at: string; terms_version: string; marketing_opt_in: boolean; marketing_answered_at: string }
+  assert.equal(flags.age_confirmed_at, new Date(NOW).toISOString())
+  assert.equal(flags.terms_version, '2026-10-20')
+  assert.equal(flags.marketing_opt_in, false)
+  assert.equal(typeof flags.marketing_answered_at, 'string')
+  const again = await json(await call('signin', { name: 'Cool Kid', password: PASSWORD, captchaToken: TOKEN }, authDeps))
+  assert.equal((again.flags as { age_confirmed_at: string }).age_confirmed_at, flags.age_confirmed_at)
+  const access = (again.session as { access_token: string }).access_token
+  const cleared = await call('flags', { age_confirmed: false, marketing_opt_in: true }, authDeps, { authorization: `Bearer ${access}` })
+  assert.equal(cleared.status, 200)
+  const kept = (await json(cleared)).flags as { age_confirmed_at: string; marketing_opt_in: boolean }
+  assert.equal(kept.age_confirmed_at, flags.age_confirmed_at)
+  assert.equal(kept.marketing_opt_in, false)
+  const open = await call('session', {}, authDeps, { authorization: `Bearer ${access}` })
+  assert.equal(open.status, 200)
+  const sessionBody = await json(open)
+  assert.equal((sessionBody.flags as { age_confirmed_at: string }).age_confirmed_at, flags.age_confirmed_at)
+  assert.equal(sessionBody.user_id, created.user_id)
+})
+
+test('a session re-check reports an idle login as expired', async () => {
+  const backend = new MemoryAuth()
+  const clock = { now: NOW }
+  const { authDeps } = deps(backend, NOW)
+  authDeps.now = () => clock.now
+  const created = await json(await call('signup', { name: 'Cool Kid', password: PASSWORD, captchaToken: TOKEN }, authDeps))
+  const access = (created.session as { access_token: string }).access_token
+  clock.now = NOW + IDLE_MS
+  const stale = await call('session', {}, authDeps, { authorization: `Bearer ${access}` })
+  assert.equal(stale.status, 401)
+  assert.deepEqual(await json(stale), { error: 'session_expired' })
+})
+
 test('signup writes no age and no account type', () => {
   assert.deepEqual(Object.keys(playerInsert('id', 'Cool')).sort(), ['display_name', 'id'])
   assert.deepEqual(Object.keys(profileInsert('id', 'Cool Kid', 'cool-kid')).sort(), ['display_name', 'name_normalized', 'player_id'])
@@ -473,6 +554,35 @@ test('the auth backend forwards captcha tokens and confirms synthetic mail', () 
   assert.deepEqual(filter, NAME_FILTER)
   assert.equal(TURNSTILE_SITE_KEY, '0x4AAAAAAFfTs2hm1baT01HK')
   assert.deepEqual([...TURNSTILE_HOSTS], ['romansgame.com', 'play.romansgame.com', 'www.romansgame.com'])
+})
+
+test('migration 010 adds account_flags only', () => {
+  const raw = read('../supabase/migration-010-account-flags.sql')
+  const sql = raw.replace(/--[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+  assert.match(sql, /create table if not exists public\.account_flags/)
+  assert.match(sql, /age_confirmed_at/)
+  assert.match(sql, /account_flags_keep_confirmations/)
+  assert.equal(sql.includes('age_13_plus'), false)
+  assert.equal(/drop table/i.test(sql), false)
+  assert.equal(sql.includes('derived_account_type'), false)
+  assert.equal(sql.includes('deny_row_change'), false)
+  const altered = [...sql.matchAll(/alter table public\.([a-z_]+)/g)].map((match) => match[1])
+  assert.deepEqual(altered, ['account_flags'])
+})
+
+test('logout is global and the saved session is checked on load and focus', () => {
+  const source = read('../src/cloud/cloud.ts')
+  assert.match(source, /signOut\(\{ scope: 'global' \}\)/)
+  assert.match(source, /all_devices: true/)
+  assert.match(source, /recheckSession/)
+  assert.match(source, /addEventListener\('focus'/)
+  assert.match(source, /\/api\/auth\/session/)
+  assert.match(read('../src/buildTag.ts'), /build 9\.32-g/)
+  assert.match(read('../src/App.tsx'), /signOutEverywhere as cloudSignOut/)
+  assert.match(read('../src/cloud/CloudScores.tsx'), /signOutEverywhere\(\)/)
+  assert.match(read('../public/_redirects'), /\/api\/auth\/account/)
+  assert.match(read('../public/_redirects'), /\/api\/auth\/flags/)
+  assert.match(read('../public/_redirects'), /\/api\/auth\/session/)
 })
 
 test('the repo has no Turnstile secret and no siteverify call', () => {

@@ -3,6 +3,7 @@ import { consumeReauth } from './reauth.ts'
 import { loginEmail } from './authCrypto.ts'
 import { emptyLimit, type LimitRow } from './authLimits.ts'
 import { SUPABASE_PUBLISHABLE, SUPABASE_URL, supabaseAdmin } from './supabaseAdmin.ts'
+import { emptyAccountFlags, type AccountFlags } from './accountFlags.ts'
 import { playerInsert, profileInsert, type AuthBackend, type DeviceRecord, type PasswordSignIn, type ProfileRecord, type RecoveryRecord, type SessionPair } from './authTypes.ts'
 import { scrubMetadata } from './authCrypto.ts'
 
@@ -284,6 +285,24 @@ class SupabaseAuthBackend implements AuthBackend {
     })
   }
 
+  async getFlags(userId: string): Promise<AccountFlags> {
+    const { data, error } = await this.admin.from('account_flags').select('*').eq('user_id', userId).maybeSingle()
+    if (error || !data) return emptyAccountFlags()
+    return flagsFrom(data as Row)
+  }
+
+  async saveFlags(userId: string, flags: AccountFlags, updatedAt: string): Promise<void> {
+    await this.admin.from('account_flags').upsert({
+      user_id: userId,
+      age_confirmed_at: flags.ageConfirmedAt,
+      terms_accepted_at: flags.termsAcceptedAt,
+      terms_version: flags.termsVersion,
+      marketing_opt_in: flags.marketingOptIn,
+      marketing_answered_at: flags.marketingAnsweredAt,
+      updated_at: updatedAt,
+    })
+  }
+
   private async withBan(row: Row): Promise<ProfileRecord> {
     const playerId = String(row.player_id)
     const { data } = await this.admin.from('account_status').select('banned').eq('player_id', playerId).maybeSingle()
@@ -308,6 +327,16 @@ function toSession(session: { access_token: string; refresh_token: string; expir
 function times(value: unknown): number[] {
   if (!Array.isArray(value)) return []
   return value.map((item) => Date.parse(String(item))).filter((time) => !Number.isNaN(time))
+}
+
+function flagsFrom(row: Row): AccountFlags {
+  return {
+    ageConfirmedAt: row.age_confirmed_at ? String(row.age_confirmed_at) : null,
+    termsAcceptedAt: row.terms_accepted_at ? String(row.terms_accepted_at) : null,
+    termsVersion: row.terms_version ? String(row.terms_version) : null,
+    marketingOptIn: row.marketing_opt_in === true,
+    marketingAnsweredAt: row.marketing_answered_at ? String(row.marketing_answered_at) : null,
+  }
 }
 
 function recoveryFrom(row: Row): RecoveryRecord {

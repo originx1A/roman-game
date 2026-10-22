@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { emptyAccountFlags, type AccountFlags } from '../netlify/lib/accountFlags.ts'
 import { emptyLimit, type LimitRow } from '../netlify/lib/authLimits.ts'
 import { accessTokenForSession } from '../netlify/lib/sessionClock.ts'
 import type {
@@ -27,6 +28,7 @@ export class MemoryAuth implements AuthBackend {
   reauths = new Set<string>()
   audits: AuditRow[] = []
   devices = new Map<string, DeviceRecord>()
+  flags = new Map<string, AccountFlags>()
   revokes: { playerId: string; scope: 'global' | 'others' | 'local'; accessToken?: string }[] = []
   tokens = new Map<string, string>()
   refreshIndex = new Map<string, { playerId: string; sessionId: string }>()
@@ -215,5 +217,13 @@ export class MemoryAuth implements AuthBackend {
 
   async audit(row: AuditRow): Promise<void> {
     this.audits.push(structuredClone(row))
+  }
+
+  async getFlags(userId: string): Promise<AccountFlags> {
+    return structuredClone(this.flags.get(userId) ?? emptyAccountFlags())
+  }
+
+  async saveFlags(userId: string, flags: AccountFlags, _updatedAt: string): Promise<void> {
+    this.flags.set(userId, structuredClone(flags))
   }
 }

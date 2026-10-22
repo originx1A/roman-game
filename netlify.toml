@@ -81,6 +81,21 @@
   to = "/.netlify/functions/auth-refresh"
   status = 200
   force = true
+[[redirects]]
+  from = "/api/auth/account"
+  to = "/.netlify/functions/auth-account"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/flags"
+  to = "/.netlify/functions/auth-flags"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/session"
+  to = "/.netlify/functions/auth-session"
+  status = 200
+  force = true
 
 [[redirects]]
   from = "/api/cart"

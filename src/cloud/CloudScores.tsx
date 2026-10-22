@@ -4,7 +4,7 @@ import { KeyboardNameSheet, useKeyboardNameEntry } from '../components/KeyboardN
 import { LegalLine } from '../components/LegalLine'
 import { playVoice } from '../game/sound'
 import { isProfane } from './profanity'
-import { NAME_MAX, cloudState, loadConsent, saveConsent, onCloud, renamePlayer, savePlayerName, scoreSaveLabel, sendMagicLink, signInCode, signInEmail, signOut, verifyEmailCode, type CloudState } from './cloud'
+import { NAME_MAX, cloudState, loadConsent, saveConsent, onCloud, renamePlayer, savePlayerName, scoreSaveLabel, sendMagicLink, signInCode, signInEmail, signOut, signOutEverywhere, verifyEmailCode, type CloudState } from './cloud'
 import { useTurnstile } from './useTurnstile'
 
 /**
@@ -466,7 +466,7 @@ export function CloudScoresButton({
                     <button type="button" className="btn ghost" data-testid="switch-player" onClick={beginSwitch}>
                       Switch player
                     </button>
-                    <button type="button" className="btn ghost" onClick={() => { void signOut(); closeSheet() }}>
+                    <button type="button" className="btn ghost" onClick={() => { void signOutEverywhere(); closeSheet() }}>
                       Sign out
                     </button>
                   </>

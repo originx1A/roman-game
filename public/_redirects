@@ -8,6 +8,9 @@
 /api/auth/recovery-card/issue /.netlify/functions/auth-recovery-card-issue 200!
 /api/auth/signout /.netlify/functions/auth-signout 200!
 /api/auth/refresh /.netlify/functions/auth-refresh 200!
+/api/auth/account /.netlify/functions/auth-account 200!
+/api/auth/flags /.netlify/functions/auth-flags 200!
+/api/auth/session /.netlify/functions/auth-session 200!
 /api/cart /.netlify/functions/cart 200!
 /api/* /.netlify/functions/:splat 200!
 # Netlify reads this file before netlify.toml, and the first match wins.
