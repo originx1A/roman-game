@@ -10,6 +10,7 @@ import { gaEvent } from '../game/analytics'
  * - supabase-js is loaded lazily, so the game never waits on it and works fully without it.
  */
 import type { SupabaseClient, Session } from '@supabase/supabase-js'
+import { explainSignInError } from './signInError'
 
 /** Longest player name (matches players_display_name_len in supabase/schema.sql) */
 export const NAME_MAX = 24
@@ -202,7 +203,7 @@ export async function sendMagicLink(email: string): Promise<{ ok: boolean; error
   if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
   const redirect = `${window.location.origin}${window.location.pathname}`
   const { error } = await sb.auth.signInWithOtp({ email: email.trim(), options: { emailRedirectTo: redirect, shouldCreateUser: true } })
-  if (error) return { ok: false, error: error.message.includes('rate') ? 'Too many tries. Wait a minute and try again.' : "Couldn't send the link. Check the email and try again." }
+  if (error) return { ok: false, error: explainSignInError(error) }
   return { ok: true }
 }
 
@@ -219,7 +220,7 @@ export async function verifyEmailCode(email: string, token: string): Promise<{ o
   if (!/^\d{6,8}$/.test(code)) return { ok: false, error: 'Enter the code from your email.' }
   const { data, error } = await sb.auth.verifyOtp({ email: email.trim(), token: code, type: 'email' })
   if (error || !data.session) {
-    return { ok: false, error: error?.message?.includes('rate') ? 'Too many tries. Wait a minute and try again.' : "That code didn't work. Check it and try again." }
+    return { ok: false, error: explainSignInError(error, "That code didn't work. Check it and try again.") }
   }
   return { ok: true }
 }
