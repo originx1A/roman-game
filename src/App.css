@@ -7259,6 +7259,7 @@ html[data-device='phone'] .info-vote small {
 .player-stats dd { margin: 0; font-weight: 800; font-size: 1.05rem; }
 .player-actions { display: flex; gap: 0.5rem; }
 .player-actions .btn { flex: 1; min-height: 48px; }
+.log-out { width: 100%; margin-top: 0.45rem; }
 .family-points { margin: 0.15rem 0 0.85rem; padding-left: 1.15rem; display: grid; gap: 0.4rem; }
 .family-points li { line-height: 1.35; }
 html[data-device='phone'] .profile > .family-link { margin: -0.15rem 0 0.35rem; text-align: left; }

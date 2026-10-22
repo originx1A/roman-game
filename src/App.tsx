@@ -18,7 +18,7 @@ import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './componen
 import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
 import { UnseenPopup } from './components/UnseenPopup'
-import { CloudScoresButton } from './cloud/CloudScores'
+import { CloudScoresButton, LogOutButton } from './cloud/CloudScores'
 import { PhoneBoard } from './components/PhoneBoard'
 import { LiveBoard } from './components/LiveBoard'
 import { FamilySheet, HomeUnseen, InfoSheet, PhoneHome, PhoneSettings, PhoneVote, PlayerPanel } from './components/PhoneProposal'
@@ -3834,6 +3834,7 @@ export default function App() {
               >
                 Sign out
               </button>
+              <LogOutButton />
             </div>
           ) : (
             <form className="auth-form" onSubmit={handleSignIn}>

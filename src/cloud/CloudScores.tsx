@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { isProfane } from './profanity'
-import { NAME_MAX, loadConsent, saveConsent, onCloud, savePlayerName, sendMagicLink, signOut, verifyEmailCode, type CloudState } from './cloud'
+import { NAME_MAX, onCloud, savePlayerName, sendMagicLink, signOut, verifyEmailCode, type CloudState } from './cloud'
 import { useTurnstile } from './useTurnstile'
 
 /**
  * "Save my scores" button + sheets.
- * Phone opens a short card first (no age question). Email is the existing magic-link sheet, with the 13+ and Terms boxes.
- * Saving with no email, and linking a parent, are not on this preview: those sheets say so instead of inventing an account.
+ * Phone opens a short card first (no age question). Sign-in is email, then a 6-digit code.
+ * The 13+ box, Terms, and the news box are asked once, on the create-account step, and only when the
+ * server has no age confirmation yet. Saving with no email, and linking a parent, are not on this preview.
  * The whole chosen name is shown publicly (the server adds 02, 03... if it's taken); bad words are rejected on the spot.
  */
 
@@ -31,15 +32,16 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, 
   const [name, setName] = useState(suggestedName ?? '')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
-  const [age13, setAge13] = useState(() => loadConsent()?.age13 ?? false)
-  const [optIn, setOptIn] = useState(() => loadConsent()?.optIn ?? false)
+  const [age13, setAge13] = useState(false)
+  const [optIn, setOptIn] = useState(false)
   const [terms, setTerms] = useState(false)
+  const askAge = cloud.status === 'signed-in' && cloud.ageConfirmed !== true && (cloud.ageConfirmed === false || cloud.name == null)
   const captchaOn = sheet === 'email' || sheet === 'sent'
   const captcha = useTurnstile(captchaOn)
   const consentChecks = (
     <div className="cloud-checks">
       <label className="cloud-check">
-        <input type="checkbox" checked={age13} onChange={(e) => setAge13(e.target.checked)} />
+        <input type="checkbox" data-testid="age-13" checked={age13} onChange={(e) => setAge13(e.target.checked)} />
         <span>I'm 13 or older</span>
       </label>
       <label className="cloud-check">
@@ -66,9 +68,12 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, 
   // Signed in from the link or the code. No name yet: ask once. Code sign-in of a named player: show the account.
   useEffect(() => {
     if (cloud.status !== 'signed-in') return
-    if (cloud.name === null) setSheet((s) => (s === 'account' || s === 'parent' || s === 'noemail' || s === 'parentlink' || s === 'offer' ? s : 'name'))
-    else setSheet((s) => (s === 'sent' ? 'account' : s))
-  }, [cloud.status, cloud.name])
+    if (askAge || cloud.name == null) {
+      setSheet((s) => (s === 'parent' || s === 'noemail' || s === 'parentlink' ? s : 'name'))
+      return
+    }
+    setSheet((s) => (s === 'sent' || s === 'email' || s === 'name' ? 'account' : s))
+  }, [cloud.status, cloud.name, askAge])
 
   function closeSheet() {
     setSheet(null)
@@ -94,7 +99,6 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, 
     setAge13(false)
     setOptIn(false)
     setTerms(false)
-    saveConsent({ age13: false, optIn: false })
     setErr('')
     setSheet(phoneSaveCard() ? 'offer' : 'email')
   }
@@ -139,10 +143,7 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, 
                 className="cloud-auth-form"
                 onSubmit={async (e) => {
                   e.preventDefault()
-                  if (!age13) return setSheet('parent')
-                  if (!terms) return setErr('Please agree to the Terms and Privacy.')
                   if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setErr('Type a full email address.')
-                  saveConsent({ age13, optIn })
                   setBusy(true)
                   setErr('')
                   const token = await captcha.takeToken()
@@ -161,15 +162,14 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, 
                   } else setErr(r.error ?? 'Something went wrong.')
                 }}
               >
-                <h3>Save your scores</h3>
+                <h3>Sign in</h3>
                 <p className="start-sheet-tip">
-                  Get on the leaderboard and keep your scores on any device. We'll email you a sign-in link and the code from your email. No password.
+                  Enter your email. We'll send a 6-digit code. No password.
                 </p>
                 <input className="name-input" type="email" inputMode="email" autoComplete="email" placeholder="Email address" aria-label="Email address" value={email} onChange={(e) => setEmail(e.target.value)} />
-                {consentChecks}
                 {err && <p className="cloud-err" role="alert">{err}</p>}
                 <button type="submit" className="btn primary" disabled={busy}>
-                  {busy ? 'Sending…' : 'Email me a sign-in link'}
+                  {busy ? 'Sending…' : 'Email me a code'}
                 </button>
                 <button type="button" className="btn ghost" onClick={closeSheet}>
                   Not now
@@ -181,7 +181,7 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, 
                 className="cloud-auth-form"
                 onSubmit={async (e) => {
                   e.preventDefault()
-                  if (!/^\d{6,8}$/.test(code)) return setErr('Enter the code from your email.')
+                  if (!/^\d{6,8}$/.test(code)) return setErr('Enter the 6-digit code from your email.')
                   setBusy(true)
                   setErr('')
                   const token = await captcha.takeToken()
@@ -197,17 +197,17 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, 
                   if (!r.ok) setErr(r.error ?? 'Something went wrong.')
                 }}
               >
-                <h3>Check your email</h3>
+                <h3>Enter your code</h3>
                 <p className="start-sheet-tip">
-                  We sent it to <b>{email.trim()}</b>. Tap the link in your email, or enter the code from your email.
+                  We sent a 6-digit code to <b>{email.trim()}</b>. Enter it here. You can also tap the link in that email.
                 </p>
                 <input
                   className="name-input cloud-code"
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   maxLength={8}
-                  placeholder="the code from your email"
-                  aria-label="the code from your email"
+                  placeholder="6-digit code"
+                  aria-label="6-digit code"
                   value={code}
                   onPaste={(e) => {
                     const text = e.clipboardData.getData('text').replace(/\s/g, '').replace(/\D/g, '').slice(0, 8)
@@ -223,7 +223,7 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, 
                 />
                 {err && <p className="cloud-err" role="alert">{err}</p>}
                 <button type="submit" className="btn primary" disabled={busy || code.length < 6}>
-                  {busy ? 'Checking…' : 'Sign in with code'}
+                  {busy ? 'Checking…' : 'Sign in'}
                 </button>
                 <button type="button" className="btn ghost" onClick={closeSheet}>
                   Not now
@@ -239,10 +239,12 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, 
                 onSubmit={async (e) => {
                   e.preventDefault()
                   if (!name.trim() || nameProblem) return
-                  if (!age13) return setSheet('parent')
-                  if (!loadConsent()?.age13 && !terms) return setErr('Please agree to the Terms and Privacy.')
+                  if (askAge) {
+                    if (!age13) return setSheet('parent')
+                    if (!terms) return setErr('Please agree to the Terms and Privacy.')
+                  }
                   setBusy(true)
-                  const r = await savePlayerName(name, { age13, optIn })
+                  const r = await savePlayerName(name, { age13: askAge ? age13 : true, optIn: askAge ? optIn : false })
                   setBusy(false)
                   if (r.ok) {
                     if (r.publicName && r.publicName !== name.trim()) setSheet('account')
@@ -250,12 +252,12 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, 
                   } else setErr(r.error ?? 'Something went wrong.')
                 }}
               >
-                <h3>Pick your leaderboard name</h3>
+                <h3>{askAge ? 'Create your account' : 'Pick your leaderboard name'}</h3>
                 <p className="start-sheet-tip">
                   This name will be shown publicly on the leaderboard, so don't use your full real name. If someone already has it, we'll add a number (like {name.trim() && !nameProblem ? `${name.trim()}02` : 'Mike02'}). You only do this once.
                 </p>
                 <input className="name-input" type="text" maxLength={NAME_MAX} autoComplete="nickname" placeholder="Your name" aria-label="Your name" value={name} onChange={(e) => setName(e.target.value)} />
-                {!loadConsent()?.age13 && consentChecks}
+                {askAge && consentChecks}
                 {(nameProblem || err) && <p className="cloud-err" role="alert">{nameProblem || err}</p>}
                 <button type="submit" className="btn primary" disabled={busy || !name.trim() || !!nameProblem}>
                   {busy ? 'Saving…' : 'Save name'}
@@ -313,7 +315,7 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, 
                 </button>
                 {cloud.status === 'signed-in' && (
                   <button type="button" className="btn ghost" onClick={() => { void signOut(); closeSheet() }}>
-                    Sign out
+                    Log out
                   </button>
                 )}
               </div>
@@ -335,8 +337,8 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, 
                 >
                   Switch player
                 </button>
-                <button type="button" className="btn ghost" onClick={() => { void signOut(); closeSheet() }}>
-                  Sign out
+                <button type="button" className="btn ghost log-out" onClick={() => { void signOut(); closeSheet() }}>
+                  Log out
                 </button>
               </div>
             )}
@@ -344,5 +346,24 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, 
           document.body,
         )}
     </>
+  )
+}
+
+/** Cloud session logout. Hidden until this device is signed in. */
+export function LogOutButton({ onDone }: { onDone?: () => void }) {
+  const cloud = useCloud()
+  if (cloud.status !== 'signed-in') return null
+  return (
+    <button
+      type="button"
+      className="btn ghost log-out"
+      data-testid="log-out"
+      onClick={() => {
+        void signOut()
+        onDone?.()
+      }}
+    >
+      Log out
+    </button>
   )
 }
