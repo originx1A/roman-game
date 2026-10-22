@@ -11,12 +11,9 @@ export function PhoneHome({
   onAccount,
   onStable,
   onShare,
-  onDaily,
-  onRemix,
   onBug,
   onFamily,
   onInfo,
-  streak,
   buddy,
   unseen,
 }: {
@@ -27,12 +24,9 @@ export function PhoneHome({
   onAccount: () => void
   onStable: () => void
   onShare: () => void
-  onDaily: () => void
-  onRemix: () => void
   onBug: () => void
   onFamily: () => void
   onInfo: () => void
-  streak: number
   buddy: ReactNode
   unseen: ReactNode
 }) {
@@ -59,8 +53,6 @@ export function PhoneHome({
         <CloudScoresButton suggestedName={playerName} short onInfo={onInfo} />
         <button type="button" onClick={onAccount}><span aria-hidden>☺</span>You</button>
         <button type="button" onClick={onHow}><span aria-hidden>?</span>How</button>
-        <button type="button" onClick={onDaily}><span aria-hidden>☀</span>Daily{streak > 0 ? <small>{streak}</small> : null}</button>
-        <button type="button" onClick={onRemix}><span aria-hidden>✦</span>Remix</button>
         <button type="button" onClick={onStable}><span aria-hidden>🐾</span>Buddies</button>
         <button type="button" onClick={onShare}><span aria-hidden>↗</span>Share</button>
       </div>
@@ -179,6 +171,54 @@ export function PlayerPanel({
       </div>
     </div>,
     document.body,
+  )
+}
+
+/** Phone settings once an account holds the save. Sound, account, and About. */
+export function PhoneSettings({
+  playerName,
+  soundOn,
+  onToggleSound,
+  onInfo,
+  onFamily,
+  buildTag,
+}: {
+  playerName: string
+  soundOn: boolean
+  onToggleSound: () => void
+  onInfo: () => void
+  onFamily: () => void
+  buildTag: string
+}) {
+  const cloud = useCloud()
+  const signed = cloud.status === 'signed-in' && !!cloud.name
+  const who = signed ? cloud.publicName || cloud.name : playerName || 'Guest'
+  return (
+    <main className="phone-settings scroll-pane">
+      <h2>Settings</h2>
+      <button type="button" className="set-row" onClick={onToggleSound}>
+        <span>Sound</span>
+        <small>{soundOn ? 'On' : 'Off'}</small>
+      </button>
+      <section className="set-block">
+        <h3>Account</h3>
+        <p className="set-who">
+          <strong>{who}</strong>
+          <small>{signed ? 'Saved to your account' : 'On this device'}</small>
+        </p>
+        <CloudScoresButton suggestedName={playerName} short onInfo={onInfo} />
+        <button type="button" className="family-link" onClick={onFamily}>
+          Parent & kid accounts
+        </button>
+      </section>
+      <section className="set-block">
+        <h3>About</h3>
+        <button type="button" className="set-row" onClick={onInfo}>
+          <span>Info</span>
+        </button>
+        <p className="info-build">Roman's Game · {buildTag}</p>
+      </section>
+    </main>
   )
 }
 

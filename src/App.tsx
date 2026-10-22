@@ -19,7 +19,7 @@ import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
 import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
 import { CloudScoresButton } from './cloud/CloudScores'
-import { FamilySheet, InfoSheet, PhoneHome, PlayerPanel } from './components/PhoneProposal'
+import { FamilySheet, InfoSheet, PhoneHome, PhoneSettings, PlayerPanel } from './components/PhoneProposal'
 import { initCloud, saveScore } from './cloud/cloud'
 import { UnseenCardTile } from './components/UnseenCard'
 import { noteCardWin } from './game/unseenCard'
@@ -2670,6 +2670,27 @@ export default function App() {
     })
   }
 
+  /** Shared Remix board of this size. Remix is the same set for everyone, not a random board. */
+  function startRemixSameSize() {
+    if (!puzzle) return
+    const size: RemixSize = (REMIX_SIZES as readonly number[]).includes(puzzle.size) ? (puzzle.size as RemixSize) : 5
+    const ready = liveRemix[size]
+    if (ready) {
+      startPuzzle(ready)
+      return
+    }
+    showToast('Remix…')
+    void buildRemixInBackground(remixSet, size).then((built) => {
+      if (!built) {
+        showToast('Try Remix again')
+        return
+      }
+      saveRemixBoard(remixSet, built)
+      setRemixBoards((r) => (r.set === remixSet ? { set: remixSet, boards: { ...r.boards, [size]: built } } : r))
+      startPuzzleRef.current(built)
+    })
+  }
+
   /** Proposal: one fresh board of the size already on screen. Endless stays endless. */
   function newBoardSameSize() {
     if (!puzzle) return
@@ -3007,7 +3028,6 @@ export default function App() {
       {screen === 'home' && device === 'phone' && (
         <PhoneHome
           playerName={playerName}
-          streak={dailyStreakNow}
           onPlay={() => {
             if (draftPuzzle) startPuzzle(draftPuzzle, true)
             else {
@@ -3021,8 +3041,6 @@ export default function App() {
           onAccount={() => setScreen('profile')}
           onStable={() => setScreen('stable')}
           onShare={() => setScreen('challenge')}
-          onDaily={() => startPuzzle(dailyBoard, false, { daily: true })}
-          onRemix={() => setScreen('remix')}
           onBug={() => setScreen('bug')}
           onFamily={() => setFamilyOpen(true)}
           onInfo={() => setInfoOpen(true)}
@@ -3358,6 +3376,24 @@ export default function App() {
 
 
           <div className="play-side">
+          {device === 'phone' && !celebrate && !defeated ? (
+            <div className="mode-picker" role="group" aria-label="Play mode">
+              <button type="button" className={dailyTag ? 'on' : ''} onClick={() => startPuzzle(dailyBoard, false, { daily: true })}>
+                Daily
+              </button>
+              <button type="button" className={parseRemixId(puzzle.id) ? 'on' : ''} onClick={startRemixSameSize}>
+                Remix
+              </button>
+              <button
+                type="button"
+                className={endlessRef.current ? 'on' : ''}
+                disabled={endlessBusy != null}
+                onClick={() => startEndless(puzzle.difficulty)}
+              >
+                Endless
+              </button>
+            </div>
+          ) : null}
           <div className="toolbar play-toolbar">
             <TapButton className="btn tool" onTap={undo} disabled={!history.length || celebrate || defeated || mode === 'trial'}>
               {mode === 'trial' ? 'No undo' : 'Undo'}
@@ -3387,7 +3423,7 @@ export default function App() {
             <button type="button" className="btn tool" onClick={resetBoard}>
               Reset
             </button>
-            {device === 'phone' && mode !== 'trial' && !dailyTag ? (
+            {device === 'phone' && mode !== 'trial' && !dailyTag && !parseRemixId(puzzle.id) ? (
               <button type="button" className="btn tool" onClick={newBoardSameSize} aria-label="New board">
                 <span className="tool-label">New</span>
               </button>
@@ -3740,14 +3776,25 @@ export default function App() {
         </main>
       )}
 
-      {screen === 'profile' && (
+      {screen === 'profile' && device === 'phone' && (
+        <PhoneSettings
+          playerName={playerName || profile?.displayName || ''}
+          soundOn={settings.sound}
+          buildTag={BUILD_TAG}
+          onToggleSound={() => {
+            const next = { ...settings, sound: !settings.sound }
+            setSettings(next)
+            saveSettings(next)
+            setMuted(!next.sound)
+          }}
+          onInfo={() => setInfoOpen(true)}
+          onFamily={() => setFamilyOpen(true)}
+        />
+      )}
+
+      {screen === 'profile' && device !== 'phone' && (
         <main className="panel profile scroll-pane">
           <h2>Save & settings</h2>
-          {device === 'phone' ? (
-            <button type="button" className="family-link" onClick={() => setFamilyOpen(true)}>
-              Parent & kid accounts
-            </button>
-          ) : null}
           {profile ? (
             <div className="profile-card">
               <p className="profile-name">{profile.displayName}</p>

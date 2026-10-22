@@ -6664,6 +6664,73 @@ html[data-device='phone'] .play-toolbar .btn.tool {
 }
 html[data-device='phone'] .play-toolbar .tool-cost { font-size: 0.6rem; opacity: 0.8; font-weight: 700; }
 
+.mode-picker {
+  display: flex;
+  gap: 0.35rem;
+  width: 100%;
+  max-width: 520px;
+  margin: 0.1rem auto 0.15rem;
+  flex-shrink: 0;
+}
+.mode-picker button {
+  flex: 1 1 0;
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--foam);
+  font: inherit;
+  font-weight: 800;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.mode-picker button.on {
+  background: var(--sun);
+  color: #07122a;
+  border-color: transparent;
+}
+
+.phone-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  max-width: 480px;
+  padding: 0.75rem 0.95rem 1rem;
+}
+.phone-settings h2 { margin: 0; font-size: 1.45rem; }
+.phone-settings h3 {
+  margin: 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+.set-block { display: grid; gap: 0.4rem; }
+.set-row,
+.phone-settings .cloud-btn.is-short {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  box-sizing: border-box;
+  padding: 0.45rem 0.85rem;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--foam);
+  font: inherit;
+  font-weight: 800;
+  text-align: left;
+  box-shadow: none;
+}
+.set-row small { margin-left: auto; opacity: 0.75; font-weight: 700; }
+.set-who { margin: 0; display: flex; flex-direction: column; gap: 0.1rem; }
+.set-who small { opacity: 0.7; font-size: 0.8rem; }
+.phone-settings .family-link { text-align: left; justify-self: start; }
+.phone-settings .cloud-btn.is-short::before { content: none; }
+
 html[data-device='phone'] .sheet-info {
   position: fixed;
   top: max(0.45rem, env(safe-area-inset-top));
