@@ -34,5 +34,5 @@ test('magic link and email code both send the captcha token and reset the widget
   assert.match(source, /x-captcha-token/)
   const widget = readFileSync(new URL('../src/cloud/useTurnstile.ts', import.meta.url), 'utf8')
   assert.match(widget, /appearance: 'interaction-only'/)
-  assert.match(widget, /execution: 'render'/)
+  assert.match(widget, /turnstile\.execute\(startupWidget\)/)
 })

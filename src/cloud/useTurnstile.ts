@@ -162,7 +162,7 @@ function mountStartup(): Promise<void> {
       startupWidget = window.turnstile.render(startupHost(), {
         sitekey: TURNSTILE_SITE_KEY,
         appearance: 'interaction-only',
-        execution: 'render',
+        execution: 'execute',
         size: 'flexible',
         theme: 'auto',
         retry: 'auto',
@@ -184,6 +184,7 @@ function mountStartup(): Promise<void> {
           settleStartup(null)
         },
       })
+      if (startupWidget) window.turnstile.execute(startupWidget)
     })
     .catch(() => {
       startupProblem = "This page couldn't complete the check. Try again."
@@ -199,7 +200,10 @@ function mountStartup(): Promise<void> {
 export function resetManagedCaptcha(): void {
   startupToken = null
   startupProblem = null
-  if (startupWidget && window.turnstile) window.turnstile.reset(startupWidget)
+  if (startupWidget && window.turnstile) {
+    window.turnstile.reset(startupWidget)
+    window.turnstile.execute(startupWidget)
+  }
 }
 
 /** Token for a call that has no form, such as the guest sign-in at startup. */

@@ -6827,6 +6827,7 @@ html[data-motion='reduce'] .td-invader {
   bottom: 0.75rem;
   z-index: 40;
   width: min(100% - 1.5rem, 20rem);
+  min-height: 65px;
 }
 .cloud-sheet .name-input { width: 100%; }
 .cloud-code { letter-spacing: 0.22em; text-align: center; font-weight: 800; font-variant-numeric: tabular-nums; }
