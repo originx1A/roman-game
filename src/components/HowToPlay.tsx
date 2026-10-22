@@ -5,7 +5,7 @@ const STEPS = [
   { title: 'One per region', blurb: 'Each colored area gets exactly one buddy.', demo: 'region' },
   { title: 'Rows & columns', blurb: 'Every row and every column gets one buddy too.', demo: 'lines' },
   { title: 'No touching', blurb: "Buddies can't share an edge or a corner — not even diagonally.", demo: 'touch' },
-  { title: 'Swipe & tap', blurb: 'Swipe to paint × marks (no talking!). Tap a mark to place a buddy.', demo: 'swipe' },
+  { title: 'Swipe & tap', blurb: 'Swipe to paint × marks (no talking!). Tap a mark to place a buddy. Tap that buddy again to take it off.', demo: 'swipe' },
   { title: 'Hearts & hints', blurb: 'Three mistakes cost a heart. Hints cost coins (or free hints).', demo: 'hearts' },
   {
     title: 'Buddy Hunt',
@@ -16,10 +16,9 @@ const STEPS = [
     ms: 8000,
   },
   { title: 'Spark critter', blurb: 'A silly spark zig-zags by at random. Catch it across games — 5 catches unlock a prize spin!', demo: 'critter' },
-  { title: 'Stars', blurb: '★ finish · ★★ beat the target time · ★★★ target time, a high score and zero undos. 3 stars unlocks the Trial.', demo: 'stars', isNew: true },
+  { title: 'Stars', blurb: '★ finish · ★★ beat the target time · ★★★ target time and a high score. 3 stars unlocks the Trial.', demo: 'stars', isNew: true },
   { title: 'Combo', blurb: 'Quick good moves build a combo: ×1.5, ×2, up to ×3 points. Wait 4 seconds or slip up and it resets.', demo: 'combo', isNew: true },
-  { title: 'Undo costs 25', blurb: 'Undo is always there, but each one costs 25 points and breaks your combo.', demo: 'undo', isNew: true },
-  { title: "Roman's Trial", blurb: 'Beat a board with 3 stars to unlock it: race the clock with 2 hearts and no undo. Double coins.', demo: 'trial', isNew: true },
+  { title: "Roman's Trial", blurb: 'Beat a board with 3 stars to unlock it: race the clock with 2 hearts. Double coins.', demo: 'trial', isNew: true },
   { title: 'Daily Challenge', blurb: 'One new board every day. Only your first try counts — win daily to grow your streak.', demo: 'daily', isNew: true },
   { title: 'Pace timer', blurb: 'Replaying a board? The timer turns green when you are ahead of your best and red when behind.', demo: 'pace', isNew: true },
   { title: 'Remix boards', blurb: 'New boards every 3 days, the same set for everyone, so you can compare scores. Want more? Endless mode makes unlimited new boards.', demo: 'remix', isNew: true },
@@ -92,12 +91,12 @@ export function HowToPlay({
         <li>One buddy in every colored region.</li>
         <li>One buddy in every row and column.</li>
         <li>No touching — not even diagonally.</li>
-        <li>Swipe to mark × (quiet). Tap a mark to place a buddy.</li>
+        <li>Swipe to mark × (quiet). Tap a mark to place a buddy. Tap a placed buddy to take it off.</li>
         <li>3 mistakes = lose a round (unless a shield saves you).</li>
         <li>Win to spin prizes. Catch the spark critter 5 times across games for a bonus prize.</li>
         <li>Perfect wins fill the buddy meter. 3 notches open Buddy Hunt: 5 taps to find 3 hidden buddies.</li>
         <li>Themed boards change buddy looks — rules stay the same.</li>
-        <li>Stars: finish, beat the target time, then target time + high score + no undos. Undo costs 25 points.</li>
+        <li>Stars: finish, beat the target time, then target time + high score.</li>
         <li>3 stars unlocks Roman&apos;s Trial. The Daily Challenge counts your first try only.</li>
         <li>Each color also has its own little shape in the tile corner.</li>
         <li>Your buddy flies by during play — tap it for rewards.</li>

@@ -15,11 +15,10 @@ const REGIONS = [
 
 export type HowDemoId =
   | 'region' | 'lines' | 'touch' | 'swipe' | 'hearts' | 'critter' | 'hunt'
-  | 'stars' | 'combo' | 'undo' | 'trial' | 'daily' | 'pace' | 'remix'
+  | 'stars' | 'combo' | 'trial' | 'daily' | 'pace' | 'remix'
 
 const PANEL_DEMOS = new Set<HowDemoId>(['stars', 'trial', 'daily', 'remix'])
 const COMBO_MARKS = [10, 11, 12, 13, 14]
-const UNDO_CELL = 12
 const PACE_BUDDIES = [1, 8, 10, 17]
 
 const REGION_CELLS = new Set([0, 1, 2, 5, 6])
@@ -112,7 +111,7 @@ export function HowDemo({ demo }: { demo: HowDemoId }) {
             (demo === 'touch' && i === TOUCH_BUDDY) ||
             (demo === 'swipe' && i === SWIPE_BUDDY) ||
             (demo === 'pace' && PACE_BUDDIES.includes(i))
-          const mark = (demo === 'touch' && i === TOUCH_X) || (demo === 'combo' && COMBO_MARKS.includes(i)) || (demo === 'undo' && i === UNDO_CELL)
+          const mark = (demo === 'touch' && i === TOUCH_X) || (demo === 'combo' && COMBO_MARKS.includes(i))
           const swipeMark = demo === 'swipe' && SWIPE_MARKS.includes(i)
           const swipeSwap = demo === 'swipe' && i === SWIPE_BUDDY
           const classes = [
@@ -127,7 +126,6 @@ export function HowDemo({ demo }: { demo: HowDemoId }) {
             swipeMark ? 'demo-swipe-mark' : '',
             swipeSwap ? 'demo-swap' : '',
             demo === 'combo' && COMBO_MARKS.includes(i) ? 'demo-pop-mark' : '',
-            demo === 'undo' && i === UNDO_CELL ? 'demo-undo-mark' : '',
             demo === 'pace' && PACE_BUDDIES.includes(i) ? 'demo-pace-buddy' : '',
           ]
             .filter(Boolean)
@@ -185,12 +183,6 @@ export function HowDemo({ demo }: { demo: HowDemoId }) {
             <b className="c5">+8 ×2</b>
           </span>
         )}
-        {demo === 'undo' && (
-          <>
-            <span className="how-demo-undo-btn">↶ Undo</span>
-            <span className="how-demo-float">−25 pts</span>
-          </>
-        )}
         {demo === 'pace' && (
           <>
             <span className="how-demo-pace">
@@ -228,7 +220,7 @@ function DemoPanel({ demo }: { demo: HowDemoId }) {
         {[
           ['Finish the board', 1],
           ['Beat the target time', 2],
-          ['Target time + high score + no undo', 3],
+          ['Target time + high score', 3],
         ].map(([label, n]) => (
           <div key={n} className={`demo-star-row r${n}`}>
             <span className="demo-star-icons">
@@ -258,7 +250,7 @@ function DemoPanel({ demo }: { demo: HowDemoId }) {
           <span className="heart on" />
           <span className="heart on" />
         </span>
-        <span className="demo-trial-rules">No undo · 2 hearts · 2× coins</span>
+        <span className="demo-trial-rules">2 hearts · 2× coins</span>
       </div>
     )
   }
