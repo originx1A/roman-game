@@ -200,7 +200,7 @@ export function PlayerPanel({
   return createPortal(
     <div className="phone-sheet" role="dialog" aria-modal="true" aria-label="Player">
       <button type="button" className="phone-sheet-scrim" aria-label="Close" onClick={onClose} />
-      <div className="phone-sheet-card player-panel">
+      <div className="phone-sheet-card player-panel" data-testid="player-panel">
         <header>
           <strong>{who}</strong>
           <button type="button" onClick={onClose} aria-label="Close">✕</button>
@@ -213,7 +213,7 @@ export function PlayerPanel({
           ))}
         </dl>
         <div className="player-actions">
-          <button type="button" className="btn primary" onClick={onShop}>Shop</button>
+          <button type="button" className="btn primary" data-testid="coin-shop" onClick={onShop}>Coin shop</button>
           <button type="button" className="btn ghost" onClick={onAccount}>You</button>
         </div>
       </div>

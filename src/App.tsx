@@ -183,7 +183,7 @@ import {
   parseDuelFromHash,
   rankLabel,
 } from './game/challenges'
-import { publicLinkWithHash, publicPlayUrl, worldLinkProps } from './game/publicUrl'
+import { publicLinkWithHash, publicPlayUrl } from './game/publicUrl'
 import {
   banterFor,
   unseenHomeSaying,
@@ -445,6 +445,15 @@ export default function App() {
   const [infoOpen, setInfoOpen] = useState(false)
   const [playerOpen, setPlayerOpen] = useState(false)
   const [boardOpen, setBoardOpen] = useState(false)
+  useEffect(() => {
+    if (!boardOpen) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || document.querySelector('.board-sheet')) return
+      setBoardOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [boardOpen])
   const [familyOpen, setFamilyOpen] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(() => loadProfile())
   const [progress, setProgress] = useState(() => getProgress())
@@ -2892,10 +2901,12 @@ export default function App() {
       <style>{MENU_CSS}</style>
       {!hideChrome && (
         <header className="topbar topbar-slim">
-          <a className="brand" {...worldLinkProps(device === 'phone')} aria-label="Roman's Game at romansgame.com">
+          <button type="button" className="brand" data-testid="go-home" aria-label="Home" onClick={() => setScreen('home')}>
             <span className="brand-mark" aria-hidden="true" />
             <span className="brand-name">Roman</span>
-            <span className="site-link">romansgame.com</span>
+          </button>
+          <a className="site-link" data-testid="world-link" href="https://romansgame.com" target="_blank" rel="noopener noreferrer">
+            romansgame.com
           </a>
           <nav className="nav">
             <button type="button" className={screen === 'levels' ? 'on' : ''} onClick={() => setScreen('levels')}>
@@ -2923,6 +2934,7 @@ export default function App() {
             <button
               type="button"
               className="score-pill coin"
+              data-testid="coin-balance"
               aria-label={`${wallet.coins} coins`}
               onClick={() => setPlayerOpen(true)}
             >
@@ -3140,11 +3152,11 @@ export default function App() {
           />
           </div>
           <div className="home-modes">
-            {dailyCard}
-            {remixCard}
-          </div>
-          <div className="home-board">
-            <LiveBoard playerName={playerName} onSeeAll={() => setBoardOpen(true)} />
+            <div className="mode-picker" role="group" aria-label="Game mode">
+              <button type="button" data-testid="mode-daily" onClick={() => startPuzzle(dailyBoard, false, { daily: true })}>Daily</button>
+              <button type="button" data-testid="mode-remix" onClick={() => setScreen('remix')}>Remix</button>
+              <button type="button" data-testid="mode-endless" onClick={() => startEndless(levelTab)}>Endless</button>
+            </div>
           </div>
           <section className="stat-strip home-strip">
             <div>
@@ -3171,7 +3183,6 @@ export default function App() {
         <HowToPlay
           key={`how-${howStart}`}
           startAt={howStart}
-          sameTab={device === 'phone'}
           doneLabel={pendingStartRef.current ? "Let's play" : 'Choose a level'}
           onDone={() => {
             settingsRef.current = { ...settingsRef.current, howSeen: true }
@@ -3382,7 +3393,7 @@ export default function App() {
 
 
           <div className="play-side">
-          {device === 'phone' && !celebrate && !defeated ? (
+          {!celebrate && !defeated ? (
             <div className="mode-picker" role="group" aria-label="Play mode">
               <button type="button" className={dailyTag ? 'on' : ''} onClick={() => startPuzzle(dailyBoard, false, { daily: true })}>
                 Daily

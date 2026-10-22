@@ -5452,13 +5452,25 @@ html[data-device='desktop'] .phone-board {
   gap: 0.6rem;
 }
 .phone-board-head h2 { margin: 0; }
-.phone-board-head .btn { min-height: 44px; flex-shrink: 0; }
+.board-x {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--foam);
+  font-size: 1.7rem;
+  line-height: 1;
+  cursor: pointer;
+}
 .board-pop {
   position: fixed;
   inset: 0;
   z-index: 90;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 1.25rem;
 }
 .board-pop-scrim {
@@ -5472,9 +5484,10 @@ html[data-device='desktop'] .phone-board {
 .board-pop-card {
   position: relative;
   z-index: 1;
-  width: min(560px, 100%);
-  min-height: min(420px, 72vh);
-  max-height: min(78vh, 720px);
+  width: min(36rem, calc(100vw - 2.5rem));
+  min-height: min(22rem, 70vh);
+  max-height: min(80vh, 40rem);
+  margin: 0;
   display: flex;
   flex-direction: column;
   border-radius: 20px;
@@ -6954,6 +6967,15 @@ html[data-device='phone'] .phone-grid .cloud-btn.is-short::before { content: 'â˜
 .phone-board .place { opacity: 0.65; font-variant-numeric: tabular-nums; }
 .phone-board .name { display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem; min-width: 0; }
 .phone-board .who { overflow-wrap: anywhere; min-width: 0; }
+.friend-tag {
+  flex: none;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(61, 255, 168, 0.14);
+  color: var(--mint);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
 .group-tag {
   flex: none;
   max-width: 100%;
@@ -7462,19 +7484,23 @@ html[data-device='desktop'] main.home .home-strip {
   flex-wrap: nowrap;
 }
 .home-board { display: none; }
+html[data-device='desktop'] main.home .home-modes .mode-picker {
+  grid-column: 1 / -1;
+  max-width: none;
+  margin: 0;
+}
 html[data-layout='wide'][data-device='desktop'] main.home {
   max-width: none;
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  align-content: stretch;
-  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  align-content: start;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr);
+  grid-template-rows: auto auto auto;
   grid-template-areas:
-    'hero board'
-    'modes board'
-    'side board'
-    'stats board';
+    'hero modes'
+    'side modes'
+    'stats stats';
   padding-right: 1.1rem;
 }
 html[data-layout='wide'][data-device='desktop'] .home-unseen-wrap {
@@ -7500,17 +7526,11 @@ html[data-layout='wide'][data-device='desktop'] .home-unseen-line {
 html[data-layout='wide'][data-device='desktop'] main.home .home-strip {
   align-self: start;
 }
-html[data-layout='wide'][data-device='desktop'] main.home .home-board {
-  display: flex;
-  grid-area: board;
-  min-height: 0;
-  min-width: 0;
-}
-html[data-layout='wide'][data-device='desktop'] main.home .home-board .live-board {
+html[data-layout='wide'] .play-side > .live-board {
   flex: 1 1 auto;
-  width: 100%;
   min-height: 0;
-  max-height: 100%;
+  width: 100%;
+  overflow: auto;
 }
 
 html[data-device='desktop'] main.rewards {

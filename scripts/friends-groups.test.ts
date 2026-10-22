@@ -65,7 +65,7 @@ test('the phone board has the three tabs, the sheets, and no chat or recruiting 
     'Week',
     'Month',
     'Add friend',
-    'Request to join',
+    'Ask to join',
     'Cancel request',
     'Accept',
     'Decline',
@@ -96,17 +96,21 @@ test('the full board, with friends and groups, opens on the desktop too', () => 
   assert.match(app, /device === 'tablet' && screen === 'board'/)
   assert.match(app, /<LiveBoard/)
   assert.match(app, /onSeeAll=\{\(\) => setBoardOpen\(true\)\}/)
-  assert.match(app, /className="home-board"/)
   assert.match(app, /className="board-pop"/)
+  assert.match(app, /data-testid="go-home"/)
+  assert.match(ui, /Sign in to add friends and join groups/)
   const desktop = app.split("screen === 'home' && device !== 'phone'")[1]?.split("screen === 'how'")[0] ?? ''
-  assert.match(desktop, /className="home-board"/)
+  assert.equal(desktop.includes('home-board'), false)
+  assert.equal(desktop.includes('LiveBoard'), false)
   assert.equal(desktop.includes('onBoard'), false)
   assert.equal(desktop.includes('PhoneBoard'), false)
+  const play = app.split("screen === 'play' && puzzle && (")[1]?.split("screen === 'remix'")[0] ?? ''
+  assert.match(play, /<LiveBoard/)
   assert.match(app, /opts\.daily \|\| opts\.endless \|\| opts\.mode \|\| parseRemixId\(p\.id\)/)
   assert.doesNotMatch(app, /Mix it up/)
   assert.doesNotMatch(app, /no undos/)
   assert.doesNotMatch(app, /no undo</)
-  assert.match(tag, /build 9\.33-c/)
+  assert.match(tag, /build 9\.33-d/)
 })
 
 test('migration 012 adds ranks and listed names without touching old tables', () => {
@@ -144,6 +148,10 @@ test('migration 012 adds ranks and listed names without touching old tables', ()
   assert.doesNotMatch(sql12, /email/i)
   assert.doesNotMatch(sql12, /auth\.users/i)
   assert.doesNotMatch(sql12, /service_role/i)
+  const sql13 = readFileSync(new URL('../supabase/migration-013-group-size.sql', import.meta.url), 'utf8')
+  assert.match(sql13, /That group is full/)
+  assert.match(sql13, /n >= 10/)
+  assert.doesNotMatch(sql13, /delete from public\.group_points/i)
   const remove = sql12.slice(sql12.indexOf('function public.remove_inactive_member'), sql12.indexOf('function public.promote_captain'))
   assert.doesNotMatch(remove, /founder_id/)
   for (const word of ['Golden', 'Brave', 'Swift', 'Loyal', 'Silver', 'Hidden', 'Owls', 'Lions', 'Knights', 'Keepers', 'Stars', 'Foxes']) {

@@ -775,6 +775,31 @@ export function resetBoardAudio() {
   stopVoice()
 }
 
+let music: HTMLAudioElement | null = null
+
+function musicEl(): HTMLAudioElement | null {
+  if (typeof Audio === 'undefined') return null
+  if (!music) {
+    music = new Audio(`${import.meta.env.BASE_URL}music/realm.wav`)
+    music.loop = true
+    music.preload = 'auto'
+  }
+  return music
+}
+
+/** Quiet realm loop. Volume follows the Sound control: off is mute (volume 0). */
+export function syncMusic() {
+  const el = musicEl()
+  if (!el) return
+  if (muted) {
+    el.pause()
+    el.volume = 0
+    return
+  }
+  el.volume = 0.22
+  void el.play().catch(() => {})
+}
+
 export function setMuted(m: boolean) {
   muted = m
   voiceFreeSince = 0
@@ -782,6 +807,7 @@ export function setMuted(m: boolean) {
     waitingLine = null
     stopVoice()
   }
+  syncMusic()
 }
 
 export function setVoiceEnabled(on: boolean) {
@@ -813,6 +839,7 @@ export function resetVoiceQuietClock() {
 export function unlockAudio() {
   // Resume first, inside the tap. The preload must not run ahead of it.
   ensureAudio()
+  syncMusic()
   warmUnseenVoices()
   try {
     const c = ac()

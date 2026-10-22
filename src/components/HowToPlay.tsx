@@ -40,14 +40,11 @@ export function HowToPlay({
   onBack,
   startAt = 0,
   doneLabel = 'Choose a level',
-  sameTab = false,
 }: {
   onDone: () => void
   onBack?: () => void
   startAt?: number
   doneLabel?: string
-  /** Phone opens romansgame.com in this tab. Wider screens open a new one. */
-  sameTab?: boolean
 }) {
   const [step, setStep] = useState(() => Math.max(0, Math.min(STEPS.length - 1, startAt)))
   const current = STEPS[step]
@@ -67,7 +64,7 @@ export function HowToPlay({
           </button>
         )}
         <h2>How to play</h2>
-        <a className="site-link" {...worldLinkProps(sameTab)}>
+        <a className="site-link" {...worldLinkProps(false)}>
           romansgame.com
         </a>
       </div>

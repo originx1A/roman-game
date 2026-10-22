@@ -39,6 +39,8 @@ import {
 } from '../cloud/friendsGroups'
 import { GROUP_ADJECTIVES, GROUP_NOUNS } from '../cloud/groupNames'
 
+const SIGN_IN_LINE = 'Sign in to add friends and join groups'
+
 type Tab = 'everyone' | 'friends' | 'groups'
 type Period = 'week' | 'month'
 type Open =
@@ -93,7 +95,11 @@ export function PhoneBoard({ playerName, onInfo, onClose }: { playerName: string
   const [myGroup, setMyGroup] = useState<string | null | undefined>(undefined)
   const [open, setOpen] = useState<Open>(null)
   const [rev, setRev] = useState(0)
+  const [signIn, setSignIn] = useState(false)
+  const [friendNames, setFriendNames] = useState<Set<string>>(new Set())
+  const [roles, setRoles] = useState<Map<string, GroupRole>>(new Map())
   const changed = useCallback(() => setRev((n) => n + 1), [])
+  const askSignIn = useCallback(() => setSignIn(true), [])
   const openMine = useCallback(() => setOpen({ kind: 'me' }), [])
   const openGroup = useCallback((name: string) => setOpen({ kind: 'group', name, average: 0, seasonPoints: 0 }), [])
 
@@ -171,6 +177,36 @@ export function PhoneBoard({ playerName, onInfo, onClose }: { playerName: string
   }, [tab, period, signed, rev, cloud.lastSync, cloud.publicName])
 
   useEffect(() => {
+    if (!signed) {
+      setFriendNames(new Set())
+      return
+    }
+    let gone = false
+    void loadFriends().then((result) => {
+      if (gone || !result.ok) return
+      setFriendNames(new Set(result.data.map((row) => row.name.toLowerCase())))
+    })
+    return () => {
+      gone = true
+    }
+  }, [signed, rev, cloud.publicName])
+
+  useEffect(() => {
+    if (!signed || !myGroup) {
+      setRoles(new Map())
+      return
+    }
+    let gone = false
+    void loadMembers(myGroup).then((result) => {
+      if (gone || !result.ok) return
+      setRoles(new Map(result.data.map((member) => [member.name.toLowerCase(), member.role])))
+    })
+    return () => {
+      gone = true
+    }
+  }, [signed, myGroup, rev])
+
+  useEffect(() => {
     if (!open && !onClose) return
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
@@ -191,12 +227,10 @@ export function PhoneBoard({ playerName, onInfo, onClose }: { playerName: string
       <div className="board-head">
         <h2>Leaderboard</h2>
         <div className="board-head-actions">
-          {signed ? (
-            <button type="button" className="board-inbox" data-testid="board-inbox" onClick={() => setOpen({ kind: 'inbox' })}>
-              Requests
-              {pending > 0 ? <span className="badge">{pending}</span> : null}
-            </button>
-          ) : null}
+          <button type="button" className="board-inbox" data-testid="board-inbox" onClick={() => (signed ? setOpen({ kind: 'inbox' }) : askSignIn())}>
+            Requests
+            {signed && pending > 0 ? <span className="badge">{pending}</span> : null}
+          </button>
           {onClose ? (
             <button type="button" className="btn ghost" data-testid="board-close" onClick={onClose}>Close</button>
           ) : null}
@@ -213,16 +247,16 @@ export function PhoneBoard({ playerName, onInfo, onClose }: { playerName: string
           <button type="button" data-testid="board-period-month" aria-pressed={period === 'month'} className={period === 'month' ? 'on' : undefined} onClick={() => setPeriod('month')}>Month</button>
         </div>
       ) : null}
-      {tab === 'groups' && signed && myGroup !== undefined ? (
+      {tab === 'groups' && (!signed || myGroup !== undefined) ? (
         <div className="board-tools">
-          {myGroup ? (
+          {signed && myGroup ? (
             <button type="button" className="btn primary" data-testid="my-group" onClick={() => openGroup(myGroup)}>My group</button>
           ) : (
-            <button type="button" className="btn primary" data-testid="create-group" onClick={() => setOpen({ kind: 'create' })}>+ Create a group</button>
+            <button type="button" className="btn primary" data-testid="create-group" onClick={() => (signed ? setOpen({ kind: 'create' }) : askSignIn())}>+ Create a group</button>
           )}
-          <button type="button" className="btn ghost" data-testid="group-requests" onClick={() => setOpen({ kind: 'inbox' })}>
+          <button type="button" className="btn ghost" data-testid="group-requests" onClick={() => (signed ? setOpen({ kind: 'inbox' }) : askSignIn())}>
             Requests
-            {pending > 0 ? <span className="count"> {pending}</span> : null}
+            {signed && pending > 0 ? <span className="count"> {pending}</span> : null}
           </button>
         </div>
       ) : null}
@@ -261,6 +295,8 @@ export function PhoneBoard({ playerName, onInfo, onClose }: { playerName: string
                   <span className="name">
                     <span className="who">{row.name}</span>
                     {row.groupName ? <small className="group-tag">{row.groupName}</small> : null}
+                    {tab === 'friends' || friendNames.has(row.name.toLowerCase()) ? <small className="friend-tag">Friend</small> : null}
+                    <RoleBadge role={roles.get(row.name.toLowerCase()) ?? ''} />
                   </span>
                   <span className="score">{fmt(row.score)}</span>
                 </button>
@@ -275,12 +311,11 @@ export function PhoneBoard({ playerName, onInfo, onClose }: { playerName: string
         <PlayerSheet
           seed={open}
           signed={signed}
-          playerName={playerName}
-          onInfo={onInfo}
           rev={rev}
           onClose={() => setOpen(null)}
           onChanged={changed}
           onMine={openMine}
+          onSignIn={askSignIn}
         />
       ) : null}
       {open?.kind === 'group' ? (
@@ -289,12 +324,11 @@ export function PhoneBoard({ playerName, onInfo, onClose }: { playerName: string
           seed={open}
           period={period}
           signed={signed}
-          playerName={playerName}
-          onInfo={onInfo}
           rev={rev}
           onClose={() => setOpen(null)}
           onChanged={changed}
           onRenamed={openGroup}
+          onSignIn={askSignIn}
         />
       ) : null}
       {open?.kind === 'inbox' ? <InboxSheet rev={rev} onClose={() => setOpen(null)} onChanged={changed} /> : null}
@@ -307,6 +341,7 @@ export function PhoneBoard({ playerName, onInfo, onClose }: { playerName: string
           }}
         />
       ) : null}
+      {signIn ? <CloudScoresButton hidden forceSignIn note={SIGN_IN_LINE} onClose={() => setSignIn(false)} /> : null}
     </main>
   )
 }
@@ -482,21 +517,19 @@ function CreateSheet({ onClose, onCreated }: { onClose: () => void; onCreated: (
 function PlayerSheet({
   seed,
   signed,
-  playerName,
-  onInfo,
   rev,
   onClose,
   onChanged,
   onMine,
+  onSignIn,
 }: {
   seed: { name: string; score: number; place: number; groupName: string | null }
   signed: boolean
-  playerName: string
-  onInfo?: () => void
   rev: number
   onClose: () => void
   onChanged: () => void
   onMine: () => void
+  onSignIn: () => void
 }) {
   const [card, setCard] = useState<PlayerCard | null>(null)
   const [note, setNote] = useState('')
@@ -566,19 +599,15 @@ function PlayerSheet({
             </div>
           </dl>
           {line ? <p className="board-status">{line}</p> : null}
-          {signed ? (
-            <div className="board-actions">
-              {view.friendStatus === 'none' ? <button type="button" className="btn primary" disabled={busy} onClick={() => void run(() => sendFriend(view.name))}>Add friend</button> : null}
-              {view.friendStatus === 'pending' ? <button type="button" className="btn ghost" disabled={busy} onClick={() => void run(() => cancelFriend(view.name))}>{bothPending ? 'Cancel friend request' : 'Cancel request'}</button> : null}
-              {view.friendStatus === 'incoming' ? <button type="button" className="btn primary" disabled={busy} onClick={() => void run(() => acceptFriend(view.name))}>Accept</button> : null}
-              {view.friendStatus === 'incoming' ? <button type="button" className="btn ghost" disabled={busy} onClick={() => void run(() => declineFriend(view.name))}>Decline</button> : null}
-              {view.friendStatus === 'friends' ? <button type="button" className="btn ghost" disabled={busy} onClick={() => void run(() => unfriend(view.name))}>Unfriend</button> : null}
-              {view.joinStatus === 'none' && view.groupName ? <button type="button" className="btn primary" disabled={busy} onClick={() => void run(() => requestJoin(view.groupName || ''))}>Request to join</button> : null}
-              {view.joinStatus === 'pending' && view.groupName ? <button type="button" className="btn ghost" disabled={busy} onClick={() => void run(() => cancelJoin(view.groupName || ''))}>{bothPending ? 'Cancel join request' : 'Cancel request'}</button> : null}
-            </div>
-          ) : (
-            <CloudScoresButton suggestedName={playerName} cta="Sign in to get on the board" onInfo={onInfo} />
-          )}
+          <div className="board-actions">
+            {view.friendStatus === 'none' ? <button type="button" className="btn primary" data-testid="add-friend" disabled={busy} onClick={() => (signed ? void run(() => sendFriend(view.name)) : onSignIn())}>Add friend</button> : null}
+            {view.friendStatus === 'pending' ? <button type="button" className="btn ghost" disabled={busy} onClick={() => (signed ? void run(() => cancelFriend(view.name)) : onSignIn())}>{bothPending ? 'Cancel friend request' : 'Cancel request'}</button> : null}
+            {view.friendStatus === 'incoming' ? <button type="button" className="btn primary" disabled={busy} onClick={() => (signed ? void run(() => acceptFriend(view.name)) : onSignIn())}>Accept</button> : null}
+            {view.friendStatus === 'incoming' ? <button type="button" className="btn ghost" disabled={busy} onClick={() => (signed ? void run(() => declineFriend(view.name)) : onSignIn())}>Decline</button> : null}
+            {view.friendStatus === 'friends' ? <button type="button" className="btn ghost" data-testid="unfriend" disabled={busy} onClick={() => (signed ? void run(() => unfriend(view.name)) : onSignIn())}>Unfriend</button> : null}
+            {(view.joinStatus === 'none' || !signed) && view.groupName ? <button type="button" className="btn primary" data-testid="ask-join" disabled={busy} onClick={() => (signed ? void run(() => requestJoin(view.groupName || '')) : onSignIn())}>Ask to join</button> : null}
+            {view.joinStatus === 'pending' && view.groupName ? <button type="button" className="btn ghost" disabled={busy} onClick={() => (signed ? void run(() => cancelJoin(view.groupName || '')) : onSignIn())}>{bothPending ? 'Cancel join request' : 'Cancel request'}</button> : null}
+          </div>
           {signed && inGroup ? <LeaveControl onDone={onChanged} onError={setNote} /> : null}
         </>
       ) : null}
@@ -590,22 +619,20 @@ function GroupSheet({
   seed,
   period,
   signed,
-  playerName,
-  onInfo,
   rev,
   onClose,
   onChanged,
   onRenamed,
+  onSignIn,
 }: {
   seed: { name: string; average: number; seasonPoints: number }
   period: Period
   signed: boolean
-  playerName: string
-  onInfo?: () => void
   rev: number
   onClose: () => void
   onChanged: () => void
   onRenamed: (name: string) => void
+  onSignIn: () => void
 }) {
   const [card, setCard] = useState<GroupCard | null>(null)
   const [members, setMembers] = useState<MemberRow[]>([])
@@ -697,15 +724,11 @@ function GroupSheet({
             <div><dt>Active</dt><dd>{active}</dd></div>
           </dl>
           {rankLabel ? <p className="board-status">{rankLabel}</p> : null}
-          {signed ? (
-            <div className="board-actions">
-              {view.joinStatus === 'none' ? <button type="button" className="btn primary" disabled={busy} onClick={() => void run(() => requestJoin(view.groupName))}>Request to join</button> : null}
-              {view.joinStatus === 'pending' ? <button type="button" className="btn ghost" disabled={busy} onClick={() => void run(() => cancelJoin(view.groupName))}>Cancel request</button> : null}
-              {leader ? <button type="button" className="btn ghost" disabled={busy} onClick={() => setRenaming((open) => !open)}>Rename</button> : null}
-            </div>
-          ) : (
-            <CloudScoresButton suggestedName={playerName} cta="Sign in to get on the board" onInfo={onInfo} />
-          )}
+          <div className="board-actions">
+            {view.joinStatus === 'none' || !signed ? <button type="button" className="btn primary" data-testid="ask-join" disabled={busy} onClick={() => (signed ? void run(() => requestJoin(view.groupName)) : onSignIn())}>Ask to join</button> : null}
+            {view.joinStatus === 'pending' ? <button type="button" className="btn ghost" disabled={busy} onClick={() => (signed ? void run(() => cancelJoin(view.groupName)) : onSignIn())}>Cancel request</button> : null}
+            {leader ? <button type="button" className="btn ghost" disabled={busy} onClick={() => setRenaming((open) => !open)}>Rename</button> : null}
+          </div>
           {renaming ? <NamePicker busy={busy} submitLabel="Rename" onSubmit={(adjective, noun) => void rename(adjective, noun)} /> : null}
           {signed && mine ? <LeaveControl onDone={() => { onChanged(); onClose() }} onError={setNote} /> : null}
           {mine && members.length > 0 ? (
