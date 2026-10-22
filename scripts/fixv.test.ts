@@ -8,12 +8,9 @@ const idx = rd('../index.html')
 const llms = rd('../public/llms.txt')
 const priv = rd('../public/privacy.html')
 
-test('9.30-v: footer + privacy page link to jrny.fun in a new tab, normal rel (passes link value), no tracking', () => {
-  const foot = app.match(/<a[^>]*data-testid="jrny-link"[^>]*>[\s\S]*?<\/a>/)![0]
-  assert.match(foot, /href="https:\/\/jrny\.fun"/)
-  assert.match(foot, /target="_blank"/)
-  assert.doesNotMatch(foot, /rel=|utm_|\?/, 'no rel=nofollow, no query/tracking')
-  assert.match(foot, /A JRNY project/)
+test('9.30-v: privacy page links to jrny.fun in a new tab, normal rel (passes link value), no tracking', () => {
+  // Footer bar (which carried the in-app jrny-link) removed 2026-10-22 on Tony's order — screen space.
+  assert.doesNotMatch(app, /data-testid="jrny-link"/)
   const pv = priv.match(/<a href="https:\/\/jrny\.fun"[^>]*>JRNY<\/a>/)![0]
   assert.match(pv, /target="_blank"/)
   assert.doesNotMatch(pv, /rel=|utm_/)
@@ -29,5 +26,4 @@ test('9.30-v: no personal name in the public files or the page head', () => {
   for (const t of [idx, llms, priv, rd('../public/robots.txt'), rd('../public/sitemap.xml'), rd('../public/manifest.webmanifest')]) {
     assert.doesNotMatch(t, /D'Emilio|DEmilio|Tony|tonydemilio/i)
   }
-  assert.doesNotMatch(app.match(/data-testid="jrny-link"[\s\S]*?<\/a>/)![0], /Tony|Emilio/)
 })
