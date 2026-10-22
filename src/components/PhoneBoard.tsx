@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { CloudScoresButton, useCloud } from '../cloud/CloudScores'
 import { loadPlayerBoard, type BoardRow } from '../cloud/cloud'
 
-/** Phone board. One row per signed-in player. Guests can look. The button opens the save card. */
-export function PhoneBoard({ playerName, onInfo }: { playerName: string; onInfo?: () => void }) {
+/** Phone board. One row per signed-in player. Guests can look. The button opens the save card.
+ *  Desktop See all passes onClose and shows this list in a centred card. */
+export function PhoneBoard({ playerName, onInfo, onClose }: { playerName: string; onInfo?: () => void; onClose?: () => void }) {
   const cloud = useCloud()
   const [rows, setRows] = useState<BoardRow[] | null>(null)
   const [note, setNote] = useState('')
@@ -30,7 +31,14 @@ export function PhoneBoard({ playerName, onInfo }: { playerName: string; onInfo?
 
   return (
     <main className="phone-board scroll-pane" data-testid="phone-board">
-      <h2>Leaderboard</h2>
+      {onClose ? (
+        <div className="phone-board-head">
+          <h2>Leaderboard</h2>
+          <button type="button" className="btn ghost" onClick={onClose}>Close</button>
+        </div>
+      ) : (
+        <h2>Leaderboard</h2>
+      )}
       {rows === null ? null : note ? (
         <p className="cloud-err" role="alert">{note}</p>
       ) : rows.length === 0 ? (

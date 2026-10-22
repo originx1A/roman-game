@@ -444,6 +444,7 @@ export default function App() {
   }, [device, screen])
   const [infoOpen, setInfoOpen] = useState(false)
   const [playerOpen, setPlayerOpen] = useState(false)
+  const [boardOpen, setBoardOpen] = useState(false)
   const [familyOpen, setFamilyOpen] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(() => loadProfile())
   const [progress, setProgress] = useState(() => getProgress())
@@ -2700,12 +2701,6 @@ export default function App() {
     window.setTimeout(() => startPuzzleRef.current(createFreshPuzzle(difficulty)), 30)
   }
 
-  /** 9.32-f: menu "Mix it up" — a fresh Endless board at a random size */
-  function mixItUp() {
-    const diffs = ['easy', 'medium', 'hard', 'expert'] as const
-    startEndless(diffs[Math.floor(Math.random() * diffs.length)])
-  }
-
   /** 9.32-f: shared level-card rendering — used by the difficulty tabs AND the Classic boards set */
   const levelCardFor = (p: Puzzle) => {
     const rec = records.levels[p.id]
@@ -2755,18 +2750,6 @@ export default function App() {
         <div className="remix-entry-btns">
           <button type="button" className={`btn ${isFresh ? 'primary' : 'ghost'} daily-btn`} data-open-remix onClick={() => setScreen('remix')}>
             Remix
-          </button>
-          <button
-            type="button"
-            className="btn ghost daily-btn mix-btn"
-            onClick={(e) => {
-              e.stopPropagation()
-              mixItUp()
-            }}
-            disabled={endlessBusy != null}
-            title="A fresh Endless board at a random size"
-          >
-            {endlessBusy ? 'Making…' : '🎲 Mix it up'}
           </button>
         </div>
       </section>
@@ -2933,22 +2916,15 @@ export default function App() {
                 Info
               </button>
             ) : null}
-            {device === 'phone' ? (
-              <button
-                type="button"
-                className="score-pill coin"
-                aria-label={`${wallet.coins} coins`}
-                onClick={() => setPlayerOpen(true)}
-              >
-                {wallet.coins}
-                <span>¢</span>
-              </button>
-            ) : (
-              <div className="score-pill coin" title="Coins">
-                {wallet.coins}
-                <span>¢</span>
-              </div>
-            )}
+            <button
+              type="button"
+              className="score-pill coin"
+              aria-label={`${wallet.coins} coins`}
+              onClick={() => setPlayerOpen(true)}
+            >
+              {wallet.coins}
+              <span>¢</span>
+            </button>
           </div>
         </header>
       )}
@@ -3116,6 +3092,7 @@ export default function App() {
               <UnseenCardTile records={records} />
             </div>
           </section>
+          <div className="home-side">
           {/* 10.06: treat defense — the vulnerable field pile. Claim only on the board screen. */}
           <section className="treat-pile-widget" aria-label="Field treat pile">
             <span aria-hidden="true">🍖</span>
@@ -3147,8 +3124,14 @@ export default function App() {
               onStable={() => setScreen('stable')}
             />
           </section>
-          {dailyCard}
-          {remixCard}
+          </div>
+          <div className="home-modes">
+            {dailyCard}
+            {remixCard}
+          </div>
+          <div className="home-board">
+            <LiveBoard playerName={playerName} onSeeAll={() => setBoardOpen(true)} />
+          </div>
           <HomeUnseen
             onUnseen={() => {
               const line = unseenHomeSaying()
@@ -3471,7 +3454,7 @@ export default function App() {
             )
           })()}
           {device === 'desktop' ? (
-            <LiveBoard playerName={playerName} onSeeAll={() => setScreen('board')} />
+            <LiveBoard playerName={playerName} onSeeAll={() => setBoardOpen(true)} />
           ) : null}
           </div>
           <p className="build-tag" data-build={BUILD_TAG}>{BUILD_TAG}</p>
@@ -3655,7 +3638,7 @@ export default function App() {
       )}
 
       {screen === 'rewards' && (
-        <main className="panel scroll-pane">
+        <main className="panel rewards scroll-pane">
           <h2>Rewards</h2>
           <p className="sub">
             Unlock badges by playing, then spend coins to rank them up forever — each rank boosts coins on every win.
@@ -4228,8 +4211,19 @@ export default function App() {
           setFamilyOpen(true)
         }}
       />
+      {boardOpen && device === 'desktop'
+        ? createPortal(
+            <div className="board-pop" role="dialog" aria-modal="true" aria-label="Leaderboard">
+              <button type="button" className="board-pop-scrim" aria-label="Close" onClick={() => setBoardOpen(false)} />
+              <div className="board-pop-card">
+                <PhoneBoard playerName={playerName} onClose={() => setBoardOpen(false)} onInfo={() => setInfoOpen(true)} />
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
       <PlayerPanel
-        open={device === 'phone' && playerOpen}
+        open={playerOpen}
         onClose={() => setPlayerOpen(false)}
         fallbackName={playerName || profile?.displayName || ''}
         coins={wallet.coins}

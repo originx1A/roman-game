@@ -331,6 +331,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
         })}
       </div>
 
+      <div className="stable-extra">
       {BUNDLES.map((b) => bundleQuote(pets, b.id, now)).some((q) => q.available) ? (
         <section className="stable-bundles" aria-label="Bundles">
           <h3>Bundles</h3>
@@ -429,6 +430,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
         ) : null}
         {msg ? <p className={`stable-msg ${msg.ok ? 'is-ok' : 'is-bad'}`}>{msg.text}</p> : null}
       </section>
+      </div>
 
       <p className="stable-note">
         Coins only, no random boxes. Win boards to earn coins, or grab more in the <button type="button" className="linkish" onClick={onShop}>Shop</button>. Coupons:
