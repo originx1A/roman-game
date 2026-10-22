@@ -4,7 +4,7 @@ Migration `supabase/migration-009-accounts-auth.sql` is additive. Do not run it 
 
 `public.parent_links` has no `can_recover` column and this migration does not add one. An active parent link (`status = active`) is the recovery grant. It does not approve a payment.
 
-`account_type` is not a column. `derived_account_type(player)` returns `adult` only when `payment_eligibility` has the attestation time, the terms time, the terms version, and a receipt email. Otherwise it returns `player`. Signup does not write that row. `players.age_13_plus` is not written. The 13+ answer and the other one-time confirmations live on `account_flags` (migration 010). The screen contract is `docs/auth-api.md`.
+`account_type` is not a column. `derived_account_type(player)` returns `adult` only when `payment_eligibility` has the attestation time, the terms time, the terms version, and a receipt email. Otherwise it returns `player`. Signup does not write that row. `players.age_13_plus` is not written. The 13+ answer and the other one-time confirmations live on `account_flags` (`supabase/migration-013-account-flags.sql`, applied in production as `migration_013_account_flags`). The screen contract is `docs/auth-api.md`.
 
 Cart tables (`carts`, `cart_items`) have no currency column. `POST /api/cart` is the writer. Prices live in `config/products.json` (a USD list for US buyers and a CAD list for everyone else). Both lists are empty until tokenomics. Adaptive Pricing is on in addition to that choice. See `docs/ACCOUNTS-CART.md`.
 

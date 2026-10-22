@@ -556,8 +556,8 @@ test('the auth backend forwards captcha tokens and confirms synthetic mail', () 
   assert.deepEqual([...TURNSTILE_HOSTS], ['romansgame.com', 'play.romansgame.com', 'www.romansgame.com'])
 })
 
-test('migration 010 adds account_flags only', () => {
-  const raw = read('../supabase/migration-010-account-flags.sql')
+test('migration 013 adds account_flags only', () => {
+  const raw = read('../supabase/migration-013-account-flags.sql')
   const sql = raw.replace(/--[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
   assert.match(sql, /create table if not exists public\.account_flags/)
   assert.match(sql, /age_confirmed_at/)

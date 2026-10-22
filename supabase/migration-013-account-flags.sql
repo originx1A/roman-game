@@ -1,8 +1,8 @@
--- Roman's Game · migration 010 · one-time account confirmations (additive)
+-- Roman's Game · migration 013 · one-time account confirmations (additive)
 --
--- Write this file only. Do not run it against a live Supabase project from the app.
--- Tony or Cooper pastes it into the SQL editor after migration 009 is already applied.
--- Safe to run more than once. It creates new objects only.
+-- Production already has this script applied as migration_013_account_flags.
+-- The file is numbered 013 because 010 is player_board.
+-- Do not run it from the app. A second paste is safe: it creates new objects only.
 --
 -- It does not drop, rename, or retype any existing table. It does not add columns
 -- to public.players, to account_recovery, or to any table from migrations 001–009.

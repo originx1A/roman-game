@@ -4,7 +4,7 @@ Cooper’s screen calls these. This repo does not draw that screen. Primary sign
 
 Preview: `https://deploy-preview-63--romans-game.netlify.app`
 
-Apply `supabase/migration-010-account-flags.sql` in the Supabase SQL editor after migration 009. The app does not run it. It creates `public.account_flags` only. It does not alter tables from 001–009 and it does not write `players.age_13_plus`.
+`supabase/migration-013-account-flags.sql` is the script already applied in production as `migration_013_account_flags`. The app does not run it. It creates `public.account_flags` only. It does not alter tables from 001–009 and it does not write `players.age_13_plus`. `010` is `player_board`, so this file is not numbered 010.
 
 Every password, signup, recovery, and code call still sends `captchaToken` (or `turnstile_token`). Supabase Attack Protection checks it. This repo does not hold the captcha secret. A missing or rejected token is `403` `{error:"turnstile_required"}` and is not a wrong password. Reset the widget after every try.
 
