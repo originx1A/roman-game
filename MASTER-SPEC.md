@@ -1,6 +1,6 @@
 # Roman's Game master list (Tony, 2026-10-22)
 
-Where this list conflicts with earlier instructions, this list wins. Build 9.33-g against items 1–29. Item 29 overrides the email-first order in item 26. Items 33–38 are recorded here only. They are built in PR #63 and Cooper's login PR. This PR does not change that code.
+Where this list conflicts with earlier instructions, this list wins. Build 9.33-g against items 1–29. Item 29 overrides the email-first order in item 26. Item 30 is recorded and is not part of this groups build. Items 33–38 are recorded here only. They are built in PR #63 and Cooper's login PR. This PR does not change that code.
 
 1. The Roman logo/header goes to game HOME (never the website). A small separate 'romansgame.com' link opens in a new tab, in the header of home and menu screens, never on the board during play.
 2. Every screen (Play, Rewards, Stable, Share, Save) has a clear way back Home, on PC and phone.
@@ -31,8 +31,11 @@ Where this list conflicts with earlier instructions, this list wins. Build 9.33-
 27. A visible Log out button (in the player panel / You). Logout calls supabase.auth.signOut({ scope: 'global' }) so the romansgame.com session is revoked too. On load and window focus, re-check the session (getUser) and show signed-out if it was revoked. A network miss keeps the saved session.
 28. The first sign-in screen has one box, 'Player name or email', and asks one question per screen. Kids can also use a picture password. Recovery and parent links stay as they are. No payments in login. Log out stays in the account sheet and in settings.
 29. The primary game sign-in is player name + password. Email is recovery only, behind 'Can't get in?' (it sends a code). All sign-up verifications (13+ and the rest) are stored on the account server-side, so after a cleared cache or on a new device, name + password goes straight in with no questions. Sign-up questions show only when no account exists for that name. The new-or-existing check never looks up an email, answers the same way either way, and is rate-limited.
+30. Parent and kid accounts. An adult does the same one-time setup, and that setup includes their email. A kid can install the game and play for free with no email and no account. Registering a kid requires a parent: the parent makes the adult account first, then creates or approves the kid from the parent's profile, which unlocks the kid account. The kid account sits under the parent's email. The kid has no email of their own. The kid has their own player name and a password or a picture password, and can use that on the kid's device or on the parent's phone. Verifications stay on the account and are never asked again. Kid recovery goes through the parent. Where this disagrees with item 33, the kid has no email. Not built in PR #68. Reuse PR #63's parent link, family list, and parent password reset. Do not rebuild them, and do not add payments to login.
 
 ## Recorded only — not built in this PR
+
+Item 30 and items 33–38 are not built in PR #68. Item 30 does not change tonight's groups build. PR #62 and PR #63 already have `parent_links` (migration 008), `POST /api/parent-link` (the kid makes a token, the parent accepts it), `POST /api/auth/family` (`list`, `reset`, `remove`), and `POST /api/auth/recover/parent` (the parent sets a new password). PR #63 also holds a parent address on an under-13 signup and, when that link is opened, saves it as the kid's recovery email. That address-on-the-kid step is the part item 30 replaces. Neither PR creates the kid from the parent's profile. The parent-link and save-without-email sheets in this PR still say they are not on this preview.
 
 Items 33–38 match Tony's master list. The work lives in PR #63 and Cooper's login PR. No code for these items ships in PR #68.
 
