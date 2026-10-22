@@ -1,4 +1,5 @@
 import type { AccountFlags } from './accountFlags.ts'
+import type { AgeChoice } from './ageChoice.ts'
 import type { LimitRow } from './authLimits.ts'
 
 export type SessionPair = {
@@ -99,6 +100,14 @@ export interface AuthBackend {
   audit(row: AuditRow): Promise<void>
   getFlags(userId: string): Promise<AccountFlags>
   saveFlags(userId: string, flags: AccountFlags, updatedAt: string): Promise<void>
+  getAgeChoice(userId: string): Promise<AgeChoice | null>
+  saveAgeChoice(userId: string, choice: AgeChoice, at: string): Promise<'ok' | 'locked'>
+  holdParentEmail(input: { childId: string; email: string; tokenHash: string; expiresAt: string }): Promise<void>
+  approveParentEmail(tokenHash: string, at: string): Promise<{ childId: string; email: string } | null>
+  listKids(parentId: string): Promise<{ userId: string; displayName: string }[]>
+  linkKidsByEmail(parentId: string, email: string): Promise<number>
+  revokeKid(parentId: string, childId: string): Promise<boolean>
+  setOwner(userId: string, owner: { ownerRole: 'adult' | null; ownerAssumedAt: string | null; ownerEmail: string | null }): Promise<void>
 }
 
 /** The players insert written at signup. Age and account type are not fields. */

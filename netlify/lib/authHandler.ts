@@ -1,4 +1,6 @@
 import { accountFlagsBody, flagsChanged, mergeAccountFlags } from './accountFlags.ts'
+import { PARENT_HOLD_MS, readAgeChoice } from './ageChoice.ts'
+import { siteBase } from './http.ts'
 import { hashCard, hashCode, hashIp, hashUa, hashesEqual, newCardToken, scrubMetadata, sixDigitCode } from './authCrypto.ts'
 import { accountCheckIpBlocked, nameLocked, noteAccountCheck, notePasswordChange, noteRecoverAttempt, noteSigninAttempt, noteSigninFailure, noteSignupAttempt, passwordChangeBlocked, recoverIpBlocked, recoverNameBlocked, signinIpBlocked, signupIpBlocked } from './authLimits.ts'
 import { ABSOLUTE_SHORT_MS, ABSOLUTE_STAY_MS, sessionExpired, sessionIdFromAccessToken } from './sessionClock.ts'
@@ -22,6 +24,8 @@ export type AuthRoute =
   | 'account'
   | 'flags'
   | 'session'
+  | 'family'
+  | 'parent-email'
 
 const INVALID = { error: 'invalid_credentials' }
 const LIMITED = { error: 'rate_limited' }
@@ -39,6 +43,7 @@ export type AuthDeps = {
   newCode: () => string
   newCard: () => string
   sendCode: (email: string, code: string, purpose: RecoveryPurpose) => Promise<void>
+  sendParentLink: (email: string, url: string) => Promise<void>
 }
 
 export function productionDeps(): AuthDeps | null {
@@ -55,6 +60,7 @@ export function productionDeps(): AuthDeps | null {
     newCode: sixDigitCode,
     newCard: newCardToken,
     sendCode: sendRecoveryCode,
+    sendParentLink: sendParentApproval,
   }
 }
 
@@ -101,6 +107,10 @@ export async function handleAuth(req: Request, route: AuthRoute, deps: AuthDeps)
         return await saveFlags(ctx)
       case 'session':
         return await sessionCheck(ctx)
+      case 'family':
+        return await family(ctx)
+      case 'parent-email':
+        return await parentEmail(ctx)
       default:
         return authResponse({ error: 'bad_request' }, 400, origin)
     }
@@ -145,13 +155,16 @@ async function signup(ctx: Ctx): Promise<Response> {
     await audit(ctx, 'signup', null, { rejected: 'weak_password', name_normalized: name.normalized })
     return authResponse({ error: 'weak_password', hint: PASSWORD_HINT }, 422, origin)
   }
+  const age = readAgeChoice(body.age_choice)
+  if (!age) return authResponse({ error: 'age_required' }, 422, origin)
   const email = readRecoveryEmail(body)
   if (email === 'bad') return authResponse({ error: 'bad_recovery_email' }, 422, origin)
+  const saveEmail = age === '13_plus' ? email : null
 
   let codeHash: string | null = null
   let codeExpiresAt: string | null = null
   let plainCode: string | null = null
-  if (email) {
+  if (saveEmail) {
     plainCode = deps.newCode()
     codeHash = deps.hashCode(plainCode)
     codeExpiresAt = new Date(now + CODE_TTL_MS).toISOString()
@@ -161,19 +174,43 @@ async function signup(ctx: Ctx): Promise<Response> {
     displayName: name.displayName,
     publicName: shown,
     password: body.password as string,
-    pendingEmail: email,
+    pendingEmail: saveEmail,
     codeHash,
-    codePurpose: email ? 'verify' : null,
+    codePurpose: saveEmail ? 'verify' : null,
     codeExpiresAt,
     captchaToken,
   })
   if (created === 'taken') return authResponse({ error: 'name_taken' }, 409, origin)
   if (created === 'captcha') return authResponse({ error: 'turnstile_required' }, 403, origin)
   if (created === 'failed') return authResponse({ error: 'unavailable' }, 503, origin)
-  if (email && plainCode) await deps.sendCode(email, plainCode, 'verify').catch(() => undefined)
+  const savedAge = await deps.backend.saveAgeChoice(created.playerId, age, new Date(now).toISOString())
+  if (savedAge === 'locked') return authResponse({ error: 'age_locked' }, 409, origin)
+  if (age === '13_plus') body.age_confirmed = true
+  else delete body.age_confirmed
+  if (age === 'under_13' && email) {
+    const token = deps.newCard()
+    await deps.backend.holdParentEmail({
+      childId: created.playerId,
+      email,
+      tokenHash: deps.hashCard(token),
+      expiresAt: new Date(now + PARENT_HOLD_MS).toISOString(),
+    })
+    const link = `${siteBase()}/api/auth/parent-approve?token=${encodeURIComponent(token)}`
+    await deps.sendParentLink(email, link).catch(() => undefined)
+  }
+  if (saveEmail && plainCode) await deps.sendCode(saveEmail, plainCode, 'verify').catch(() => undefined)
+  if (saveEmail) await deps.backend.linkKidsByEmail(created.playerId, saveEmail).catch(() => undefined)
   await rememberDevice(ctx, created.playerId, created.session.access_token)
-  await audit(ctx, 'signup', created.playerId, { name_normalized: name.normalized })
-  return authResponse(await withFlags(ctx, created.playerId, sessionBody(created.playerId, shown, created.session, stayUntil(ctx))), 201, origin)
+  await audit(ctx, 'signup', created.playerId, { name_normalized: name.normalized, age_choice: age })
+  return authResponse(
+    await withFlags(ctx, created.playerId, {
+      ...sessionBody(created.playerId, shown, created.session, stayUntil(ctx)),
+      age_choice: age,
+      parent_email_pending: age === 'under_13' && !!email,
+    }),
+    201,
+    origin,
+  )
 }
 
 async function signin(ctx: Ctx): Promise<Response> {
@@ -337,7 +374,9 @@ async function recoverEmailFinish(ctx: Ctx): Promise<Response> {
   const signed = await deps.backend.signIn(profile.normalized, next as string, captchaToken)
   if (signed === 'captcha') return authResponse({ error: 'turnstile_required' }, 403, origin)
   if (!signed) return authResponse({ error: 'unavailable' }, 503, origin)
-  await deps.backend.saveRecovery(verifyRecovery(recovery, now))
+  const verified = verifyRecovery(recovery, now)
+  await deps.backend.saveRecovery(verified)
+  if (verified.recoveryEmail) await deps.backend.linkKidsByEmail(profile.playerId, verified.recoveryEmail).catch(() => undefined)
   await deps.backend.revoke(profile.playerId, 'global').catch(() => undefined)
   await rememberDevice(ctx, profile.playerId, signed.session.access_token)
   await audit(ctx, 'recovery_email_finish', profile.playerId, { ok: true })
@@ -509,6 +548,7 @@ async function sessionCheck(ctx: Ctx): Promise<Response> {
     return authResponse(INVALID, 401, ctx.origin)
   }
   const flags = await rememberFlags(ctx, live.playerId)
+  const ageChoice = await ctx.deps.backend.getAgeChoice(live.playerId)
   const sessionId = sessionIdFromAccessToken(bearer(ctx.req))
   const device = sessionId ? await ctx.deps.backend.getDevice(sessionId) : null
   const stay = device
@@ -518,6 +558,7 @@ async function sessionCheck(ctx: Ctx): Promise<Response> {
     {
       user_id: live.playerId,
       display_name: profile ? publicDisplayName(profile.displayName) : '',
+      age_choice: ageChoice,
       flags: accountFlagsBody(flags),
       ...stay,
     },
@@ -710,6 +751,82 @@ function authResponse(body: unknown | null, status: number, origin: string | nul
   if (body == null || status === 204) return new Response(null, { status, headers })
   headers.set('content-type', 'application/json; charset=utf-8')
   return new Response(JSON.stringify(body), { status, headers })
+}
+
+async function family(ctx: Ctx): Promise<Response> {
+  const live = await livePlayer(ctx)
+  if (live instanceof Response) return live
+  const allowed = await parentAccount(ctx, live.playerId)
+  if (allowed) return allowed
+  const action = typeof ctx.body.action === 'string' ? ctx.body.action : 'list'
+  if (action === 'list') {
+    const kids = await ctx.deps.backend.listKids(live.playerId)
+    return authResponse({
+      kids: kids.map((kid) => ({
+        user_id: kid.userId,
+        display_name: publicDisplayName(kid.displayName) || kid.displayName,
+      })),
+    }, 200, ctx.origin)
+  }
+  const childId = typeof ctx.body.child_user_id === 'string' ? ctx.body.child_user_id : ''
+  if (!UUID.test(childId)) return authResponse({ error: 'not_parent' }, 403, ctx.origin)
+  if (action === 'remove') {
+    const removed = await ctx.deps.backend.revokeKid(live.playerId, childId)
+    if (!removed) return authResponse({ error: 'not_parent' }, 403, ctx.origin)
+    await audit(ctx, 'family_remove', childId, { parent: true })
+    return authResponse({ ok: true }, 200, ctx.origin)
+  }
+  if (action === 'reset') return recoverParent(ctx)
+  return authResponse({ error: 'bad_request' }, 400, ctx.origin)
+}
+
+async function parentEmail(ctx: Ctx): Promise<Response> {
+  const live = await livePlayer(ctx)
+  if (live instanceof Response) return live
+  if (!readCaptchaToken(ctx.body)) return authResponse({ error: 'turnstile_required' }, 403, ctx.origin)
+  const age = await ctx.deps.backend.getAgeChoice(live.playerId)
+  if (!age) return authResponse({ error: 'age_required' }, 422, ctx.origin)
+  if (age !== 'under_13') return authResponse({ error: 'recovery_email_only' }, 403, ctx.origin)
+  const email = readRecoveryEmail(ctx.body)
+  if (!email || email === 'bad') return authResponse({ error: 'bad_recovery_email' }, 422, ctx.origin)
+  const token = ctx.deps.newCard()
+  await ctx.deps.backend.holdParentEmail({
+    childId: live.playerId,
+    email,
+    tokenHash: ctx.deps.hashCard(token),
+    expiresAt: new Date(ctx.now + PARENT_HOLD_MS).toISOString(),
+  })
+  const link = `${siteBase()}/api/auth/parent-approve?token=${encodeURIComponent(token)}`
+  await ctx.deps.sendParentLink(email, link).catch(() => undefined)
+  await audit(ctx, 'parent_email_hold', live.playerId, { held: true })
+  const recovery = await ctx.deps.backend.getRecovery(live.playerId)
+  return authResponse({ ok: true, parent_email_pending: true, recovery_saved: !!recovery?.recoveryEmail }, 202, ctx.origin)
+}
+
+/** A family page needs a 13+ account with its own email. A kid account cannot open it. */
+async function parentAccount(ctx: Ctx, playerId: string): Promise<Response | null> {
+  const age = await ctx.deps.backend.getAgeChoice(playerId)
+  if (age !== '13_plus') return authResponse({ error: 'not_parent' }, 403, ctx.origin)
+  const recovery = await ctx.deps.backend.getRecovery(playerId)
+  const email = recovery?.recoveryEmail || recovery?.pendingEmail
+  if (!email) return authResponse({ error: 'not_parent' }, 403, ctx.origin)
+  return null
+}
+
+async function sendParentApproval(email: string, url: string): Promise<void> {
+  const key = process.env.RESEND_API_KEY?.trim()
+  if (!key) return
+  const text = `Open this link to approve the recovery email for a Roman's Game account: ${url} The link works for 7 days. It does not create an account, and it does not allow purchases. If you did not expect it, you can ignore this email.`
+  await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      from: "Roman's Game <support@romansgame.com>",
+      to: [email],
+      subject: "Approve a Roman's Game recovery email",
+      text,
+    }),
+  })
 }
 
 async function sendRecoveryCode(email: string, code: string, purpose: RecoveryPurpose): Promise<void> {

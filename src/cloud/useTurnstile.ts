@@ -38,7 +38,7 @@ function loadTurnstile(): Promise<void> {
  * Invisible until Cloudflare asks for a tap. Tokens are single-use: call reset()
  * after every sign-in attempt.
  */
-export function useTurnstile(active: boolean) {
+export function useTurnstile(active: boolean, mountKey = '') {
   const box = useRef<HTMLDivElement>(null)
   const widget = useRef<string | null>(null)
   const token = useRef<string | null>(null)
@@ -96,7 +96,7 @@ export function useTurnstile(active: boolean) {
       const pending = waiters.current.splice(0)
       pending.forEach((fn) => fn(null))
     }
-  }, [active])
+  }, [active, mountKey])
 
   function reset() {
     token.current = null

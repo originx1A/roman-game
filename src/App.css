@@ -7490,6 +7490,13 @@ html[data-layout='wide'] .win-sheet-main {
   border: 1px solid rgba(255, 209, 102, 0.5);
   background: rgba(255, 209, 102, 0.06);
 }
+.purchase-owner-notice {
+  margin: 0 auto 0.45rem;
+  max-width: 36rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
 .pay-real > h3,
 .pay-coins > h3 {
   margin: 0 0 0.3rem;

@@ -1,9 +1,10 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { consumeReauth } from './reauth.ts'
+import { consumeReauth, hashSecret, newSecret } from './reauth.ts'
 import { loginEmail } from './authCrypto.ts'
 import { emptyLimit, type LimitRow } from './authLimits.ts'
 import { SUPABASE_PUBLISHABLE, SUPABASE_URL, supabaseAdmin } from './supabaseAdmin.ts'
 import { emptyAccountFlags, type AccountFlags } from './accountFlags.ts'
+import type { AgeChoice } from './ageChoice.ts'
 import { playerInsert, profileInsert, type AuthBackend, type DeviceRecord, type PasswordSignIn, type ProfileRecord, type RecoveryRecord, type SessionPair } from './authTypes.ts'
 import { scrubMetadata } from './authCrypto.ts'
 
@@ -303,6 +304,144 @@ class SupabaseAuthBackend implements AuthBackend {
     })
   }
 
+  async getAgeChoice(userId: string): Promise<AgeChoice | null> {
+    const { data, error } = await this.admin.from('age_choices').select('choice').eq('user_id', userId).maybeSingle()
+    if (error || !data) return null
+    const choice = (data as Row).choice
+    return choice === '13_plus' || choice === 'under_13' ? choice : null
+  }
+
+  async saveAgeChoice(userId: string, choice: AgeChoice, at: string): Promise<'ok' | 'locked'> {
+    const current = await this.getAgeChoice(userId)
+    if (current && current !== choice) return 'locked'
+    if (current === choice) return 'ok'
+    const { error } = await this.admin.from('age_choices').insert({ user_id: userId, choice, chosen_at: at })
+    return error ? 'locked' : 'ok'
+  }
+
+  async holdParentEmail(input: { childId: string; email: string; tokenHash: string; expiresAt: string }): Promise<void> {
+    await this.admin
+      .from('parent_email_holds')
+      .delete()
+      .eq('child_id', input.childId)
+      .is('approved_at', null)
+    const { error } = await this.admin.from('parent_email_holds').insert({
+      child_id: input.childId,
+      parent_email: input.email,
+      token_hash: input.tokenHash,
+      expires_at: input.expiresAt,
+    })
+    if (error) throw new Error('hold')
+  }
+
+  async approveParentEmail(tokenHash: string, at: string): Promise<{ childId: string; email: string } | null> {
+    const { data, error } = await this.admin
+      .from('parent_email_holds')
+      .select('child_id, parent_email, expires_at, approved_at')
+      .eq('token_hash', tokenHash)
+      .maybeSingle()
+    if (error || !data) return null
+    const row = data as Row
+    const childId = String(row.child_id)
+    const email = String(row.parent_email)
+    if (!row.approved_at && Date.parse(String(row.expires_at)) <= Date.parse(at)) return null
+    if (!row.approved_at) {
+      await this.admin.from('parent_email_holds').update({ approved_at: at }).eq('token_hash', tokenHash)
+    }
+    const existing = await this.getRecovery(childId)
+    await this.saveRecovery({
+      playerId: childId,
+      recoveryEmail: email,
+      emailVerifiedAt: row.approved_at ? String(row.approved_at) : at,
+      pendingEmail: null,
+      codeHash: null,
+      codePurpose: null,
+      codeExpiresAt: null,
+      codeAttempts: existing?.codeAttempts ?? 0,
+      codeBurned: false,
+    })
+    return { childId, email }
+  }
+
+  async listKids(parentId: string): Promise<{ userId: string; displayName: string }[]> {
+    const { data, error } = await this.admin
+      .from('parent_links')
+      .select('child_id')
+      .eq('parent_id', parentId)
+      .eq('status', 'active')
+    if (error || !Array.isArray(data)) return []
+    const kids: { userId: string; displayName: string }[] = []
+    for (const row of data as Row[]) {
+      const userId = String(row.child_id)
+      const profile = await this.profileById(userId)
+      kids.push({ userId, displayName: profile?.displayName ?? '' })
+    }
+    return kids
+  }
+
+  async linkKidsByEmail(parentId: string, email: string): Promise<number> {
+    const normalized = email.trim().toLowerCase()
+    const { data, error } = await this.admin
+      .from('account_recovery')
+      .select('player_id, email_verified_at')
+      .eq('recovery_email', normalized)
+    if (error || !Array.isArray(data)) return 0
+    let linked = 0
+    const until = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString()
+    for (const row of data as Row[]) {
+      const childId = String(row.player_id)
+      if (childId === parentId || !row.email_verified_at) continue
+      if (await this.activeParent(parentId, childId)) continue
+      const { count } = await this.admin
+        .from('parent_links')
+        .select('id', { count: 'exact', head: true })
+        .eq('child_id', childId)
+        .in('status', ['pending', 'active'])
+      if ((count ?? 0) >= 2) continue
+      const { error: insertError } = await this.admin.from('parent_links').insert({
+        child_id: childId,
+        parent_id: parentId,
+        token_hash: hashSecret(newSecret(16)),
+        status: 'active',
+        invite_until: until,
+        accepted_at: new Date().toISOString(),
+      })
+      if (!insertError) linked += 1
+    }
+    return linked
+  }
+
+  async revokeKid(parentId: string, childId: string): Promise<boolean> {
+    const { data, error } = await this.admin
+      .from('parent_links')
+      .update({ status: 'revoked' })
+      .eq('parent_id', parentId)
+      .eq('child_id', childId)
+      .eq('status', 'active')
+      .select('id')
+    return !error && Array.isArray(data) && data.length > 0
+  }
+
+  async setOwner(
+    userId: string,
+    owner: { ownerRole: 'adult' | null; ownerAssumedAt: string | null; ownerEmail: string | null },
+  ): Promise<void> {
+    const fields = {
+      owner_role: owner.ownerRole,
+      owner_assumed_at: owner.ownerAssumedAt,
+      owner_email: owner.ownerEmail,
+      updated_at: new Date().toISOString(),
+    }
+    const { data } = await this.admin.from('account_flags').select('user_id').eq('user_id', userId).maybeSingle()
+    if (data) {
+      const { error } = await this.admin.from('account_flags').update(fields).eq('user_id', userId)
+      if (error) throw new Error('owner')
+      return
+    }
+    const { error } = await this.admin.from('account_flags').insert({ user_id: userId, ...fields })
+    if (error) throw new Error('owner')
+  }
+
   private async withBan(row: Row): Promise<ProfileRecord> {
     const playerId = String(row.player_id)
     const { data } = await this.admin.from('account_status').select('banned').eq('player_id', playerId).maybeSingle()
@@ -336,6 +475,9 @@ function flagsFrom(row: Row): AccountFlags {
     termsVersion: row.terms_version ? String(row.terms_version) : null,
     marketingOptIn: row.marketing_opt_in === true,
     marketingAnsweredAt: row.marketing_answered_at ? String(row.marketing_answered_at) : null,
+    ownerRole: row.owner_role === 'adult' ? 'adult' : null,
+    ownerAssumedAt: row.owner_assumed_at ? String(row.owner_assumed_at) : null,
+    ownerEmail: row.owner_email ? String(row.owner_email) : null,
   }
 }
 

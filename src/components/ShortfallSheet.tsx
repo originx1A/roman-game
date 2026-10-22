@@ -1,6 +1,7 @@
 import { useEffect, useId } from 'react'
 import { createPortal } from 'react-dom'
 import { cheapestPackForGap, isStoreBuild, packValueBlurb } from '../game/iap'
+import { PURCHASE_OWNER_NOTICE } from '../game/purchaseNotice'
 import { cheapestWebPack, type WebPackOffer } from '../game/webPacks'
 import { useOnline } from '../game/useOnline'
 
@@ -82,6 +83,7 @@ export function ShortfallSheet({
         {!store && purchasesUnavailable ? (
           <p className="shortfall-body shortfall-web-note">Purchases are unavailable right now.</p>
         ) : null}
+        <p className="purchase-owner-notice" data-testid="purchase-owner-notice">{PURCHASE_OWNER_NOTICE}</p>
         <div className="shortfall-actions">
           <button type="button" className="btn primary" onClick={onPlay}>
             Play for coins

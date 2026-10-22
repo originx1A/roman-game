@@ -12,6 +12,7 @@ import { WinScreen, type WinReplay } from './components/WinScreen'
 import { type ShortfallAction } from './components/ShortfallSheet'
 import { ShortfallSheetHost } from './components/ShortfallSheetHost'
 import { OfflineBuyButton } from './components/CoinPackCard'
+import { PURCHASE_OWNER_NOTICE } from './game/purchaseNotice'
 import { HelpMark } from './components/HelpMark'
 import { LegalLine } from './components/LegalLine'
 import { formatCad, formatStarterLadder, savingsCents, SHOP_OFFERS, shopOfferById } from './game/shopOffers'
@@ -2893,8 +2894,18 @@ export default function App() {
     if (!isStoreBuild()) {
       const sb = await getSupabase()
       const token = sb ? (await sb.auth.getSession()).data.session?.access_token : undefined
-      const { startWebCheckout } = await import('./game/webCheckout')
-      const started = await startWebCheckout(packId, token)
+      const { startCardSetup, startWebCheckout } = await import('./game/webCheckout')
+      let owner = false
+      if (token) {
+        const session = await fetch('/api/auth/session', {
+          method: 'POST',
+          headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', accept: 'application/json' },
+          body: '{}',
+        }).catch(() => null)
+        const data = (await session?.json().catch(() => null)) as { flags?: { owner_role?: string | null } } | null
+        owner = data?.flags?.owner_role === 'adult'
+      }
+      const started = owner || !token ? await startWebCheckout(packId, token) : await startCardSetup(token)
       if (!started.ok) showToast(started.reason)
       return
     }
@@ -4059,6 +4070,7 @@ export default function App() {
             <p className="shop-proposed" data-testid="shop-proposed">Prices are in Canadian dollars.</p>
             <section className="pay-real" aria-label="Real money" data-testid="real-money">
               <h3><span className="pay-mark" aria-hidden="true">💳</span> Real money</h3>
+              <p className="purchase-owner-notice" data-testid="purchase-owner-notice">{PURCHASE_OWNER_NOTICE}</p>
               <div className="coin-shop">
                 {SHOP_OFFERS.filter((offer) => offer.pets.length === 0).map((offer) => {
                   const discs = coinStackDiscs(offer.coins)

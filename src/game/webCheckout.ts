@@ -34,6 +34,28 @@ export function rememberCheckoutRedeemed(sessionId: string): void {
   localStorage.setItem(REDEEMED_KEY, JSON.stringify(ids.slice(-200)))
 }
 
+/** Stripe Checkout in setup mode. A verified card, not an email, becomes ownership. */
+export async function startCardSetup(accessToken?: string): Promise<{ ok: true } | { ok: false; reason: string }> {
+  if (isStoreBuild()) return { ok: false, reason: 'Purchases are unavailable right now.' }
+  try {
+    const headers: Record<string, string> = { 'content-type': 'application/json', accept: 'application/json' }
+    if (accessToken) headers.authorization = `Bearer ${accessToken}`
+    const res = await fetch('/api/payments/setup', { method: 'POST', headers, body: '{}' })
+    const data = (await res.json().catch(() => null)) as { url?: unknown; error?: unknown } | null
+    if (!res.ok) {
+      const reason = typeof data?.error === 'string' ? data.error : 'Purchases are unavailable right now.'
+      return { ok: false, reason }
+    }
+    if (typeof data?.url !== 'string' || !data.url.startsWith(CHECKOUT_HOST)) {
+      return { ok: false, reason: 'Purchases are unavailable right now.' }
+    }
+    window.location.assign(data.url)
+    return { ok: true }
+  } catch {
+    return { ok: false, reason: 'Purchases are unavailable right now.' }
+  }
+}
+
 /** Send the player to hosted Checkout. Never call this from the native app. */
 export async function startWebCheckout(packId: string, accessToken?: string): Promise<{ ok: true } | { ok: false; reason: string }> {
   if (isStoreBuild()) return { ok: false, reason: 'Purchases are unavailable right now.' }

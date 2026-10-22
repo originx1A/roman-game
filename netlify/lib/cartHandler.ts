@@ -1,3 +1,4 @@
+import { hashIp, hashUa } from './authCrypto.ts'
 import { receivingAccount, validateCart, type CartPlan } from './cartValidate.ts'
 import { json, PURCHASES_UNAVAILABLE, siteBase } from './http.ts'
 import { checkoutAllowed, loadPayRow, requestCountry, requireUser } from './payGate.ts'
@@ -36,6 +37,8 @@ export type CartSessionInput = {
   plan: CartPlan
   email: string | null
   expiresAt: string
+  deviceUaHash?: string
+  ipHash?: string | null
 }
 
 export type CartDeps = {
@@ -43,7 +46,7 @@ export type CartDeps = {
   catalog: Catalog
   country: (req: Request) => string | null
   userId: (token: string) => Promise<string | null>
-  payRow: (playerId: string) => Promise<{ ok: true; row: { paymentsEnabled: boolean; parentLocked: boolean; age13Plus: boolean | null; email: string | null } } | { ok: false; status: number; error: string }>
+  payRow: (playerId: string) => Promise<{ ok: true; row: { paymentsEnabled: boolean; parentLocked: boolean; age13Plus: boolean | null; email: string | null; ownerAdult?: boolean } } | { ok: false; status: number; error: string }>
   starterCount: (accountId: string) => Promise<number | 'unavailable'>
   consumeReauth: (playerId: string, token: string) => Promise<boolean>
   readKey: () => string | null
@@ -125,7 +128,12 @@ export function productionCartDeps(): CartDeps | null {
                   },
                 }
           )),
-          metadata: { cart_id: input.cartId, user_id: input.playerId },
+          metadata: {
+            cart_id: input.cartId,
+            user_id: input.playerId,
+            device_ua_hash: input.deviceUaHash || '',
+            ip_hash: input.ipHash || '',
+          },
           customer_email: input.email || undefined,
           success_url: `${siteBase()}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
           cancel_url: `${siteBase()}/?checkout=cancel`,
@@ -172,6 +180,7 @@ export async function handleCart(req: Request, deps: CartDeps | null = productio
     paymentsEnabled: loaded.row.paymentsEnabled,
     parentLocked: loaded.row.parentLocked,
     age13Plus: loaded.row.age13Plus,
+    ownerAdult: loaded.row.ownerAdult,
     reauthOk: reauthToken.length >= 20,
     country,
     requireReauth: true,
@@ -202,6 +211,8 @@ export async function handleCart(req: Request, deps: CartDeps | null = productio
       plan: owned.plan,
       email: loaded.row.email,
       expiresAt,
+      deviceUaHash: hashUa(req.headers.get('user-agent') ?? ''),
+      ipHash: hashIp(req.headers.get('x-nf-client-connection-ip') || req.headers.get('x-forwarded-for') || ''),
     })
     if (!session.url) {
       await deps.cancelCart(saved.id)

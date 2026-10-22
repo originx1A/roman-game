@@ -96,6 +96,31 @@
   to = "/.netlify/functions/auth-session"
   status = 200
   force = true
+[[redirects]]
+  from = "/api/auth/family"
+  to = "/.netlify/functions/auth-family"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/parent-email"
+  to = "/.netlify/functions/auth-parent-email"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/parent-approve"
+  to = "/.netlify/functions/auth-parent-approve"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/payments/setup"
+  to = "/.netlify/functions/payments-setup"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/payments/remove"
+  to = "/.netlify/functions/payments-remove"
+  status = 200
+  force = true
 
 [[redirects]]
   from = "/api/cart"

@@ -11,6 +11,11 @@
 /api/auth/account /.netlify/functions/auth-account 200!
 /api/auth/flags /.netlify/functions/auth-flags 200!
 /api/auth/session /.netlify/functions/auth-session 200!
+/api/auth/family /.netlify/functions/auth-family 200!
+/api/auth/parent-email /.netlify/functions/auth-parent-email 200!
+/api/auth/parent-approve /.netlify/functions/auth-parent-approve 200!
+/api/payments/setup /.netlify/functions/payments-setup 200!
+/api/payments/remove /.netlify/functions/payments-remove 200!
 /api/cart /.netlify/functions/cart 200!
 /api/* /.netlify/functions/:splat 200!
 # Netlify reads this file before netlify.toml, and the first match wins.

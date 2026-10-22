@@ -1,13 +1,13 @@
 import { hashSecret, newSecret } from '../lib/reauth.ts'
 import { parentSlotsLeft } from '../lib/accountsRules.ts'
 import { json } from '../lib/http.ts'
-import { loadPayRow, requireUser, userToken } from '../lib/payGate.ts'
+import { requireUser, userToken } from '../lib/payGate.ts'
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts'
 
 const INVITE_MS = 72 * 60 * 60 * 1000
 
 /**
- * One-tap parent link. The child creates a token (QR). A parent with payments on accepts it.
+ * One-tap parent link. The child creates a token (QR). Accepting it does not require payments.
  * At most two pending or active parents. The child cannot delete the parent's account.
  */
 export default async function parentLink(req: Request): Promise<Response> {
@@ -49,11 +49,6 @@ export default async function parentLink(req: Request): Promise<Response> {
 
   if (action === 'accept') {
     if (token.length < 20) return json({ ok: false, error: "That link doesn't work." }, 400)
-    const parent = await loadPayRow(playerId)
-    if (!parent.ok) return json({ ok: false, error: parent.error }, parent.status)
-    if (!parent.row.paymentsEnabled || parent.row.parentLocked || parent.row.age13Plus !== true) {
-      return json({ ok: false, error: 'Turn payments on with your own card before linking.' }, 403)
-    }
     const { data: link, error: linkError } = await admin
       .from('parent_links')
       .select('id, child_id, status, invite_until')

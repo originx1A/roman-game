@@ -40,6 +40,9 @@ function deps(backend: MemoryAuth, now = NOW) {
     sendCode: async (email, code, purpose) => {
       sent.push({ email, code, purpose })
     },
+    sendParentLink: async (email, url) => {
+      sent.push({ email, code: url, purpose: 'approve' })
+    },
   }
   return { authDeps, sent }
 }
@@ -60,7 +63,17 @@ function call(
       ...headers,
     },
   }
-  if (method !== 'GET' && method !== 'OPTIONS') init.body = JSON.stringify(body)
+  let payload = body
+  if (
+    route === 'signup' &&
+    payload &&
+    typeof payload === 'object' &&
+    !Array.isArray(payload) &&
+    !('age_choice' in payload)
+  ) {
+    payload = { ...(payload as Record<string, unknown>), age_choice: '13_plus' }
+  }
+  if (method !== 'GET' && method !== 'OPTIONS') init.body = JSON.stringify(payload)
   const req = new Request(`https://play.romansgame.com/api/auth/${route}`, init)
   return handleAuth(req, route, authDeps)
 }
@@ -577,7 +590,7 @@ test('logout is global and the saved session is checked on load and focus', () =
   assert.match(source, /recheckSession/)
   assert.match(source, /addEventListener\('focus'/)
   assert.match(source, /\/api\/auth\/session/)
-  assert.match(read('../src/buildTag.ts'), /build 9\.32-g/)
+  assert.match(read('../src/buildTag.ts'), /build 9\.32-h/)
   assert.match(read('../src/App.tsx'), /signOutEverywhere as cloudSignOut/)
   assert.match(read('../src/cloud/CloudScores.tsx'), /signOutEverywhere\(\)/)
   assert.match(read('../public/_redirects'), /\/api\/auth\/account/)
@@ -607,4 +620,116 @@ test('the repo has no Turnstile secret and no siteverify call', () => {
   walk(new URL('..', import.meta.url).pathname)
   assert.deepEqual(hits, [])
   assert.equal(existsSync(new URL('../netlify/lib/turnstile.ts', import.meta.url)), false)
+})
+
+test('signup requires an age choice and does not treat a missing choice as under 13', async () => {
+  const backend = new MemoryAuth()
+  const { authDeps } = deps(backend)
+  const req = new Request('https://play.romansgame.com/api/auth/signup', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: 'https://play.romansgame.com' },
+    body: JSON.stringify({ name: 'Cool Kid', password: PASSWORD, captchaToken: TOKEN }),
+  })
+  const missing = await handleAuth(req, 'signup', authDeps)
+  assert.equal(missing.status, 422)
+  assert.equal((await json(missing)).error, 'age_required')
+  assert.equal(backend.profiles.size, 0)
+})
+
+test('an under-13 email is held for the parent and is not saved or mailed to the child', async () => {
+  const backend = new MemoryAuth()
+  const { authDeps, sent } = deps(backend)
+  const created = await call('signup', {
+    name: 'Cool Kid',
+    password: PASSWORD,
+    email: 'parent@example.com',
+    age_choice: 'under_13',
+    captchaToken: TOKEN,
+    age_confirmed: true,
+  }, authDeps)
+  assert.equal(created.status, 201)
+  const body = await json(created)
+  assert.equal(body.age_choice, 'under_13')
+  assert.equal(body.parent_email_pending, true)
+  assert.equal((body.flags as { age_confirmed_at: string | null }).age_confirmed_at, null)
+  assert.equal(backend.recovery.size, 0)
+  assert.equal(sent.some((row) => row.purpose === 'verify'), false)
+  assert.equal(sent.filter((row) => row.purpose === 'approve').length, 1)
+  assert.equal(sent[0].email, 'parent@example.com')
+
+  const token = new URL(sent[0].code).searchParams.get('token') || ''
+  const { approveParentHold } = await import('../netlify/lib/parentApprove.ts')
+  const approved = await approveParentHold(new Request(`https://play.romansgame.com/api/auth/parent-approve?token=${encodeURIComponent(token)}`), authDeps)
+  assert.equal(approved.status, 200)
+  const again = await approveParentHold(new Request(`https://play.romansgame.com/api/auth/parent-approve?token=${encodeURIComponent(token)}`), authDeps)
+  assert.equal(again.status, 200)
+  const recovery = await backend.getRecovery(String(body.user_id))
+  assert.equal(recovery?.recoveryEmail, 'parent@example.com')
+  assert.equal(recovery?.emailVerifiedAt == null, false)
+
+  const start = await call('recover-email-start', { name: 'Cool Kid', captchaToken: TOKEN }, authDeps)
+  assert.equal(start.status, 202)
+  const code = sent.find((row) => row.purpose === 'reset' || row.purpose === 'verify')
+  assert.equal(code?.email, 'parent@example.com')
+})
+
+test('a 13+ account saves its own recovery email and links kids who already use it', async () => {
+  const backend = new MemoryAuth()
+  const { authDeps, sent } = deps(backend)
+  const kid = await json(await call('signup', {
+    name: 'Cool Kid',
+    password: PASSWORD,
+    email: 'parent@example.com',
+    age_choice: 'under_13',
+    captchaToken: TOKEN,
+  }, authDeps))
+  const token = new URL(sent[0].code).searchParams.get('token') || ''
+  const { approveParentHold } = await import('../netlify/lib/parentApprove.ts')
+  await approveParentHold(new Request(`https://play.romansgame.com/api/auth/parent-approve?token=${encodeURIComponent(token)}`), authDeps)
+
+  const parent = await json(await call('signup', {
+    name: 'Bright Fox',
+    password: PASSWORD,
+    email: 'parent@example.com',
+    age_choice: '13_plus',
+    captchaToken: TOKEN,
+  }, authDeps))
+  assert.equal(parent.age_choice, '13_plus')
+  const own = await backend.getRecovery(String(parent.user_id))
+  assert.equal(own?.pendingEmail, 'parent@example.com')
+  const access = (parent.session as { access_token: string }).access_token
+  const listed = await json(await call('family', { action: 'list' }, authDeps, { authorization: `Bearer ${access}` }))
+  const kids = listed.kids as { user_id: string }[]
+  assert.equal(kids.length, 1)
+  assert.equal(kids[0].user_id, kid.user_id)
+
+  const kidAccess = (kid.session as { access_token: string }).access_token
+  const denied = await call('family', { action: 'list' }, authDeps, { authorization: `Bearer ${kidAccess}` })
+  assert.equal(denied.status, 403)
+  const removed = await call('family', { action: 'remove', child_user_id: kid.user_id }, authDeps, { authorization: `Bearer ${access}` })
+  assert.equal(removed.status, 200)
+  const after = await json(await call('family', { action: 'list' }, authDeps, { authorization: `Bearer ${access}` }))
+  assert.equal((after.kids as unknown[]).length, 0)
+
+  const blocked = await call('parent-email', { recovery_email: 'other@example.com', captchaToken: TOKEN }, authDeps, { authorization: `Bearer ${access}` })
+  assert.equal(blocked.status, 403)
+  assert.equal((await json(blocked)).error, 'recovery_email_only')
+})
+
+test('migration 014 adds the age table, the hold, and the owner columns', () => {
+  const raw = read('../supabase/migration-014-age-and-owner.sql')
+  const sql = raw.replace(/--[^\n]*/g, '')
+  assert.match(sql, /create table if not exists public\.age_choices/)
+  assert.match(sql, /create table if not exists public\.parent_email_holds/)
+  assert.match(sql, /create table if not exists public\.payment_evidence/)
+  assert.match(sql, /owner_role/)
+  assert.match(sql, /owner_assumed_at/)
+  assert.match(sql, /owner_email/)
+  assert.match(sql, /device_ua/)
+  assert.equal(sql.includes('age_13_plus'), false)
+  assert.equal(/drop table/i.test(sql), false)
+  assert.match(read('../public/_redirects'), /\/api\/auth\/family/)
+  assert.match(read('../public/_redirects'), /\/api\/auth\/parent-approve/)
+  assert.match(read('../public/_redirects'), /\/api\/payments\/setup/)
+  assert.match(read('../public/_redirects'), /\/api\/payments\/remove/)
 })

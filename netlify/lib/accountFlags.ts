@@ -6,6 +6,10 @@ export type AccountFlags = {
   termsVersion: string | null
   marketingOptIn: boolean
   marketingAnsweredAt: string | null
+  /** Set only when Stripe has verified a payment method. Null is kid mode. */
+  ownerRole: 'adult' | null
+  ownerAssumedAt: string | null
+  ownerEmail: string | null
 }
 
 export function emptyAccountFlags(): AccountFlags {
@@ -15,6 +19,9 @@ export function emptyAccountFlags(): AccountFlags {
     termsVersion: null,
     marketingOptIn: false,
     marketingAnsweredAt: null,
+    ownerRole: null,
+    ownerAssumedAt: null,
+    ownerEmail: null,
   }
 }
 
@@ -25,6 +32,9 @@ export function accountFlagsBody(flags: AccountFlags) {
     terms_version: flags.termsVersion,
     marketing_opt_in: flags.marketingOptIn,
     marketing_answered_at: flags.marketingAnsweredAt,
+    owner_role: flags.ownerRole,
+    owner_assumed_at: flags.ownerAssumedAt,
+    owner_email: flags.ownerEmail,
   }
 }
 
@@ -34,7 +44,10 @@ function sameFlags(left: AccountFlags, right: AccountFlags): boolean {
     left.termsAcceptedAt === right.termsAcceptedAt &&
     left.termsVersion === right.termsVersion &&
     left.marketingOptIn === right.marketingOptIn &&
-    left.marketingAnsweredAt === right.marketingAnsweredAt
+    left.marketingAnsweredAt === right.marketingAnsweredAt &&
+    left.ownerRole === right.ownerRole &&
+    left.ownerAssumedAt === right.ownerAssumedAt &&
+    left.ownerEmail === right.ownerEmail
   )
 }
 

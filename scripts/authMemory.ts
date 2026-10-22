@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { emptyAccountFlags, type AccountFlags } from '../netlify/lib/accountFlags.ts'
+import type { AgeChoice } from '../netlify/lib/ageChoice.ts'
 import { emptyLimit, type LimitRow } from '../netlify/lib/authLimits.ts'
 import { accessTokenForSession } from '../netlify/lib/sessionClock.ts'
 import type {
@@ -29,6 +30,9 @@ export class MemoryAuth implements AuthBackend {
   audits: AuditRow[] = []
   devices = new Map<string, DeviceRecord>()
   flags = new Map<string, AccountFlags>()
+  ages = new Map<string, AgeChoice>()
+  holds: { childId: string; email: string; tokenHash: string; expiresAt: string; approvedAt: string | null }[] = []
+  links: { parentId: string; childId: string; status: 'active' | 'revoked' }[] = []
   revokes: { playerId: string; scope: 'global' | 'others' | 'local'; accessToken?: string }[] = []
   tokens = new Map<string, string>()
   refreshIndex = new Map<string, { playerId: string; sessionId: string }>()
@@ -205,7 +209,8 @@ export class MemoryAuth implements AuthBackend {
   }
 
   async activeParent(parentId: string, childId: string): Promise<boolean> {
-    return this.parents.has(`${parentId}:${childId}`)
+    if (this.parents.has(`${parentId}:${childId}`)) return true
+    return this.links.some((link) => link.parentId === parentId && link.childId === childId && link.status === 'active')
   }
 
   async consumeReauth(playerId: string, token: string, _now: number): Promise<boolean> {
@@ -225,5 +230,101 @@ export class MemoryAuth implements AuthBackend {
 
   async saveFlags(userId: string, flags: AccountFlags, _updatedAt: string): Promise<void> {
     this.flags.set(userId, structuredClone(flags))
+  }
+
+  async getAgeChoice(userId: string): Promise<AgeChoice | null> {
+    return this.ages.get(userId) ?? null
+  }
+
+  async saveAgeChoice(userId: string, choice: AgeChoice, _at: string): Promise<'ok' | 'locked'> {
+    const current = this.ages.get(userId)
+    if (current && current !== choice) return 'locked'
+    this.ages.set(userId, choice)
+    return 'ok'
+  }
+
+  async holdParentEmail(input: { childId: string; email: string; tokenHash: string; expiresAt: string }): Promise<void> {
+    this.holds = this.holds.filter((hold) => hold.childId !== input.childId || hold.approvedAt)
+    this.holds.push({ ...input, approvedAt: null })
+  }
+
+  async approveParentEmail(tokenHash: string, at: string): Promise<{ childId: string; email: string } | null> {
+    const hold = this.holds.find((row) => row.tokenHash === tokenHash)
+    if (!hold) return null
+    if (!hold.approvedAt && Date.parse(hold.expiresAt) <= Date.parse(at)) return null
+    if (!hold.approvedAt) hold.approvedAt = at
+    const current = this.recovery.get(hold.childId)
+    this.recovery.set(hold.childId, {
+      playerId: hold.childId,
+      recoveryEmail: hold.email,
+      emailVerifiedAt: hold.approvedAt,
+      pendingEmail: null,
+      codeHash: null,
+      codePurpose: null,
+      codeExpiresAt: null,
+      codeAttempts: current?.codeAttempts ?? 0,
+      codeBurned: false,
+    })
+    return { childId: hold.childId, email: hold.email }
+  }
+
+  async listKids(parentId: string): Promise<{ userId: string; displayName: string }[]> {
+    const ids = new Set<string>()
+    for (const key of this.parents) {
+      const [parent, child] = key.split(':')
+      if (parent === parentId && child) ids.add(child)
+    }
+    for (const link of this.links) {
+      if (link.parentId === parentId && link.status === 'active') ids.add(link.childId)
+    }
+    return [...ids].map((userId) => ({ userId, displayName: this.byId.get(userId)?.displayName ?? '' }))
+  }
+
+  async linkKidsByEmail(parentId: string, email: string): Promise<number> {
+    const normalized = email.trim().toLowerCase()
+    let linked = 0
+    for (const row of this.recovery.values()) {
+      if (row.playerId === parentId) continue
+      if (row.recoveryEmail !== normalized || !row.emailVerifiedAt) continue
+      if (await this.activeParent(parentId, row.playerId)) continue
+      if (this.parentSlots(row.playerId) >= 2) continue
+      this.parents.add(`${parentId}:${row.playerId}`)
+      this.links.push({ parentId, childId: row.playerId, status: 'active' })
+      linked += 1
+    }
+    return linked
+  }
+
+  async revokeKid(parentId: string, childId: string): Promise<boolean> {
+    const key = `${parentId}:${childId}`
+    const had = this.parents.has(key) || this.links.some((link) => link.parentId === parentId && link.childId === childId && link.status === 'active')
+    this.parents.delete(key)
+    for (const link of this.links) {
+      if (link.parentId === parentId && link.childId === childId && link.status === 'active') link.status = 'revoked'
+    }
+    return had
+  }
+
+  async setOwner(
+    userId: string,
+    owner: { ownerRole: 'adult' | null; ownerAssumedAt: string | null; ownerEmail: string | null },
+  ): Promise<void> {
+    const current = await this.getFlags(userId)
+    current.ownerRole = owner.ownerRole
+    current.ownerAssumedAt = owner.ownerAssumedAt
+    current.ownerEmail = owner.ownerEmail
+    this.flags.set(userId, current)
+  }
+
+  private parentSlots(childId: string): number {
+    const ids = new Set<string>()
+    for (const key of this.parents) {
+      const [parent, child] = key.split(':')
+      if (child === childId && parent) ids.add(parent)
+    }
+    for (const link of this.links) {
+      if (link.childId === childId && link.status === 'active') ids.add(link.parentId)
+    }
+    return ids.size
   }
 }

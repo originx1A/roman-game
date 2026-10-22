@@ -1,3 +1,4 @@
+import { hashIp, hashUa } from '../lib/authCrypto.ts'
 import { CHECKOUT_TEST_ONLY, webPackById } from '../lib/coinPacks.ts'
 import { json, PURCHASES_UNAVAILABLE, siteBase } from '../lib/http.ts'
 import { checkoutAllowed, loadPayRow, requestCountry, requireUser, type PayRow } from '../lib/payGate.ts'
@@ -17,6 +18,8 @@ export interface CheckoutSessionInput {
   label: string
   description: string
   email: string | null
+  deviceUaHash?: string
+  ipHash?: string | null
 }
 
 export interface CheckoutDeps {
@@ -56,18 +59,23 @@ const defaultDeps = (): CheckoutDeps => ({
       client_reference_id: input.packId,
       // Payment methods stay on the dashboard's automatic list (card, Apple Pay, Google Pay
       // once romansgame.com is verified). This session does not name a method list of its own.
-      // Link is turned off for this session. Cards are not saved for later.
+      // Link is turned off for this session. The card is saved on the Stripe customer
+      // so a later removal can return the account to kid mode.
       excluded_payment_method_types: ['link'],
       wallet_options: { link: { display: 'never' } },
       payment_method_options: { card: { request_three_d_secure: 'any' } },
+      payment_intent_data: { setup_future_usage: 'off_session' },
       billing_address_collection: 'required',
       customer_email: input.email || undefined,
-      customer_creation: 'if_required',
+      customer_creation: 'always',
       metadata: {
         packId: input.packId,
         productId: input.productId,
         playerId: input.playerId,
+        user_id: input.playerId,
         purpose: input.purpose,
+        device_ua_hash: input.deviceUaHash || '',
+        ip_hash: input.ipHash || '',
       },
       line_items: [
         {
@@ -131,6 +139,7 @@ export async function handleCreateCheckout(req: Request, deps: CheckoutDeps = de
     paymentsEnabled: loaded.row.paymentsEnabled,
     parentLocked: loaded.row.parentLocked,
     age13Plus: loaded.row.age13Plus,
+    ownerAdult: loaded.row.ownerAdult,
     reauthOk: reauthToken.length >= 20,
     country: requestCountry(req),
     requireReauth: true,
@@ -168,6 +177,8 @@ export async function handleCreateCheckout(req: Request, deps: CheckoutDeps = de
         label: pack.label,
         description: pack.contents.join(', '),
         email: loaded.row.email,
+        deviceUaHash: hashUa(req.headers.get('user-agent') ?? ''),
+        ipHash: hashIp(req.headers.get('x-nf-client-connection-ip') || req.headers.get('x-forwarded-for') || ''),
       },
       {
         success: `${base}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,

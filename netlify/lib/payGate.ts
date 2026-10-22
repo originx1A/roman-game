@@ -20,6 +20,11 @@ export interface CheckoutGateInput {
   parentLocked: boolean
   /** players.age_13_plus. Null means there is no player row. This migration does not write that column. */
   age13Plus: boolean | null
+  /**
+   * True after Stripe has verified a payment method on this account.
+   * False is kid mode and cannot spend. Omit it to keep the older age check.
+   */
+  ownerAdult?: boolean
   reauthOk: boolean
   country: string | null
   /** Create-checkout requires a fresh per-purchase check. Confirm and claim do not ask again. */
@@ -34,11 +39,18 @@ export type GateResult = { ok: true } | { ok: false; status: number; error: stri
  */
 export function checkoutAllowed(input: CheckoutGateInput): GateResult {
   if (!input.signedIn) return { ok: false, status: 401, error: 'Sign in first.' }
-  if (input.age13Plus !== true) return { ok: false, status: 403, error: 'Payments stay off on this account.' }
+  if (input.ownerAdult === false) {
+    return { ok: false, status: 403, error: "This account can't make purchases." }
+  }
+  if (input.ownerAdult !== true && input.age13Plus !== true) {
+    return { ok: false, status: 403, error: 'Payments stay off on this account.' }
+  }
   if (input.parentLocked) {
     return { ok: false, status: 403, error: 'A parent turned payments off. They have to turn them back on.' }
   }
-  if (!input.paymentsEnabled) return { ok: false, status: 403, error: 'Turn payments on before buying.' }
+  if (input.ownerAdult !== true && !input.paymentsEnabled) {
+    return { ok: false, status: 403, error: 'Turn payments on before buying.' }
+  }
   if (input.requireReauth && !input.reauthOk) {
     return { ok: false, status: 401, error: 'Enter your password, PIN, or passkey to buy.' }
   }
@@ -75,6 +87,8 @@ export interface PayRow {
   age13Plus: boolean | null
   email: string | null
   attested: boolean
+  /** Undefined when the owner columns are not readable yet. */
+  ownerAdult?: boolean
 }
 
 export async function loadPayRow(playerId: string): Promise<{ ok: true; row: PayRow } | { ok: false; status: number; error: string }> {
@@ -96,6 +110,13 @@ export async function loadPayRow(playerId: string): Promise<{ ok: true; row: Pay
     return { ok: false, status: 502, error: 'Purchases are unavailable right now.' }
   }
   const attested = !!(pay?.receipt_email && pay?.terms_accepted_at && pay?.adult_confirmed_at)
+  let ownerAdult: boolean | undefined
+  const { data: flags, error: flagsError } = await admin
+    .from('account_flags')
+    .select('owner_role')
+    .eq('user_id', playerId)
+    .maybeSingle()
+  if (!flagsError) ownerAdult = (flags as { owner_role?: string | null } | null)?.owner_role === 'adult'
   return {
     ok: true,
     row: {
@@ -104,6 +125,7 @@ export async function loadPayRow(playerId: string): Promise<{ ok: true; row: Pay
       age13Plus: player.age_13_plus === true,
       email: typeof pay?.receipt_email === 'string' ? pay.receipt_email : null,
       attested,
+      ownerAdult,
     },
   }
 }
@@ -131,6 +153,7 @@ export async function requireCheckoutGate(opts: {
     paymentsEnabled: loaded.row.paymentsEnabled,
     parentLocked: loaded.row.parentLocked,
     age13Plus: loaded.row.age13Plus,
+    ownerAdult: loaded.row.ownerAdult,
     reauthOk,
     country: opts.country,
     requireReauth: opts.requireReauth,
