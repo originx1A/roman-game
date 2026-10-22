@@ -613,7 +613,7 @@ function ensureAudio() {
 }
 
 function voiceHref(id: string): string {
-  const base = import.meta.env.BASE_URL || '/'
+  const base = import.meta.env?.BASE_URL || '/'
   return `${base.endsWith('/') ? base : `${base}/`}voices/${id}.mp3`
 }
 
@@ -721,9 +721,12 @@ export function setVoiceHeardListener(fn: ((clip: string) => void) | null) {
 
 /** Stop whatever is on the voice channel right now */
 function stopVoice() {
-  stopCueWatch()
-  hideCue(voiceGeneration)
+  // Bump the generation before cancelling the start-watch. The watch's abort
+  // handler frees a timed-out line, and it must not free (or pause) a newer one.
+  const gen = voiceGeneration
   voiceGeneration += 1
+  stopCueWatch()
+  hideCue(gen)
   clearVoiceSafety()
   clearVoiceGap()
   currentLine = null
@@ -759,6 +762,17 @@ export function cancelVoiceBelow(minPriority: number) {
 /** 9.30-e: a new board starts: lines queued on the last board don't play on this one (a line already playing still finishes) */
 export function dropWaitingVoice() {
   waitingLine = null
+}
+
+/**
+ * Leaving a board, or starting another one. Drop the queue, the speaker lock, and any
+ * clip still waiting on `playing`, so the next board's taps and voices are not stuck
+ * behind a line from the last one.
+ */
+export function resetBoardAudio() {
+  waitingLine = null
+  heldVoice = null
+  stopVoice()
 }
 
 export function setMuted(m: boolean) {
@@ -797,8 +811,9 @@ export function resetVoiceQuietClock() {
 }
 
 export function unlockAudio() {
-  warmUnseenVoices()
+  // Resume first, inside the tap. The preload must not run ahead of it.
   ensureAudio()
+  warmUnseenVoices()
   try {
     const c = ac()
     if (c.state !== 'running' && c.state !== 'closed') void c.resume().catch(() => {})
@@ -1138,11 +1153,16 @@ export interface PlayVoiceOpts {
 }
 
 const clipUrlCache = new Map<string, string | null>()
-/** Raw bytes kept so the first tap can decode a clip that was fetched on the unlock gesture. */
+/** Raw bytes kept so a tap during the preload joins the in-flight fetch instead of starting another. */
 const clipBytes = new Map<string, ArrayBuffer>()
 let unseenWarmStarted = false
 
-/** Fetch and decode the Unseen's lines after the first gesture, aside lines first. */
+/**
+ * Fetch the Unseen's lines after the first gesture, aside lines first.
+ * Bytes are cached for the audio element. They are NOT decoded on the live AudioContext:
+ * that decode queue (every one of his clips) held the effects context for minutes on iOS,
+ * so board taps stayed silent until it drained.
+ */
 function warmUnseenVoices() {
   if (unseenWarmStarted || typeof fetch === 'undefined') return
   unseenWarmStarted = true
@@ -1152,21 +1172,10 @@ function warmUnseenVoices() {
   const pump = () => {
     if (n >= ids.length) return
     const id = ids[n++]
-    void decodeWarm(id).finally(pump)
+    void clipObjectUrl(id).finally(pump)
   }
   pump()
   pump()
-}
-
-async function decodeWarm(id: string) {
-  await clipObjectUrl(id)
-  const raw = clipBytes.get(id)
-  if (!raw) return
-  try {
-    await ac().decodeAudioData(raw.slice(0))
-  } catch {
-    /* the blob url is still cached, so the audio element does not wait on the network */
-  }
 }
 const clipLoads = new Map<string, Promise<string | null>>()
 
@@ -1257,6 +1266,7 @@ export function playVoice(id: string, opts: PlayVoiceOpts = {}) {
 }
 
 async function playClipQueue(el: HTMLAudioElement, queue: string[], gen: number, rate: number, volume: number) {
+  let freed = false
   for (const clipId of queue) {
     if (gen !== voiceGeneration) return
     const url = await clipObjectUrl(clipId)
@@ -1292,7 +1302,19 @@ async function playClipQueue(el: HTMLAudioElement, queue: string[], gen: number,
     // The picture waits for the real `playing` event. play() resolving, a queue slot,
     // or a fetch finishing is not enough. If sound has not started within 1.5s, give
     // up so he never pops out in silence and never talks with nobody on screen.
+    // The channel is freed here, not when play() settles: a hung play() used to hold
+    // the speaker lock until the 12s safety timer.
     stopCueWatch()
+    const giveUp = () => {
+      if (freed || gen !== voiceGeneration) return
+      freed = true
+      try {
+        el.pause()
+      } catch {
+        /* already stopped */
+      }
+      releaseVoice(gen)
+    }
     const watch = bindVisualToPlaying(el, {
       onShow: () => {
         try {
@@ -1302,13 +1324,7 @@ async function playClipQueue(el: HTMLAudioElement, queue: string[], gen: number,
         }
         showCue(gen, clipId)
       },
-      onAbort: () => {
-        try {
-          el.pause()
-        } catch {
-          /* already stopped */
-        }
-      },
+      onAbort: giveUp,
     })
     cancelCueWatch = () => {
       watch.cancel()
@@ -1386,8 +1402,8 @@ async function playClipQueue(el: HTMLAudioElement, queue: string[], gen: number,
     // Did not start in time, or the element failed: do not try the next alt (that made lines late).
     break
   }
-  // No playable clip: stay silent (no speech-synthesis fallback)
-  releaseVoice(gen)
+  // No playable clip, or the start was aborted: the channel must not stay taken.
+  if (!freed) releaseVoice(gen)
 }
 
 /** Roman or coach line with emotional tone — one at a time on the shared channel */

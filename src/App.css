@@ -2536,6 +2536,13 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
   box-shadow: 0 0 12px rgba(165, 243, 252, 0.5), inset 0 0 8px rgba(255, 255, 255, 0.5);
 }
 
+/* Theme fills above share specificity with `.buddy.angry .buddy-body` and used to
+   paint over it, so a wrong buddy on Ember (and the other themes) looked normal. */
+.buddy.angry .buddy-body {
+  background: radial-gradient(circle at 32% 28%, #ffe0e0, #ff6b6b 55%, #b91c1c);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+}
+
 .theme-cosmic .atmosphere,
 .theme-cosmic.play-fixed {
   /* play shell sits above global atmosphere — tint board frame */

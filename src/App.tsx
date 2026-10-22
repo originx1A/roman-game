@@ -276,9 +276,10 @@ import {
   voiceQuietMs,
   warmVoices,
   cancelVoiceBelow,
-  dropWaitingVoice,
+  resetBoardAudio,
   petGiggle,
 } from './game/sound'
+import { nextAfterMistake } from './game/mistakes'
 import { COIN_PACKS, purchaseCoinPack, restorePurchases, isStoreBuild, subscribeStore, type CoinPackId } from './game/iap'
 import { loadWebPacks, type WebPackOffer } from './game/webPacks'
 import './App.css'
@@ -432,6 +433,11 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('home')
   const screenRef = useRef(screen)
   screenRef.current = screen
+  // Leaving a board drops the voice queue and the speaker lock. A new board
+  // also resets inside startPuzzle, because the screen stays on 'play'.
+  useEffect(() => {
+    if (screen !== 'play') resetBoardAudio()
+  }, [screen])
   const [{ layout, device }, setLayoutInfo] = useState(() => readLayout())
   const [infoOpen, setInfoOpen] = useState(false)
   const [playerOpen, setPlayerOpen] = useState(false)
@@ -500,6 +506,8 @@ export default function App() {
     }
   }, [])
   const [wallet, setWallet] = useState<Wallet>(() => loadWallet())
+  const walletRef = useRef(wallet)
+  walletRef.current = wallet
   // 9.30-a: buddies (The Stable)
   const [pets, setPets] = useState<PetState>(() => loadPets())
   const [petNow, setPetNow] = useState(() => Date.now())
@@ -531,6 +539,8 @@ export default function App() {
   const [winLine, setWinLine] = useState('')
   const [loseLine, setLoseLine] = useState('')
   const [lives, setLives] = useState(MAX_LIVES)
+  const livesRef = useRef(lives)
+  livesRef.current = lives
   /** Hearts this board started with: 3, or 4 when a saved bonus heart was used */
   const [runMaxLives, setRunMaxLives] = useState(MAX_LIVES)
   const [lastScore, setLastScore] = useState<number | null>(null)
@@ -1232,6 +1242,7 @@ export default function App() {
   }
 
   function persistWallet(next: Wallet) {
+    walletRef.current = next
     setWallet(next)
     saveWallet(next)
   }
@@ -1511,7 +1522,7 @@ export default function App() {
       return
     }
     unlockAudio()
-    dropWaitingVoice()
+    resetBoardAudio()
     sfxWhoosh()
     resetPlayViewport()
     setStartSheet(null)
@@ -1690,54 +1701,61 @@ export default function App() {
 
     if (meta.kind === 'mark') {
       // X marks: Board already played sfxMark — never banter/voice
-    } else if (meta.kind === 'stone' && meta.conflict) {
-      const kind: BanterConflictKind = meta.conflictKind ?? 'generic'
-      flawedRef.current = true
-      {
-        const now = Date.now()
-        const recent = [...wrongTimesRef.current.filter((t) => now - t < TIP_TRIGGERS.stuckWrongWindowMs), now]
-        wrongTimesRef.current = recent
-        if (recent.length >= TIP_TRIGGERS.stuckWrong) {
-          // after the wrong-move line has had its say
-          window.setTimeout(() => {
-            if (fireTip('stuck', undefined, { quietMs: 800 })) wrongTimesRef.current = []
-          }, 3500)
+    } else if (meta.kind === 'stone') {
+      const seen = puzzle ? findConflicts(puzzle, next) : null
+      const wrong = meta.conflict || (seen?.cells.has(meta.index) ?? false)
+      if (!wrong) {
+        lastProgressRef.current = Date.now()
+        // The winning buddy gets the win line only (no Unseen grumble cut off by the cheer)
+        if (!(puzzle && isSolved(puzzle, next))) pushBanter('place-good')
+        setGiggleIndex(meta.index)
+        window.setTimeout(() => setGiggleIndex((g) => (g === meta.index ? null : g)), 900)
+      } else {
+        const kind: BanterConflictKind = meta.conflictKind ?? seen?.kinds.get(meta.index) ?? 'generic'
+        flawedRef.current = true
+        {
+          const now = Date.now()
+          const recent = [...wrongTimesRef.current.filter((t) => now - t < TIP_TRIGGERS.stuckWrongWindowMs), now]
+          wrongTimesRef.current = recent
+          if (recent.length >= TIP_TRIGGERS.stuckWrong) {
+            // after the wrong-move line has had its say
+            window.setTimeout(() => {
+              if (fireTip('stuck', undefined, { quietMs: 800 })) wrongTimesRef.current = []
+            }, 3500)
+          }
+        }
+        // Refs, not the render's lives/wallet: two mistakes in one turn must not both
+        // read the same heart count. Daily, Remix, and Endless share this rule.
+        const beforeLives = livesRef.current
+        let w = { ...walletRef.current, totalMistakes: walletRef.current.totalMistakes + 1 }
+        const step = nextAfterMistake(beforeLives, w.shields)
+        livesRef.current = step.lives
+        // One line per move: the losing move gets the lose line only, not a wrong-move line too
+        if (step.taunt === 'place-bad') pushBanter('place-bad', kind)
+        if (step.spentShield) {
+          w = { ...w, shields: step.shields }
+          showToast('Shield blocked a mistake!')
+          sfxCoin()
+        } else {
+          const lostSlot = Math.max(0, beforeLives - 1)
+          setHeartPop(lostSlot)
+          sfxHeartLose()
+          window.setTimeout(() => setHeartPop(null), 700)
+          setLives(step.lives)
+        }
+        persistWallet(w)
+        if (step.gameOver) {
+          boardOverRef.current = 'lost'
+          cancelVoiceBelow(VOICE_PRIORITY.lose)
+          setDefeated(true)
+          setRunning(false)
+          saveDraft(null)
+          sfxLose()
+          const lose = pushBanter('lose')
+          setLoseLine(lose.text || 'Out of hearts')
+          setAwaitingComeback(true)
         }
       }
-      let nextLives = lives
-      let w = { ...wallet, totalMistakes: wallet.totalMistakes + 1 }
-      // One line per move: the losing move gets the lose line only, not a wrong-move line too
-      if (w.shields > 0 || lives > 1) pushBanter('place-bad', kind)
-      if (w.shields > 0) {
-        w = { ...w, shields: w.shields - 1 }
-        showToast('Shield blocked a mistake!')
-        sfxCoin()
-      } else {
-        const lostSlot = Math.max(0, lives - 1)
-        setHeartPop(lostSlot)
-        sfxHeartLose()
-        window.setTimeout(() => setHeartPop(null), 700)
-        nextLives = lives - 1
-        setLives(nextLives)
-      }
-      persistWallet(w)
-      if (nextLives <= 0) {
-        boardOverRef.current = 'lost'
-        cancelVoiceBelow(VOICE_PRIORITY.lose)
-        setDefeated(true)
-        setRunning(false)
-        saveDraft(null)
-        sfxLose()
-        const lose = pushBanter('lose')
-        setLoseLine(lose.text || 'Out of hearts')
-        setAwaitingComeback(true)
-      }
-    } else if (meta.kind === 'stone') {
-      lastProgressRef.current = Date.now()
-      // The winning buddy gets the win line only (no Unseen grumble cut off by the cheer)
-      if (!(puzzle && isSolved(puzzle, next))) pushBanter('place-good')
-      setGiggleIndex(meta.index)
-      window.setTimeout(() => setGiggleIndex((g) => (g === meta.index ? null : g)), 900)
     }
 
     saveBoardDraft(hist)
