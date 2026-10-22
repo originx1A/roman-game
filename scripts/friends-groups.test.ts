@@ -4,9 +4,11 @@ import test from 'node:test'
 import { boardError } from '../src/cloud/boardError.ts'
 
 const sql = readFileSync(new URL('../supabase/migration-011-friends-groups.sql', import.meta.url), 'utf8')
+const sql12 = readFileSync(new URL('../supabase/migration-012-founder-leave.sql', import.meta.url), 'utf8')
 const cloud = readFileSync(new URL('../src/cloud/cloud.ts', import.meta.url), 'utf8')
 const ui = readFileSync(new URL('../src/components/PhoneBoard.tsx', import.meta.url), 'utf8')
 const api = readFileSync(new URL('../src/cloud/friendsGroups.ts', import.meta.url), 'utf8')
+const names = readFileSync(new URL('../src/cloud/groupNames.ts', import.meta.url), 'utf8')
 const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8')
 const tag = readFileSync(new URL('../src/buildTag.ts', import.meta.url), 'utf8')
 
@@ -89,13 +91,79 @@ test('the phone board has the three tabs, the sheets, and no chat or recruiting 
   assert.match(api, /from\('player_board'\)\.select\('name, score, place'\)/)
 })
 
-test('desktop home still has no leaderboard', () => {
-  assert.match(app, /screen === 'board' && device === 'phone'/)
-  assert.match(app, /device !== 'phone' && screen === 'board'/)
+test('the full board, with friends and groups, opens on the desktop too', () => {
+  assert.match(app, /screen === 'board' && device !== 'tablet'/)
+  assert.match(app, /device === 'tablet' && screen === 'board'/)
+  assert.match(app, /<LiveBoard/)
+  assert.match(app, /onSeeAll=\{\(\) => setScreen\('board'\)\}/)
   const desktop = app.split("screen === 'home' && device !== 'phone'")[1]?.split("screen === 'how'")[0] ?? ''
   assert.equal(desktop.includes('onBoard'), false)
   assert.equal(desktop.includes('PhoneBoard'), false)
-  assert.match(tag, /build 9\.33-a/)
+  assert.doesNotMatch(app, /no undos/)
+  assert.doesNotMatch(app, /no undo</)
+  assert.match(tag, /build 9\.33-b/)
+})
+
+test('migration 012 adds ranks and listed names without touching old tables', () => {
+  for (const table of ['group_roles', 'group_titles', 'group_closed', 'group_adjectives', 'group_nouns']) {
+    assert.match(sql12, new RegExp(`create table if not exists public\\.${table}`))
+    assert.match(sql12, new RegExp(`alter table public\\.${table} enable row level security`))
+    assert.match(sql12, new RegExp(`revoke all on public\\.${table} from public, anon, authenticated`))
+  }
+  assert.match(sql12, /drop function if exists public\.create_group\(text\)/)
+  assert.match(sql12, /create function public\.create_group\(adjective text, noun text\)/)
+  assert.match(sql12, /rename_group\(adjective text, noun text\)/)
+  assert.match(sql12, /Pick a name from the list/)
+  assert.match(sql12, /'Golden'/)
+  assert.match(sql12, /'Owls'/)
+  assert.match(sql12, /rg_next_leader/)
+  assert.match(sql12, /Two Captains already/)
+  assert.match(sql12, /group_closed/)
+  assert.match(sql12, /where not exists \(select 1 from public\.group_closed c where c\.group_id = g\.id\)/)
+  assert.match(sql12, /grant execute on function public\.group_period_rows\(text\) to anon, authenticated/)
+  assert.match(sql12, /grant select \(group_name, average, place, active_members, season_points\) on public\.group_week_board/)
+  assert.match(sql12, /grant select \(group_name, average, place, active_members, season_points\) on public\.group_month_board/)
+  assert.match(sql12, /No member names or ids/)
+  const roster = sql12.slice(sql12.indexOf('function public.group_member_rows'), sql12.indexOf('function public.request_inbox'))
+  assert.match(roster, /m\.player_id = uid and m\.left_at is null/)
+  assert.match(roster, /if uid is null then/)
+  assert.doesNotMatch(sql12, /alter table public\.players/i)
+  assert.doesNotMatch(sql12, /alter table public\.scores/i)
+  assert.doesNotMatch(sql12, /alter table public\.profiles/i)
+  assert.doesNotMatch(sql12, /alter table public\.parent_links/i)
+  assert.doesNotMatch(sql12, /alter table public\.player_board_row/i)
+  assert.doesNotMatch(sql12, /alter table public\.game_groups/i)
+  assert.doesNotMatch(sql12, /alter table public\.group_members/i)
+  assert.doesNotMatch(sql12, /alter table public\.group_points/i)
+  assert.doesNotMatch(sql12, /delete from public\.group_points/i)
+  assert.doesNotMatch(sql12, /email/i)
+  assert.doesNotMatch(sql12, /auth\.users/i)
+  assert.doesNotMatch(sql12, /service_role/i)
+  const remove = sql12.slice(sql12.indexOf('function public.remove_inactive_member'), sql12.indexOf('function public.promote_captain'))
+  assert.doesNotMatch(remove, /founder_id/)
+  for (const word of ['Golden', 'Brave', 'Swift', 'Loyal', 'Silver', 'Hidden', 'Owls', 'Lions', 'Knights', 'Keepers', 'Stars', 'Foxes']) {
+    assert.ok(names.includes(`'${word}'`), word)
+    assert.ok(sql12.includes(`'${word}'`), word)
+  }
+})
+
+test('a group name is two listed words, with no free-text field', () => {
+  for (const label of ['+ Create a group', 'My group', 'Rename', 'Leader', 'Captain', 'Next in line', 'Promote', 'Demote', 'becomes Leader', 'group will close']) {
+    assert.ok(ui.includes(label), label)
+  }
+  assert.match(ui, /data-testid="create-group"/)
+  assert.match(ui, /data-testid="group-adjective"/)
+  assert.match(ui, /data-testid="group-noun"/)
+  assert.match(ui, /data-testid="leave-confirm"/)
+  assert.match(ui, /if \(!mine\) return/)
+  assert.match(ui, /mine && members\.length > 0/)
+  assert.match(sql12, /when uid is not null and exists/)
+  assert.doesNotMatch(ui, /<input/)
+  assert.doesNotMatch(ui, /name-input/)
+  assert.doesNotMatch(ui, /isProfane/)
+  assert.match(api, /rpc\('create_group', \{ adjective, noun \}\)/)
+  assert.match(api, /rpc\('rename_group', \{ adjective, noun \}\)/)
+  assert.doesNotMatch(api, /create_group', \{ group_name/)
 })
 
 test('board errors stay short and never pass an address through', () => {

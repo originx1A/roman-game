@@ -61,7 +61,6 @@ export function RemixScreen({
               type="button"
               className={`level-card remix-card ${info?.bestMs != null ? 'cleared' : ''} ${isBuilding ? 'is-building' : ''}`}
               data-level={id}
-              disabled={isBuilding}
               aria-busy={isBuilding}
               onClick={() => onOpenBoard(size)}
             >

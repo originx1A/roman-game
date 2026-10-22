@@ -198,5 +198,5 @@ test('Endless only from the Remix screen; the Levels list has Random, and Home P
   assert.match(app, /data-random-level=\{diff\}/)
   assert.equal(/data-endless-level/.test(app), false, 'no Endless button on the Levels list')
   assert.equal(/startPuzzle\(uncleared \?\? createFreshPuzzle/.test(app), false)
-  assert.match(app, /'Next Endless board'/)
+  assert.equal(/Next Endless board/.test(app), false)
 })

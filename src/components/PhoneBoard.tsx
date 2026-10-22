@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { CloudScoresButton, useCloud } from '../cloud/CloudScores'
-import { NAME_MAX } from '../cloud/cloud'
 import {
   acceptFriend,
   acceptJoin,
@@ -10,7 +9,9 @@ import {
   createGroup,
   declineFriend,
   declineJoin,
+  demoteCaptain,
   leaveGroup,
+  leavePreview,
   loadEveryone,
   loadFriends,
   loadGroupBoard,
@@ -20,11 +21,15 @@ import {
   loadMyCard,
   loadPlayerCard,
   lockRosters,
+  promoteCaptain,
   removeMember,
+  renameGroup,
   requestJoin,
   sendFriend,
   unfriend,
   type GroupCard,
+  type GroupLink,
+  type GroupRole,
   type GroupRow,
   type InboxRow,
   type MemberRow,
@@ -32,7 +37,7 @@ import {
   type PlayerCard,
   type PlayerRow,
 } from '../cloud/friendsGroups'
-import { isProfane } from '../cloud/profanity'
+import { GROUP_ADJECTIVES, GROUP_NOUNS } from '../cloud/groupNames'
 
 type Tab = 'everyone' | 'friends' | 'groups'
 type Period = 'week' | 'month'
@@ -42,23 +47,39 @@ type Open =
   | { kind: 'player'; name: string; score: number; place: number; groupName: string | null }
   | { kind: 'group'; name: string; average: number; seasonPoints: number }
   | { kind: 'inbox' }
+  | { kind: 'create' }
 
 function fmt(value: number | null | undefined): string {
   if (value == null) return '—'
   return value.toLocaleString('en-US')
 }
 
+function isLeader(status: string): boolean {
+  return status === 'leader' || status === 'founder'
+}
+
 function statusLine(card: PlayerCard): string {
   const parts: string[] = []
   if (card.friendStatus === 'friends') parts.push('Friends')
   else if (card.friendStatus === 'pending' || card.friendStatus === 'incoming') parts.push('Pending')
-  if (card.joinStatus === 'founder') parts.push('Founder')
-  else if (card.joinStatus === 'member') parts.push('Member')
+  if (card.joinStatus === 'member' || card.joinStatus === 'captain' || isLeader(card.joinStatus)) parts.push('Member')
   else if (card.joinStatus === 'pending' && !parts.includes('Pending')) parts.push('Pending')
   return parts.join(' · ')
 }
 
-/** Phone leaderboard. Guests can look. Signed-in players can rank, add friends, and join groups. */
+function leaveCopy(nextName: string | null, closes: boolean): string {
+  if (closes) return 'Leave this group? You are the last member, so the group will close. Points stay.'
+  if (nextName) return `Leave this group? ${nextName} becomes Leader.`
+  return 'Leave this group? Points you earned stay with the group.'
+}
+
+function RoleBadge({ role }: { role: GroupRole | string }) {
+  if (role === 'leader') return <small className="role-badge">👑 Leader</small>
+  if (role === 'captain') return <small className="role-badge">⭐ Captain</small>
+  return null
+}
+
+/** Phone and desktop leaderboard. Guests can look. Signed-in players can rank, add friends, and join groups. */
 export function PhoneBoard({ playerName, onInfo }: { playerName: string; onInfo?: () => void }) {
   const cloud = useCloud()
   const guest = cloud.status !== 'signed-in'
@@ -69,10 +90,12 @@ export function PhoneBoard({ playerName, onInfo }: { playerName: string; onInfo?
   const [groups, setGroups] = useState<GroupRow[] | null>(null)
   const [note, setNote] = useState('')
   const [pending, setPending] = useState(0)
+  const [myGroup, setMyGroup] = useState<string | null | undefined>(undefined)
   const [open, setOpen] = useState<Open>(null)
   const [rev, setRev] = useState(0)
   const changed = useCallback(() => setRev((n) => n + 1), [])
   const openMine = useCallback(() => setOpen({ kind: 'me' }), [])
+  const openGroup = useCallback((name: string) => setOpen({ kind: 'group', name, average: 0, seasonPoints: 0 }), [])
 
   useEffect(() => {
     if (!signed) return
@@ -82,11 +105,19 @@ export function PhoneBoard({ playerName, onInfo }: { playerName: string; onInfo?
   useEffect(() => {
     if (!signed) {
       setPending(0)
+      setMyGroup(undefined)
       return
     }
     let gone = false
     void loadMyCard().then((result) => {
-      if (!gone && result.ok) setPending(result.data.pendingCount)
+      if (gone) return
+      if (!result.ok) {
+        setPending(0)
+        setMyGroup(null)
+        return
+      }
+      setPending(result.data.pendingCount)
+      setMyGroup(result.data.groupName)
     })
     return () => {
       gone = true
@@ -175,6 +206,19 @@ export function PhoneBoard({ playerName, onInfo }: { playerName: string; onInfo?
           <button type="button" data-testid="board-period-month" aria-pressed={period === 'month'} className={period === 'month' ? 'on' : undefined} onClick={() => setPeriod('month')}>Month</button>
         </div>
       ) : null}
+      {tab === 'groups' && signed && myGroup !== undefined ? (
+        <div className="board-tools">
+          {myGroup ? (
+            <button type="button" className="btn primary" data-testid="my-group" onClick={() => openGroup(myGroup)}>My group</button>
+          ) : (
+            <button type="button" className="btn primary" data-testid="create-group" onClick={() => setOpen({ kind: 'create' })}>+ Create a group</button>
+          )}
+          <button type="button" className="btn ghost" data-testid="group-requests" onClick={() => setOpen({ kind: 'inbox' })}>
+            Requests
+            {pending > 0 ? <span className="count"> {pending}</span> : null}
+          </button>
+        </div>
+      ) : null}
       {list === null ? null : note ? (
         <p className="cloud-err" role="alert">{note}</p>
       ) : list.length === 0 ? (
@@ -219,7 +263,7 @@ export function PhoneBoard({ playerName, onInfo }: { playerName: string; onInfo?
         </ol>
       )}
       {guest ? <CloudScoresButton suggestedName={playerName} cta="Sign in to get on the board" onInfo={onInfo} /> : null}
-      {open?.kind === 'me' ? <MySheet onClose={() => setOpen(null)} onChanged={changed} onInbox={() => setOpen({ kind: 'inbox' })} onGroup={(name) => setOpen({ kind: 'group', name, average: 0, seasonPoints: 0 })} rev={rev} /> : null}
+      {open?.kind === 'me' ? <MySheet onClose={() => setOpen(null)} onChanged={changed} onInbox={() => setOpen({ kind: 'inbox' })} onGroup={openGroup} onCreate={() => setOpen({ kind: 'create' })} rev={rev} /> : null}
       {open?.kind === 'player' ? (
         <PlayerSheet
           seed={open}
@@ -234,6 +278,7 @@ export function PhoneBoard({ playerName, onInfo }: { playerName: string; onInfo?
       ) : null}
       {open?.kind === 'group' ? (
         <GroupSheet
+          key={open.name}
           seed={open}
           period={period}
           signed={signed}
@@ -242,9 +287,19 @@ export function PhoneBoard({ playerName, onInfo }: { playerName: string; onInfo?
           rev={rev}
           onClose={() => setOpen(null)}
           onChanged={changed}
+          onRenamed={openGroup}
         />
       ) : null}
       {open?.kind === 'inbox' ? <InboxSheet rev={rev} onClose={() => setOpen(null)} onChanged={changed} /> : null}
+      {open?.kind === 'create' ? (
+        <CreateSheet
+          onClose={() => setOpen(null)}
+          onCreated={(name) => {
+            changed()
+            openGroup(name)
+          }}
+        />
+      ) : null}
     </main>
   )
 }
@@ -271,11 +326,78 @@ function Err({ text }: { text: string }) {
   return <p className="cloud-err" role="alert">{text}</p>
 }
 
-function MySheet({ onClose, onChanged, onInbox, onGroup, rev }: { onClose: () => void; onChanged: () => void; onInbox: () => void; onGroup: (name: string) => void; rev: number }) {
+function NamePicker({ busy, submitLabel, onSubmit }: { busy: boolean; submitLabel: string; onSubmit: (adjective: string, noun: string) => void }) {
+  const [adjective, setAdjective] = useState<string>(GROUP_ADJECTIVES[0])
+  const [noun, setNoun] = useState<string>(GROUP_NOUNS[0])
+  return (
+    <form
+      className="name-pick"
+      onSubmit={(event) => {
+        event.preventDefault()
+        onSubmit(adjective, noun)
+      }}
+    >
+      <label>
+        Adjective
+        <select data-testid="group-adjective" value={adjective} onChange={(event) => setAdjective(event.target.value)}>
+          {GROUP_ADJECTIVES.map((word) => (
+            <option key={word} value={word}>{word}</option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Noun
+        <select data-testid="group-noun" value={noun} onChange={(event) => setNoun(event.target.value)}>
+          {GROUP_NOUNS.map((word) => (
+            <option key={word} value={word}>{word}</option>
+          ))}
+        </select>
+      </label>
+      <p className="name-preview" data-testid="group-name-preview">{adjective} {noun} #…</p>
+      <button type="submit" className="btn primary" disabled={busy}>{submitLabel}</button>
+    </form>
+  )
+}
+
+function LeaveControl({ onDone, onError }: { onDone: () => void; onError: (message: string) => void }) {
+  const [ask, setAsk] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function askLeave() {
+    const preview = await leavePreview()
+    setAsk(preview.ok ? leaveCopy(preview.data.nextName, preview.data.closes) : leaveCopy(null, false))
+  }
+
+  async function go() {
+    setBusy(true)
+    const result = await leaveGroup()
+    setBusy(false)
+    if (!result.ok) {
+      onError(result.error)
+      setAsk('')
+      return
+    }
+    setAsk('')
+    onDone()
+  }
+
+  if (!ask) {
+    return <button type="button" className="btn ghost" disabled={busy} onClick={() => void askLeave()}>Leave group</button>
+  }
+  return (
+    <div className="board-confirm" data-testid="leave-confirm">
+      <p>{ask}</p>
+      <div className="board-actions">
+        <button type="button" className="btn primary" disabled={busy} onClick={() => void go()}>Leave group</button>
+        <button type="button" className="btn ghost" disabled={busy} onClick={() => setAsk('')}>Stay</button>
+      </div>
+    </div>
+  )
+}
+
+function MySheet({ onClose, onChanged, onInbox, onGroup, onCreate, rev }: { onClose: () => void; onChanged: () => void; onInbox: () => void; onGroup: (name: string) => void; onCreate: () => void; rev: number }) {
   const [card, setCard] = useState<MyCard | null>(null)
   const [note, setNote] = useState('')
-  const [groupName, setGroupName] = useState('')
-  const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     let gone = false
@@ -294,39 +416,7 @@ function MySheet({ onClose, onChanged, onInbox, onGroup, rev }: { onClose: () =>
     }
   }, [rev])
 
-  async function makeGroup(event: FormEvent) {
-    event.preventDefault()
-    const name = groupName.trim().replace(/\s+/g, ' ').slice(0, NAME_MAX)
-    if (!name) {
-      setNote('Enter a name.')
-      return
-    }
-    if (isProfane(name)) {
-      setNote('Pick another name.')
-      return
-    }
-    setBusy(true)
-    const result = await createGroup(name)
-    setBusy(false)
-    if (!result.ok) {
-      setNote(result.error)
-      return
-    }
-    setGroupName('')
-    onChanged()
-    onGroup(name)
-  }
-
-  async function leave() {
-    setBusy(true)
-    const result = await leaveGroup()
-    setBusy(false)
-    if (!result.ok) {
-      setNote(result.error)
-      return
-    }
-    onChanged()
-  }
+  const role: GroupRole = card?.role || (card?.founder ? 'leader' : '')
 
   return (
     <Sheet title={card?.name || 'You'} label="Your place" onClose={onClose}>
@@ -346,22 +436,38 @@ function MySheet({ onClose, onChanged, onInbox, onGroup, rev }: { onClose: () =>
             ) : (
               <span>None</span>
             )}
-            {card.founder ? <small className="group-tag">Founder</small> : null}
+            <RoleBadge role={role} />
           </p>
           <div className="board-actions">
             <button type="button" className="btn ghost" onClick={onInbox}>Requests</button>
-            {card.groupName ? (
-              <button type="button" className="btn ghost" disabled={busy} onClick={() => void leave()}>Leave group</button>
-            ) : null}
+            {card.groupName ? null : <button type="button" className="btn primary" onClick={onCreate}>+ Create a group</button>}
           </div>
-          {card.groupName ? null : (
-            <form className="board-create" onSubmit={(event) => void makeGroup(event)}>
-              <input className="name-input" aria-label="Group name" placeholder="Group name" maxLength={NAME_MAX} value={groupName} onChange={(event) => setGroupName(event.target.value)} />
-              <button type="submit" className="btn primary" disabled={busy}>Create group</button>
-            </form>
-          )}
+          {card.groupName ? <LeaveControl onDone={onChanged} onError={setNote} /> : null}
         </>
       ) : null}
+    </Sheet>
+  )
+}
+
+function CreateSheet({ onClose, onCreated }: { onClose: () => void; onCreated: (name: string) => void }) {
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function make(adjective: string, noun: string) {
+    setBusy(true)
+    const result = await createGroup(adjective, noun)
+    setBusy(false)
+    if (!result.ok) {
+      setNote(result.error)
+      return
+    }
+    onCreated(result.name)
+  }
+
+  return (
+    <Sheet title="Create a group" label="Create a group" onClose={onClose}>
+      <Err text={note} />
+      <NamePicker busy={busy} submitLabel="Create group" onSubmit={(adjective, noun) => void make(adjective, noun)} />
     </Sheet>
   )
 }
@@ -430,9 +536,11 @@ function PlayerSheet({
     friendStatus: 'none' as const,
     joinStatus: (seed.groupName ? 'none' : 'no_group') as PlayerCard['joinStatus'],
     isYou: false,
+    role: '' as const,
   }
   const line = statusLine(view)
   const bothPending = view.friendStatus === 'pending' && view.joinStatus === 'pending'
+  const inGroup = view.joinStatus === 'member' || view.joinStatus === 'captain' || isLeader(view.joinStatus)
 
   return (
     <Sheet title={view.name} label={view.name} onClose={onClose}>
@@ -442,7 +550,13 @@ function PlayerSheet({
           <dl className="player-stats">
             <div><dt>Score</dt><dd>{fmt(view.score)}</dd></div>
             <div><dt>Rank</dt><dd>{fmt(view.place)}</dd></div>
-            <div><dt>Group</dt><dd>{view.groupName ? <span className="group-tag">{view.groupName}</span> : 'None'}</dd></div>
+            <div>
+              <dt>Group</dt>
+              <dd>
+                {view.groupName ? <span className="group-tag">{view.groupName}</span> : 'None'}
+                <RoleBadge role={view.role} />
+              </dd>
+            </div>
           </dl>
           {line ? <p className="board-status">{line}</p> : null}
           {signed ? (
@@ -454,11 +568,11 @@ function PlayerSheet({
               {view.friendStatus === 'friends' ? <button type="button" className="btn ghost" disabled={busy} onClick={() => void run(() => unfriend(view.name))}>Unfriend</button> : null}
               {view.joinStatus === 'none' && view.groupName ? <button type="button" className="btn primary" disabled={busy} onClick={() => void run(() => requestJoin(view.groupName || ''))}>Request to join</button> : null}
               {view.joinStatus === 'pending' && view.groupName ? <button type="button" className="btn ghost" disabled={busy} onClick={() => void run(() => cancelJoin(view.groupName || ''))}>{bothPending ? 'Cancel join request' : 'Cancel request'}</button> : null}
-              {view.joinStatus === 'member' || view.joinStatus === 'founder' ? <button type="button" className="btn ghost" disabled={busy} onClick={() => void run(leaveGroup)}>Leave group</button> : null}
             </div>
           ) : (
             <CloudScoresButton suggestedName={playerName} cta="Sign in to get on the board" onInfo={onInfo} />
           )}
+          {signed && inGroup ? <LeaveControl onDone={onChanged} onError={setNote} /> : null}
         </>
       ) : null}
     </Sheet>
@@ -474,6 +588,7 @@ function GroupSheet({
   rev,
   onClose,
   onChanged,
+  onRenamed,
 }: {
   seed: { name: string; average: number; seasonPoints: number }
   period: Period
@@ -483,14 +598,17 @@ function GroupSheet({
   rev: number
   onClose: () => void
   onChanged: () => void
+  onRenamed: (name: string) => void
 }) {
   const [card, setCard] = useState<GroupCard | null>(null)
   const [members, setMembers] = useState<MemberRow[]>([])
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
+  const [renaming, setRenaming] = useState(false)
 
   useEffect(() => {
     let gone = false
+    setMembers([])
     void loadGroupCard(seed.name).then((result) => {
       if (gone) return
       if (!result.ok) {
@@ -501,13 +619,25 @@ function GroupSheet({
       setNote('')
       setCard(result.data)
     })
+    return () => {
+      gone = true
+    }
+  }, [seed.name, rev])
+
+  const confirmed = card != null && card.groupName === seed.name
+  const leader = confirmed && isLeader(card.joinStatus)
+  const mine = leader || (confirmed && (card.joinStatus === 'member' || card.joinStatus === 'captain'))
+
+  useEffect(() => {
+    if (!mine) return
+    let gone = false
     void loadMembers(seed.name).then((result) => {
       if (!gone && result.ok) setMembers(result.data)
     })
     return () => {
       gone = true
     }
-  }, [seed.name, rev])
+  }, [mine, seed.name, rev])
 
   async function run(action: () => Promise<{ ok: true } | { ok: false; error: string }>) {
     setBusy(true)
@@ -521,6 +651,20 @@ function GroupSheet({
     onChanged()
   }
 
+  async function rename(adjective: string, noun: string) {
+    setBusy(true)
+    const result = await renameGroup(adjective, noun)
+    setBusy(false)
+    if (!result.ok) {
+      setNote(result.error)
+      return
+    }
+    setRenaming(false)
+    setNote('')
+    onChanged()
+    onRenamed(result.name)
+  }
+
   const view = card ?? {
     groupName: seed.name,
     weekAverage: period === 'week' ? seed.average : null,
@@ -528,10 +672,11 @@ function GroupSheet({
     seasonPoints: seed.seasonPoints,
     activeWeek: 0,
     activeMonth: 0,
-    joinStatus: 'none' as const,
+    joinStatus: 'none' as GroupLink,
   }
-  const mine = view.joinStatus === 'member' || view.joinStatus === 'founder'
   const active = period === 'month' ? view.activeMonth : view.activeWeek
+  const captains = members.filter((member) => member.role === 'captain').length
+  const rankLabel = leader ? 'Leader' : view.joinStatus === 'captain' ? 'Captain' : view.joinStatus === 'member' ? 'Member' : view.joinStatus === 'pending' ? 'Pending' : ''
 
   return (
     <Sheet title={view.groupName} label={view.groupName} onClose={onClose}>
@@ -544,24 +689,32 @@ function GroupSheet({
             <div><dt>Season</dt><dd>{fmt(view.seasonPoints)}</dd></div>
             <div><dt>Active</dt><dd>{active}</dd></div>
           </dl>
-          {view.joinStatus === 'founder' ? <p className="board-status">Founder</p> : null}
-          {view.joinStatus === 'member' ? <p className="board-status">Member</p> : null}
-          {view.joinStatus === 'pending' ? <p className="board-status">Pending</p> : null}
+          {rankLabel ? <p className="board-status">{rankLabel}</p> : null}
           {signed ? (
             <div className="board-actions">
               {view.joinStatus === 'none' ? <button type="button" className="btn primary" disabled={busy} onClick={() => void run(() => requestJoin(view.groupName))}>Request to join</button> : null}
               {view.joinStatus === 'pending' ? <button type="button" className="btn ghost" disabled={busy} onClick={() => void run(() => cancelJoin(view.groupName))}>Cancel request</button> : null}
-              {mine ? <button type="button" className="btn ghost" disabled={busy} onClick={() => void run(leaveGroup)}>Leave group</button> : null}
+              {leader ? <button type="button" className="btn ghost" disabled={busy} onClick={() => setRenaming((open) => !open)}>Rename</button> : null}
             </div>
           ) : (
             <CloudScoresButton suggestedName={playerName} cta="Sign in to get on the board" onInfo={onInfo} />
           )}
-          {members.length > 0 ? (
+          {renaming ? <NamePicker busy={busy} submitLabel="Rename" onSubmit={(adjective, noun) => void rename(adjective, noun)} /> : null}
+          {signed && mine ? <LeaveControl onDone={() => { onChanged(); onClose() }} onError={setNote} /> : null}
+          {mine && members.length > 0 ? (
             <ul className="member-list" aria-label="Members">
               {members.map((member) => (
                 <li key={member.name}>
                   <span className="name">{member.name}</span>
+                  <RoleBadge role={member.role} />
+                  {member.nextInLine ? <small className="next-tag">Next in line</small> : null}
                   <span className="state">{member.status === 'inactive' ? 'Inactive' : 'Active'}</span>
+                  {leader && member.role === 'member' && captains < 2 ? (
+                    <button type="button" className="btn ghost" disabled={busy} onClick={() => void run(() => promoteCaptain(member.name))}>Promote</button>
+                  ) : null}
+                  {leader && member.role === 'captain' ? (
+                    <button type="button" className="btn ghost" disabled={busy} onClick={() => void run(() => demoteCaptain(member.name))}>Demote</button>
+                  ) : null}
                   {member.canRemove ? (
                     <button type="button" className="btn ghost" disabled={busy} onClick={() => void run(() => removeMember(member.name))}>Remove</button>
                   ) : null}

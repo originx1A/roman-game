@@ -31,7 +31,7 @@ export type WinScreenProps = {
   spins: number
   perfect: boolean
   onNext: () => void
-  /** 9.30-n: what the big button says ("Next Endless board" in Endless mode) */
+  /** What the next-board button says. Endless and Remix use the same short label so it fits the card. */
   nextLabel?: string
   /** 9.30-n: a small note under the title ("Endless mode · 3 cleared", "Past Remix board") */
   modeNote?: string

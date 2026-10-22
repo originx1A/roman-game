@@ -31,9 +31,10 @@ test('signed-in games write one score, and the public read asks only for name, s
   assert.doesNotMatch(cloud.slice(cloud.indexOf('loadPlayerBoard')), /email/)
 })
 
-test('the board is a phone screen and the desktop home is unchanged', () => {
-  assert.match(app, /screen === 'board' && device === 'phone'/)
-  assert.match(app, /device !== 'phone' && screen === 'board'/)
+test('the full board opens on phone and desktop, and the desktop home stays the same', () => {
+  assert.match(app, /screen === 'board' && device !== 'tablet'/)
+  assert.match(app, /device === 'tablet' && screen === 'board'/)
+  assert.match(app, /<LiveBoard/)
   assert.match(home, /onBoard/)
   assert.match(home, /🏆/)
   assert.match(home, />Leaderboard</)

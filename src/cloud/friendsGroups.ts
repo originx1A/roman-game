@@ -9,8 +9,9 @@ import { cloudClient } from './cloud'
 const UP_YET = "The board isn't up yet."
 
 export type FriendStatus = 'none' | 'pending' | 'incoming' | 'friends'
-export type JoinStatus = 'none' | 'pending' | 'member' | 'founder' | 'no_group'
-export type GroupLink = 'none' | 'pending' | 'member' | 'founder'
+export type JoinStatus = 'none' | 'pending' | 'member' | 'founder' | 'leader' | 'captain' | 'no_group'
+export type GroupLink = 'none' | 'pending' | 'member' | 'founder' | 'leader' | 'captain'
+export type GroupRole = '' | 'leader' | 'captain' | 'member'
 
 export interface PlayerRow {
   name: string
@@ -35,6 +36,8 @@ export interface MyCard {
   friendsCount: number
   pendingCount: number
   founder: boolean
+  role: GroupRole
+  nextName: string | null
 }
 
 export interface PlayerCard {
@@ -45,6 +48,7 @@ export interface PlayerCard {
   friendStatus: FriendStatus
   joinStatus: JoinStatus
   isYou: boolean
+  role: GroupRole
 }
 
 export interface GroupCard {
@@ -61,6 +65,8 @@ export interface MemberRow {
   name: string
   status: 'active' | 'inactive'
   canRemove: boolean
+  role: GroupRole
+  nextInLine: boolean
 }
 
 export interface InboxRow {
@@ -112,13 +118,18 @@ function friendStatus(value: unknown): FriendStatus {
 }
 
 function joinStatus(value: unknown): JoinStatus {
-  if (value === 'pending' || value === 'member' || value === 'founder' || value === 'no_group') return value
+  if (value === 'pending' || value === 'member' || value === 'founder' || value === 'leader' || value === 'captain' || value === 'no_group') return value
   return 'none'
 }
 
 function groupLink(value: unknown): GroupLink {
-  if (value === 'pending' || value === 'member' || value === 'founder') return value
+  if (value === 'pending' || value === 'member' || value === 'founder' || value === 'leader' || value === 'captain') return value
   return 'none'
+}
+
+function roleOf(value: unknown, founder = false): GroupRole {
+  if (value === 'leader' || value === 'captain' || value === 'member') return value
+  return founder ? 'leader' : ''
 }
 
 function parsePlayers(data: unknown): PlayerRow[] {
@@ -163,6 +174,7 @@ export function loadFriends(): Promise<BoardResult<PlayerRow[]>> {
 export function loadGroupBoard(period: 'week' | 'month'): Promise<BoardResult<GroupRow[]>> {
   return offlineOr(async (sb) => {
     const table = period === 'month' ? 'group_month_board' : 'group_week_board'
+    // Name, rank, score, and a member count. Member names stay off this board.
     const { data, error } = await sb.from(table).select('group_name, average, place, active_members, season_points').order('place', { ascending: true }).limit(100)
     if (error) return { ok: false, error: UP_YET }
     const rows: GroupRow[] = []
@@ -199,6 +211,8 @@ export function loadMyCard(): Promise<BoardResult<MyCard>> {
         friendsCount: num(row.friends_count),
         pendingCount: num(row.pending_count),
         founder: row.founder === true,
+        role: roleOf(row.role, row.founder === true),
+        nextName: groupOf(row.next_name),
       },
     }
   })
@@ -221,6 +235,7 @@ export function loadPlayerCard(target: string): Promise<BoardResult<PlayerCard>>
         friendStatus: friendStatus(row.friend_status),
         joinStatus: joinStatus(row.join_status),
         isYou: row.is_you === true,
+        role: roleOf(row.role),
       },
     }
   })
@@ -260,6 +275,8 @@ export function loadMembers(target: string): Promise<BoardResult<MemberRow[]>> {
         name,
         status: row.member_status === 'inactive' ? 'inactive' : 'active',
         canRemove: row.can_remove === true,
+        role: roleOf(row.role),
+        nextInLine: row.next_in_line === true,
       })
     }
     return { ok: true, data: rows }
@@ -293,13 +310,36 @@ export const cancelFriend = (playerName: string) => mutate((sb) => sb.rpc('cance
 export const acceptFriend = (playerName: string) => mutate((sb) => sb.rpc('accept_friend', { player_name: playerName }))
 export const declineFriend = (playerName: string) => mutate((sb) => sb.rpc('decline_friend', { player_name: playerName }))
 export const unfriend = (playerName: string) => mutate((sb) => sb.rpc('unfriend', { player_name: playerName }))
-export const createGroup = (groupName: string) => mutate((sb) => sb.rpc('create_group', { group_name: groupName }))
+async function named(call: (sb: NonNullable<Awaited<ReturnType<typeof cloudClient>>>) => PromiseLike<{ data: unknown; error: { message?: string } | null }>): Promise<Err | { ok: true; name: string }> {
+  const result = await offlineOr(async (sb) => {
+    const { data, error } = await call(sb)
+    if (error) return { ok: false, error: boardError(error) }
+    const name = text(data)
+    if (!name) return { ok: false, error: UP_YET }
+    return { ok: true, data: name }
+  })
+  return result.ok ? { ok: true, name: result.data } : result
+}
+
+export const createGroup = (adjective: string, noun: string) => named((sb) => sb.rpc('create_group', { adjective, noun }))
+export const renameGroup = (adjective: string, noun: string) => named((sb) => sb.rpc('rename_group', { adjective, noun }))
 export const requestJoin = (groupName: string) => mutate((sb) => sb.rpc('request_join', { group_name: groupName }))
 export const cancelJoin = (groupName: string) => mutate((sb) => sb.rpc('cancel_join', { group_name: groupName }))
 export const acceptJoin = (playerName: string) => mutate((sb) => sb.rpc('accept_join', { player_name: playerName }))
 export const declineJoin = (playerName: string) => mutate((sb) => sb.rpc('decline_join', { player_name: playerName }))
 export const leaveGroup = () => mutate((sb) => sb.rpc('leave_group'))
 export const removeMember = (playerName: string) => mutate((sb) => sb.rpc('remove_inactive_member', { player_name: playerName }))
+export const promoteCaptain = (playerName: string) => mutate((sb) => sb.rpc('promote_captain', { player_name: playerName }))
+export const demoteCaptain = (playerName: string) => mutate((sb) => sb.rpc('demote_captain', { player_name: playerName }))
+
+export function leavePreview(): Promise<BoardResult<{ nextName: string | null; closes: boolean }>> {
+  return offlineOr(async (sb) => {
+    const { data, error } = await sb.rpc('leave_preview')
+    if (error) return { ok: false, error: boardError(error) }
+    const row = first(data)
+    return { ok: true, data: { nextName: groupOf(row?.next_name), closes: row?.closes === true } }
+  })
+}
 
 /** Stores the Dec 1 roster when that day has arrived. No prize UI. */
 export async function lockRosters(): Promise<void> {

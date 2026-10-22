@@ -136,12 +136,23 @@ main,
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.45rem;
   border: 0;
   background: transparent;
-  color: var(--foam);
+  color: inherit;
   cursor: pointer;
   padding: 0;
+  text-decoration: none;
+  min-width: 0;
+}
+.site-link {
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--sun);
+  text-decoration: underline;
+  text-underline-offset: 0.14em;
+  white-space: nowrap;
 }
 
 .brand-mark {
@@ -1967,6 +1978,11 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
 .how-top h2 {
   margin: 0;
   font-size: 1.35rem;
+  min-width: 0;
+}
+.how-top .site-link {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .how-back {
@@ -4770,11 +4786,33 @@ html[data-device='phone'] .win-screen .win-screen-secondary .btn {
 html[data-device='phone'] .win-screen-actions .cloud-btn,
 html[data-device='phone'] .win-screen-actions .cloud-switch {
   width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  height: auto;
+  line-height: 1.25;
   padding-left: 0.35rem;
   padding-right: 0.35rem;
+}
+
+/* Popup buttons grow to their label. The card clips anything that paints outside a nowrap button. */
+.win-screen .win-cta,
+.win-screen .win-screen-secondary .btn,
+.win-screen .win-fb-follow,
+.result-card .result-btn,
+.cloud-offer .btn {
+  height: auto;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.25;
+  text-align: center;
+}
+
+/* Wide desktop: the victory scrim stops at the right column so the live board stays visible. */
+html[data-layout='wide'] .win-screen {
+  right: calc(clamp(200px, 17vw, 320px) + max(1rem, env(safe-area-inset-right, 0px)));
+  padding-right: 0.6rem;
 }
 
 /* Short landscape: text left, buttons right */
@@ -5099,6 +5137,13 @@ html[data-layout='wide'] .play-hud .hud-title strong {
   white-space: normal;
   line-height: 1.15;
 }
+html[data-device='phone'] .play-hud .hud-title strong {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  font-size: 0.84rem;
+  line-height: 1.05;
+}
 html[data-layout='wide'] .play-hud .hud-title span {
   font-size: 0.74rem;
   white-space: normal;
@@ -5200,9 +5245,17 @@ html[data-layout='wide'] .play-side {
   grid-area: side;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
+  align-self: stretch;
+  height: 100%;
+  max-height: 100%;
   min-height: 0;
   width: 100%;
+  overflow: hidden;
+}
+html[data-layout='wide'] .play-side > .play-toolbar,
+html[data-layout='wide'] .play-side > .buddy-spot {
+  flex-shrink: 0;
 }
 html[data-layout='wide'] .play-fixed .play-toolbar {
   display: grid;
@@ -5258,8 +5311,8 @@ html[data-layout='wide'] .buddy-spot {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 0.35rem;
-  padding: 1.1rem 0.9rem;
+  gap: 0.25rem;
+  padding: 0.65rem 0.7rem;
   border-radius: 18px;
   border: 2px dashed rgba(255, 214, 102, 0.35);
   background: rgba(5, 13, 31, 0.4);
@@ -5278,8 +5331,8 @@ html[data-layout='wide'] .buddy-spot {
 .buddy-spot-ring {
   display: grid;
   place-items: center;
-  width: 78px;
-  height: 78px;
+  width: 58px;
+  height: 58px;
   border-radius: 50%;
   background: radial-gradient(circle at 50% 40%, rgba(255, 214, 102, 0.22), rgba(255, 214, 102, 0.04) 70%);
   border: 2px solid rgba(255, 214, 102, 0.3);
@@ -5300,6 +5353,92 @@ html[data-layout='wide'] .play-fixed > .build-tag {
   align-self: end;
   text-align: right;
   margin: 0;
+}
+
+/* Desktop wide only: compact live board under the controls. Hidden on phone and upright. */
+.live-board { display: none; }
+html[data-layout='wide'][data-device='desktop'] .live-board {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 0 1 auto;
+  max-height: 100%;
+  min-height: 0;
+  padding: 0.55rem 0.65rem 0.5rem;
+  border-radius: 16px;
+  background: rgba(5, 13, 31, 0.55);
+  border: 1px solid rgba(255, 214, 102, 0.22);
+  overflow: hidden;
+}
+.live-board header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+.live-board h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  color: var(--sun);
+  font-size: 1.05rem;
+  font-weight: 400;
+}
+.live-board-all {
+  border: 0;
+  background: transparent;
+  color: var(--sun);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+  padding: 0.15rem 0;
+}
+.live-board ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.1rem;
+  overflow: auto;
+  min-height: 0;
+}
+.live-board li {
+  display: grid;
+  grid-template-columns: 1.35rem minmax(0, 1fr) auto;
+  gap: 0.3rem;
+  align-items: center;
+  min-height: 1.35rem;
+  padding: 0.08rem 0.25rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+.live-board li.is-you {
+  background: rgba(255, 209, 102, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 209, 102, 0.5);
+}
+.live-board li.is-own { position: sticky; bottom: 0; }
+.live-board .place { opacity: 0.65; font-variant-numeric: tabular-nums; }
+.live-board .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-board .score { font-variant-numeric: tabular-nums; }
+.live-board-note { margin: 0; font-size: 0.75rem; font-weight: 700; opacity: 0.75; }
+.live-board .board-cta {
+  width: 100%;
+  flex-shrink: 0;
+  min-height: 0;
+  margin-top: 0.15rem;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.75rem;
+  line-height: 1.25;
+  white-space: normal;
+}
+html[data-device='desktop'] .phone-board {
+  max-width: 560px;
+  width: 100%;
+  margin: 0 auto;
 }
 @media (prefers-reduced-motion: reduce) {
   .buddy-spot-face { animation: none; }
@@ -5813,6 +5952,7 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 .remix-entry {
   background: linear-gradient(135deg, rgba(160, 120, 255, 0.18), rgba(26, 200, 180, 0.14));
   border-color: rgba(190, 160, 255, 0.45);
+  cursor: pointer;
 }
 .remix-countdown {
   display: grid;
@@ -6527,7 +6667,7 @@ html[data-device='phone'] .phone-tabs {
   border-top: 1px solid rgba(255, 209, 102, 0.28);
 }
 html[data-device='phone'] .phone-tabs button {
-  min-height: 48px;
+  min-height: 44px;
   border: 0;
   background: transparent;
   color: rgba(244, 251, 255, 0.75);
@@ -6542,7 +6682,7 @@ html[data-device='phone'] .phone-tabs button.on {
 }
 
 html[data-device='phone'] .fixed-shell > .scroll-pane {
-  padding-bottom: calc(4.4rem + env(safe-area-inset-bottom));
+  padding-bottom: calc(3.15rem + env(safe-area-inset-bottom));
 }
 
 html[data-device='phone'] .info-peek,
@@ -6580,6 +6720,57 @@ html[data-device='phone'] .info-peek-fixed {
   gap: 0.55rem;
   max-width: 480px;
   padding: 0.55rem 0.9rem 1rem;
+}
+html[data-device='phone'] .phone-home {
+  gap: 0.28rem;
+  padding: 0.15rem 0.7rem 0.3rem;
+}
+html[data-device='phone'] .phone-home .phone-who strong { font-size: 0.95rem; }
+html[data-device='phone'] .phone-home .family-link {
+  min-height: 44px;
+  font-size: 0.72rem;
+  padding: 0;
+}
+html[data-device='phone'] .phone-home .home-pet-row { margin: 0; }
+html[data-device='phone'] .phone-home .home-pet {
+  padding: 0.12rem 0.55rem 0.12rem 0.28rem;
+  gap: 0.35rem;
+}
+html[data-device='phone'] .phone-home .home-pet-empty {
+  width: 44px;
+  height: 44px;
+  font-size: 1.05rem;
+}
+html[data-device='phone'] .phone-home .pet-art { width: 48px; height: auto; }
+html[data-device='phone'] .phone-home .home-pet-text strong { font-size: 0.95rem; }
+html[data-device='phone'] .phone-home .phone-play {
+  min-height: 44px;
+  font-size: 1.05rem;
+  padding: 0.3rem 0.8rem;
+}
+html[data-device='phone'] .phone-home .phone-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.32rem;
+}
+html[data-device='phone'] .phone-home .phone-grid > button,
+html[data-device='phone'] .phone-home .phone-grid .cloud-btn.is-short {
+  min-height: 44px;
+  font-size: 0.75rem;
+  padding: 0.12rem 0.2rem;
+  border-radius: 12px;
+  gap: 0.15rem;
+}
+html[data-device='phone'] .phone-home .unseen-tile {
+  min-height: 44px;
+  padding: 4px 8px;
+  gap: 8px;
+}
+html[data-device='phone'] .phone-home .unseen-tile-text b { font-size: 0.8rem; }
+html[data-device='phone'] .phone-home .unseen-tile-text small { font-size: 0.66rem; }
+html[data-device='phone'] .phone-home .phone-quiet {
+  min-height: 44px;
+  font-size: 0.72rem;
+  padding: 0;
 }
 .phone-who {
   display: flex;
@@ -6709,14 +6900,12 @@ html[data-device='phone'] .phone-grid .cloud-btn.is-short::before { content: 'â˜
 }
 .phone-board li.is-you .board-row { box-shadow: inset 0 0 0 1px rgba(255, 209, 102, 0.75); }
 .phone-board .place { opacity: 0.65; font-variant-numeric: tabular-nums; }
-.phone-board .name { display: flex; align-items: center; gap: 0.35rem; min-width: 0; }
-.phone-board .who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.phone-board .name { display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem; min-width: 0; }
+.phone-board .who { overflow-wrap: anywhere; min-width: 0; }
 .group-tag {
   flex: none;
-  max-width: 42%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   padding: 0.05rem 0.4rem;
   border-radius: 999px;
   background: rgba(255, 209, 102, 0.16);
@@ -6736,6 +6925,49 @@ html[data-device='phone'] .phone-grid .cloud-btn.is-short::before { content: 'â˜
 .phone-board .board-cta { width: 100%; min-height: 48px; }
 .phone-sheet.board-sheet { z-index: 80; }
 .board-sheet .phone-sheet-card { display: grid; gap: 0.7rem; align-content: start; }
+.board-sheet .phone-sheet-card header strong { overflow-wrap: anywhere; min-width: 0; }
+.board-tools { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.board-tools .btn {
+  flex: 1 1 9.5rem;
+  min-height: 48px;
+  white-space: normal;
+  line-height: 1.15;
+  padding: 0.35rem 0.7rem;
+}
+.name-pick { display: grid; gap: 0.45rem; }
+.name-pick label { display: grid; gap: 0.25rem; font-weight: 800; font-size: 0.85rem; }
+.name-pick select {
+  min-height: 48px;
+  width: 100%;
+  font: inherit;
+  font-weight: 800;
+  border-radius: 12px;
+  padding: 0 0.6rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+.name-preview { margin: 0; font-weight: 800; color: var(--sun); overflow-wrap: anywhere; }
+.board-confirm {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.7rem;
+  border-radius: 14px;
+  background: rgba(255, 209, 102, 0.1);
+}
+.board-confirm p { margin: 0; font-weight: 800; overflow-wrap: anywhere; }
+.role-badge, .next-tag {
+  flex: none;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(255, 209, 102, 0.16);
+  color: var(--sun);
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.45;
+  white-space: nowrap;
+}
+.board-sheet .player-stats dd { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
 .board-sheet .player-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .board-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; }
 .board-actions .btn { flex: 1 1 calc(50% - 0.45rem); min-height: 48px; }
@@ -6766,7 +6998,7 @@ html[data-device='phone'] .phone-grid .cloud-btn.is-short::before { content: 'â˜
   background: rgba(255, 255, 255, 0.06);
   font-weight: 800;
 }
-.member-list .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.member-list .name { flex: 1 1 6rem; min-width: 0; overflow-wrap: anywhere; }
 .member-list .state { font-size: 0.72rem; opacity: 0.75; font-weight: 800; }
 .member-list .btn { flex: none; min-height: 44px; padding: 0.3rem 0.7rem; }
 html[data-device='phone'] .phone-home .home-pet-row { margin: 0; }
@@ -6966,7 +7198,6 @@ html[data-device='phone'] .random-btn,
 html[data-device='phone'] .mix-btn,
 html[data-device='phone'] .panel.levels > .sub,
 html[data-device='phone'] .endless-block > .sub,
-html[data-device='phone'] .remix-note,
 html[data-device='phone'] .daily-card:not(.remix-entry) .daily-status,
 html[data-device='phone'] .remix-entry .daily-text > span,
 html[data-device='phone'] .start-sheet:not(.cloud-sheet):not(.name-prompt) .start-sheet-tip { display: none !important; }
@@ -6986,6 +7217,14 @@ html[data-device='phone'] .play-toolbar .btn.tool {
   white-space: nowrap;
 }
 html[data-device='phone'] .play-toolbar .tool-cost { font-size: 0.6rem; opacity: 0.8; font-weight: 700; }
+html[data-device='phone'] .play-toolbar .hud-board {
+  white-space: normal;
+}
+html[data-device='phone'] .play-toolbar .hud-board .tool-label {
+  font-size: 0.62rem;
+  line-height: 1.05;
+  white-space: normal;
+}
 
 .mode-picker {
   display: flex;
