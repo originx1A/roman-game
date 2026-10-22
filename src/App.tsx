@@ -1,5 +1,5 @@
 import { useTapCount } from './components/useTapCount'
-import { loadAnon, openEvents, sendPing, PRIVACY_NOTE, ANON_KEY, gaEvent, setGaEnabled } from './game/analytics'
+import { loadAnon, openEvents, sendPing, PRIVACY_NOTE, ANON_KEY, gaEvent, setGaEnabled, saveSavedVote, feedbackVoterId } from './game/analytics'
 import { OWNER_PATH, OWNER_TAP_WINDOW_MS, OWNER_TAPS } from './game/ownerDoor'
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
@@ -17,9 +17,9 @@ import { ShareBar } from './components/ShareBar'
 import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './components/SparkCritter'
 import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
-import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
+import { UnseenPopup } from './components/UnseenPopup'
 import { CloudScoresButton } from './cloud/CloudScores'
-import { FamilySheet, InfoSheet, PhoneHome, PhoneSettings, PlayerPanel } from './components/PhoneProposal'
+import { FamilySheet, HomeUnseen, InfoSheet, PhoneHome, PhoneSettings, PhoneVote, PlayerPanel } from './components/PhoneProposal'
 import { initCloud, saveScore } from './cloud/cloud'
 import { UnseenCardTile } from './components/UnseenCard'
 import { noteCardWin } from './game/unseenCard'
@@ -258,6 +258,7 @@ import {
 } from './game/storage'
 import {
   playBanterClip,
+  setVoiceCueListener,
   setMuted,
   setVoiceEnabled,
   sfxAchievement,
@@ -428,6 +429,8 @@ const MENU_CSS = `
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('home')
+  const screenRef = useRef(screen)
+  screenRef.current = screen
   const [{ layout, device }, setLayoutInfo] = useState(() => readLayout())
   const [infoOpen, setInfoOpen] = useState(false)
   const [playerOpen, setPlayerOpen] = useState(false)
@@ -531,20 +534,17 @@ export default function App() {
   const [runMaxLives, setRunMaxLives] = useState(MAX_LIVES)
   const [lastScore, setLastScore] = useState<number | null>(null)
   const [toast, setToast] = useState('')
-  // 10.06: Unseen heckler pop-up — visual only, shown ONLY for Unseen
-  // voice lines (old_* / tip_*_old_* clips), never for Roman or the Coach
-  const [unseenPop, setUnseenPop] = useState<UnseenPop | null>(null)
-  const unseenKey = useRef(0)
+  const toastTimer = useRef(0)
+  const voiceToast = useRef(false)
+  /** Set only when a clip has started playing. Null when that audio ends, or if the line was skipped. */
+  const [voiceCue, setVoiceCue] = useState<{ clip: string; text: string; n: number } | null>(null)
+  const voiceCueN = useRef(0)
   /** The Unseen clip ids: `old_*`, plus tips like `tip_trial_old_life`. Roman is `roman_*`/`tip_*_roman_*`, Coach is `coach_*`/`tip_*_coach_*`. */
   function isUnseenClip(clip: string | undefined): boolean {
     if (!clip) return false
     return clip.startsWith('old_') || (clip.startsWith('tip_') && clip.includes('_old_'))
   }
-  function maybeUnseenPop(line: { text?: string; clip?: string; speak?: boolean; silent?: boolean }) {
-    if (!line.speak || line.silent || !line.text || !isUnseenClip(line.clip)) return
-    unseenKey.current += 1
-    setUnseenPop({ text: line.text, key: unseenKey.current })
-  }
+  const unseenSpeaking = voiceCue && isUnseenClip(voiceCue.clip) ? voiceCue : null
   const [shortfall, setShortfall] = useState<null | { action: ShortfallAction; need: number; detail?: string }>(null)
   const [incoming, setIncoming] = useState<Challenge | null>(null)
   const [, setChallenges] = useState(() => loadChallenges())
@@ -1073,9 +1073,33 @@ export default function App() {
   }, [running, celebrate, defeated])
 
   function showToast(msg: string) {
+    voiceToast.current = false
+    window.clearTimeout(toastTimer.current)
     setToast(msg)
-    window.setTimeout(() => setToast(''), 2400)
+    toastTimer.current = window.setTimeout(() => setToast(''), 2400)
   }
+
+  useEffect(() => {
+    setVoiceCueListener((cue) => {
+      if (cue) {
+        voiceCueN.current += 1
+        setVoiceCue({ clip: cue.clip, text: cue.text, n: voiceCueN.current })
+        // On the home screen his own bubble is the caption, so a second toast is not added.
+        if (cue.text && !(screenRef.current === 'home' && isUnseenClip(cue.clip))) {
+          voiceToast.current = true
+          window.clearTimeout(toastTimer.current)
+          setToast(cue.text)
+        }
+      } else {
+        setVoiceCue(null)
+        if (voiceToast.current) {
+          voiceToast.current = false
+          setToast('')
+        }
+      }
+    })
+    return () => setVoiceCueListener(null)
+  }, [])
 
   /** Toast + one voice at a time (coach / Roman). Buddy giggle is separate via Board. */
   const voiceGateRef = useRef(createVoiceGate())
@@ -1090,11 +1114,12 @@ export default function App() {
     if (!voiceGateRef.current.allow(event, Date.now(), unheardShare(event))) return { text: '', mood: 'neutral', voiceMood: 'neutral', speak: false, silent: true } as ReturnType<typeof banterFor>
     const line = banterFor(event, conflict)
     if (line.silent && !line.giggle) return line
-    if (line.text) showToast(line.text)
     // place-good: Board already plays buddy giggle — don't speak here
-    if (line.giggle || !line.speak || !line.clip) return line
+    if (line.giggle || !line.speak || !line.clip) {
+      if (line.text) showToast(line.text)
+      return line
+    }
     playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
-    maybeUnseenPop(line)
     return line
   }
 
@@ -1144,9 +1169,7 @@ export default function App() {
       }
       const line = tipBanter(id, reason)
       if (line.silent || !line.clip) return false
-      if (line.text) showToast(line.text)
       playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
-      maybeUnseenPop(line)
       boardTipsRef.current = [...boardTipsRef.current, id]
       lastTipAtRef.current = now
       persistTips(noteShown(tipsRef.current, id, now))
@@ -1161,9 +1184,13 @@ export default function App() {
     if (isStoreBuild() || settingsRef.current.analytics === false) return
     sendPing({ id: loadAnon(safeLocalStorage()).id, ev: 'level_clear', size, ms: Math.round(ms) })
   }
-  function sendFeedback(vote: 'up' | 'down', note: string) {
+  function sendFeedback(vote: 'up' | 'down', note: string, account = '') {
+    saveSavedVote(safeLocalStorage(), vote, account)
     if (isStoreBuild() || settingsRef.current.analytics === false) return
-    sendPing({ id: loadAnon(safeLocalStorage()).id, ev: 'feedback', vote, note: note.slice(0, 200) })
+    const anon = loadAnon(safeLocalStorage()).id
+    void feedbackVoterId(anon, account || undefined).then((id) => {
+      sendPing({ id, ev: 'feedback', vote, note: note.slice(0, 200) })
+    })
   }
   function saveSettingsPatch(patch: Partial<Settings>) {
     if (patch.analytics !== undefined) setGaEnabled(patch.analytics !== false)
@@ -2354,8 +2381,8 @@ export default function App() {
     })
 
     const line = sparkProgressBanter(have, CRITTER_STASH_GOAL)
-    if (line.text) showToast(line.text)
     if (line.speak && line.clip) playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
+    else if (line.text) showToast(line.text)
   }
 
   /** 10.06: buddy flyby catch — perk-flavored reward from the active buddy */
@@ -3048,8 +3075,8 @@ export default function App() {
           onUnseen={() => {
             const line = unseenHomeSaying()
             if (line.speak && line.clip) playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
-            return line.speak && line.text ? line.text : ''
           }}
+          unseenLine={unseenSpeaking ? unseenSpeaking.text : null}
           buddy={
             <section className="home-pet-row" aria-label="Your buddy">
               <HomePet
@@ -3147,6 +3174,13 @@ export default function App() {
           </section>
           {dailyCard}
           {remixCard}
+          <HomeUnseen
+            onUnseen={() => {
+              const line = unseenHomeSaying()
+              if (line.speak && line.clip) playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
+            }}
+            unseenLine={unseenSpeaking ? unseenSpeaking.text : null}
+          />
           <section className="stat-strip home-strip">
             <div>
               <strong>{progress.clears.length}</strong>
@@ -4213,7 +4247,7 @@ export default function App() {
           saveSettings(next)
           setMuted(!next.sound)
         }}
-        feedback={!isStoreBuild() && settings.analytics !== false ? <FeedbackChip onSend={sendFeedback} /> : <span className="info-muted">Likes are off</span>}
+        feedback={<PhoneVote onVote={(vote, account) => sendFeedback(vote, '', account)} />}
         onFamily={() => {
           setInfoOpen(false)
           setFamilyOpen(true)
@@ -4249,7 +4283,7 @@ export default function App() {
       {/* Keep clear of Netlify “Powered by” badge */}
       <div className="netlify-safe" aria-hidden />
       {/* 10.06: Unseen heckler pop-up — visual only, never blocks input */}
-      <UnseenPopup pop={unseenPop} />
+      <UnseenPopup pop={screen !== 'home' && unseenSpeaking ? { text: unseenSpeaking.text, key: unseenSpeaking.n } : null} />
       {/* 10.06: treat defense — wild pets vs the field treat pile (home + play) */}
       <TreatDefense
         active={screen === 'play' && !celebrate && !defeated && !showWheel && !rotatePaused}

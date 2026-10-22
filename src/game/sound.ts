@@ -638,6 +638,7 @@ function clearVoiceGap() {
 /** Free the channel if `gen` is still the current line, then start a waiting line after a short gap. */
 function releaseVoice(gen: number) {
   if (gen !== voiceGeneration) return
+  hideCue(gen)
   clearVoiceSafety()
   const next = waitingLine
   if (!next || performance.now() > next.until) {
@@ -671,6 +672,35 @@ export function setVoiceStartListener(fn: ((clip: string) => void) | null) {
   voiceStartListener = fn
 }
 
+/** Fired when a line actually starts, and with null when that audio ends. Visuals follow this, not the request. */
+export interface VoiceCue {
+  clip: string
+  text: string
+}
+let voiceCueListener: ((cue: VoiceCue | null) => void) | null = null
+let shownCueGen = -1
+export function setVoiceCueListener(fn: ((cue: VoiceCue | null) => void) | null) {
+  voiceCueListener = fn
+}
+function showCue(gen: number, clip: string) {
+  if (shownCueGen === gen) return
+  shownCueGen = gen
+  try {
+    voiceCueListener?.({ clip, text: voiceLineText(clip) ?? '' })
+  } catch {
+    /* a visual never breaks playback */
+  }
+}
+function hideCue(gen: number) {
+  if (shownCueGen !== gen) return
+  shownCueGen = -1
+  try {
+    voiceCueListener?.(null)
+  } catch {
+    /* a visual never breaks playback */
+  }
+}
+
 /**
  * 9.30-k: told when a clip counts as HEARD: it finished, or it has played 70% of its length.
  * (A line that was only requested, dropped as stale, skipped, or cut off early never counts.)
@@ -682,6 +712,7 @@ export function setVoiceHeardListener(fn: ((clip: string) => void) | null) {
 
 /** Stop whatever is on the voice channel right now */
 function stopVoice() {
+  hideCue(voiceGeneration)
   voiceGeneration += 1
   clearVoiceSafety()
   clearVoiceGap()
@@ -1234,6 +1265,7 @@ async function playClipQueue(el: HTMLAudioElement, queue: string[], gen: number,
       } catch {
         /* rotation bookkeeping never breaks playback */
       }
+      showCue(gen, clipId)
       // Heard now: nothing may cut it. Size the safety net to what's left of the clip at this rate.
       const markPlaying = () => {
         if (gen !== voiceGeneration || !currentLine) return

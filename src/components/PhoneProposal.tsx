@@ -1,8 +1,34 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { CloudScoresButton, useCloud } from '../cloud/CloudScores'
+import { loadSavedVote, saveSavedVote } from '../game/analytics'
 
-/** Phone-only arrival screen. Desktop keeps the existing home. */
+/** Hooded figure on the home screen (phone, tablet, and desktop). The bubble is up only while his line plays. */
+export function HomeUnseen({ onUnseen, unseenLine }: { onUnseen: () => void; unseenLine: string | null }) {
+  const [bubble, setBubble] = useState<{ text: string; leaving: boolean } | null>(null)
+  useEffect(() => {
+    if (unseenLine) {
+      setBubble({ text: unseenLine.replace(/^The Unseen:\s*/i, ''), leaving: false })
+      return
+    }
+    setBubble((cur) => (cur && !cur.leaving ? { ...cur, leaving: true } : cur))
+    const t = window.setTimeout(() => setBubble((cur) => (cur?.leaving ? null : cur)), 1000)
+    return () => window.clearTimeout(t)
+  }, [unseenLine])
+  return (
+    <div className="home-unseen-wrap">
+      {bubble ? <span className={`home-unseen-line${bubble.leaving ? ' is-leaving' : ''}`}>{bubble.text}</span> : null}
+      <button type="button" className="home-unseen" aria-label="The Unseen" onClick={onUnseen}>
+        <picture>
+          <source srcSet="/images/unseen.webp" type="image/webp" />
+          <img src="/images/unseen.png" alt="" draggable={false} />
+        </picture>
+      </button>
+    </div>
+  )
+}
+
+/** Phone-only arrival screen. Tablet and desktop keep the existing home, plus the same tappable Unseen. */
 export function PhoneHome({
   playerName,
   onPlay,
@@ -15,6 +41,7 @@ export function PhoneHome({
   onFamily,
   onInfo,
   onUnseen,
+  unseenLine,
   buddy,
   unseen,
 }: {
@@ -28,15 +55,16 @@ export function PhoneHome({
   onBug: () => void
   onFamily: () => void
   onInfo: () => void
-  /** Home only. Returns the line he says, or '' if nothing played. */
-  onUnseen: () => string
+  /** Asks for one of his lines. The bubble appears only once that line starts playing. */
+  onUnseen: () => void
+  /** Set while his audio is playing. Null before it starts and after it ends. */
+  unseenLine: string | null
   buddy: ReactNode
   unseen: ReactNode
 }) {
   const cloud = useCloud()
   const signed = cloud.status === 'signed-in' && !!cloud.name
   const who = signed ? cloud.publicName || cloud.name : playerName || 'Guest'
-  const [line, setLine] = useState('')
   return (
     <main className="phone-home scroll-pane">
       <div className="phone-who">
@@ -61,20 +89,28 @@ export function PhoneHome({
         <button type="button" onClick={onShare}><span aria-hidden>↗</span>Share</button>
       </div>
       {unseen}
-      <button
-        type="button"
-        className="home-unseen"
-        aria-label="The Unseen"
-        onClick={() => setLine(onUnseen().replace(/^(The Unseen):\s*/i, ''))}
-      >
-        {line ? <span className="home-unseen-line">{line}</span> : null}
-        <picture>
-          <source srcSet="/images/unseen.webp" type="image/webp" />
-          <img src="/images/unseen.png" alt="" draggable={false} />
-        </picture>
-      </button>
+      <HomeUnseen onUnseen={onUnseen} unseenLine={unseenLine} />
       <button type="button" className="phone-quiet" onClick={onBug}>Report a bug</button>
     </main>
+  )
+}
+
+/** Phone Info row: the question and the thumbs on one line. One stored vote, and a tap can change it. */
+export function PhoneVote({ onVote }: { onVote: (vote: 'up' | 'down', account: string) => void }) {
+  const cloud = useCloud()
+  const account = cloud.status === 'signed-in' ? cloud.email ?? '' : ''
+  const [vote, setVote] = useState<'up' | 'down' | null>(() => loadSavedVote(typeof localStorage === 'undefined' ? null : localStorage, account))
+  const [thanks, setThanks] = useState(false)
+  useEffect(() => {
+    setVote(loadSavedVote(typeof localStorage === 'undefined' ? null : localStorage, account))
+  }, [account])
+  return (
+    <div className="info-vote">
+      <span>Do you like the game?</span>
+      <button type="button" className={`fb-btn${vote === 'up' ? ' is-on' : ''}`} aria-label="Thumbs up" aria-pressed={vote === 'up'} onClick={() => { setVote('up'); saveSavedVote(typeof localStorage === 'undefined' ? null : localStorage, 'up', account); onVote('up', account); setThanks(true) }}>👍</button>
+      <button type="button" className={`fb-btn${vote === 'down' ? ' is-on' : ''}`} aria-label="Thumbs down" aria-pressed={vote === 'down'} onClick={() => { setVote('down'); saveSavedVote(typeof localStorage === 'undefined' ? null : localStorage, 'down', account); onVote('down', account); setThanks(true) }}>👎</button>
+      {thanks ? <small>Thanks!</small> : null}
+    </div>
   )
 }
 
