@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { CloudScoresButton, useCloud } from '../cloud/CloudScores'
 import { loadPlayerBoard, type BoardRow } from '../cloud/cloud'
 
-/** Phone board. One row per signed-in player. Guests can look, and the button opens the usual sign-in sheet. */
+/** Phone board. One row per signed-in player. Guests can look. The button opens the save card. */
 export function PhoneBoard({ playerName, onInfo }: { playerName: string; onInfo?: () => void }) {
   const cloud = useCloud()
   const [rows, setRows] = useState<BoardRow[] | null>(null)

@@ -5,20 +5,27 @@ import { NAME_MAX, loadConsent, saveConsent, onCloud, savePlayerName, sendMagicL
 import { useTurnstile } from './useTurnstile'
 
 /**
- * "Save my scores" button + sheets: email magic link or the code from that email, then a one-time name prompt.
+ * "Save my scores" button + sheets.
+ * Phone opens a short card first (no age question). Email is the existing magic-link sheet, with the 13+ and Terms boxes.
+ * Saving with no email, and linking a parent, are not on this preview: those sheets say so instead of inventing an account.
  * The whole chosen name is shown publicly (the server adds 02, 03... if it's taken); bad words are rejected on the spot.
  */
+
+/** Phone asks with the save card. Desktop still opens the email sheet. */
+function phoneSaveCard(): boolean {
+  return typeof document !== 'undefined' && document.documentElement.dataset.device === 'phone'
+}
 export function useCloud(): CloudState {
   const [s, setS] = useState<CloudState>({ status: 'off', pending: 0 })
   useEffect(() => onCloud(setS), [])
   return s
 }
 
-type Sheet = null | 'email' | 'sent' | 'name' | 'account' | 'parent'
+type Sheet = null | 'offer' | 'email' | 'sent' | 'name' | 'account' | 'parent' | 'noemail' | 'parentlink'
 
-export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta }: { suggestedName?: string; compact?: boolean; short?: boolean; onInfo?: () => void; cta?: string }) {
+export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, forceOffer, hidden, onClose }: { suggestedName?: string; compact?: boolean; short?: boolean; onInfo?: () => void; cta?: string; forceOffer?: boolean; hidden?: boolean; onClose?: () => void }) {
   const cloud = useCloud()
-  const [sheet, setSheet] = useState<Sheet>(null)
+  const [sheet, setSheet] = useState<Sheet>(forceOffer ? 'offer' : null)
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
   const [name, setName] = useState(suggestedName ?? '')
@@ -59,9 +66,14 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta }
   // Signed in from the link or the code. No name yet: ask once. Code sign-in of a named player: show the account.
   useEffect(() => {
     if (cloud.status !== 'signed-in') return
-    if (cloud.name === null) setSheet((s) => (s === 'account' ? s : 'name'))
+    if (cloud.name === null) setSheet((s) => (s === 'account' || s === 'parent' || s === 'noemail' || s === 'parentlink' || s === 'offer' ? s : 'name'))
     else setSheet((s) => (s === 'sent' ? 'account' : s))
   }, [cloud.status, cloud.name])
+
+  function closeSheet() {
+    setSheet(null)
+    onClose?.()
+  }
 
   const label = short
     ? cloud.status === 'signed-in' && cloud.name
@@ -84,32 +96,34 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta }
     setTerms(false)
     saveConsent({ age13: false, optIn: false })
     setErr('')
-    setSheet('email')
+    setSheet(phoneSaveCard() ? 'offer' : 'email')
   }
 
   const nameProblem = !name.trim() ? '' : isProfane(name) ? "Let's pick a different name. Keep it friendly!" : ''
 
   return (
     <>
+      {!hidden && (
       <button
         type="button"
         className={cta ? 'btn primary board-cta' : `btn ghost cloud-btn${compact ? ' is-compact' : ''}${short ? ' is-short' : ''}`}
         onClick={() => {
           setErr('')
-          setSheet(cloud.status === 'signed-in' ? (cloud.name ? 'account' : 'name') : 'email')
+          setSheet(cloud.status === 'signed-in' ? (cloud.name ? 'account' : 'name') : phoneSaveCard() ? 'offer' : 'email')
         }}
       >
         {cta ?? label}
       </button>
-      {!short && cloud.status === 'signed-in' && cloud.name && (
+      )}
+      {!hidden && !short && cloud.status === 'signed-in' && cloud.name && (
         <button type="button" className={`btn ghost cloud-switch${compact ? ' is-compact' : ''}`} onClick={() => void switchPlayer()}>
           Switch player
         </button>
       )}
       {sheet &&
         createPortal(
-          <div className="start-sheet cloud-sheet" role="dialog" aria-modal="true" aria-label="Save my scores">
-            <div className="start-sheet-scrim" onClick={() => setSheet(null)} />
+          <div className="start-sheet cloud-sheet" role="dialog" aria-modal="true" aria-label={sheet === 'offer' ? 'Save your scores?' : 'Save my scores'}>
+            <div className="start-sheet-scrim" onClick={closeSheet} />
             {onInfo ? (
               <button type="button" className="sheet-info" onClick={onInfo}>
                 Info
@@ -155,7 +169,7 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta }
                 <button type="submit" className="btn primary" disabled={busy}>
                   {busy ? 'Sending…' : 'Email me a sign-in link'}
                 </button>
-                <button type="button" className="btn ghost" onClick={() => setSheet(null)}>
+                <button type="button" className="btn ghost" onClick={closeSheet}>
                   Not now
                 </button>
               </form>
@@ -209,7 +223,7 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta }
                 <button type="submit" className="btn primary" disabled={busy || code.length < 6}>
                   {busy ? 'Checking…' : 'Sign in with code'}
                 </button>
-                <button type="button" className="btn ghost" onClick={() => setSheet(null)}>
+                <button type="button" className="btn ghost" onClick={closeSheet}>
                   Not now
                 </button>
               </form>
@@ -228,8 +242,10 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta }
                   setBusy(true)
                   const r = await savePlayerName(name, { age13, optIn })
                   setBusy(false)
-                  if (r.ok) setSheet(r.publicName && r.publicName !== name.trim() ? 'account' : null)
-                  else setErr(r.error ?? 'Something went wrong.')
+                  if (r.ok) {
+                    if (r.publicName && r.publicName !== name.trim()) setSheet('account')
+                    else closeSheet()
+                  } else setErr(r.error ?? 'Something went wrong.')
                 }}
               >
                 <h3>Pick your leaderboard name</h3>
@@ -244,17 +260,56 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta }
                 </button>
               </form>
             )}
+            {sheet === 'offer' && (
+              <div className="start-sheet-card cloud-offer" data-testid="save-offer">
+                <h3>Save your scores?</h3>
+                <button type="button" className="btn primary" onClick={() => { setErr(''); setSheet('email') }}>
+                  Save with email (13+)
+                </button>
+                <button type="button" className="btn ghost" onClick={() => { setErr(''); setSheet('noemail') }}>
+                  Save without email
+                </button>
+                <button type="button" className="cloud-quiet" onClick={() => { setErr(''); setSheet('parentlink') }}>
+                  Link to a parent's account
+                </button>
+                <button type="button" className="btn ghost" onClick={closeSheet}>
+                  Not now
+                </button>
+              </div>
+            )}
+            {sheet === 'noemail' && (
+              <div className="start-sheet-card" data-testid="save-no-email">
+                <h3>Save without email</h3>
+                <p className="start-sheet-tip">Not on this preview yet. Scores stay on this device.</p>
+                <button type="button" className="btn ghost" onClick={() => setSheet('offer')}>
+                  Back
+                </button>
+              </div>
+            )}
+            {sheet === 'parentlink' && (
+              <div className="start-sheet-card" data-testid="save-parent-link">
+                <h3>Link to a parent's account</h3>
+                <p className="start-sheet-tip">Not on this preview yet.</p>
+                <button type="button" className="btn ghost" onClick={() => setSheet('offer')}>
+                  Back
+                </button>
+              </div>
+            )}
             {sheet === 'parent' && (
-              <div className="start-sheet-card">
-                <h3>Ask a parent to sign up for you</h3>
-                <p className="start-sheet-tip">
-                  You need to be 13 or older to make an account. You can keep playing everything without one. Your scores just stay on this device.
-                </p>
-                <button type="button" className="btn primary" onClick={() => setSheet(null)}>
-                  Keep playing
+              <div className="start-sheet-card" data-testid="save-age-gate">
+                <h3>Email is for ages 13+</h3>
+                <p className="start-sheet-tip">You can save without an email instead.</p>
+                <button type="button" className="btn primary" onClick={() => setSheet('noemail')}>
+                  Save without email
+                </button>
+                <button type="button" className="cloud-quiet" onClick={() => setSheet('parentlink')}>
+                  Link to a parent's account
+                </button>
+                <button type="button" className="btn ghost" onClick={closeSheet}>
+                  Not now
                 </button>
                 {cloud.status === 'signed-in' && (
-                  <button type="button" className="btn ghost" onClick={() => { void signOut(); setSheet(null) }}>
+                  <button type="button" className="btn ghost" onClick={() => { void signOut(); closeSheet() }}>
                     Sign out
                   </button>
                 )}
@@ -267,7 +322,7 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta }
                   Signed in as {cloud.email}. Leaderboard name: <b>{cloud.publicName ?? cloud.name}</b>.
                   {cloud.pending ? ` ${cloud.pending} score${cloud.pending === 1 ? '' : 's'} will send when you're back online.` : ' Every game you finish is saved.'}
                 </p>
-                <button type="button" className="btn primary" onClick={() => setSheet(null)}>
+                <button type="button" className="btn primary" onClick={closeSheet}>
                   Done
                 </button>
                 <button
@@ -277,7 +332,7 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta }
                 >
                   Switch player
                 </button>
-                <button type="button" className="btn ghost" onClick={() => { void signOut(); setSheet(null) }}>
+                <button type="button" className="btn ghost" onClick={() => { void signOut(); closeSheet() }}>
                   Sign out
                 </button>
               </div>

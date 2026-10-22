@@ -21,7 +21,7 @@ import { UnseenPopup } from './components/UnseenPopup'
 import { CloudScoresButton } from './cloud/CloudScores'
 import { PhoneBoard } from './components/PhoneBoard'
 import { FamilySheet, HomeUnseen, InfoSheet, PhoneHome, PhoneSettings, PhoneVote, PlayerPanel } from './components/PhoneProposal'
-import { initCloud, saveScore } from './cloud/cloud'
+import { cloudState, initCloud, saveScore } from './cloud/cloud'
 import { UnseenCardTile } from './components/UnseenCard'
 import { noteCardWin } from './game/unseenCard'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
@@ -536,6 +536,9 @@ export default function App() {
   const [heartPop, setHeartPop] = useState<number | null>(null)
   const [hintText, setHintText] = useState('')
   const [celebrate, setCelebrate] = useState(false)
+  /** Phone only: ask to save after a first clear or a new best, once that moment is over. */
+  const [saveAsk, setSaveAsk] = useState(false)
+  const saveNonce = useRef(0)
   const [defeated, setDefeated] = useState(false)
   /** Set the moment a board is won or lost (before any state update lands), cleared for the next
    *  board. Voice lines check it so nothing from the live board speaks after the result. */
@@ -1609,6 +1612,8 @@ export default function App() {
     const themeId = p.theme ?? themeForPuzzle(p.id, p.difficulty)
     setPuzzle({ ...p, theme: themeId })
     recordedRef.current = false
+    saveNonce.current += 1
+    setSaveAsk(false)
     setCelebrate(false)
     setDefeated(false)
     setWinLine('')
@@ -1846,6 +1851,15 @@ export default function App() {
         /* never block the win */
       }
       const isRecord = !!replay && (replay.newBestTime || replay.newBestScore)
+      const saveMoment = !!replay && !replay.tooFast && (replay.firstClear || replay.newBestTime || replay.newBestScore)
+      if (saveMoment && device === 'phone' && cloudState().status !== 'signed-in') {
+        const nonce = ++saveNonce.current
+        window.setTimeout(() => {
+          if (saveNonce.current !== nonce) return
+          if (cloudState().status === 'signed-in') return
+          setSaveAsk(true)
+        }, 2400)
+      }
       // 9.30-a (Tony): won a replayed board without beating the old best = ONE combined line (board
       // cleared + slower than your best), not a cheer followed by a tease. The win sound and banner stay.
       const notBest = !!replay && !replay.firstClear && !replay.newBestTime && !replay.newBestScore && runMode === 'normal' && dailyStreak == null
@@ -2214,6 +2228,8 @@ export default function App() {
     flawedRef.current = false
     setLastScore(null)
     recordedRef.current = false
+    saveNonce.current += 1
+    setSaveAsk(false)
     setWinReplay(null)
     setRunning(true)
     setLives(runMaxLives)
@@ -4301,6 +4317,9 @@ export default function App() {
         }}
       />
       <FamilySheet open={device === 'phone' && familyOpen} onClose={() => setFamilyOpen(false)} />
+      {device === 'phone' && saveAsk && !namePrompt && !showWheel && !showHunt && (
+        <CloudScoresButton suggestedName={playerName} forceOffer hidden onClose={() => setSaveAsk(false)} />
+      )}
 
       {/* Footer bar removed 2026-10-22 (Tony): it was eating screen space on every menu screen.
           Its contents live in Save & settings now — Sound effects toggle in Settings, and the
