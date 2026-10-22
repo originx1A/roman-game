@@ -1156,6 +1156,10 @@ export default function App() {
     if (isStoreBuild() || settingsRef.current.analytics === false) return
     sendPing({ id: loadAnon(safeLocalStorage()).id, ev: 'level_clear', size, ms: Math.round(ms) })
   }
+  function sendFeedback(vote: 'up' | 'down', note: string) {
+    if (isStoreBuild() || settingsRef.current.analytics === false) return
+    sendPing({ id: loadAnon(safeLocalStorage()).id, ev: 'feedback', vote, note: note.slice(0, 200) })
+  }
   function saveSettingsPatch(patch: Partial<Settings>) {
     if (patch.analytics !== undefined) setGaEnabled(patch.analytics !== false)
     setSettings((cur) => {
@@ -3818,6 +3822,21 @@ export default function App() {
               </label>
             </div>
           </section>
+          <section className="about-section" aria-label="About Roman's Game">
+            <h3>About</h3>
+            <p className="about-line">
+              Roman&rsquo;s Game <span className="build-tag">{BUILD_TAG}</span>
+            </p>
+            <p className="about-line">
+              {!isStoreBuild() && settings.analytics !== false ? <FeedbackChip onSend={sendFeedback} /> : null}
+              <a className="about-link" href="./privacy.html">
+                Privacy
+              </a>
+              <a className="about-link" data-testid="jrny-link" href="https://jrny.fun" target="_blank">
+                A JRNY project
+              </a>
+            </p>
+          </section>
         </main>
       )}
 
@@ -4007,9 +4026,9 @@ export default function App() {
         onClose={() => setShowWheel(false)}
       />
 
-      {/* Footer bar removed 2026-10-22 (Tony): version, thumbs, Privacy, JRNY credit and sound toggle
-          were eating screen space on every menu screen. Privacy stays reachable from the sign-up
-          sheet; the rest returns inside the planned About section. */}
+      {/* Footer bar removed 2026-10-22 (Tony): it was eating screen space on every menu screen.
+          Its contents live in Save & settings now — Sound effects toggle in Settings, and the
+          version, thumbs, Privacy and JRNY credit in the About section at the bottom. */}
       {/* Keep clear of Netlify “Powered by” badge */}
       <div className="netlify-safe" aria-hidden />
       {/* 10.06: Unseen heckler pop-up — visual only, never blocks input */}
@@ -4028,6 +4047,29 @@ export default function App() {
         onStolen={handleDefenseStolen}
       />
     </div>
+  )
+}
+
+/** 9.30-r: small 👍/👎 in the About section; tapping one opens a one-line optional note */
+function FeedbackChip({ onSend }: { onSend: (vote: 'up' | 'down', note: string) => void }) {
+  const [vote, setVote] = useState<'up' | 'down' | null>(null)
+  const [note, setNote] = useState('')
+  const [sent, setSent] = useState(false)
+  if (sent) return <span className="fb-thanks" data-testid="fb-thanks">Thanks! 💛</span>
+  if (!vote)
+    return (
+      <span className="fb-chip" data-testid="fb-chip">
+        <button type="button" className="fb-btn" data-testid="fb-up" aria-label="Thumbs up: I like the game" onClick={() => setVote('up')}>👍</button>
+        <button type="button" className="fb-btn" data-testid="fb-down" aria-label="Thumbs down: something is wrong" onClick={() => setVote('down')}>👎</button>
+      </span>
+    )
+  return (
+    <span className="fb-form" data-testid="fb-form">
+      <span aria-hidden>{vote === 'up' ? '👍' : '👎'}</span>
+      <input value={note} maxLength={200} placeholder="Add a short note (optional)" aria-label="Optional note" data-testid="fb-note" onChange={(e) => setNote(e.target.value)} />
+      <button type="button" className="fb-send" data-testid="fb-send" onClick={() => { onSend(vote, note); setSent(true) }}>Send</button>
+      <button type="button" className="fb-btn" aria-label="Cancel" onClick={() => setVote(null)}>✕</button>
+    </span>
   )
 }
 
