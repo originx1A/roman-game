@@ -1,3 +1,4 @@
+import { chargeMatchesPack } from '../../src/game/shopOffers.ts'
 import { CHECKOUT_TEST_ONLY, webPackById } from '../lib/coinPacks.ts'
 import { json } from '../lib/http.ts'
 import { isLiveStripeKey, isTestCheckoutSessionId, readStripeKey, stripeClient } from '../lib/stripeServer.ts'
@@ -8,7 +9,7 @@ import { bearer, supabaseAdmin, supabaseAsUser } from '../lib/supabaseAdmin.ts'
  * Credits a paid Checkout session once, on the server.
  * A webhook records the receipt. The signed-in player claims it.
  * Coins land in player_balances. Treats and buddies are listed for the device
- * to apply only when this claim is new. The Starter Pack is once per account.
+ * to apply only when this claim is new. A Starter can be claimed again.
  * Live sessions are ignored until Tony turns test-only off.
  */
 export default async function coinCredit(req: Request): Promise<Response> {
@@ -28,7 +29,7 @@ export default async function coinCredit(req: Request): Promise<Response> {
         const session = event.data.object
         const pack = webPackById(session.metadata?.packId)
         if (session.livemode && CHECKOUT_TEST_ONLY) return json({ ok: true, ignored: 'live' })
-        if (session.id && pack && session.payment_status === 'paid' && session.currency === pack.currency && session.amount_total === pack.unitAmount) {
+        if (session.id && pack && session.payment_status === 'paid' && chargeMatchesPack(pack, session.currency, session.amount_total)) {
           await admin.from('stripe_receipts').upsert({
             session_id: session.id,
             pack_id: pack.id,
@@ -99,7 +100,7 @@ export default async function coinCredit(req: Request): Promise<Response> {
     if (!pack || session.payment_status !== 'paid' || session.metadata?.productId !== pack.productId) {
       return json({ ok: false, error: 'That payment is not ready.' }, 402)
     }
-    if (session.livemode || session.currency !== pack.currency || session.amount_total !== pack.unitAmount) {
+    if (session.livemode || !chargeMatchesPack(pack, session.currency, session.amount_total)) {
       return json({ ok: false, error: 'That payment does not match this pack.' }, 402)
     }
     await admin.from('stripe_receipts').upsert({ session_id: sessionId, pack_id: pack.id, coins: pack.coins, player_id: uid })

@@ -1,4 +1,5 @@
 import { getStore } from '@netlify/blobs'
+import { chargeMatchesPack } from '../../src/game/shopOffers.ts'
 import { webPackById } from '../lib/coinPacks.ts'
 import { json, PURCHASES_UNAVAILABLE } from '../lib/http.ts'
 import { buildPurchaseRecord, PURCHASE_STORE } from '../lib/purchases.ts'
@@ -46,7 +47,7 @@ export default async function confirmCheckout(req: Request): Promise<Response> {
     if (!pack || session.metadata?.productId !== pack.productId) {
       return json({ ok: false, reason: 'That pack is not sold on the website.' })
     }
-    if (session.currency !== pack.currency || session.amount_total !== pack.unitAmount) {
+    if (!chargeMatchesPack(pack, session.currency, session.amount_total)) {
       return json({ ok: false, reason: 'Payment did not match this pack. No coins were added.' })
     }
 

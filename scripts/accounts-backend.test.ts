@@ -106,7 +106,7 @@ test('checkout refuses a closed account before it asks Stripe, and a live key st
     userId: async () => 'player-1',
     payRow: row,
     consumeReauth: async () => true,
-    ownsPack: async () => false,
+    starterCount: async () => 0,
     async createSession(input) {
       calls.push(input)
       return { url: 'https://checkout.stripe.com/c/pay/cs_test_ok' }
@@ -146,6 +146,35 @@ test('checkout refuses a closed account before it asks Stripe, and a live key st
   assert.equal(calls[0].unitAmount, 199)
   assert.equal(calls[0].currency, 'cad')
   assert.equal(calls[0].purpose, 'self')
+
+  const starterDeps = (already: number): CheckoutDeps => ({
+    ...deps(async () => ({
+      ok: true,
+      row: { paymentsEnabled: true, parentLocked: false, age13Plus: true, email: 'parent@example.com', attested: true },
+    })),
+    starterCount: async () => already,
+    async createSession(input) {
+      calls.push(input)
+      return { url: 'https://checkout.stripe.com/c/pay/cs_test_ok' }
+    },
+  })
+  calls.length = 0
+  const firstStarter = await handleCreateCheckout(post({ packId: 'starter', reauthToken: 'x'.repeat(24) }, { 'x-country': 'CA' }), starterDeps(0))
+  assert.equal(firstStarter.status, 200)
+  assert.equal(calls[0].unitAmount, 299)
+  assert.equal(calls[0].currency, 'cad')
+  const secondStarter = await handleCreateCheckout(post({ packId: 'starter', reauthToken: 'x'.repeat(24) }, { 'x-country': 'US' }), starterDeps(1))
+  assert.equal(secondStarter.status, 200)
+  assert.equal(calls[1].unitAmount, 199)
+  assert.equal(calls[1].currency, 'usd')
+  const laterStarter = await handleCreateCheckout(post({ packId: 'starter', reauthToken: 'x'.repeat(24) }), starterDeps(4))
+  assert.equal(laterStarter.status, 200)
+  assert.equal(calls[2].unitAmount, 449)
+  assert.equal(calls[2].currency, 'cad')
+  const giftStarter = await handleCreateCheckout(post({ packId: 'starter', reauthToken: 'x'.repeat(24), gift: true }), starterDeps(4))
+  assert.equal(giftStarter.status, 200)
+  assert.equal(calls[3].unitAmount, 299)
+  assert.equal(calls[3].purpose, 'gift')
   const src = read('../netlify/functions/create-checkout.ts')
   assert.match(src, /excluded_payment_method_types:\s*\['link'\]/)
   assert.match(src, /display:\s*'never'/)
@@ -187,6 +216,37 @@ test('a paid checkout grants once, a refund and a dispute take it back', async (
   assert.equal(ledger.purchases[0].status, 'revoked')
   assert.equal(ledger.entitlements[0].revokedAt == null, false)
   assert.equal(ledger.balances.get('player-1'), 0)
+
+  const repeat = memoryLedger()
+  const starterPack = webPackById('starter')!
+  const secondBuy = await grantCheckout(repeat, session({
+    id: 'cs_test_starter2',
+    payment_intent: 'pi_starter2',
+    currency: 'cad',
+    amount_total: 349,
+    metadata: { packId: 'starter', productId: starterPack.productId, playerId: 'player-9', purpose: 'self' },
+  }))
+  assert.equal(secondBuy.ok, true)
+  if (secondBuy.ok) assert.equal(secondBuy.coins, 8000)
+  assert.equal(repeat.balances.get('player-9'), 8000)
+  const thirdBuy = await grantCheckout(repeat, session({
+    id: 'cs_test_starter3',
+    payment_intent: 'pi_starter3',
+    currency: 'usd',
+    amount_total: 249,
+    metadata: { packId: 'starter', productId: starterPack.productId, playerId: 'player-9', purpose: 'self' },
+  }))
+  assert.equal(thirdBuy.ok, true)
+  if (thirdBuy.ok) assert.equal(thirdBuy.coins, 8000)
+  assert.equal(repeat.balances.get('player-9'), 16000)
+  const badStarter = await grantCheckout(repeat, session({
+    id: 'cs_test_starterbad',
+    payment_intent: 'pi_starterbad',
+    currency: 'cad',
+    amount_total: 300,
+    metadata: { packId: 'starter', productId: starterPack.productId, playerId: 'player-9', purpose: 'self' },
+  }))
+  assert.equal(badStarter.ok, false)
 
   const giftSession = session({
     id: 'cs_test_gift1',

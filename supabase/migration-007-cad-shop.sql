@@ -2,11 +2,12 @@
 -- Run in the SQL editor AFTER migration-006-social.sql.
 -- This project only. Safe to re-run. Do not run against a different project.
 --
--- Allows the proposed CAD catalog:
---   500, 1400, 3200 coin packs
---   300 starter, 1000 adventurer, 2500 stable
--- The Starter Pack is once per account via player_items
--- (item_type = 'bundle', item_id = 'starter'), written by the service role.
+-- Coin grants this check allows:
+--   5000, 14000, 32000 coin packs
+--   8000 starter coins, every time
+-- A Starter can be bought again. The price steps up per receiving account
+-- (C$2.99, C$3.49, then C$4.49; US$1.49, US$1.99, then US$2.49).
+-- This file does not store the price or the 5 treats. It only allows the coin amount.
 
 alter table public.stripe_receipts drop constraint if exists stripe_receipts_coins_check;
 alter table public.stripe_receipts

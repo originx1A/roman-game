@@ -2,6 +2,8 @@ import { CHECKOUT_TEST_ONLY, webPackById } from '../lib/coinPacks.ts'
 import { json, PURCHASES_UNAVAILABLE, siteBase } from '../lib/http.ts'
 import { checkoutAllowed, loadPayRow, requestCountry, requireUser, type PayRow } from '../lib/payGate.ts'
 import { consumeReauth as burnReauth } from '../lib/reauth.ts'
+import { starterPriceCents, type StarterCurrency } from '../../src/game/shopOffers.ts'
+import { countStarterReceipts } from '../lib/starterReceipts.ts'
 import { isLiveStripeKey, readStripeKey, stripeClient } from '../lib/stripeServer.ts'
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts'
 
@@ -24,7 +26,8 @@ export interface CheckoutDeps {
   userId(token: string): Promise<string | null>
   payRow(playerId: string): Promise<{ ok: true; row: PayRow } | { ok: false; status: number; error: string }>
   consumeReauth(playerId: string, token: string): Promise<boolean>
-  ownsPack(playerId: string, packId: string): Promise<boolean>
+  /** Starters already received by this account. Unavailable means the count could not be read. */
+  starterCount(playerId: string): Promise<number | 'unavailable'>
   createSession(input: CheckoutSessionInput, urls: { success: string; cancel: string }): Promise<{ url: string | null }>
 }
 
@@ -39,25 +42,10 @@ const defaultDeps = (): CheckoutDeps => ({
     if (!admin) return false
     return burnReauth(admin, playerId, token)
   },
-  async ownsPack(playerId, packId) {
+  async starterCount(playerId) {
     const admin = supabaseAdmin()
-    if (!admin) return false
-    const { data: entitled } = await admin
-      .from('entitlements')
-      .select('id')
-      .eq('player_id', playerId)
-      .eq('item_id', packId)
-      .is('revoked_at', null)
-      .limit(1)
-    if (Array.isArray(entitled) && entitled.length > 0) return true
-    const { data: owned } = await admin
-      .from('player_items')
-      .select('item_id')
-      .eq('player_id', playerId)
-      .eq('item_type', 'bundle')
-      .eq('item_id', packId)
-      .maybeSingle()
-    return !!owned
+    if (!admin) return 0
+    return countStarterReceipts(admin, playerId)
   },
   async createSession(input, urls) {
     const key = readStripeKey()
@@ -151,8 +139,17 @@ export async function handleCreateCheckout(req: Request, deps: CheckoutDeps = de
 
   const pack = webPackById(packId)
   if (!pack) return json({ error: 'That pack is not sold on the website.' }, 400)
-  if (pack.once && purpose === 'self' && await deps.ownsPack(playerId, pack.id)) {
-    return json({ error: 'You already have the Starter Pack.' }, 409)
+  const country = requestCountry(req)
+  const starterCurrency: StarterCurrency = country === 'US' ? 'usd' : 'cad'
+  let unitAmount = pack.unitAmount
+  let currency: string = pack.currency
+  if (pack.id === 'starter') {
+    // A gift code has no receiving account until it is redeemed, so it uses the first price.
+    // A pack for this account uses how many Starters this account already holds.
+    const prior = purpose === 'self' ? await deps.starterCount(playerId) : 0
+    if (prior === 'unavailable') return json({ error: PURCHASES_UNAVAILABLE }, 503)
+    unitAmount = starterPriceCents(starterCurrency, prior)
+    currency = starterCurrency
   }
   if (!await deps.consumeReauth(playerId, reauthToken)) {
     return json({ ok: false, error: 'Enter your password, PIN, or passkey to buy.' }, 401)
@@ -166,8 +163,8 @@ export async function handleCreateCheckout(req: Request, deps: CheckoutDeps = de
         productId: pack.productId,
         playerId,
         purpose,
-        unitAmount: pack.unitAmount,
-        currency: pack.currency,
+        unitAmount,
+        currency,
         label: pack.label,
         description: pack.contents.join(', '),
         email: loaded.row.email,

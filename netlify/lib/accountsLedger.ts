@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto'
+import { chargeMatchesPack } from '../../src/game/shopOffers.ts'
 import { CHECKOUT_TEST_ONLY, webPackById, type WebCoinPack } from './coinPacks.ts'
 
 /** Gift-code alphabet. No 0/O or 1/I/L. Codes are not dated. */
@@ -107,7 +108,7 @@ export async function grantCheckout(ledger: Ledger, session: CompletedSession, n
   if (session.payment_status !== 'paid') return { ok: false, error: 'unpaid' }
   const pack = webPackById(session.metadata?.packId)
   if (!pack || session.metadata?.productId !== pack.productId) return { ok: false, error: 'unknown_pack' }
-  if ((session.currency || '').toLowerCase() !== pack.currency || session.amount_total !== pack.unitAmount) {
+  if (!chargeMatchesPack(pack, session.currency, session.amount_total)) {
     return { ok: false, error: 'amount' }
   }
   const playerId = session.metadata?.playerId || ''
@@ -175,7 +176,7 @@ function purchaseFrom(
     purpose,
     status,
     coins: purpose === 'self' ? pack.coins : 0,
-    amountCents: pack.unitAmount,
+    amountCents: typeof session.amount_total === 'number' ? session.amount_total : pack.unitAmount,
     currency: pack.currency,
     livemode: session.livemode,
     giftCodeId,
