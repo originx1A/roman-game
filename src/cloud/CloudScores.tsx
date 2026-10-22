@@ -106,6 +106,7 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, 
       {!hidden && (
       <button
         type="button"
+        data-testid={cta ? 'board-signin' : 'save-scores'}
         className={cta ? 'btn primary board-cta' : `btn ghost cloud-btn${compact ? ' is-compact' : ''}${short ? ' is-short' : ''}`}
         onClick={() => {
           setErr('')
@@ -122,7 +123,7 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, 
       )}
       {sheet &&
         createPortal(
-          <div className="start-sheet cloud-sheet" role="dialog" aria-modal="true" aria-label={sheet === 'offer' ? 'Save your scores?' : 'Save my scores'}>
+          <div className="start-sheet cloud-sheet" data-testid="save-sheet" role="dialog" aria-modal="true" aria-label={sheet === 'offer' ? 'Save your scores?' : 'Save my scores'}>
             <div className="start-sheet-scrim" onClick={closeSheet} />
             {onInfo ? (
               <button type="button" className="sheet-info" onClick={onInfo}>

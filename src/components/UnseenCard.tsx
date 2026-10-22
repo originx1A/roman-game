@@ -57,7 +57,7 @@ export function UnseenCardTile({ records }: { records?: RecordsBlob }) {
   const [open, setOpen] = useState(false)
   return (
     <>
-      <button type="button" className="unseen-tile" onClick={() => setOpen(true)}>
+      <button type="button" className="unseen-tile" data-testid="unseen-card" onClick={() => setOpen(true)}>
         <UnseenCardArt pieces={earned ? CARD_PIECES : pieces} />
         <span className="unseen-tile-text">
           <b>{earned ? 'Unseen card earned!' : `Unseen card: ${pieces} of ${CARD_PIECES}`}</b>

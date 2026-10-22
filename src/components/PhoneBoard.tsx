@@ -79,8 +79,8 @@ function RoleBadge({ role }: { role: GroupRole | string }) {
   return null
 }
 
-/** Phone and desktop leaderboard. Guests can look. Signed-in players can rank, add friends, and join groups. */
-export function PhoneBoard({ playerName, onInfo }: { playerName: string; onInfo?: () => void }) {
+/** Phone board, and the centred desktop board. Guests can look. Signed-in players can rank, add friends, and join groups. */
+export function PhoneBoard({ playerName, onInfo, onClose }: { playerName: string; onInfo?: () => void; onClose?: () => void }) {
   const cloud = useCloud()
   const guest = cloud.status !== 'signed-in'
   const signed = cloud.status === 'signed-in' && !!cloud.publicName
@@ -171,13 +171,15 @@ export function PhoneBoard({ playerName, onInfo }: { playerName: string; onInfo?
   }, [tab, period, signed, rev, cloud.lastSync, cloud.publicName])
 
   useEffect(() => {
-    if (!open) return
+    if (!open && !onClose) return
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(null)
+      if (event.key !== 'Escape') return
+      if (open) setOpen(null)
+      else onClose?.()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open])
+  }, [open, onClose])
 
   const you = signed ? cloud.publicName : ''
   const list = tab === 'groups' ? groups : rows
@@ -188,12 +190,17 @@ export function PhoneBoard({ playerName, onInfo }: { playerName: string; onInfo?
     <main className="phone-board scroll-pane" data-testid="phone-board">
       <div className="board-head">
         <h2>Leaderboard</h2>
-        {signed ? (
-          <button type="button" className="board-inbox" data-testid="board-inbox" onClick={() => setOpen({ kind: 'inbox' })}>
-            Requests
-            {pending > 0 ? <span className="badge">{pending}</span> : null}
-          </button>
-        ) : null}
+        <div className="board-head-actions">
+          {signed ? (
+            <button type="button" className="board-inbox" data-testid="board-inbox" onClick={() => setOpen({ kind: 'inbox' })}>
+              Requests
+              {pending > 0 ? <span className="badge">{pending}</span> : null}
+            </button>
+          ) : null}
+          {onClose ? (
+            <button type="button" className="btn ghost" data-testid="board-close" onClick={onClose}>Close</button>
+          ) : null}
+        </div>
       </div>
       <div className="mode-picker" role="tablist" aria-label="Leaderboard">
         <button type="button" role="tab" data-testid="board-tab-everyone" aria-selected={tab === 'everyone'} className={tab === 'everyone' ? 'on' : undefined} onClick={() => setTab('everyone')}>Everyone</button>

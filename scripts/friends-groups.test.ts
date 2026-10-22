@@ -95,13 +95,18 @@ test('the full board, with friends and groups, opens on the desktop too', () => 
   assert.match(app, /screen === 'board' && device !== 'tablet'/)
   assert.match(app, /device === 'tablet' && screen === 'board'/)
   assert.match(app, /<LiveBoard/)
-  assert.match(app, /onSeeAll=\{\(\) => setScreen\('board'\)\}/)
+  assert.match(app, /onSeeAll=\{\(\) => setBoardOpen\(true\)\}/)
+  assert.match(app, /className="home-board"/)
+  assert.match(app, /className="board-pop"/)
   const desktop = app.split("screen === 'home' && device !== 'phone'")[1]?.split("screen === 'how'")[0] ?? ''
+  assert.match(desktop, /className="home-board"/)
   assert.equal(desktop.includes('onBoard'), false)
   assert.equal(desktop.includes('PhoneBoard'), false)
+  assert.match(app, /opts\.daily \|\| opts\.endless \|\| opts\.mode \|\| parseRemixId\(p\.id\)/)
+  assert.doesNotMatch(app, /Mix it up/)
   assert.doesNotMatch(app, /no undos/)
   assert.doesNotMatch(app, /no undo</)
-  assert.match(tag, /build 9\.33-b/)
+  assert.match(tag, /build 9\.33-c/)
 })
 
 test('migration 012 adds ranks and listed names without touching old tables', () => {

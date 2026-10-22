@@ -18,7 +18,7 @@ export function HomeUnseen({ onUnseen, unseenLine }: { onUnseen: () => void; uns
   return (
     <div className="home-unseen-wrap">
       {bubble ? <span className={`home-unseen-line${bubble.leaving ? ' is-leaving' : ''}`}>{bubble.text}</span> : null}
-      <button type="button" className="home-unseen" aria-label="The Unseen" onClick={onUnseen}>
+      <button type="button" className="home-unseen" data-testid="home-unseen" aria-label="The Unseen" onClick={onUnseen}>
         <picture>
           <source srcSet="/images/unseen.webp" type="image/webp" />
           <img src="/images/unseen.png" alt="" draggable={false} />
