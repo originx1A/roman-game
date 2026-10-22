@@ -31,16 +31,19 @@ export default async function purchaseReauth(req: Request): Promise<Response> {
 
   let method: ReauthMethod | '' = ''
   let secret = ''
+  let captchaToken: string | undefined
   try {
-    const body = (await req.json()) as { method?: unknown; secret?: unknown }
+    const body = (await req.json()) as { method?: unknown; secret?: unknown; captchaToken?: unknown; turnstile_token?: unknown }
     if (body.method === 'pin' || body.method === 'picture' || body.method === 'password') method = body.method
     secret = typeof body.secret === 'string' ? body.secret : ''
+    captchaToken = readCaptcha(body)
   } catch {
     return json({ ok: false, error: 'Enter your password, PIN, or passkey to buy.' }, 400)
   }
   if (!method || !secret) return json({ ok: false, error: 'Enter your password, PIN, or passkey to buy.' }, 400)
 
-  const ok = method === 'password' ? await passwordOk(admin, playerId, secret) : await profileOk(admin, playerId, method, secret)
+  const ok = method === 'password' ? await passwordOk(admin, playerId, secret, captchaToken) : await profileOk(admin, playerId, method, secret)
+  if (ok === 'captcha') return json({ ok: false, error: 'turnstile_required' }, 403)
   if (!ok) {
     if (limited(playerId)) return json({ ok: false, error: 'Too many tries. Wait a few minutes.' }, 429)
     return json({ ok: false, error: 'That did not match.' }, 401)
@@ -58,11 +61,26 @@ async function profileOk(admin: NonNullable<ReturnType<typeof supabaseAdmin>>, p
   return row.ok === true
 }
 
-async function passwordOk(admin: NonNullable<ReturnType<typeof supabaseAdmin>>, playerId: string, secret: string): Promise<boolean> {
+function readCaptcha(body: { captchaToken?: unknown; turnstile_token?: unknown }): string | undefined {
+  const raw = body.captchaToken ?? body.turnstile_token
+  if (typeof raw !== 'string') return undefined
+  const token = raw.trim()
+  if (token.length < 10 || token.length > 2048) return undefined
+  return token
+}
+
+async function passwordOk(
+  admin: NonNullable<ReturnType<typeof supabaseAdmin>>,
+  playerId: string,
+  secret: string,
+  captchaToken?: string,
+): Promise<boolean | 'captcha'> {
   const { data, error } = await admin.auth.admin.getUserById(playerId)
   const email = data.user?.email || ''
   if (error || !email || email.endsWith('@link.romansgame.invalid') || email.endsWith('@romansgame.invalid')) return false
   const client = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE, { auth: { persistSession: false, autoRefreshToken: false } })
-  const signed = await client.auth.signInWithPassword({ email, password: secret })
+  const signed = await client.auth.signInWithPassword({ email, password: secret, options: { captchaToken } })
+  const blob = `${signed.error?.code ?? ''} ${signed.error?.message ?? ''}`.toLowerCase()
+  if (blob.includes('captcha')) return 'captcha'
   return !signed.error && signed.data.user?.id === playerId
 }

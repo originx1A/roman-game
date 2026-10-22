@@ -43,13 +43,13 @@ Errors the face already matches: `401` `{error:"invalid_credentials"}` (unknown 
 
 Public site key, committed for the client: `0x4AAAAAAFfTs2hm1baT01HK`.
 
-Hostnames: `romansgame.com`, `play.romansgame.com`, `www.romansgame.com`.
+Hostnames already on the widget: `romansgame.com`, `play.romansgame.com`, `www.romansgame.com`, and the PR #67 preview. The PR #63 preview hostname that still needs adding is `deploy-preview-63--romans-game.netlify.app`.
 
 `GET /api/auth-config` returns `turnstileSiteKey` and `turnstileHosts`. The existing passkey, Google, and VAPID fields are unchanged.
 
-Tony has already stored the Turnstile secret in Supabase Auth → Attack Protection. This repo does not contain that secret and does not ask Cloudflare to check the token. Password grants pass the browser token through as `options.captchaToken`. Supabase accepts or rejects it. A captcha rejection is `403` and is not counted as a wrong password.
+Tony has already stored the Turnstile secret in Supabase Auth → Attack Protection. This repo does not contain that secret and does not ask Cloudflare to check the token. Password grants, magic-link sends, and email-code checks pass the browser token through as `options.captchaToken`. Supabase accepts or rejects it. A captcha rejection is `403` and is not counted as a wrong password. The widget resets after every try because a token is single-use.
 
-Signup requires a token before creating the user, then signs in with that same token. If Supabase rejects it, the new user is deleted. Recovery start only checks that a token is present, because a Turnstile token is single-use and finish needs a fresh one.
+Signup requires a token before creating the user, then signs in with that same token. If Supabase rejects it, the new user is deleted. Sign-in requires a token on every attempt. Recovery start only checks that a token is present, because a Turnstile token is single-use and finish needs a fresh one. The purchase password check (`/api/purchase-reauth`) forwards `captchaToken` or `turnstile_token` the same way.
 
 ## What Tony clicks in Supabase
 

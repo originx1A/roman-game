@@ -1,5 +1,5 @@
 import { hashCard, hashCode, hashIp, hashUa, hashesEqual, newCardToken, scrubMetadata, sixDigitCode } from './authCrypto.ts'
-import { nameLocked, notePasswordChange, noteRecoverAttempt, noteSigninAttempt, noteSigninFailure, noteSignupAttempt, passwordChangeBlocked, recoverIpBlocked, recoverNameBlocked, signinIpBlocked, signinNeedsTurnstile, signupIpBlocked } from './authLimits.ts'
+import { nameLocked, notePasswordChange, noteRecoverAttempt, noteSigninAttempt, noteSigninFailure, noteSignupAttempt, passwordChangeBlocked, recoverIpBlocked, recoverNameBlocked, signinIpBlocked, signupIpBlocked } from './authLimits.ts'
 import { ABSOLUTE_SHORT_MS, ABSOLUTE_STAY_MS, sessionExpired, sessionIdFromAccessToken } from './sessionClock.ts'
 import { decideName, publicDisplayName } from './namePolicy.ts'
 import { PASSWORD_HINT, passwordRejectReason } from './passwordPolicy.ts'
@@ -189,9 +189,7 @@ async function signin(ctx: Ctx): Promise<Response> {
     return authResponse(LIMITED, 429, origin)
   }
   const captchaToken = readCaptchaToken(body)
-  if (signinNeedsTurnstile(nameRow, ipRow, now) && !captchaToken) {
-    return authResponse({ error: 'turnstile_required' }, 403, origin)
-  }
+  if (!captchaToken) return authResponse({ error: 'turnstile_required' }, 403, origin)
 
   const signed = await deps.backend.signIn(name.normalized, typeof body.password === 'string' ? body.password : '', captchaToken)
   if (signed === 'captcha') return authResponse({ error: 'turnstile_required' }, 403, origin)

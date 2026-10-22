@@ -1,0 +1,130 @@
+import { useEffect, useRef, useState } from 'react'
+import { TURNSTILE_SITE_KEY, turnstileHostMessage } from '../game/turnstileSite'
+
+interface TurnstileApi {
+  render(el: HTMLElement, opts: Record<string, unknown>): string
+  execute(id: string): void
+  reset(id: string): void
+  remove(id: string): void
+}
+
+declare global {
+  interface Window {
+    turnstile?: TurnstileApi
+  }
+}
+
+let loading: Promise<void> | null = null
+
+function loadTurnstile(): Promise<void> {
+  if (window.turnstile) return Promise.resolve()
+  if (loading) return loading
+  loading = new Promise((resolve, reject) => {
+    const s = document.createElement('script')
+    s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
+    s.async = true
+    s.dataset.turnstile = '1'
+    s.onload = () => resolve()
+    s.onerror = () => {
+      loading = null
+      reject(new Error('turnstile'))
+    }
+    document.head.appendChild(s)
+  })
+  return loading
+}
+
+/**
+ * Invisible until Cloudflare asks for a tap. Tokens are single-use: call reset()
+ * after every sign-in attempt.
+ */
+export function useTurnstile(active: boolean) {
+  const box = useRef<HTMLDivElement>(null)
+  const widget = useRef<string | null>(null)
+  const token = useRef<string | null>(null)
+  const problem = useRef<string | null>(null)
+  const waiters = useRef<Array<(token: string | null) => void>>([])
+  const [note, setNote] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!active) return
+    let gone = false
+    void loadTurnstile()
+      .then(() => {
+        if (gone || !box.current || !window.turnstile || widget.current) return
+        widget.current = window.turnstile.render(box.current, {
+          sitekey: TURNSTILE_SITE_KEY,
+          appearance: 'interaction-only',
+          execution: 'execute',
+          size: 'flexible',
+          theme: 'auto',
+          retry: 'auto',
+          callback: (next: string) => {
+            token.current = next
+            problem.current = null
+            setNote(null)
+            const pending = waiters.current.splice(0)
+            pending.forEach((fn) => fn(next))
+          },
+          'expired-callback': () => {
+            token.current = null
+          },
+          'error-callback': (code: string) => {
+            token.current = null
+            const text = turnstileHostMessage(String(code)) || "This page couldn't complete the check. Try again."
+            problem.current = text
+            setNote(text)
+            const pending = waiters.current.splice(0)
+            pending.forEach((fn) => fn(null))
+          },
+        })
+        if (waiters.current.length && widget.current) window.turnstile.execute(widget.current)
+      })
+      .catch(() => {
+        const text = "This page couldn't complete the check. Try again."
+        problem.current = text
+        setNote(text)
+        const pending = waiters.current.splice(0)
+        pending.forEach((fn) => fn(null))
+      })
+    return () => {
+      gone = true
+      token.current = null
+      problem.current = null
+      if (widget.current && window.turnstile) window.turnstile.remove(widget.current)
+      widget.current = null
+      const pending = waiters.current.splice(0)
+      pending.forEach((fn) => fn(null))
+    }
+  }, [active])
+
+  function reset() {
+    token.current = null
+    problem.current = null
+    setNote(null)
+    if (widget.current && window.turnstile) window.turnstile.reset(widget.current)
+  }
+
+  function takeToken(): Promise<string | null> {
+    if (token.current) {
+      const have = token.current
+      token.current = null
+      return Promise.resolve(have)
+    }
+    if (problem.current) return Promise.resolve(null)
+    return new Promise((resolve) => {
+      const timer = window.setTimeout(() => resolve(null), 20000)
+      waiters.current.push((next) => {
+        window.clearTimeout(timer)
+        resolve(next)
+      })
+      if (widget.current && window.turnstile) window.turnstile.execute(widget.current)
+    })
+  }
+
+  function reason(): string | null {
+    return problem.current
+  }
+
+  return { box, takeToken, reset, reason, note }
+}

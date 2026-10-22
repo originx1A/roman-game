@@ -427,14 +427,21 @@ export function signInCode(token: string): string {
 export function explainCodeError(message: string | undefined): string {
   const raw = message?.trim() ?? ''
   if (!raw) return 'Code expired or already used, send a new one.'
+  if (/captcha/i.test(raw)) return "The captcha check didn't go through. Try again."
   if (/rate/i.test(raw)) return 'Too many tries. Wait a minute and try again.'
   if (/expired|already used|otp_expired|is invalid/i.test(raw)) return `Code expired or already used, send a new one. ${raw}`
   return raw
 }
 
+/** A captcha rejection is not a wrong code. Do not try another OTP type with the same token. */
+function captchaFailure(message: string | undefined): boolean {
+  return /captcha/i.test(message ?? '')
+}
+
 /** Wrong OTP type and a burned code look the same. Only those may try the next type. */
 function otpTypeMismatch(message: string | undefined): boolean {
   const raw = message?.trim() ?? ''
+  if (captchaFailure(raw)) return false
   return /expired|already used|otp_expired|is invalid/i.test(raw)
 }
 
@@ -445,8 +452,9 @@ let sendFlight: { email: string; promise: Promise<SignInResult> } | null = null
 /** One verify per address+code. A second tap reuses the first result instead of burning the code. */
 const verifyOnce = new Map<string, Promise<{ ok: boolean; error?: string }>>()
 
-export async function sendMagicLink(email: string): Promise<SignInResult> {
+export async function sendMagicLink(email: string, captchaToken?: string): Promise<SignInResult> {
   const address = signInEmail(email)
+  if (!captchaToken) return { ok: false, error: "This page couldn't complete the check. Try again." }
   if (sendFlight) {
     console.info(`[signin] send skipped email=${address} inFlight=${sendFlight.email}`)
     return sendFlight.email === address ? sendFlight.promise : { ok: false, error: 'A code is already on its way.' }
@@ -459,8 +467,14 @@ export async function sendMagicLink(email: string): Promise<SignInResult> {
     // The link returns to the page the player is on, including a deploy preview.
     // verifyOtp does not send this URL. A preview origin cannot change the code check.
     const redirect = `${window.location.origin}${window.location.pathname}`
-    const { error } = await sb.auth.signInWithOtp({ email: address, options: { emailRedirectTo: redirect, shouldCreateUser: true } })
-    if (error) return { ok: false, error: error.message?.trim() || "Couldn't send the link. Check the email and try again." }
+    const { error } = await sb.auth.signInWithOtp({
+      email: address,
+      options: { emailRedirectTo: redirect, shouldCreateUser: true, captchaToken },
+    })
+    if (error) {
+      if (captchaFailure(error.message)) return { ok: false, error: "The captcha check didn't go through. Try again." }
+      return { ok: false, error: error.message?.trim() || "Couldn't send the link. Check the email and try again." }
+    }
     return { ok: true, email: address, sentAt }
   })().finally(() => {
     if (sendFlight?.promise === promise) sendFlight = null
@@ -477,10 +491,11 @@ export async function sendMagicLink(email: string): Promise<SignInResult> {
  * loadPlayer, which copies this device's queued scores onto the account and flushes them.
  * That is the same path as opening the link.
  */
-export async function verifyEmailCode(email: string, token: string): Promise<{ ok: boolean; error?: string }> {
+export async function verifyEmailCode(email: string, token: string, captchaToken?: string): Promise<{ ok: boolean; error?: string }> {
   const address = signInEmail(email)
   const code = signInCode(token)
   if (!/^\d{6,10}$/.test(code)) return { ok: false, error: 'Enter the code from your email.' }
+  if (!captchaToken) return { ok: false, error: "This page couldn't complete the check. Try again." }
   const key = `${address}|${code}`
   const existing = verifyOnce.get(key)
   if (existing) {
@@ -492,14 +507,23 @@ export async function verifyEmailCode(email: string, token: string): Promise<{ o
     if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
     // email is the type the merged sign-in uses. If Supabase stored the code as a magic link
     // or a new-user signup, that call says the token is invalid and the next type is tried once.
+    // The captcha token is single-use, so only the first verifyOtp may carry it.
     let last = ''
+    let sentCaptcha = false
     for (const type of ['email', 'magiclink', 'signup'] as const) {
       console.info(`[signin] verify type=${type} email=${address} digits=${code.length} at=${new Date().toISOString()}`)
-      const { data, error } = await sb.auth.verifyOtp({ email: address, token: code, type })
+      const { data, error } = await sb.auth.verifyOtp({
+        email: address,
+        token: code,
+        type,
+        options: sentCaptcha ? undefined : { captchaToken },
+      })
+      sentCaptcha = true
       const message = error?.message
       console.info(`[signin] verify result type=${type} ok=${!error && !!data.session} message=${message ?? ''}`)
       if (!error && data.session) return { ok: true }
       last = message ?? ''
+      if (captchaFailure(message)) return { ok: false, error: explainCodeError(message) }
       if (!otpTypeMismatch(message)) return { ok: false, error: explainCodeError(message) }
     }
     return { ok: false, error: explainCodeError(last) }

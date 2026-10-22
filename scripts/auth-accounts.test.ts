@@ -193,14 +193,20 @@ test('unknown names and wrong passwords return the same body', async () => {
   const backend = new MemoryAuth()
   const { authDeps } = deps(backend)
   assert.equal((await call('signup', { name: 'Cool Kid', password: PASSWORD, captchaToken: TOKEN }, authDeps)).status, 201)
-  const unknown = await call('signin', { name: 'Other Kid', password: 'not-the-one' }, authDeps)
-  const wrong = await call('signin', { name: 'Cool Kid', password: 'not-the-one' }, authDeps)
+  const unknown = await call('signin', { name: 'Other Kid', password: 'not-the-one', captchaToken: TOKEN }, authDeps)
+  const wrong = await call('signin', { name: 'Cool Kid', password: 'not-the-one', captchaToken: TOKEN }, authDeps)
   assert.equal(unknown.status, wrong.status)
   assert.equal(unknown.status, 401)
   const unknownBody = await json(unknown)
   const wrongBody = await json(wrong)
   assert.deepEqual(unknownBody, wrongBody)
   assert.deepEqual(wrongBody, { error: 'invalid_credentials' })
+  const bareUnknown = await call('signin', { name: 'Other Kid', password: 'not-the-one' }, authDeps)
+  const bareWrong = await call('signin', { name: 'Cool Kid', password: PASSWORD }, authDeps)
+  assert.equal(bareUnknown.status, 403)
+  assert.equal(bareWrong.status, 403)
+  assert.deepEqual(await json(bareUnknown), { error: 'turnstile_required' })
+  assert.deepEqual(await json(bareWrong), { error: 'turnstile_required' })
 })
 
 test('a captcha rejection is not counted as a password failure', async () => {
@@ -483,7 +489,9 @@ test('the repo has no Turnstile secret and no siteverify call', () => {
       if (name.endsWith('.test.ts')) continue
       if (!/\.(ts|json|sql|toml)$/.test(name)) continue
       const text = readFileSync(path, 'utf8')
-      if (text.includes('TURNSTILE_SECRET') || text.includes('siteverify') || text.includes('challenges.cloudflare.com/turnstile')) hits.push(path)
+      const widgetScript = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
+      const withoutWidget = text.split(widgetScript).join('')
+      if (text.includes('TURNSTILE_SECRET') || text.includes('siteverify') || withoutWidget.includes('challenges.cloudflare.com/turnstile')) hits.push(path)
     }
   }
   walk(new URL('..', import.meta.url).pathname)

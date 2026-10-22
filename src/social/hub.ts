@@ -468,7 +468,7 @@ export async function claimStripe(sessionId: string): Promise<boolean> {
   }
 }
 
-export async function redeemDeviceLink(secret: string): Promise<{ ok: boolean; error?: string }> {
+export async function redeemDeviceLink(secret: string, captchaToken?: string): Promise<{ ok: boolean; error?: string }> {
   try {
     const res = await fetch('/api/device-link', {
       method: 'POST',
@@ -477,10 +477,18 @@ export async function redeemDeviceLink(secret: string): Promise<{ ok: boolean; e
     })
     const data = (await res.json()) as { ok?: boolean; token_hash?: string; email?: string; error?: string }
     if (!data.ok || !data.token_hash) return { ok: false, error: data.error || 'That code did not work.' }
+    if (!captchaToken) return { ok: false, error: "This page couldn't complete the check. Try again." }
     const client = await sb()
     if (!client) return { ok: false, error: 'Offline' }
-    const { error } = await client.auth.verifyOtp({ token_hash: data.token_hash, type: 'email' })
-    if (error) return { ok: false, error: 'Could not switch devices. Try the code again.' }
+    const { error } = await client.auth.verifyOtp({
+      token_hash: data.token_hash,
+      type: 'email',
+      options: { captchaToken },
+    } as Parameters<typeof client.auth.verifyOtp>[0])
+    if (error) {
+      if (/captcha/i.test(error.message ?? '')) return { ok: false, error: "The captcha check didn't go through. Try again." }
+      return { ok: false, error: 'Could not switch devices. Try the code again.' }
+    }
     await refresh()
     return { ok: true }
   } catch {

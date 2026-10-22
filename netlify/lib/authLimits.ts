@@ -42,10 +42,6 @@ export function nameLocked(name: LimitRow, now: number): boolean {
   return name.lockedUntil != null && name.lockedUntil > now
 }
 
-export function signinNeedsTurnstile(name: LimitRow, ip: LimitRow, now: number): boolean {
-  return within(name.failures, now, 15 * MINUTE).length >= 3 || within(ip.failures, now, 15 * MINUTE).length >= 3
-}
-
 export function noteSigninAttempt(ip: LimitRow, now: number): LimitRow {
   const next = prune(ip, now)
   next.hits = [...next.hits, now]
