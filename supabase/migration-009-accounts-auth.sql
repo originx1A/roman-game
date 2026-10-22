@@ -176,9 +176,6 @@ create table if not exists public.carts (
   expires_at timestamptz,
   created_at timestamptz not null default now()
 );
-create unique index if not exists carts_starter_once
-  on public.carts (player_id)
-  where holds_starter and status in ('pending', 'completed');
 create index if not exists carts_player_idx on public.carts (player_id, created_at desc);
 alter table public.carts enable row level security;
 drop policy if exists "carts: read own" on public.carts;
