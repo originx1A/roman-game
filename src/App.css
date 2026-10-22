@@ -884,14 +884,16 @@ html[data-motion='reduce'] .cell.pressed .cell-fill {
 .settings,
 .backup,
 .challenge-list,
-.follow-section {
+.follow-section,
+.about-section {
   margin-top: 1.5rem;
 }
 
 .settings h3,
 .backup h3,
 .challenge-list h3,
-.follow-section h3 {
+.follow-section h3,
+.about-section h3 {
   margin: 0 0 0.7rem;
   font-size: 0.85rem;
   letter-spacing: 0.12em;
@@ -6040,6 +6042,11 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 /* 9.32-e: footer links meet WCAG AA (>= 4.5:1 on the dark footer); the rest of the footer text is unchanged */
 .foot .privacy-link { color: rgba(244, 251, 255, 0.86); }
 .foot .privacy-link:hover, .foot .privacy-link:focus-visible { color: #f4fbff; }
+
+/* About section (Save & settings) — the footer bar's contents live here since 2026-10-22 */
+.about-line { margin: 0 0 0.55rem; font-size: 0.85rem; color: rgba(244, 251, 255, 0.6); display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem 0.9rem; }
+.about-link { color: rgba(244, 251, 255, 0.86); font-weight: 700; }
+.about-link:hover, .about-link:focus-visible { color: #f4fbff; }
 
 /* Footer must never clip on a narrow phone: the "Sound on/off" button was cut off at the right edge. */
 .foot {
