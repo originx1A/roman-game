@@ -1025,11 +1025,12 @@ export const OLDTIMER_GOOD_CLIPS = [
 ] as const satisfies readonly VoiceClipId[]
 
 /**
- * The Unseen takes about one in three shared voice moments (wrong move, idle, hint, lose),
- * instead of Roman or the coach, never on top of them. A quiet gap keeps him from stacking
- * heckles. Each pool is its own saved shuffle bag (see voiceBags below).
+ * The Unseen takes a bit over half of the shared voice moments (wrong move, idle, hint, lose):
+ * 0.54, which is 1.5× the previous 0.36 share. He still waits his turn instead of talking over
+ * Roman or the coach. A quiet gap keeps him from stacking heckles. Each pool is its own saved
+ * shuffle bag (see voiceBags below).
  */
-export const OLDTIMER_SHARE = 0.36
+export const OLDTIMER_SHARE = 0.54
 export const OLDTIMER_COOLDOWN_MS = 6500
 let oldtimerLastAt = Number.NEGATIVE_INFINITY
 

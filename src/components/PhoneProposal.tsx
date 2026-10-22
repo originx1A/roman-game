@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { CloudScoresButton, useCloud } from '../cloud/CloudScores'
 import { loadSavedVote, saveSavedVote } from '../game/analytics'
 
-/** Hooded figure on the home screen (phone, tablet, and desktop). The bubble is up only while his line plays. */
+/** Hooded figure on a wide home screen. Hidden on phones and on narrower windows, where he covers buttons. The bubble is up only while his line plays. */
 export function HomeUnseen({ onUnseen, unseenLine }: { onUnseen: () => void; unseenLine: string | null }) {
   const [bubble, setBubble] = useState<{ text: string; leaving: boolean } | null>(null)
   useEffect(() => {
@@ -28,7 +28,7 @@ export function HomeUnseen({ onUnseen, unseenLine }: { onUnseen: () => void; uns
   )
 }
 
-/** Phone-only arrival screen. Tablet and desktop keep the existing home, plus the same tappable Unseen. */
+/** Phone-only arrival screen. No hooded figure here: at phone size he covers the card or the bottom tabs. */
 export function PhoneHome({
   playerName,
   onPlay,
@@ -40,8 +40,6 @@ export function PhoneHome({
   onBug,
   onFamily,
   onInfo,
-  onUnseen,
-  unseenLine,
   buddy,
   unseen,
 }: {
@@ -55,10 +53,6 @@ export function PhoneHome({
   onBug: () => void
   onFamily: () => void
   onInfo: () => void
-  /** Asks for one of his lines. The bubble appears only once that line starts playing. */
-  onUnseen: () => void
-  /** Set while his audio is playing. Null before it starts and after it ends. */
-  unseenLine: string | null
   buddy: ReactNode
   unseen: ReactNode
 }) {
@@ -89,7 +83,6 @@ export function PhoneHome({
         <button type="button" onClick={onShare}><span aria-hidden>↗</span>Share</button>
       </div>
       {unseen}
-      <HomeUnseen onUnseen={onUnseen} unseenLine={unseenLine} />
       <button type="button" className="phone-quiet" onClick={onBug}>Report a bug</button>
     </main>
   )

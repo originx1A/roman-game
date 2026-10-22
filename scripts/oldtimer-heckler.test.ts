@@ -81,7 +81,7 @@ test('new heckler lines use the William rasp recipe and stay in one pool each', 
     const pools = [aside.includes(`'${id}'`), wrong.includes(`'${id}'`), good.includes(`'${id}'`)].filter(Boolean)
     assert.equal(pools.length, 1, `${id} should live in exactly one new pool`)
   }
-  assert.match(comments, /export const OLDTIMER_SHARE = 0\.36/)
+  assert.match(comments, /export const OLDTIMER_SHARE = 0\.54/)
   assert.match(comments, /event === 'aside'/)
   assert.match(comments, /oldtimerTurn\(1\)/)
   assert.match(sound, /export function voiceQuietMs/)

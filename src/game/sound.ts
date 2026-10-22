@@ -7,6 +7,7 @@
 
 import { heardEnough } from './heardLog'
 import {
+  VOICE_LINES,
   WARM_COACH_CLIPS,
   isPlayableVoiceClip,
   romanPlaybackRate,
@@ -16,6 +17,7 @@ import {
   type VoiceMood,
 } from './voiceLines'
 import { boardEndCancel, clipEndsAt, decideVoice, replacesWaiting, SPEAKER_GAP_MS, WAIT_LIMIT_MS, type ChannelLine } from './voiceChannel'
+import { bindVisualToPlaying } from './voiceVisual'
 
 let ctx: AudioContext | null = null
 let muted = false
@@ -29,6 +31,13 @@ export const OLDTIMER_PLAYBACK_RATE = 1.28
 
 /** The one and only voice player. Reused for every line (and unlocked on the first tap for iOS). */
 let voiceEl: HTMLAudioElement | null = null
+/** Drops the wait for a `playing` event when the channel is taken or the line is abandoned. */
+let cancelCueWatch: (() => void) | null = null
+function stopCueWatch() {
+  const cancel = cancelCueWatch
+  cancelCueWatch = null
+  cancel?.()
+}
 /** Line currently requested/playing on the channel (null = channel free) */
 let currentLine: ({ gen: number } & ChannelLine) | null = null
 /** Clip id asked for by the current line (9.30-f duplicate guard) */
@@ -712,6 +721,7 @@ export function setVoiceHeardListener(fn: ((clip: string) => void) | null) {
 
 /** Stop whatever is on the voice channel right now */
 function stopVoice() {
+  stopCueWatch()
   hideCue(voiceGeneration)
   voiceGeneration += 1
   clearVoiceSafety()
@@ -787,6 +797,7 @@ export function resetVoiceQuietClock() {
 }
 
 export function unlockAudio() {
+  warmUnseenVoices()
   ensureAudio()
   try {
     const c = ac()
@@ -1127,6 +1138,36 @@ export interface PlayVoiceOpts {
 }
 
 const clipUrlCache = new Map<string, string | null>()
+/** Raw bytes kept so the first tap can decode a clip that was fetched on the unlock gesture. */
+const clipBytes = new Map<string, ArrayBuffer>()
+let unseenWarmStarted = false
+
+/** Fetch and decode the Unseen's lines after the first gesture, aside lines first. */
+function warmUnseenVoices() {
+  if (unseenWarmStarted || typeof fetch === 'undefined') return
+  unseenWarmStarted = true
+  const ids = Object.keys(VOICE_LINES).filter((id) => isPlayableVoiceClip(id) && roleForClip(id) === 'oldtimer')
+  ids.sort((a, b) => Number(b.startsWith('old_aside')) - Number(a.startsWith('old_aside')))
+  let n = 0
+  const pump = () => {
+    if (n >= ids.length) return
+    const id = ids[n++]
+    void decodeWarm(id).finally(pump)
+  }
+  pump()
+  pump()
+}
+
+async function decodeWarm(id: string) {
+  await clipObjectUrl(id)
+  const raw = clipBytes.get(id)
+  if (!raw) return
+  try {
+    await ac().decodeAudioData(raw.slice(0))
+  } catch {
+    /* the blob url is still cached, so the audio element does not wait on the network */
+  }
+}
 const clipLoads = new Map<string, Promise<string | null>>()
 
 function isMp3Bytes(bytes: Uint8Array): boolean {
@@ -1150,6 +1191,7 @@ function clipObjectUrl(id: string): Promise<string | null> {
         return null
       }
       const buf = await res.arrayBuffer()
+      clipBytes.set(id, buf.slice(0))
       const bytes = new Uint8Array(buf)
       const type = (res.headers.get('content-type') || '').toLowerCase()
       if (type.includes('text/html') || !isMp3Bytes(bytes)) {
@@ -1247,25 +1289,48 @@ async function playClipQueue(el: HTMLAudioElement, queue: string[], gen: number,
     }
     if (role !== 'oldtimer' && role !== 'roman') el.defaultPlaybackRate = el.playbackRate
     const wantRate = el.playbackRate
-    let ok = false
+    // The picture waits for the real `playing` event. play() resolving, a queue slot,
+    // or a fetch finishing is not enough. If sound has not started within 1.5s, give
+    // up so he never pops out in silence and never talks with nobody on screen.
+    stopCueWatch()
+    const watch = bindVisualToPlaying(el, {
+      onShow: () => {
+        try {
+          voiceStartListener?.(clipId)
+        } catch {
+          /* rotation bookkeeping never breaks playback */
+        }
+        showCue(gen, clipId)
+      },
+      onAbort: () => {
+        try {
+          el.pause()
+        } catch {
+          /* already stopped */
+        }
+      },
+    })
+    cancelCueWatch = () => {
+      watch.cancel()
+      cancelCueWatch = null
+    }
     let refused = false
     try {
       await el.play()
-      ok = !el.error
+      if (el.error) refused = true
     } catch {
       // The browser refused to play (autoplay / interrupted). The next clip would be refused too:
       // stop here instead of walking the pool in order (that made the first alts repeat a lot).
       refused = true
     }
     if (gen !== voiceGeneration) return
-    if (refused) break
-    if (ok) {
-      try {
-        voiceStartListener?.(clipId)
-      } catch {
-        /* rotation bookkeeping never breaks playback */
-      }
-      showCue(gen, clipId)
+    if (refused) {
+      watch.cancel()
+      break
+    }
+    const started = await watch.done
+    if (gen !== voiceGeneration) return
+    if (started === 'started') {
       // Heard now: nothing may cut it. Size the safety net to what's left of the clip at this rate.
       const markPlaying = () => {
         if (gen !== voiceGeneration || !currentLine) return
@@ -1318,6 +1383,8 @@ async function playClipQueue(el: HTMLAudioElement, queue: string[], gen: number,
       }
       return
     }
+    // Did not start in time, or the element failed: do not try the next alt (that made lines late).
+    break
   }
   // No playable clip: stay silent (no speech-synthesis fallback)
   releaseVoice(gen)

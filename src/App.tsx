@@ -196,6 +196,7 @@ import {
   type BoardOutcome,
   type ConflictKind as BanterConflictKind,
 } from './game/comments'
+import { roleForClip } from './game/voiceLines'
 import { canTip, missedStarReason, noteMastery, noteShown, TIP_TRIGGERS, type TipId, type TipReason, type TipState } from './game/voiceTips'
 import type { ConflictKind as BoardConflictKind } from './game/logic'
 import { THEMES, themeForPuzzle } from './game/themes'
@@ -539,10 +540,12 @@ export default function App() {
   /** Set only when a clip has started playing. Null when that audio ends, or if the line was skipped. */
   const [voiceCue, setVoiceCue] = useState<{ clip: string; text: string; n: number } | null>(null)
   const voiceCueN = useRef(0)
-  /** The Unseen clip ids: `old_*`, plus tips like `tip_trial_old_life`. Roman is `roman_*`/`tip_*_roman_*`, Coach is `coach_*`/`tip_*_coach_*`. */
+  /** His clips are old_* and tip lines voiced by him (`tip_<tip>_old_<name>`). */
   function isUnseenClip(clip: string | undefined): boolean {
-    if (!clip) return false
-    return clip.startsWith('old_') || (clip.startsWith('tip_') && clip.includes('_old_'))
+    return !!clip && roleForClip(clip) === 'oldtimer'
+  }
+  function unseenCaption(text: string): string {
+    return text.replace(/^The Unseen:\s*/i, '').trim() || '\u00a0'
   }
   const unseenSpeaking = voiceCue && isUnseenClip(voiceCue.clip) ? voiceCue : null
   const [shortfall, setShortfall] = useState<null | { action: ShortfallAction; need: number; detail?: string }>(null)
@@ -3072,11 +3075,6 @@ export default function App() {
           onBug={() => setScreen('bug')}
           onFamily={() => setFamilyOpen(true)}
           onInfo={() => setInfoOpen(true)}
-          onUnseen={() => {
-            const line = unseenHomeSaying()
-            if (line.speak && line.clip) playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
-          }}
-          unseenLine={unseenSpeaking ? unseenSpeaking.text : null}
           buddy={
             <section className="home-pet-row" aria-label="Your buddy">
               <HomePet
@@ -3179,7 +3177,7 @@ export default function App() {
               const line = unseenHomeSaying()
               if (line.speak && line.clip) playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
             }}
-            unseenLine={unseenSpeaking ? unseenSpeaking.text : null}
+            unseenLine={unseenSpeaking ? unseenCaption(unseenSpeaking.text) : null}
           />
           <section className="stat-strip home-strip">
             <div>

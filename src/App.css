@@ -6551,8 +6551,9 @@ html[data-device='phone'] .phone-grid .cloud-btn.is-short::before { content: 'â˜
 }
 html[data-device='phone'] .phone-home .home-pet-row { margin: 0; }
 html[data-device='phone'] .phone-home .unseen-tile { margin: 0; max-width: none; }
-/* Home-screen tap target on every layout. Fixed, so the existing home does not reflow.
-   Only the figure receives taps. The bubble is up only while his line plays. */
+/* Home-screen tap on wide layouts only. Fixed, so the home does not reflow.
+   Only the figure receives taps. The bubble is up only while his line plays.
+   Under 1200px his robe covers Play daily, the stat line, or the phone tabs. */
 .home-unseen-wrap {
   position: fixed;
   right: 0.6rem;
@@ -6565,10 +6566,8 @@ html[data-device='phone'] .phone-home .unseen-tile { margin: 0; max-width: none;
   max-width: min(280px, 46vw);
   pointer-events: none;
 }
-html[data-device='phone'] .home-unseen-wrap {
-  right: 0.35rem;
-  bottom: calc(4.2rem + env(safe-area-inset-bottom));
-  max-width: min(260px, 78vw);
+@media (max-width: 1199px) {
+  .home-unseen-wrap { display: none; }
 }
 .home-unseen {
   pointer-events: auto;
@@ -6580,7 +6579,6 @@ html[data-device='phone'] .home-unseen-wrap {
   background: transparent;
   cursor: pointer;
 }
-html[data-device='phone'] .home-unseen { width: 120px; }
 .home-unseen img {
   width: 150px;
   height: auto;
@@ -6588,7 +6586,6 @@ html[data-device='phone'] .home-unseen { width: 120px; }
   margin-right: -8px;
   pointer-events: none;
 }
-html[data-device='phone'] .home-unseen img { width: 120px; }
 .home-unseen-line {
   position: relative;
   display: block;
