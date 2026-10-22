@@ -17,7 +17,7 @@ export function explainSignInError(error: AuthFailure | null | undefined, fallba
   const code = (error?.code ?? '').toLowerCase()
   const blob = `${code} ${message}`.toLowerCase()
   if (blob.includes('captcha')) {
-    return "Sign-in is blocked by a captcha check. This page doesn't send one."
+    return "The captcha check didn't go through. Try again."
   }
   if (error?.status === 429 || code.includes('over_email_send_rate_limit') || /rate limit|too many requests|over_request_rate_limit/.test(blob)) {
     return 'Too many tries, wait a few minutes.'

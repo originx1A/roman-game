@@ -198,11 +198,15 @@ export async function initCloud(): Promise<void> {
   }
 }
 
-export async function sendMagicLink(email: string): Promise<{ ok: boolean; error?: string }> {
+export async function sendMagicLink(email: string, captchaToken?: string): Promise<{ ok: boolean; error?: string }> {
+  if (!captchaToken) return { ok: false, error: "This page couldn't complete the check. Try again." }
   const sb = await client()
   if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
   const redirect = `${window.location.origin}${window.location.pathname}`
-  const { error } = await sb.auth.signInWithOtp({ email: email.trim(), options: { emailRedirectTo: redirect, shouldCreateUser: true } })
+  const { error } = await sb.auth.signInWithOtp({
+    email: email.trim(),
+    options: { emailRedirectTo: redirect, shouldCreateUser: true, captchaToken },
+  })
   if (error) return { ok: false, error: explainSignInError(error) }
   return { ok: true }
 }
@@ -213,12 +217,18 @@ export async function sendMagicLink(email: string): Promise<{ ok: boolean; error
  * loadPlayer, which copies this device's queued scores onto the account and flushes them.
  * That is the same path as opening the link.
  */
-export async function verifyEmailCode(email: string, token: string): Promise<{ ok: boolean; error?: string }> {
+export async function verifyEmailCode(email: string, token: string, captchaToken?: string): Promise<{ ok: boolean; error?: string }> {
   const sb = await client()
   if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
   const code = token.replace(/\s/g, '')
   if (!/^\d{6,8}$/.test(code)) return { ok: false, error: 'Enter the code from your email.' }
-  const { data, error } = await sb.auth.verifyOtp({ email: email.trim(), token: code, type: 'email' })
+  if (!captchaToken) return { ok: false, error: "This page couldn't complete the check. Try again." }
+  const { data, error } = await sb.auth.verifyOtp({
+    email: email.trim(),
+    token: code,
+    type: 'email',
+    options: { captchaToken },
+  })
   if (error || !data.session) {
     return { ok: false, error: explainSignInError(error, "That code didn't work. Check it and try again.") }
   }

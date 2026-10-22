@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { isProfane } from './profanity'
 import { NAME_MAX, loadConsent, saveConsent, onCloud, savePlayerName, sendMagicLink, signOut, verifyEmailCode, type CloudState } from './cloud'
+import { useTurnstile } from './useTurnstile'
 
 /**
  * "Save my scores" button + sheets: email magic link or the code from that email, then a one-time name prompt.
@@ -26,6 +27,8 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo }: { s
   const [age13, setAge13] = useState(() => loadConsent()?.age13 ?? false)
   const [optIn, setOptIn] = useState(() => loadConsent()?.optIn ?? false)
   const [terms, setTerms] = useState(false)
+  const captchaOn = sheet === 'email' || sheet === 'sent'
+  const captcha = useTurnstile(captchaOn)
   const consentChecks = (
     <div className="cloud-checks">
       <label className="cloud-check">
@@ -112,9 +115,12 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo }: { s
                 Info
               </button>
             ) : null}
-            {sheet === 'email' && (
+            {captchaOn && (
+              <div className="start-sheet-card">
+                <div className="cloud-turnstile" ref={captcha.box} />
+                {sheet === 'email' && (
               <form
-                className="start-sheet-card"
+                className="cloud-auth-form"
                 onSubmit={async (e) => {
                   e.preventDefault()
                   if (!age13) return setSheet('parent')
@@ -122,10 +128,21 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo }: { s
                   if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setErr('Type a full email address.')
                   saveConsent({ age13, optIn })
                   setBusy(true)
-                  const r = await sendMagicLink(email)
+                  setErr('')
+                  const token = await captcha.takeToken()
+                  if (!token) {
+                    setErr(captcha.reason() || "This page couldn't complete the check. Try again.")
+                    captcha.reset()
+                    setBusy(false)
+                    return
+                  }
+                  const r = await sendMagicLink(email, token)
+                  captcha.reset()
                   setBusy(false)
-                  if (r.ok) setSheet('sent')
-                  else setErr(r.error ?? 'Something went wrong.')
+                  if (r.ok) {
+                    setErr('')
+                    setSheet('sent')
+                  } else setErr(r.error ?? 'Something went wrong.')
                 }}
               >
                 <h3>Save your scores</h3>
@@ -142,15 +159,24 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo }: { s
                   Not now
                 </button>
               </form>
-            )}
-            {sheet === 'sent' && (
+                )}
+                {sheet === 'sent' && (
               <form
-                className="start-sheet-card"
+                className="cloud-auth-form"
                 onSubmit={async (e) => {
                   e.preventDefault()
                   if (!/^\d{6,8}$/.test(code)) return setErr('Enter the code from your email.')
                   setBusy(true)
-                  const r = await verifyEmailCode(email, code)
+                  setErr('')
+                  const token = await captcha.takeToken()
+                  if (!token) {
+                    setErr(captcha.reason() || "This page couldn't complete the check. Try again.")
+                    captcha.reset()
+                    setBusy(false)
+                    return
+                  }
+                  const r = await verifyEmailCode(email, code, token)
+                  captcha.reset()
                   setBusy(false)
                   if (!r.ok) setErr(r.error ?? 'Something went wrong.')
                 }}
@@ -187,6 +213,9 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo }: { s
                   Not now
                 </button>
               </form>
+                )}
+                {captcha.note && !err && <p className="cloud-err" role="alert">{captcha.note}</p>}
+              </div>
             )}
             {sheet === 'name' && (
               <form

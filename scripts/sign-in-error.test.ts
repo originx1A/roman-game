@@ -9,7 +9,7 @@ test('captcha, rate limit, and redirect failures say what actually happened', ()
       code: 'captcha_failed',
       message: 'captcha protection: request disallowed (no captcha_token found)',
     }),
-    "Sign-in is blocked by a captcha check. This page doesn't send one.",
+    "The captcha check didn't go through. Try again.",
   )
   assert.equal(
     explainSignInError({ status: 429, code: 'over_email_send_rate_limit', message: 'email rate limit exceeded' }),
