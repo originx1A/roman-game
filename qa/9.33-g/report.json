@@ -1,0 +1,17 @@
+{
+  "build": "9.33-g",
+  "pass": [
+    "first screen is one box and no 13+ question",
+    "existing name asks only for the password",
+    "lookup ran once for the name",
+    "picture password is one screen and has no 13+ box",
+    "fresh context name and password skips the 13+ box",
+    "signed-in screen stays closed with no questions",
+    "an address does not call the name lookup",
+    "recovery copy is the same either way",
+    "two different addresses get the same recovery screen",
+    "a new name shows only the 13+ question",
+    "under 13 still opens the parent path"
+  ],
+  "fail": []
+}

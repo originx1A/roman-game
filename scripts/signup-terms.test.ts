@@ -13,7 +13,20 @@ test('sign-up sheet requires Terms and Privacy, and leaves the news box unchecke
   assert.match(sheet, /I'm 13 or older/)
   assert.match(sheet, /const \[optIn, setOptIn\] = useState\(false\)/)
   assert.match(sheet, /const \[terms, setTerms\] = useState\(false\)/)
-  assert.match(sheet, /askAge && consentChecks/)
+  const age = sheet.split('data-testid="signup-age"')[1]?.split('data-testid="signup-terms"')[0] ?? ''
+  assert.match(age, /I'm 13 or older/)
+  assert.doesNotMatch(age, /I agree to the/)
+  assert.doesNotMatch(age, /href=/)
+  const terms = sheet.split('data-testid="signup-terms"')[1]?.split('data-testid="signup-news"')[0] ?? ''
+  assert.match(terms, /I agree to the/)
+  assert.match(terms, /Please agree to the Terms and Privacy\./)
+  assert.doesNotMatch(terms, /I'm 13 or older/)
+  assert.doesNotMatch(terms, /data-testid="age-13"/)
+  const news = sheet.split('data-testid="signup-news"')[1]?.split("sheet === 'name'")[0] ?? ''
+  assert.match(news, /type="checkbox"/)
+  assert.doesNotMatch(news, /I'm 13 or older/)
+  assert.doesNotMatch(news, /I agree to the/)
+  assert.doesNotMatch(sheet, /askAge/)
   assert.doesNotMatch(sheet, /oelsglmfkpzbueqysvdm/)
   assert.match(cloud, /https:\/\/oelsglmfkpzbueqysvdm\.supabase\.co/)
 })

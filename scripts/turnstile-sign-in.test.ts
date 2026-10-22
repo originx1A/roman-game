@@ -27,7 +27,7 @@ test('magic link and email code both send the captcha token', () => {
   assert.match(source, /signInWithOtp\(\{[\s\S]*captchaToken/)
   assert.match(source, /verifyOtp\(\{[\s\S]*captchaToken/)
   const sheet = readFileSync(new URL('../src/cloud/CloudScores.tsx', import.meta.url), 'utf8')
-  assert.match(sheet, /sendMagicLink\(email, token\)/)
+  assert.match(sheet, /sendRecoveryCode\(email, token\)/)
   assert.match(sheet, /verifyEmailCode\(email, code, token\)/)
   assert.match(sheet, /captcha\.reset\(\)/)
 })

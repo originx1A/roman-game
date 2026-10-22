@@ -374,7 +374,92 @@ export async function persistServerSession(accessToken: string, refreshToken: st
   return true
 }
 
-/** Name and password, for a player who set one. Same endpoint as PR #63. Email code stays available. */
+const accountChecks: number[] = []
+
+/**
+ * Does this player name already have an account? Sends the name only.
+ * An address is never looked up, so the answer cannot reveal which addresses exist.
+ * Limited to 30 checks in 15 minutes. A failure is "wait", never "new".
+ */
+export async function lookupAccount(name: string): Promise<'existing' | 'new' | 'wait' | 'no'> {
+  const player = name.trim().replace(/\s+/g, ' ')
+  if (!player || player.includes('@')) return 'wait'
+  const now = Date.now()
+  while (accountChecks.length && now - accountChecks[0] > 15 * 60 * 1000) accountChecks.shift()
+  if (accountChecks.length >= 30) return 'wait'
+  accountChecks.push(now)
+  let res: Response
+  try {
+    res = await fetch('/api/auth/account', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ name: player }),
+    })
+  } catch {
+    return 'wait'
+  }
+  if (res.status === 429) return 'wait'
+  if (res.status === 422) return 'no'
+  if (!res.ok) return 'wait'
+  const data = (await res.json().catch(() => null)) as { account?: string } | null
+  if (data?.account === 'existing' || data?.account === 'new') return data.account
+  return 'wait'
+}
+
+/** Recovery code. Unknown addresses get the same ok as known ones. A limit says to wait. */
+export async function sendRecoveryCode(email: string, captchaToken?: string): Promise<{ ok: boolean; error?: string }> {
+  if (!captchaToken) return { ok: false, error: "This page couldn't complete the check. Try again." }
+  const sb = await client()
+  if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
+  const redirect = `${window.location.origin}${window.location.pathname}`
+  const { error } = await sb.auth.signInWithOtp({
+    email: email.trim(),
+    options: { emailRedirectTo: redirect, shouldCreateUser: false, captchaToken },
+  })
+  if (!error) return { ok: true }
+  const status = (error as { status?: number }).status ?? 0
+  const message = error.message || ''
+  if (status === 429 || /rate|too many/i.test(message)) return { ok: false, error: 'Try again in a little while.' }
+  if (/captcha|turnstile/i.test(message)) return { ok: false, error: "This page couldn't complete the check. Try again." }
+  return { ok: true }
+}
+
+/** Create the account after the one-time questions. Same endpoint as PR #63. */
+export async function signUpWithName(name: string, password: string, captchaToken?: string, news = false): Promise<{ ok: boolean; error?: string }> {
+  const player = name.trim().replace(/\s+/g, ' ')
+  if (player.length < 3) return { ok: false, error: 'Type your player name.' }
+  if (!password) return { ok: false, error: 'Choose a password.' }
+  if (!captchaToken) return { ok: false, error: "This page couldn't complete the check. Try again." }
+  let res: Response
+  try {
+    res = await fetch('/api/auth/signup', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ name: player, password, age_choice: '13_plus', captchaToken, stay_signed_in: true, marketing_opt_in: news }),
+    })
+  } catch {
+    return { ok: false, error: "You're offline. Try again when you're connected." }
+  }
+  const data = (await res.json().catch(() => null)) as {
+    error?: string
+    user_id?: string
+    flags?: { age_confirmed_at?: string | null }
+    session?: { access_token?: string; refresh_token?: string }
+  } | null
+  if (res.status === 429) return { ok: false, error: 'Try again in a little while.' }
+  if (!res.ok || !data?.session?.access_token || !data.session.refresh_token) {
+    if (data?.error === 'name_taken') return { ok: false, error: 'That name or password did not match.' }
+    if (data?.error === 'weak_password') return { ok: false, error: 'Use a longer password that is not the name.' }
+    if (data?.error === 'turnstile_required') return { ok: false, error: "This page couldn't complete the check. Try again." }
+    return { ok: false, error: 'Could not create the account. Try again.' }
+  }
+  if (data.user_id) confirmedHint = data.user_id
+  const saved = await persistServerSession(data.session.access_token, data.session.refresh_token)
+  if (!saved) return { ok: false, error: 'Could not create the account. Try again.' }
+  return { ok: true }
+}
+
+/** Name and password. Same endpoint as PR #63. */
 export async function signInWithName(name: string, password: string, captchaToken?: string): Promise<{ ok: boolean; error?: string }> {
   const player = name.trim().replace(/\s+/g, ' ')
   if (player.length < 3) return { ok: false, error: 'Type your player name.' }
@@ -399,11 +484,12 @@ export async function signInWithName(name: string, password: string, captchaToke
   if (!res.ok || !data?.session?.access_token || !data.session.refresh_token) {
     if (data?.error === 'invalid_credentials') return { ok: false, error: 'That name or password did not match.' }
     if (data?.error === 'turnstile_required') return { ok: false, error: "This page couldn't complete the check. Try again." }
-    return { ok: false, error: 'Could not sign in. You can use the email code instead.' }
+    if (res.status === 429) return { ok: false, error: 'Try again in a little while.' }
+    return { ok: false, error: 'Could not sign in.' }
   }
   if (data.user_id && data.flags?.age_confirmed_at) confirmedHint = data.user_id
   const saved = await persistServerSession(data.session.access_token, data.session.refresh_token)
-  if (!saved) return { ok: false, error: 'Could not sign in. You can use the email code instead.' }
+  if (!saved) return { ok: false, error: 'Could not sign in.' }
   return { ok: true }
 }
 
