@@ -5452,13 +5452,25 @@ html[data-device='desktop'] .phone-board {
   gap: 0.6rem;
 }
 .phone-board-head h2 { margin: 0; }
-.phone-board-head .btn { min-height: 44px; flex-shrink: 0; }
+.board-x {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--foam);
+  font-size: 1.7rem;
+  line-height: 1;
+  cursor: pointer;
+}
 .board-pop {
   position: fixed;
   inset: 0;
   z-index: 90;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 1.25rem;
 }
 .board-pop-scrim {
@@ -5472,9 +5484,10 @@ html[data-device='desktop'] .phone-board {
 .board-pop-card {
   position: relative;
   z-index: 1;
-  width: min(560px, 100%);
-  min-height: min(420px, 72vh);
-  max-height: min(78vh, 720px);
+  width: min(36rem, calc(100vw - 2.5rem));
+  min-height: min(22rem, 70vh);
+  max-height: min(80vh, 40rem);
+  margin: 0;
   display: flex;
   flex-direction: column;
   border-radius: 20px;

@@ -34,7 +34,9 @@ export function PhoneBoard({ playerName, onInfo, onClose }: { playerName: string
       {onClose ? (
         <div className="phone-board-head">
           <h2>Leaderboard</h2>
-          <button type="button" className="btn ghost" onClick={onClose}>Close</button>
+          <button type="button" className="board-x" aria-label="Close" onClick={onClose}>
+            <span aria-hidden="true">×</span>
+          </button>
         </div>
       ) : (
         <h2>Leaderboard</h2>

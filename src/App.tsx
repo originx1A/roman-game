@@ -445,6 +445,14 @@ export default function App() {
   const [infoOpen, setInfoOpen] = useState(false)
   const [playerOpen, setPlayerOpen] = useState(false)
   const [boardOpen, setBoardOpen] = useState(false)
+  useEffect(() => {
+    if (!boardOpen) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setBoardOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [boardOpen])
   const [familyOpen, setFamilyOpen] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(() => loadProfile())
   const [progress, setProgress] = useState(() => getProgress())
