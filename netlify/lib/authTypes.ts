@@ -92,6 +92,10 @@ export interface AuthBackend {
   putLimit(action: string, subject: string, row: LimitRow): Promise<void>
   getRecovery(playerId: string): Promise<RecoveryRecord | null>
   saveRecovery(row: RecoveryRecord): Promise<void>
+  /** Player ids whose verified recovery address or pending recovery address is this mailbox. */
+  findRecoveryByEmail(email: string): Promise<string[]>
+  /** Player ids whose current recovery code hash is this value. */
+  findPlayersByCodeHash(codeHash: string): Promise<string[]>
   findCard(hash: string): Promise<string | null>
   consumeCard(hash: string, usedAt: string): Promise<string | null>
   replaceCard(playerId: string, hash: string, usedAt: string): Promise<void>

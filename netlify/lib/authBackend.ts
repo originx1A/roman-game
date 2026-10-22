@@ -232,6 +232,31 @@ class SupabaseAuthBackend implements AuthBackend {
     })
   }
 
+  async findRecoveryByEmail(email: string): Promise<string[]> {
+    const normalized = email.trim().toLowerCase()
+    const ids = new Set<string>()
+    const verified = await this.admin
+      .from('account_recovery')
+      .select('player_id, email_verified_at')
+      .eq('recovery_email', normalized)
+    if (!verified.error && Array.isArray(verified.data)) {
+      for (const row of verified.data as Row[]) {
+        if (row.email_verified_at) ids.add(String(row.player_id))
+      }
+    }
+    const pending = await this.admin.from('account_recovery').select('player_id').eq('pending_email', normalized)
+    if (!pending.error && Array.isArray(pending.data)) {
+      for (const row of pending.data as Row[]) ids.add(String(row.player_id))
+    }
+    return [...ids]
+  }
+
+  async findPlayersByCodeHash(codeHash: string): Promise<string[]> {
+    const { data, error } = await this.admin.from('account_recovery').select('player_id').eq('code_hash', codeHash)
+    if (error || !Array.isArray(data)) return []
+    return (data as Row[]).map((row) => String(row.player_id))
+  }
+
   async findCard(hash: string): Promise<string | null> {
     const { data, error } = await this.admin
       .from('recovery_cards')

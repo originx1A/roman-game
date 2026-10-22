@@ -3,6 +3,9 @@
 /api/auth/password/change /.netlify/functions/auth-password-change 200!
 /api/auth/recover/email/start /.netlify/functions/auth-recover-email-start 200!
 /api/auth/recover/email/finish /.netlify/functions/auth-recover-email-finish 200!
+/api/auth/recover/lost/start /.netlify/functions/auth-recover-lost-start 200!
+/api/auth/recover/lost/code /.netlify/functions/auth-recover-lost-code 200!
+/api/auth/recover/lost/finish /.netlify/functions/auth-recover-lost-finish 200!
 /api/auth/recover/card /.netlify/functions/auth-recover-card 200!
 /api/auth/recover/parent /.netlify/functions/auth-recover-parent 200!
 /api/auth/recovery-card/issue /.netlify/functions/auth-recovery-card-issue 200!

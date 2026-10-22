@@ -19,6 +19,9 @@ The game host calls these. Cooper’s sign-in face should set `nameAuth.signIn` 
 | `POST /api/auth/password/change` | `200 {ok:true}` and other sessions revoked |
 | `POST /api/auth/recover/email/start` | `202 {ok:true}` whether or not the name exists |
 | `POST /api/auth/recover/email/finish` | `200` with a session, or `401` |
+| `POST /api/auth/recover/lost/start` | `202` with the same sent-a-code sentence whether or not the email exists |
+| `POST /api/auth/recover/lost/code` | `200` with `reset_token` and the player names on that email |
+| `POST /api/auth/recover/lost/finish` | `200` with a session for the chosen account |
 | `POST /api/auth/recover/card` | `200` with a session and the new `qr_payload` |
 | `POST /api/auth/recover/parent` | `200 {ok:true}` for an active parent link. No child session |
 | `POST /api/auth/recovery-card/issue` | `200 {qr_payload}` |

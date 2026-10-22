@@ -16,6 +16,9 @@ export type AuthRoute =
   | 'password-change'
   | 'recover-email-start'
   | 'recover-email-finish'
+  | 'recover-lost-start'
+  | 'recover-lost-code'
+  | 'recover-lost-finish'
   | 'recover-card'
   | 'recover-parent'
   | 'recovery-card-issue'
@@ -30,6 +33,16 @@ export type AuthRoute =
 const INVALID = { error: 'invalid_credentials' }
 const LIMITED = { error: 'rate_limited' }
 const CODE_TTL_MS = 10 * 60_000
+/**
+ * A mailed code uses codeAttempts 0. After it is accepted, the same column holds
+ * a reset grant at this mark so a second try of the 6-digit code cannot clear it.
+ * account_recovery.code_attempts allows 0 through 20.
+ */
+const GRANT_MARK = 20
+export const RECOVERY_SENT_MESSAGE = 'If that email is on an account, we sent a code'
+export const RECOVERY_CODE_FAILED_MESSAGE = "That code didn't work. Enter your email to get a new one."
+const CODE_FAILED = { error: 'code_invalid', message: RECOVERY_CODE_FAILED_MESSAGE, step: 'email' }
+const SENT = { ok: true, message: RECOVERY_SENT_MESSAGE }
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 export type AuthDeps = {
@@ -91,6 +104,12 @@ export async function handleAuth(req: Request, route: AuthRoute, deps: AuthDeps)
         return await recoverEmailStart(ctx)
       case 'recover-email-finish':
         return await recoverEmailFinish(ctx)
+      case 'recover-lost-start':
+        return await recoverLostStart(ctx)
+      case 'recover-lost-code':
+        return await recoverLostCode(ctx)
+      case 'recover-lost-finish':
+        return await recoverLostFinish(ctx)
       case 'recover-card':
         return await recoverCard(ctx)
       case 'recover-parent':
@@ -321,6 +340,7 @@ async function recoverEmailStart(ctx: Ctx): Promise<Response> {
     const target = recovery?.recoveryEmail && recovery.emailVerifiedAt ? recovery.recoveryEmail : recovery?.pendingEmail
     const purpose: RecoveryPurpose = recovery?.emailVerifiedAt && recovery.recoveryEmail ? 'reset' : 'verify'
     if (recovery && target) {
+      await clearResetGrants(ctx, target)
       const code = deps.newCode()
       await deps.backend.saveRecovery({
         ...recovery,
@@ -341,27 +361,16 @@ async function recoverEmailFinish(ctx: Ctx): Promise<Response> {
   const { body, deps, now, origin } = ctx
   const name = decideName(body.name)
   const code = typeof body.code === 'string' ? body.code.trim() : ''
-  if (!name.ok || !/^\d{6}$/.test(code)) return authResponse(INVALID, 401, origin)
+  if (!name.ok) return authResponse(CODE_FAILED, 401, origin)
   const profile = await deps.backend.lookupName(name.normalized)
-  if (!profile || profile.banned) return authResponse(INVALID, 401, origin)
+  if (!profile || profile.banned) return authResponse(CODE_FAILED, 401, origin)
   const recovery = await deps.backend.getRecovery(profile.playerId)
-  if (!recovery || !recovery.codeHash || recovery.codeBurned || recovery.codeExpiresAt == null || recovery.codeExpiresAt <= now) {
-    return authResponse(INVALID, 401, origin)
-  }
-  if (recovery.codeAttempts >= 5) {
-    await deps.backend.saveRecovery({ ...recovery, codeBurned: true, codeHash: null })
-    return authResponse(INVALID, 401, origin)
-  }
-  if (!hashesEqual(deps.hashCode(code), recovery.codeHash)) {
-    const attempts = recovery.codeAttempts + 1
-    await deps.backend.saveRecovery({
-      ...recovery,
-      codeAttempts: attempts,
-      codeBurned: attempts >= 5,
-      codeHash: attempts >= 5 ? null : recovery.codeHash,
-    })
+  const digits = /^\d{6}$/.test(code)
+  const matches = !!recovery?.codeHash && digits && hashesEqual(deps.hashCode(code), recovery.codeHash)
+  if (!recovery || !mailedCodeActive(recovery, now) || !matches) {
+    if (recovery && mailedCodeActive(recovery, now)) await burnMailedCode(ctx, recovery)
     await audit(ctx, 'recovery_email_finish', profile.playerId, { ok: false })
-    return authResponse(INVALID, 401, origin)
+    return authResponse(CODE_FAILED, 401, origin)
   }
   const next = body.new_password
   if (passwordRejectReason(next, nameParts(profile.displayName, profile.normalized)) || (typeof next === 'string' && (await deps.hibp(next)) === 'pwned')) {
@@ -371,17 +380,161 @@ async function recoverEmailFinish(ctx: Ctx): Promise<Response> {
   if (!captchaToken) return authResponse({ error: 'turnstile_required' }, 403, origin)
   const saved = await deps.backend.setPassword(profile.playerId, next as string)
   if (!saved) return authResponse({ error: 'unavailable' }, 503, origin)
-  const signed = await deps.backend.signIn(profile.normalized, next as string, captchaToken)
-  if (signed === 'captcha') return authResponse({ error: 'turnstile_required' }, 403, origin)
-  if (!signed) return authResponse({ error: 'unavailable' }, 503, origin)
   const verified = verifyRecovery(recovery, now)
   await deps.backend.saveRecovery(verified)
   if (verified.recoveryEmail) await deps.backend.linkKidsByEmail(profile.playerId, verified.recoveryEmail).catch(() => undefined)
   await deps.backend.revoke(profile.playerId, 'global').catch(() => undefined)
+  const signed = await deps.backend.signIn(profile.normalized, next as string, captchaToken)
+  if (signed === 'captcha') return authResponse({ error: 'turnstile_required' }, 403, origin)
+  if (!signed) return authResponse({ error: 'unavailable' }, 503, origin)
   await rememberDevice(ctx, profile.playerId, signed.session.access_token)
   await audit(ctx, 'recovery_email_finish', profile.playerId, { ok: true })
   return authResponse(
-    await withFlags(ctx, profile.playerId, sessionBody(profile.playerId, publicDisplayName(profile.displayName), signed.session)),
+    await withFlags(ctx, profile.playerId, sessionBody(profile.playerId, publicDisplayName(profile.displayName), signed.session, { player_name: profile.displayName })),
+    200,
+    origin,
+  )
+}
+
+async function recoverLostStart(ctx: Ctx): Promise<Response> {
+  const { body, deps, origin } = ctx
+  if (!readCaptchaToken(body)) return authResponse({ error: 'turnstile_required' }, 403, origin)
+  const email = readRecoveryEmail(body)
+  const limited = await noteLostAttempt(ctx, email && email !== 'bad' ? email : null)
+  if (limited) return limited
+  if (!email || email === 'bad') return authResponse(SENT, 202, origin)
+  const { owners } = await accountsForEmail(ctx, email)
+  if (owners.length === 0) {
+    await audit(ctx, 'recovery_lost_start', null, { sent: false })
+    return authResponse(SENT, 202, origin)
+  }
+  await clearResetGrants(ctx, email)
+  const code = deps.newCode()
+  const hash = deps.hashCode(code)
+  const expires = ctx.now + CODE_TTL_MS
+  for (const playerId of owners) {
+    const row = await deps.backend.getRecovery(playerId)
+    if (!row) continue
+    await deps.backend.saveRecovery({
+      ...row,
+      codeHash: hash,
+      codePurpose: 'reset',
+      codeExpiresAt: expires,
+      codeAttempts: 0,
+      codeBurned: false,
+    })
+  }
+  await deps.sendCode(email, code, 'reset').catch(() => undefined)
+  await audit(ctx, 'recovery_lost_start', owners[0] ?? null, { sent: true })
+  return authResponse(SENT, 202, origin)
+}
+
+async function recoverLostCode(ctx: Ctx): Promise<Response> {
+  const { body, deps, now, origin } = ctx
+  if (!readCaptchaToken(body)) return authResponse({ error: 'turnstile_required' }, 403, origin)
+  const limited = await noteLostAttempt(ctx, null)
+  if (limited) return limited
+  const email = readRecoveryEmail(body)
+  const code = typeof body.code === 'string' ? body.code.trim() : ''
+  if (!email || email === 'bad') return authResponse(CODE_FAILED, 401, origin)
+  const found = await accountsForEmail(ctx, email)
+  const presented = /^\d{6}$/.test(code) ? deps.hashCode(code) : ''
+  let matched = false
+  const live: RecoveryRecord[] = []
+  for (const playerId of found.owners) {
+    const row = await deps.backend.getRecovery(playerId)
+    if (!row || !mailedCodeActive(row, now) || !row.codeHash) continue
+    live.push(row)
+    if (presented && hashesEqual(presented, row.codeHash)) matched = true
+  }
+  if (!matched || found.accounts.length === 0) {
+    for (const row of live) await burnMailedCode(ctx, row)
+    await audit(ctx, 'recovery_lost_code', null, { ok: false })
+    return authResponse(CODE_FAILED, 401, origin)
+  }
+  const token = deps.newCard()
+  const grantHash = deps.hashCode(token)
+  const expires = now + CODE_TTL_MS
+  for (const playerId of found.owners) {
+    const row = await deps.backend.getRecovery(playerId)
+    if (!row) continue
+    const mailbox = row.recoveryEmail ?? row.pendingEmail
+    await deps.backend.saveRecovery({
+      ...row,
+      recoveryEmail: mailbox,
+      emailVerifiedAt: new Date(now).toISOString(),
+      pendingEmail: null,
+      codeHash: grantHash,
+      codePurpose: 'reset',
+      codeExpiresAt: expires,
+      codeAttempts: GRANT_MARK,
+      codeBurned: false,
+    })
+    if ((await deps.backend.getAgeChoice(playerId)) === '13_plus') {
+      await deps.backend.linkKidsByEmail(playerId, email).catch(() => undefined)
+    }
+  }
+  const { accounts } = await accountsForEmail(ctx, email)
+  await audit(ctx, 'recovery_lost_code', found.owners[0] ?? null, { ok: true, accounts: accounts.length })
+  return authResponse({
+    reset_token: token,
+    accounts: accounts.map((account) => ({
+      user_id: account.userId,
+      player_name: account.playerName,
+      role: account.role,
+    })),
+  }, 200, origin)
+}
+
+async function recoverLostFinish(ctx: Ctx): Promise<Response> {
+  const { body, deps, now, origin } = ctx
+  const token = typeof body.reset_token === 'string' ? body.reset_token.trim() : ''
+  const userId = typeof body.user_id === 'string' ? body.user_id : ''
+  if (token.length < 12 || !UUID.test(userId)) return authResponse(CODE_FAILED, 401, origin)
+  const limited = await noteLostAttempt(ctx, null)
+  if (limited) return limited
+  const grantHash = deps.hashCode(token)
+  const holders = await deps.backend.findPlayersByCodeHash(grantHash)
+  const owners: string[] = []
+  let mailbox: string | null = null
+  for (const playerId of holders) {
+    const row = await deps.backend.getRecovery(playerId)
+    if (!row || !grantActive(row, now) || !row.codeHash || !hashesEqual(row.codeHash, grantHash)) continue
+    owners.push(playerId)
+    mailbox = row.recoveryEmail ?? row.pendingEmail
+  }
+  if (owners.length === 0 || !mailbox) return authResponse(CODE_FAILED, 401, origin)
+  const { accounts } = await accountsForEmail(ctx, mailbox)
+  const chosen = accounts.find((account) => account.userId === userId)
+  const profile = chosen ? await deps.backend.profileById(chosen.userId) : null
+  if (!chosen || !profile || profile.banned) return authResponse(CODE_FAILED, 401, origin)
+  const next = body.new_password
+  const parts = nameParts(profile.displayName, profile.normalized)
+  if (mailbox) parts.push(mailbox)
+  if (passwordRejectReason(next, parts) || (typeof next === 'string' && (await deps.hibp(next)) === 'pwned')) {
+    return authResponse({ error: 'weak_password', hint: PASSWORD_HINT }, 422, origin)
+  }
+  const captchaToken = readCaptchaToken(body)
+  if (!captchaToken) return authResponse({ error: 'turnstile_required' }, 403, origin)
+  const taken = await takeResetGrant(ctx, grantHash)
+  if (!taken) return authResponse(CODE_FAILED, 401, origin)
+  const saved = await deps.backend.setPassword(profile.playerId, next as string)
+  if (!saved) return authResponse({ error: 'unavailable' }, 503, origin)
+  await deps.backend.revoke(profile.playerId, 'global').catch(() => undefined)
+  const signed = await deps.backend.signIn(profile.normalized, next as string, captchaToken)
+  if (signed === 'captcha') return authResponse({ error: 'turnstile_required' }, 403, origin)
+  if (!signed) return authResponse({ error: 'unavailable' }, 503, origin)
+  await rememberDevice(ctx, profile.playerId, signed.session.access_token)
+  await audit(ctx, 'recovery_lost_finish', profile.playerId, { ok: true })
+  return authResponse(
+    await withFlags(
+      ctx,
+      profile.playerId,
+      sessionBody(profile.playerId, publicDisplayName(profile.displayName), signed.session, {
+        ...stayUntil(ctx),
+        player_name: profile.displayName,
+      }),
+    ),
     200,
     origin,
   )
@@ -674,6 +827,131 @@ async function reauthOk(ctx: Ctx, playerId: string): Promise<true | 'captcha' | 
     return checked
   }
   return false
+}
+
+type ListedAccount = { userId: string; playerName: string; role: 'account' | 'kid' }
+
+function mailedCodeActive(row: RecoveryRecord, now: number): boolean {
+  return row.codeAttempts !== GRANT_MARK && !!row.codeHash && !row.codeBurned && row.codeExpiresAt != null && row.codeExpiresAt > now
+}
+
+function grantActive(row: RecoveryRecord, now: number): boolean {
+  return row.codeAttempts === GRANT_MARK && !!row.codeHash && !row.codeBurned && row.codeExpiresAt != null && row.codeExpiresAt > now
+}
+
+function shownPlayerName(displayName: string): string {
+  if (displayName.includes('@')) return ''
+  return displayName
+}
+
+/** Sending is limited per IP and per mailbox. Code and password steps only count the IP. */
+async function noteLostAttempt(ctx: Ctx, email: string | null): Promise<Response | null> {
+  const { deps, now, origin, req } = ctx
+  const ipKey = deps.hashIp(clientIp(req)) ?? 'missing'
+  const ipRow = await deps.backend.getLimit('recover_ip', ipKey)
+  if (recoverIpBlocked(ipRow, now)) {
+    await deps.backend.putLimit('recover_ip', ipKey, noteRecoverAttempt(ipRow, now))
+    return authResponse(LIMITED, 429, origin)
+  }
+  await deps.backend.putLimit('recover_ip', ipKey, noteRecoverAttempt(ipRow, now))
+  if (!email) return null
+  const subject = deps.hashCode(email)
+  const row = await deps.backend.getLimit('recover_email', subject)
+  if (recoverNameBlocked(row, now)) {
+    await deps.backend.putLimit('recover_email', subject, noteRecoverAttempt(row, now))
+    return authResponse(LIMITED, 429, origin)
+  }
+  await deps.backend.putLimit('recover_email', subject, noteRecoverAttempt(row, now))
+  return null
+}
+
+async function burnMailedCode(ctx: Ctx, row: RecoveryRecord): Promise<void> {
+  await ctx.deps.backend.saveRecovery({
+    ...row,
+    codeHash: null,
+    codePurpose: null,
+    codeExpiresAt: null,
+    codeAttempts: 1,
+    codeBurned: true,
+  })
+}
+
+async function clearResetGrants(ctx: Ctx, email: string): Promise<void> {
+  const ids = await ctx.deps.backend.findRecoveryByEmail(email)
+  for (const playerId of ids) {
+    const row = await ctx.deps.backend.getRecovery(playerId)
+    if (!row || !grantActive(row, ctx.now)) continue
+    await ctx.deps.backend.saveRecovery({
+      ...row,
+      codeHash: null,
+      codePurpose: null,
+      codeExpiresAt: null,
+      codeAttempts: 0,
+      codeBurned: true,
+    })
+  }
+}
+
+async function takeResetGrant(ctx: Ctx, grantHash: string): Promise<boolean> {
+  const ids = await ctx.deps.backend.findPlayersByCodeHash(grantHash)
+  let taken = false
+  for (const playerId of ids) {
+    const row = await ctx.deps.backend.getRecovery(playerId)
+    if (!row || !grantActive(row, ctx.now) || !row.codeHash || !hashesEqual(row.codeHash, grantHash)) continue
+    await ctx.deps.backend.saveRecovery({
+      ...row,
+      codeHash: null,
+      codePurpose: null,
+      codeExpiresAt: null,
+      codeAttempts: 0,
+      codeBurned: true,
+    })
+    taken = true
+  }
+  return taken
+}
+
+async function accountsForEmail(ctx: Ctx, email: string): Promise<{ owners: string[]; accounts: ListedAccount[] }> {
+  const ids = await ctx.deps.backend.findRecoveryByEmail(email)
+  const seen = new Set<string>()
+  const accounts: ListedAccount[] = []
+  const owners: string[] = []
+  for (const id of ids) {
+    const profile = await ctx.deps.backend.profileById(id)
+    if (!profile || profile.banned) continue
+    const recovery = await ctx.deps.backend.getRecovery(id)
+    if (!recovery) continue
+    const owns = (recovery.recoveryEmail === email && recovery.emailVerifiedAt != null) || recovery.pendingEmail === email
+    if (!owns) continue
+    owners.push(id)
+    const age = await ctx.deps.backend.getAgeChoice(id)
+    if (!seen.has(id)) {
+      seen.add(id)
+      accounts.push({
+        userId: id,
+        playerName: shownPlayerName(profile.displayName),
+        role: age === 'under_13' ? 'kid' : 'account',
+      })
+    }
+    if (age !== '13_plus') continue
+    const kids = await ctx.deps.backend.listKids(id)
+    for (const kid of kids) {
+      if (seen.has(kid.userId)) continue
+      const child = await ctx.deps.backend.profileById(kid.userId)
+      if (!child || child.banned) continue
+      seen.add(kid.userId)
+      accounts.push({
+        userId: kid.userId,
+        playerName: shownPlayerName(child.displayName || kid.displayName),
+        role: 'kid',
+      })
+    }
+  }
+  accounts.sort((a, b) => {
+    if (a.role !== b.role) return a.role === 'account' ? -1 : 1
+    return a.playerName.localeCompare(b.playerName)
+  })
+  return { owners, accounts }
 }
 
 function verifyRecovery(row: RecoveryRecord, now: number): RecoveryRecord {

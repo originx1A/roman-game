@@ -57,6 +57,21 @@
   status = 200
   force = true
 [[redirects]]
+  from = "/api/auth/recover/lost/start"
+  to = "/.netlify/functions/auth-recover-lost-start"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/recover/lost/code"
+  to = "/.netlify/functions/auth-recover-lost-code"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/recover/lost/finish"
+  to = "/.netlify/functions/auth-recover-lost-finish"
+  status = 200
+  force = true
+[[redirects]]
   from = "/api/auth/recover/card"
   to = "/.netlify/functions/auth-recover-card"
   status = 200

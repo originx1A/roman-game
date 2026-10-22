@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import test from 'node:test'
-import { handleAuth, readCaptchaToken, type AuthDeps, type AuthRoute } from '../netlify/lib/authHandler.ts'
+import { RECOVERY_CODE_FAILED_MESSAGE, RECOVERY_SENT_MESSAGE, handleAuth, readCaptchaToken, type AuthDeps, type AuthRoute } from '../netlify/lib/authHandler.ts'
 import { ABSOLUTE_SHORT_MS, ABSOLUTE_STAY_MS, IDLE_MS, sessionExpired } from '../netlify/lib/sessionClock.ts'
 import { DAY, HOUR, MINUTE, accountCheckIpBlocked, emptyLimit, nextLockMs, noteAccountCheck, noteSigninAttempt, noteSigninFailure, noteSignupAttempt, signinIpBlocked, signupIpBlocked } from '../netlify/lib/authLimits.ts'
 import { hashCard, hashCode, hashIp, hashUa, scrubMetadata } from '../netlify/lib/authCrypto.ts'
@@ -590,7 +590,7 @@ test('logout is global and the saved session is checked on load and focus', () =
   assert.match(source, /recheckSession/)
   assert.match(source, /addEventListener\('focus'/)
   assert.match(source, /\/api\/auth\/session/)
-  assert.match(read('../src/buildTag.ts'), /build 9\.32-h/)
+  assert.match(read('../src/buildTag.ts'), /build 9\.32-i/)
   assert.match(read('../src/App.tsx'), /signOutEverywhere as cloudSignOut/)
   assert.match(read('../src/cloud/CloudScores.tsx'), /signOutEverywhere\(\)/)
   assert.match(read('../public/_redirects'), /\/api\/auth\/account/)
@@ -732,4 +732,225 @@ test('migration 014 adds the age table, the hold, and the owner columns', () => 
   assert.match(read('../public/_redirects'), /\/api\/auth\/parent-approve/)
   assert.match(read('../public/_redirects'), /\/api\/payments\/setup/)
   assert.match(read('../public/_redirects'), /\/api\/payments\/remove/)
+  assert.match(read('../public/_redirects'), /\/api\/auth\/recover\/lost\/start/)
+  assert.match(read('../netlify.toml'), /\/api\/auth\/recover\/lost\/finish/)
+})
+
+test("can't get in shows the player names on that email, then signs into the same account", async () => {
+  const backend = new MemoryAuth()
+  const { authDeps, sent } = deps(backend)
+  const kid = await json(await call('signup', {
+    name: 'Cool Kid',
+    password: PASSWORD,
+    email: 'parent@example.com',
+    age_choice: 'under_13',
+    captchaToken: TOKEN,
+  }, authDeps))
+  const token = new URL(sent[0].code).searchParams.get('token') || ''
+  const { approveParentHold } = await import('../netlify/lib/parentApprove.ts')
+  await approveParentHold(new Request(`https://play.romansgame.com/api/auth/parent-approve?token=${encodeURIComponent(token)}`), authDeps)
+  const parent = await json(await call('signup', {
+    name: 'Bright Fox',
+    password: PASSWORD,
+    email: 'parent@example.com',
+    age_choice: '13_plus',
+    captchaToken: TOKEN,
+  }, authDeps))
+  const cub = await json(await call('signup', {
+    name: 'Small Cub',
+    password: PASSWORD,
+    age_choice: 'under_13',
+    captchaToken: TOKEN,
+  }, authDeps))
+  const moth = await json(await call('signup', {
+    name: 'Calm Moth',
+    password: PASSWORD,
+    age_choice: 'under_13',
+    captchaToken: TOKEN,
+  }, authDeps))
+  const parentId = String(parent.user_id)
+  const cubId = String(cub.user_id)
+  const mothId = String(moth.user_id)
+  backend.parents.add(`${parentId}:${cubId}`)
+  backend.parents.add(`${parentId}:${mothId}`)
+  backend.links.push({ parentId, childId: cubId, status: 'active' })
+  backend.links.push({ parentId, childId: mothId, status: 'active' })
+  const mothProfile = backend.byId.get(mothId)
+  if (!mothProfile) throw new Error('missing moth')
+  mothProfile.banned = true
+  const kidId = String(kid.user_id)
+  const marked = await backend.getFlags(kidId)
+  marked.termsAcceptedAt = '2026-10-21T00:00:00.000Z'
+  marked.termsVersion = '2026-10-20'
+  await backend.saveFlags(kidId, marked, '2026-10-21T00:00:00.000Z')
+
+  const missing = await call('recover-lost-start', { email: 'nobody@example.com', captchaToken: TOKEN }, authDeps)
+  const present = await call('recover-lost-start', { email: 'Parent@Example.com', captchaToken: TOKEN }, authDeps)
+  const missingBody = await json(missing)
+  const presentBody = await json(present)
+  assert.equal(missing.status, 202)
+  assert.equal(present.status, 202)
+  assert.deepEqual(missingBody, presentBody)
+  assert.equal(presentBody.message, RECOVERY_SENT_MESSAGE)
+  assert.equal(sent.some((row) => row.email === 'nobody@example.com'), false)
+  const mailed = sent.filter((row) => row.purpose === 'reset')
+  assert.equal(mailed.length, 1)
+  assert.equal(mailed[0].email, 'parent@example.com')
+
+  const opened = await json(await call('recover-lost-code', {
+    email: 'parent@example.com',
+    code: mailed[0].code,
+    captchaToken: TOKEN,
+  }, authDeps))
+  const accounts = opened.accounts as { user_id: string; player_name: string; role: string }[]
+  assert.deepEqual(accounts.map((account) => ({ player_name: account.player_name, role: account.role })), [
+    { player_name: 'Bright Fox', role: 'account' },
+    { player_name: 'Cool Kid', role: 'kid' },
+    { player_name: 'Small Cub', role: 'kid' },
+  ])
+  assert.equal(accounts.some((account) => account.player_name === 'Calm Moth'), false)
+  assert.equal(JSON.stringify(opened).includes('example.com'), false)
+  assert.equal(JSON.stringify(opened).includes('@'), false)
+  const parentRow = await backend.getRecovery(parentId)
+  assert.equal(parentRow?.recoveryEmail, 'parent@example.com')
+  assert.equal(parentRow?.emailVerifiedAt == null, false)
+
+  const replay = await call('recover-lost-code', {
+    email: 'parent@example.com',
+    code: mailed[0].code,
+    captchaToken: TOKEN,
+  }, authDeps)
+  const replayBody = await json(replay)
+  assert.equal(replay.status, 401)
+  assert.equal(replayBody.message, RECOVERY_CODE_FAILED_MESSAGE)
+  assert.equal(replayBody.step, 'email')
+
+  const weak = await call('recover-lost-finish', {
+    reset_token: opened.reset_token,
+    user_id: kidId,
+    new_password: 'short',
+    captchaToken: TOKEN,
+  }, authDeps)
+  assert.equal(weak.status, 422)
+  const done = await json(await call('recover-lost-finish', {
+    reset_token: opened.reset_token,
+    user_id: kidId,
+    new_password: 'river-stone-lantern',
+    captchaToken: TOKEN,
+  }, authDeps))
+  assert.equal(done.user_id, kidId)
+  assert.equal(done.player_name, 'Cool Kid')
+  assert.equal((done.flags as { terms_accepted_at: string | null }).terms_accepted_at, '2026-10-21T00:00:00.000Z')
+  assert.equal(backend.byId.get(kidId)?.displayName, 'Cool Kid')
+  const spent = await call('recover-lost-finish', {
+    reset_token: opened.reset_token,
+    user_id: kidId,
+    new_password: 'river-stone-lantern',
+    captchaToken: TOKEN,
+  }, authDeps)
+  assert.equal(spent.status, 401)
+  assert.equal((await json(spent)).step, 'email')
+  const oldPassword = await call('signin', { name: 'Cool Kid', password: PASSWORD, captchaToken: TOKEN }, authDeps)
+  assert.equal(oldPassword.status, 401)
+  const signed = await json(await call('signin', { name: 'Cool Kid', password: 'river-stone-lantern', captchaToken: TOKEN }, authDeps))
+  assert.equal(signed.user_id, kidId)
+
+  const doc = read('../docs/auth-api.md')
+  assert.match(doc, /If that email is on an account, we sent a code/)
+  assert.match(doc, /That code didn't work\. Enter your email to get a new one\./)
+  assert.match(doc, /\/api\/auth\/recover\/lost\/code/)
+})
+
+test('one wrong recovery code is dead, and a new email request replaces the old code', async () => {
+  const backend = new MemoryAuth()
+  const { authDeps, sent } = deps(backend)
+  await call('signup', {
+    name: 'Cool Kid',
+    password: PASSWORD,
+    email: 'parent@example.com',
+    age_choice: '13_plus',
+    captchaToken: TOKEN,
+  }, authDeps)
+  authDeps.newCode = () => '111111'
+  const first = await call('recover-lost-start', { email: 'parent@example.com', captchaToken: TOKEN }, authDeps)
+  assert.equal(first.status, 202)
+  authDeps.newCode = () => '222222'
+  await call('recover-lost-start', { email: 'parent@example.com', captchaToken: TOKEN }, authDeps)
+  const stale = await call('recover-lost-code', { email: 'parent@example.com', code: '111111', captchaToken: TOKEN }, authDeps)
+  assert.equal(stale.status, 401)
+  assert.equal((await json(stale)).message, RECOVERY_CODE_FAILED_MESSAGE)
+  const burned = await call('recover-lost-code', { email: 'parent@example.com', code: '222222', captchaToken: TOKEN }, authDeps)
+  assert.equal(burned.status, 401)
+  authDeps.newCode = () => '333333'
+  await call('recover-lost-start', { email: 'parent@example.com', captchaToken: TOKEN }, authDeps)
+  const opened = await json(await call('recover-lost-code', { email: 'parent@example.com', code: '333333', captchaToken: TOKEN }, authDeps))
+  assert.equal(typeof opened.reset_token, 'string')
+  assert.equal(sent.filter((row) => row.purpose === 'reset').length, 3)
+
+  const named = await call('recover-email-finish', {
+    name: 'Cool Kid',
+    code: '000000',
+    new_password: 'river-stone-lantern',
+    captchaToken: TOKEN,
+  }, authDeps)
+  assert.equal(named.status, 401)
+  assert.equal((await json(named)).step, 'email')
+  const still = await call('recover-email-finish', {
+    name: 'Cool Kid',
+    code: '333333',
+    new_password: 'river-stone-lantern',
+    captchaToken: TOKEN,
+  }, authDeps)
+  assert.equal(still.status, 401)
+  await call('recover-email-start', { name: 'Cool Kid', captchaToken: TOKEN }, authDeps)
+  const reset = await call('recover-email-finish', {
+    name: 'Cool Kid',
+    code: '333333',
+    new_password: 'river-stone-lantern',
+    captchaToken: TOKEN,
+  }, authDeps)
+  assert.equal(reset.status, 200)
+  const twice = await call('recover-email-finish', {
+    name: 'Cool Kid',
+    code: '333333',
+    new_password: 'lantern-stone-river',
+    captchaToken: TOKEN,
+  }, authDeps)
+  assert.equal(twice.status, 401)
+})
+
+test('a recovery code expires after 10 minutes and a mailbox is limited to 3 sends an hour', async () => {
+  const backend = new MemoryAuth()
+  let now = NOW
+  const { authDeps, sent } = deps(backend)
+  authDeps.now = () => now
+  await call('signup', {
+    name: 'Cool Kid',
+    password: PASSWORD,
+    email: 'parent@example.com',
+    age_choice: '13_plus',
+    captchaToken: TOKEN,
+  }, authDeps)
+  const quiet = await call('recover-lost-start', { email: 'not-an-email', captchaToken: TOKEN }, authDeps)
+  const quietBody = await json(quiet)
+  assert.equal(quiet.status, 202)
+  assert.equal(quietBody.message, RECOVERY_SENT_MESSAGE)
+  assert.equal(sent.some((row) => row.purpose === 'reset'), false)
+  const bare = await call('recover-lost-start', { email: 'parent@example.com' }, authDeps)
+  assert.equal(bare.status, 403)
+
+  await call('recover-lost-start', { email: 'parent@example.com', captchaToken: TOKEN }, authDeps)
+  now += 10 * 60_000 + 1
+  const late = await call('recover-lost-code', { email: 'parent@example.com', code: '654321', captchaToken: TOKEN }, authDeps)
+  const lateBody = await json(late)
+  assert.equal(late.status, 401)
+  assert.equal(lateBody.message, RECOVERY_CODE_FAILED_MESSAGE)
+  now += 60_000
+  await call('recover-lost-start', { email: 'Parent@Example.com', captchaToken: TOKEN }, authDeps)
+  await call('recover-lost-start', { email: 'parent@example.com', captchaToken: TOKEN }, authDeps)
+  const blocked = await call('recover-lost-start', { email: 'parent@example.com', captchaToken: TOKEN }, authDeps)
+  const blockedBody = await json(blocked)
+  assert.equal(blocked.status, 429)
+  assert.equal(blockedBody.error, 'rate_limited')
+  assert.equal(sent.filter((row) => row.purpose === 'reset').length, 3)
 })

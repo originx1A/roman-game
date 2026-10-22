@@ -1,6 +1,6 @@
 # Auth API for the game login screen
 
-Cooper’s screen calls these. This repo does not draw that screen. Primary sign-in is the player name and a password. Email is recovery only: a code to the address saved on the account. The in-game email-code sheet (magic link and the code from that email) still works. Tony may keep it as an option.
+Cooper’s screen calls these. This repo does not draw that screen. Primary sign-in is the player name and a password. Email is recovery only: a code to the address saved on the account. "Can't get in?" uses that address to show the player name and set a new password. The in-game email-code sheet (magic link and the code from that email) still works. Tony may keep it as an option.
 
 Preview: `https://deploy-preview-63--romans-game.netlify.app`
 
@@ -85,10 +85,48 @@ Logout is `signOutEverywhere()`: `POST /api/auth/signout` with the bearer token 
 
 `200` `{ "account": "existing" }` or `{ "account": "new" }`. An `email` field is ignored and is never looked up, so the response cannot tell anyone which addresses exist. A missing or illegal name is `422` `{error:"name_rejected"}` whether or not an email was sent. This route does not take a captcha token, so it does not use up the token sign-in needs. It is limited to 30 checks per IP per 15 minutes and 120 per IP per day. Over that, `429` `{error:"rate_limited"}`.
 
-## Email recovery
+## Can't get in
 
-`POST /api/auth/recover/email/start` with `{ "name", "captchaToken" }` returns `202` `{ok:true}` whether or not that name has a recovery email.
+This is the screen for a forgotten player name and a forgotten password. The button label is "Can't get in?". The player does not have to remember the name. Email stays the recovery address and is never shown as the player name.
 
-`POST /api/auth/recover/email/finish` with `{ "name", "code", "new_password", "captchaToken" }` returns a session or `401`.
+1. The player enters the email address.
+2. `POST /api/auth/recover/lost/start` with `{ "email", "captchaToken" }`.
+3. The player enters the 6-digit code from that email.
+4. `POST /api/auth/recover/lost/code` with `{ "email", "code", "captchaToken" }`.
+5. The screen lists `accounts[].player_name`. A parent mailbox also lists linked kid accounts (`role` is `kid`). The player picks one `user_id` and types a new password.
+6. `POST /api/auth/recover/lost/finish` with `{ "reset_token", "user_id", "new_password", "captchaToken" }`.
+7. The response is a session for that same `user_id`. Keep both tokens and call `persistServerSession(access_token, refresh_token)`. Saved progress stays on that account.
 
-The code lasts 10 minutes. Five wrong tries burn it. The in-game email code (`sendMagicLink` / `verifyEmailCode`) is still available for the existing sheet.
+Start always answers `202`:
+
+```json
+{ "ok": true, "message": "If that email is on an account, we sent a code" }
+```
+
+That sentence is the same when the address is unknown, misspelled, or not saved yet. Do not show a different line for those cases. An address that is only a held under-13 parent link (not approved yet) is not on an account, so no mail is sent, and the sentence stays the same.
+
+The code step returns `200`:
+
+```json
+{
+  "reset_token": "...",
+  "accounts": [
+    { "user_id": "...", "player_name": "Bright Fox", "role": "account" },
+    { "user_id": "...", "player_name": "Cool Kid", "role": "kid" }
+  ]
+}
+```
+
+`player_name` is the full player name. It is not the email and not the part before `@`. `role` `kid` is a linked child on a parent mailbox, or an under-13 account that uses this address for recovery. Finish returns the usual session fields plus `player_name`. `display_name` on that session is still the public first word.
+
+A code lasts 10 minutes. It is single-use. The first time it is accepted, it is consumed and the screen uses `reset_token` for the password step (also 10 minutes, single-use). One wrong entry invalidates the code immediately. Show `That code didn't work. Enter your email to get a new one.` and go back to the email step. The API returns `401`:
+
+```json
+{ "error": "code_invalid", "message": "That code didn't work. Enter your email to get a new one.", "step": "email" }
+```
+
+`step` is `email`. Asking for a new code invalidates any older code and any unused reset token for that mailbox. A weak new password is `422` `{error:"weak_password", hint}` and does not use up the reset token, so the player can type another password without going back. A missing captcha token is `403` `{error:"turnstile_required"}`.
+
+Sends are limited to 3 per mailbox per hour and 10 recovery calls per IP per hour. Over that, `429` `{error:"rate_limited"}`. The limit response is the one case that does not use the sent-a-code sentence.
+
+The older name routes still work for a player who knows the name: `POST /api/auth/recover/email/start` with `{ "name", "captchaToken" }` returns `202` `{ok:true}` whether or not that name has a recovery email, and `POST /api/auth/recover/email/finish` with `{ "name", "code", "new_password", "captchaToken" }` returns a session. Those codes follow the same single-use rule. The in-game email code (`sendMagicLink` / `verifyEmailCode`) is still available for the existing sheet.

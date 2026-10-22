@@ -188,6 +188,25 @@ export class MemoryAuth implements AuthBackend {
     this.recovery.set(row.playerId, structuredClone(row))
   }
 
+  async findRecoveryByEmail(email: string): Promise<string[]> {
+    const normalized = email.trim().toLowerCase()
+    const ids: string[] = []
+    for (const row of this.recovery.values()) {
+      const verified = row.recoveryEmail === normalized && row.emailVerifiedAt != null
+      const pending = row.pendingEmail === normalized
+      if (verified || pending) ids.push(row.playerId)
+    }
+    return ids
+  }
+
+  async findPlayersByCodeHash(codeHash: string): Promise<string[]> {
+    const ids: string[] = []
+    for (const row of this.recovery.values()) {
+      if (row.codeHash === codeHash) ids.push(row.playerId)
+    }
+    return ids
+  }
+
   async findCard(hash: string): Promise<string | null> {
     const card = this.cards.find((row) => row.hash === hash && row.usedAt == null)
     return card?.playerId ?? null

@@ -65,6 +65,7 @@ const SECRET_KEYS = new Set([
   'access_token',
   'refresh_token',
   'reauth_token',
+  'reset_token',
   'authorization',
   'recovery_email',
   'email',
