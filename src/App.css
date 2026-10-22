@@ -6821,6 +6821,13 @@ html[data-motion='reduce'] .td-invader {
 .cloud-err { margin: 0.25rem 0 0; color: #ff8a8a; font-size: 0.82rem; font-weight: 600; }
 .cloud-auth-form { display: grid; gap: 0.5rem; }
 .cloud-turnstile { width: 100%; min-height: 0; }
+.cloud-turnstile-startup {
+  position: fixed;
+  left: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 40;
+  width: min(100% - 1.5rem, 20rem);
+}
 .cloud-sheet .name-input { width: 100%; }
 .cloud-code { letter-spacing: 0.22em; text-align: center; font-weight: 800; font-variant-numeric: tabular-nums; }
 .cloud-code::placeholder { letter-spacing: 0; font-weight: 600; }

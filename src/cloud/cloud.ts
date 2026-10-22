@@ -1,4 +1,5 @@
 import { gaEvent } from '../game/analytics'
+import { resetManagedCaptcha, takeManagedCaptcha } from './useTurnstile'
 import { getPlayerName, isUnsetAccountName } from '../game/playerName'
 import { rememberPlayerName } from '../game/storage'
 /**
@@ -273,11 +274,30 @@ export function useCloudClientForTests(sb: SupabaseClient | null): void {
   clientP = Promise.resolve(sb)
 }
 
+/** Set just before Google linking. The authorize GET forwards spare query params to Google, so the token travels on this header instead. */
+let googleCaptcha: string | null = null
+
+function authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const url = input instanceof Request ? input.url : String(input)
+  if (!googleCaptcha || !url.includes('/user/identities/authorize')) return fetch(input, init)
+  const token = googleCaptcha
+  googleCaptcha = null
+  const headers = new Headers(init?.headers)
+  if (input instanceof Request) {
+    input.headers.forEach((value, key) => {
+      if (!headers.has(key)) headers.set(key, value)
+    })
+  }
+  headers.set('x-captcha-token', token)
+  return fetch(input, { ...init, headers })
+}
+
 function client(): Promise<SupabaseClient | null> {
   if (!clientP) {
     clientP = import('@supabase/supabase-js')
       .then(({ createClient }) =>
         createClient(SUPABASE_URL, SUPABASE_KEY, {
+          global: { fetch: authFetch },
           auth: {
             persistSession: true,
             autoRefreshToken: true,
@@ -317,19 +337,58 @@ async function ensurePlayerRow(sb: SupabaseClient): Promise<void> {
   await sb.rpc('ensure_player').then(() => undefined, () => undefined)
 }
 
+let anonBusy = false
+
 /** Silent anonymous account. Play already started. Failures retry in the background. */
 async function ensureAnonymous(attempt = 0): Promise<void> {
-  if (anonHeld || explicitSignOut) return
-  if (typeof window === 'undefined') return
-  if (readStoredSession()) return
+  if (anonBusy && attempt === 0) return
+  anonBusy = true
+  try {
+    if (anonHeld || explicitSignOut) return
+    if (typeof window === 'undefined') return
+    if (readStoredSession()) return
+    const sb = await client()
+    if (!sb || anonHeld) return
+    const { data } = await sb.auth.getSession()
+    if (data.session || anonHeld) return
+    const captchaToken = await takeManagedCaptcha()
+    if (anonHeld || explicitSignOut || readStoredSession()) return
+    if (!captchaToken) {
+      resetManagedCaptcha()
+      if (attempt >= 5) return
+      window.setTimeout(() => void ensureAnonymous(attempt + 1), Math.min(30_000, 2000 * 2 ** attempt))
+      return
+    }
+    const { error } = await sb.auth.signInAnonymously({ options: { captchaToken } })
+    resetManagedCaptcha()
+    if (!error || anonHeld) return
+    if (attempt >= 5) return
+    window.setTimeout(() => void ensureAnonymous(attempt + 1), Math.min(30_000, 2000 * 2 ** attempt))
+  } finally {
+    anonBusy = false
+  }
+}
+
+/**
+ * Continue with Google on the current player.
+ * options.captchaToken is set for the same shape as the other auth calls.
+ * This client builds the authorize URL without that field, and spare query params are copied to Google,
+ * so the token is also sent on x-captcha-token.
+ */
+export async function linkGoogle(redirectTo: string, captchaToken: string): Promise<{ ok: boolean; error?: string }> {
   const sb = await client()
-  if (!sb || anonHeld) return
-  const { data } = await sb.auth.getSession()
-  if (data.session || anonHeld) return
-  const { error } = await sb.auth.signInAnonymously()
-  if (!error || anonHeld) return
-  if (attempt >= 5) return
-  window.setTimeout(() => void ensureAnonymous(attempt + 1), Math.min(30_000, 2000 * 2 ** attempt))
+  if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
+  googleCaptcha = captchaToken
+  const { error } = await sb.auth.linkIdentity({
+    provider: 'google',
+    options: { redirectTo, captchaToken },
+  } as unknown as Parameters<SupabaseClient['auth']['linkIdentity']>[0])
+  googleCaptcha = null
+  if (error) {
+    if (/captcha/i.test(error.message ?? '')) return { ok: false, error: "The captcha check didn't go through. Try again." }
+    return { ok: false, error: error.message }
+  }
+  return { ok: true }
 }
 
 function sessionFromStore(): Session | null {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
 import { CloudScoresButton } from '../cloud/CloudScores'
-import { getSupabase, holdAnonymous, resumePlayAccount, signOut } from '../cloud/cloud'
+import { getSupabase, holdAnonymous, linkGoogle, resumePlayAccount, signOut } from '../cloud/cloud'
 import { useTurnstile } from '../cloud/useTurnstile'
 import { AUTH_LABEL, availableAuthMethods, deviceCodeDigits, deviceCodeReady, type AuthMethod } from '../game/authMethods'
 import { publicPlayUrl } from '../game/publicUrl'
@@ -124,10 +124,12 @@ export function AccountSocial() {
     }
     if (method === 'email') return
     if (method === 'google') {
-      const sb = await getSupabase()
-      if (!sb) return
+      const captchaToken = await takeCaptcha()
+      if (!captchaToken) return
       const redirect = `${window.location.origin}${window.location.pathname}`
-      await sb.auth.linkIdentity({ provider: 'google', options: { redirectTo: redirect } })
+      const linked = await linkGoogle(redirect, captchaToken)
+      captcha.reset()
+      if (!linked.ok) setNote(linked.error || "The captcha check didn't go through. Try again.")
       return
     }
     if (method === 'passkey') await registerPasskey()
