@@ -555,7 +555,7 @@ export default function App() {
   const saveNonce = useRef(0)
   /** Phone "Save your scores?" waits until Home, so it never covers Victory or a running board. */
   const saveAskAfterLeave = useRef(false)
-  /** Phone "What should we call you?" waits until Home, same as the save sheet. */
+  /** "What should we call you?" waits until Home. Never during play or on Victory. */
   const nameAskAfterHome = useRef(false)
   const [defeated, setDefeated] = useState(false)
   /** Set the moment a board is won or lost (before any state update lands), cleared for the next
@@ -1152,10 +1152,8 @@ export default function App() {
       if (cue) {
         voiceCueN.current += 1
         setVoiceCue({ clip: cue.clip, text: cue.text, n: voiceCueN.current })
-        // Home and desktop play already show his bubble, so the caption must not repeat the line.
-        const unseen = isUnseenClip(cue.clip)
-        const bubbleOwnsLine =
-          unseen && (screenRef.current === 'home' || (deviceRef.current === 'desktop' && screenRef.current === 'play'))
+        // Home and play already have his bubble (or just his voice). The caption does not repeat the line.
+        const bubbleOwnsLine = isUnseenClip(cue.clip) && (screenRef.current === 'home' || screenRef.current === 'play')
         if (cue.text && !bubbleOwnsLine) {
           voiceToast.current = true
           window.clearTimeout(toastTimer.current)
@@ -1272,9 +1270,9 @@ export default function App() {
     })
   }
 
-  /** Ask for a name once; `then` runs after Save or Skip */
+  /** Ask for a name once, and only on Home. Never during play or on the Victory card. */
   function askNameOnce(then?: () => void): boolean {
-    if (settings.namePrompted || playerName) return false
+    if (settings.namePrompted || playerName || screen !== 'home') return false
     setNameDraft('')
     setNamePrompt({ then })
     return true
@@ -1288,10 +1286,10 @@ export default function App() {
     if (then) window.setTimeout(then, 0)
   }
 
-  // Phone: the name prompt and the save sheet open only on Home. Never over the Victory card, and never on a board whose clock is running.
+  // Name prompt and save sheet open only on Home. Never during play, on Victory, or between boards.
   useEffect(() => {
-    if (screen !== 'home' || device !== 'phone') return
-    const pendingSave = saveAskAfterLeave.current
+    if (screen !== 'home') return
+    const pendingSave = device === 'phone' && saveAskAfterLeave.current
     const pendingName = nameAskAfterHome.current
     if (!pendingSave && !pendingName) return
     saveAskAfterLeave.current = false
@@ -1301,7 +1299,6 @@ export default function App() {
     }
     if (pendingName && askNameOnce(pendingSave ? openSave : undefined)) return
     openSave()
-    // askNameOnce reads the latest name; this runs only when the screen becomes Home.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, device])
 
@@ -2134,18 +2131,8 @@ export default function App() {
         })
       }
       if (shellRef.current) burstConfetti(shellRef.current)
-      // First finished board: ask once what to call the player on share cards.
-      // Phone waits until Home so the prompt never covers Next board or Home.
-      if (!settings.namePrompted && !playerName) {
-        if (device === 'phone') nameAskAfterHome.current = true
-        else {
-          window.setTimeout(() => {
-            // Only over the Victory card itself — never on top of Buddy Hunt or the prize wheel
-            if (!document.querySelector('.win-screen') || document.querySelector('.buddy-hunt, .prize-overlay')) return
-            askNameOnce()
-          }, 2200)
-        }
-      }
+      // First finished board: ask once, later, on Home. Never over the Victory card.
+      if (!settings.namePrompted && !playerName) nameAskAfterHome.current = true
     }
   }
 
@@ -3053,7 +3040,7 @@ export default function App() {
       {/* On a live board the toast text shows in the play caption slot instead (never over the board) */}
       {toast && (screen !== 'play' || celebrate || defeated) && <div className="toast">{toast}</div>}
 
-      {namePrompt &&
+      {namePrompt && screen === 'home' &&
         createPortal(
           <div className="start-sheet name-prompt" role="dialog" aria-modal="true" aria-label="Your name">
             <div className="start-sheet-scrim" />
@@ -3463,9 +3450,9 @@ export default function App() {
               board. Always takes its space (never reflows the board) and never overlaps it. */}
           {(() => {
             // Once the board is won or lost the global toast carries notices; don't echo them here too.
-            // On PC his bubble already shows the line, so the caption must not repeat it.
+            // His line lives in the bubble (PC) or only in the voice (phone play). The caption never repeats it.
             const liveToast = celebrate || defeated ? '' : toast
-            const captionToast = device === 'desktop' && unseenSpeaking && liveToast === unseenSpeaking.text ? '' : liveToast
+            const captionToast = unseenSpeaking && liveToast === unseenSpeaking.text ? '' : liveToast
             const captionText = captionToast || hintText
             return (
               <p className={`play-caption ${captionText ? '' : 'is-empty'} ${captionToast ? 'is-voice' : ''}`} aria-live="polite">
