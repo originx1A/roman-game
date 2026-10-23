@@ -11,6 +11,23 @@ let worker: Worker | null | undefined
 let nextJob = 1
 const waiting = new Map<number, { job: Job; done: (p: Puzzle | null) => void }>()
 
+/** A phone can create the module worker and then never answer. Don't leave Remix on "Building…". */
+const REMIX_WAIT_MS: Record<number, number> = { 5: 4000, 6: 7000, 7: 12000, 8: 22000 }
+
+function waitMs(job: Job): number {
+  if (job.kind === 'endless') return 12000
+  return REMIX_WAIT_MS[job.size] ?? 8000
+}
+
+function dropWorker() {
+  try {
+    worker?.terminate()
+  } catch {
+    /* already gone */
+  }
+  worker = null
+}
+
 function onMain(job: Job): Promise<Puzzle | null> {
   return new Promise((resolve) => {
     window.setTimeout(() => {
@@ -34,12 +51,10 @@ function getWorker(): Worker | null {
     }
     worker.onerror = () => {
       // Worker broke: finish anything waiting on the main thread and stop using it
-      worker?.terminate()
-      worker = null
-      for (const [id, w] of waiting) {
-        waiting.delete(id)
-        void onMain(w.job).then(w.done)
-      }
+      const stuck = [...waiting.entries()]
+      waiting.clear()
+      dropWorker()
+      for (const [, w] of stuck) void onMain(w.job).then(w.done)
     }
   } catch {
     worker = null
@@ -52,8 +67,31 @@ function run(job: Job): Promise<Puzzle | null> {
   if (!w) return onMain(job)
   return new Promise((resolve) => {
     const id = nextJob++
-    waiting.set(id, { job, done: resolve })
-    w.postMessage({ job: id, ...job })
+    let settled = false
+    const finish = (p: Puzzle | null) => {
+      if (settled) return
+      settled = true
+      window.clearTimeout(timer)
+      waiting.delete(id)
+      resolve(p)
+    }
+    const timer = window.setTimeout(() => {
+      const stuck = [...waiting.entries()]
+      waiting.clear()
+      dropWorker()
+      for (const [oid, ow] of stuck) {
+        if (oid === id) continue
+        void onMain(ow.job).then(ow.done)
+      }
+      void onMain(job).then(finish)
+    }, waitMs(job))
+    waiting.set(id, { job, done: finish })
+    try {
+      w.postMessage({ job: id, ...job })
+    } catch {
+      dropWorker()
+      void onMain(job).then(finish)
+    }
   })
 }
 

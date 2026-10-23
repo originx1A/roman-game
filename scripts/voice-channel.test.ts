@@ -11,27 +11,34 @@ const P = { idle: 1, chatter: 2, wrong: 3, hint: 4, prize: 4, win: 5, lose: 5 }
 const now = 100_000
 const oldTimerPlaying = (priority: number, leftMs = 3000) => ({ priority, audible: true, endsAt: now + leftMs })
 
-test('9.30-e: a line that has started is never cut; higher lines wait for it', () => {
-  // old-timer grumble (wrong, 3) is talking; the coach hint (4) and Roman's win line (5) wait
-  for (const pr of [P.hint, P.prize, P.win, P.lose]) {
-    const d = V.decideVoice(oldTimerPlaying(P.wrong), { priority: pr }, now)
+test('one speaker: a line that has started is never cut; a short line lets the next one wait', () => {
+  assert.ok(V.SPEAKER_GAP_MS >= 400 && V.SPEAKER_GAP_MS <= 600)
+  assert.equal(V.WAIT_LIMIT_MS, 2000)
+  // 800ms left: the next line can start inside the 2s window, after the gap
+  for (const pr of [P.idle, P.wrong, P.hint, P.win]) {
+    const d = V.decideVoice(oldTimerPlaying(P.wrong, 800), { priority: pr }, now)
     assert.equal(d.kind, 'wait', `priority ${pr}`)
+    assert.ok(d.kind === 'wait' && d.until === now + V.WAIT_LIMIT_MS)
   }
-  // the win line waits long enough to play right after him; a hint goes stale sooner
-  const win = V.decideVoice(oldTimerPlaying(P.wrong, 3000), { priority: P.win }, now)
-  const hint = V.decideVoice(oldTimerPlaying(P.wrong, 3000), { priority: P.hint }, now)
-  assert.ok(win.kind === 'wait' && win.until === now + 3000 + V.STALE_AFTER_MS.high)
-  assert.ok(hint.kind === 'wait' && hint.until === now + 3000 + V.STALE_AFTER_MS.normal)
-  // end not known yet (metadata pending): assume a typical line
+  // 3s left: the reaction would be stale, so it is skipped
+  for (const pr of [P.idle, P.hint, P.win]) {
+    assert.equal(V.decideVoice(oldTimerPlaying(P.wrong, 3000), { priority: pr }, now).kind, 'skip', `stale ${pr}`)
+  }
+  // end not known yet: hold it, and let the 2s limit drop it if the line runs long
   const unk = V.decideVoice({ priority: 2, audible: true, endsAt: 0 }, { priority: P.win }, now)
-  assert.ok(unk.kind === 'wait' && unk.until >= now + V.UNKNOWN_REMAINING_MS)
+  assert.ok(unk.kind === 'wait' && unk.until === now + V.WAIT_LIMIT_MS)
+  // the gap between speakers is itself a hold; a new line waits out that hold
+  const gap = V.decideVoice({ priority: 0, audible: true, endsAt: now + V.SPEAKER_GAP_MS }, { priority: P.chatter }, now)
+  assert.equal(gap.kind, 'wait')
 })
 
 test('9.30-e: no overlap and no stacking stay as before', () => {
   assert.deepEqual(V.decideVoice(null, { priority: 1 }, now), { kind: 'play' })
   assert.deepEqual(V.decideVoice(oldTimerPlaying(P.wrong), { priority: P.idle }, now), { kind: 'skip' })
   assert.deepEqual(V.decideVoice(oldTimerPlaying(P.wrong), { priority: P.wrong }, now), { kind: 'skip' })
-  assert.deepEqual(V.decideVoice(oldTimerPlaying(P.win), { priority: P.chatter, waitMs: 7000 }, now), { kind: 'wait', until: now + 7000 })
+  // a long waitMs still goes stale once the line cannot start within about 2s
+  assert.equal(V.decideVoice(oldTimerPlaying(P.win, 3000), { priority: P.chatter, waitMs: 7000 }, now).kind, 'skip')
+  assert.equal(V.decideVoice(oldTimerPlaying(P.win, 800), { priority: P.chatter, waitMs: 7000 }, now).kind, 'wait')
   // still loading (nothing heard): a higher line may replace it
   assert.deepEqual(V.decideVoice({ priority: P.wrong, audible: false, endsAt: 0 }, { priority: P.win }, now), { kind: 'preempt' })
   // one waiting slot: same-or-higher replaces

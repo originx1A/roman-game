@@ -8,9 +8,26 @@ export const PARADE_MAX_WINS = 9
 /** 9.30-t: and at least 20-30 minutes since the last parade (a random gap each cycle): whichever comes later */
 export const PARADE_MIN_GAP_MS = 20 * 60000
 export const PARADE_MAX_GAP_MS = 30 * 60000
-export const PARADE_MIN_MS = 12000
-export const PARADE_MAX_MS = 16000
+/** Each buddy crosses the screen in this range (9.32-k). The old 12–16s march was too slow to watch. */
+export const PARADE_CROSS_MIN_MS = 1500
+export const PARADE_CROSS_MAX_MS = 2500
+/** Short gap between one buddy starting and the next. */
+export const PARADE_GAP_MIN_MS = 260
+export const PARADE_GAP_MAX_MS = 420
+/** Beat after the last buddy leaves, before the summary. The whole parade stays under 10s. */
+export const PARADE_TAIL_MS = 400
+export const PARADE_MAX_MS = 9000
 export const PARADE_KEY = 'roman.parade.v1'
+
+export interface BuddyMarch {
+  /** How long this buddy takes to cross, 1.5–2.5s */
+  crossMs: number
+  /** When this buddy starts, after the parade opens */
+  delayMs: number
+  /** Slight vertical bob, in px, so a tap is not a flat glide */
+  bobPx: number
+  bobMs: number
+}
 
 export interface ParadeState {
   /** wins since the last parade */
@@ -80,9 +97,44 @@ export function paradeHint(s: ParadeState, now = Date.now()): { winsLeft: number
   return { winsLeft, minLeft, ready, text }
 }
 
-/** 12-16 s: slow enough to tap a buddy on a phone (9.30-p; it was 5-10 s) */
-export function paradeLengthMs(rand: () => number = Math.random): number {
-  return Math.round(PARADE_MIN_MS + rand() * (PARADE_MAX_MS - PARADE_MIN_MS))
+/**
+ * One crossing per buddy, each 1.5–2.5s, with a short stagger. A huge roster squeezes the gaps
+ * so the last buddy is gone before 9s; the crossing speed itself stays in range.
+ */
+export function paradeMarch(count: number, rand: () => number = Math.random): BuddyMarch[] {
+  const n = Math.max(1, Math.min(24, Math.floor(count) || 1))
+  const buddies: BuddyMarch[] = []
+  let delay = 0
+  for (let i = 0; i < n; i++) {
+    const crossMs = Math.round(PARADE_CROSS_MIN_MS + rand() * (PARADE_CROSS_MAX_MS - PARADE_CROSS_MIN_MS))
+    buddies.push({
+      crossMs,
+      delayMs: Math.round(delay),
+      bobPx: Math.round(8 + rand() * 8),
+      bobMs: Math.round(380 + rand() * 320),
+    })
+    if (i < n - 1) delay += PARADE_GAP_MIN_MS + rand() * (PARADE_GAP_MAX_MS - PARADE_GAP_MIN_MS)
+  }
+  const end = buddies.reduce((m, b) => Math.max(m, b.delayMs + b.crossMs), 0)
+  const cap = PARADE_MAX_MS - PARADE_TAIL_MS
+  const lastDelay = buddies[n - 1].delayMs
+  if (end > cap && lastDelay > 0) {
+    const slowest = buddies.reduce((m, b) => Math.max(m, b.crossMs), 0)
+    const scale = Math.max(0, cap - slowest) / lastDelay
+    for (const b of buddies) b.delayMs = Math.round(b.delayMs * scale)
+  }
+  return buddies
+}
+
+/** How long the overlay stays up: last buddy off the screen, plus a short beat, always under 10s. */
+export function paradeSpanMs(march: BuddyMarch[]): number {
+  const end = march.reduce((m, b) => Math.max(m, b.delayMs + b.crossMs), 0)
+  return Math.min(PARADE_MAX_MS, end + PARADE_TAIL_MS)
+}
+
+/** Parade length for a roster of `count` buddies (5 when the caller does not know yet). */
+export function paradeLengthMs(rand: () => number = Math.random, count = 5): number {
+  return paradeSpanMs(paradeMarch(count, rand))
 }
 
 export function loadParade(store: Pick<Storage, 'getItem'> | null): ParadeState {

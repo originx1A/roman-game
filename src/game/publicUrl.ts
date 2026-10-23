@@ -3,6 +3,16 @@
  */
 export const PUBLIC_GAME_URL = 'https://play.romansgame.com'
 
+/** The world site (stories and home). The game itself is PUBLIC_GAME_URL. */
+export const PUBLIC_WORLD_URL = 'https://romansgame.com'
+
+/** Phone stays in this tab. Wider screens open the world site beside the game. */
+export function worldLinkProps(sameTab: boolean): { href: string; target?: '_blank'; rel?: string } {
+  return sameTab
+    ? { href: PUBLIC_WORLD_URL }
+    : { href: PUBLIC_WORLD_URL, target: '_blank', rel: 'noopener noreferrer' }
+}
+
 /**
  * Cache-buster on every shared link. X and Facebook cache the exact URL,
  * and they cached the site root before og-image.png existed.

@@ -149,6 +149,8 @@ export function aggregate(events: StoredEvent[], days = 30): Stats {
   let down = 0
   const notes: OwnerNote[] = []
   const archivedNotes: OwnerNote[] = []
+  /** One current vote per device or account. A later tap replaces the earlier one. */
+  const latestVote = new Map<string, StoredEvent>()
   for (const e of events) {
     players.add(e.id)
     const place = placeOf(e)
@@ -165,14 +167,18 @@ export function aggregate(events: StoredEvent[], days = 30): Stats {
       byDay.set(torontoDay(e.t), (byDay.get(torontoDay(e.t)) ?? 0) + 1)
       byHour[torontoHour(e.t)]++
     } else if (e.ev === 'feedback' && e.vote) {
-      const item: OwnerNote = { id: e.key ?? `${e.t}:${e.id}`, t: e.t, vote: e.vote, note: e.note ?? '', place }
-      if (e.archived) {
-        if (e.note) archivedNotes.push(item)
-      } else {
-        if (e.vote === 'up') up++
-        else down++
-        if (e.note) notes.push(item)
-      }
+      const prev = latestVote.get(e.id)
+      if (!prev || e.t >= prev.t) latestVote.set(e.id, e)
+    }
+  }
+  for (const e of latestVote.values()) {
+    const item: OwnerNote = { id: e.key ?? `${e.t}:${e.id}`, t: e.t, vote: e.vote!, note: e.note ?? '', place: placeOf(e) }
+    if (e.archived) {
+      if (e.note) archivedNotes.push(item)
+    } else {
+      if (e.vote === 'up') up++
+      else down++
+      if (e.note) notes.push(item)
     }
   }
   for (const [id, set] of openDays) if (set.size >= 2) returned.add(id)

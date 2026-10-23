@@ -96,6 +96,7 @@ export type Screen =
   | 'stable'
   | 'remix'
   | 'bug'
+  | 'board'
 
 export const DIFFICULTY_LABEL: Record<Difficulty, string> = {
   easy: 'Easy',

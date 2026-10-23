@@ -10,6 +10,7 @@ import { gaEvent } from '../game/analytics'
  * - supabase-js is loaded lazily, so the game never waits on it and works fully without it.
  */
 import type { SupabaseClient, Session } from '@supabase/supabase-js'
+import { explainSignInError } from './signInError'
 
 /** Longest player name (matches players_display_name_len in supabase/schema.sql) */
 export const NAME_MAX = 24
@@ -100,6 +101,8 @@ export async function subscribeNews(email: string): Promise<boolean> {
 }
 const MAX_QUEUE = 200
 let clientP: Promise<SupabaseClient | null> | null = null
+/** Declared before readQueue(): the first queue read happens while this module is still starting. */
+let queueOwner: string | null = null
 let state: CloudState = { status: 'off', pending: readQueue().length }
 const listeners = new Set<(s: CloudState) => void>()
 
@@ -122,7 +125,6 @@ export function onCloud(fn: (s: CloudState) => void): () => void {
  * "Switch player" signs out, so player A's unsent scores stay under A's id and only send when A
  * signs in again; they are never mixed into player B.
  */
-let queueOwner: string | null = null
 function queueKey(owner: string | null = queueOwner): string {
   return owner ? `${QUEUE_KEY}.${owner}` : QUEUE_KEY
 }
@@ -196,12 +198,16 @@ export async function initCloud(): Promise<void> {
   }
 }
 
-export async function sendMagicLink(email: string): Promise<{ ok: boolean; error?: string }> {
+export async function sendMagicLink(email: string, captchaToken?: string): Promise<{ ok: boolean; error?: string }> {
+  if (!captchaToken) return { ok: false, error: "This page couldn't complete the check. Try again." }
   const sb = await client()
   if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
   const redirect = `${window.location.origin}${window.location.pathname}`
-  const { error } = await sb.auth.signInWithOtp({ email: email.trim(), options: { emailRedirectTo: redirect, shouldCreateUser: true } })
-  if (error) return { ok: false, error: error.message.includes('rate') ? 'Too many tries. Wait a minute and try again.' : "Couldn't send the link. Check the email and try again." }
+  const { error } = await sb.auth.signInWithOtp({
+    email: email.trim(),
+    options: { emailRedirectTo: redirect, shouldCreateUser: true, captchaToken },
+  })
+  if (error) return { ok: false, error: explainSignInError(error) }
   return { ok: true }
 }
 
@@ -211,14 +217,20 @@ export async function sendMagicLink(email: string): Promise<{ ok: boolean; error
  * loadPlayer, which copies this device's queued scores onto the account and flushes them.
  * That is the same path as opening the link.
  */
-export async function verifyEmailCode(email: string, token: string): Promise<{ ok: boolean; error?: string }> {
+export async function verifyEmailCode(email: string, token: string, captchaToken?: string): Promise<{ ok: boolean; error?: string }> {
   const sb = await client()
   if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
   const code = token.replace(/\s/g, '')
   if (!/^\d{6,8}$/.test(code)) return { ok: false, error: 'Enter the code from your email.' }
-  const { data, error } = await sb.auth.verifyOtp({ email: email.trim(), token: code, type: 'email' })
+  if (!captchaToken) return { ok: false, error: "This page couldn't complete the check. Try again." }
+  const { data, error } = await sb.auth.verifyOtp({
+    email: email.trim(),
+    token: code,
+    type: 'email',
+    options: { captchaToken },
+  })
   if (error || !data.session) {
-    return { ok: false, error: error?.message?.includes('rate') ? 'Too many tries. Wait a minute and try again.' : "That code didn't work. Check it and try again." }
+    return { ok: false, error: explainSignInError(error, "That code didn't work. Check it and try again.") }
   }
   return { ok: true }
 }
@@ -289,6 +301,9 @@ export async function flushScores(): Promise<void> {
     if (sess.session?.user.id !== owner) return // switched player mid-send: leave the queue alone
     const { error } = await sb.from('scores').insert(rows)
     if (!error) {
+      const best = rows.reduce((top, row) => Math.max(top, row.score), 0)
+      // One number on the board, and only for this signed-in player. A miss here still keeps the saved games.
+      await sb.rpc('save_my_board_score', { new_score: best })
       // keep anything queued while we were sending
       writeQueue(readQueue(owner).slice(q.length), owner)
       set({ lastSync: new Date().toISOString() })
@@ -298,6 +313,33 @@ export async function flushScores(): Promise<void> {
     /* stays queued */
   } finally {
     flushing = false
+  }
+}
+
+export interface BoardRow {
+  name: string
+  score: number
+  place: number
+}
+
+/** Public board. Names and scores only. Guests can read it. */
+export async function loadPlayerBoard(): Promise<{ ok: true; rows: BoardRow[] } | { ok: false; error: string }> {
+  try {
+    const sb = await client()
+    if (!sb) return { ok: false, error: "You're offline." }
+    const { data, error } = await sb.from('player_board').select('name, score, place').order('place', { ascending: true }).limit(100)
+    if (error) return { ok: false, error: "The board isn't up yet." }
+    const rows: BoardRow[] = []
+    for (const row of data ?? []) {
+      if (typeof row.name !== 'string' || !row.name.trim()) continue
+      const score = Number(row.score)
+      const place = Number(row.place)
+      if (!Number.isFinite(score) || !Number.isFinite(place)) continue
+      rows.push({ name: row.name, score, place })
+    }
+    return { ok: true, rows }
+  } catch {
+    return { ok: false, error: "The board isn't up yet." }
   }
 }
 

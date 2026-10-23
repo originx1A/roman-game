@@ -7,6 +7,7 @@
 
 import { heardEnough } from './heardLog'
 import {
+  VOICE_LINES,
   WARM_COACH_CLIPS,
   isPlayableVoiceClip,
   romanPlaybackRate,
@@ -15,7 +16,8 @@ import {
   type VoiceLineId,
   type VoiceMood,
 } from './voiceLines'
-import { boardEndCancel, clipEndsAt, decideVoice, replacesWaiting, type ChannelLine } from './voiceChannel'
+import { boardEndCancel, clipEndsAt, decideVoice, replacesWaiting, SPEAKER_GAP_MS, WAIT_LIMIT_MS, type ChannelLine } from './voiceChannel'
+import { bindVisualToPlaying } from './voiceVisual'
 
 let ctx: AudioContext | null = null
 let muted = false
@@ -29,6 +31,13 @@ export const OLDTIMER_PLAYBACK_RATE = 1.28
 
 /** The one and only voice player. Reused for every line (and unlocked on the first tap for iOS). */
 let voiceEl: HTMLAudioElement | null = null
+/** Drops the wait for a `playing` event when the channel is taken or the line is abandoned. */
+let cancelCueWatch: (() => void) | null = null
+function stopCueWatch() {
+  const cancel = cancelCueWatch
+  cancelCueWatch = null
+  cancel?.()
+}
 /** Line currently requested/playing on the channel (null = channel free) */
 let currentLine: ({ gen: number } & ChannelLine) | null = null
 /** Clip id asked for by the current line (9.30-f duplicate guard) */
@@ -40,9 +49,12 @@ let currentClip: string | null = null
 let voiceFreeSince = 0
 let voiceGeneration = 0
 let voiceSafetyTimer: number | null = null
+let voiceGapTimer: number | null = null
 let voiceUnlocked = false
-/** One waiting line (e.g. a badge right after a win) that plays when the channel frees up */
+/** One waiting line. A newer same-or-higher line replaces it so lower lines don't pile up. */
 let waitingLine: { id: string; opts: PlayVoiceOpts; until: number } | null = null
+/** The line that currently owns the channel, so a higher line can park it instead of dropping it. */
+let heldVoice: { id: string; opts: PlayVoiceOpts; at: number } | null = null
 
 const FALLBACK_TEXT: Partial<Record<VoiceLineId, string>> = {
   nice: 'Nice.',
@@ -601,7 +613,7 @@ function ensureAudio() {
 }
 
 function voiceHref(id: string): string {
-  const base = import.meta.env.BASE_URL || '/'
+  const base = import.meta.env?.BASE_URL || '/'
   return `${base.endsWith('/') ? base : `${base}/`}voices/${id}.mp3`
 }
 
@@ -625,26 +637,77 @@ function clearVoiceSafety() {
   }
 }
 
-/** Free the channel if `gen` is still the current line, then start a waiting line if any */
+function clearVoiceGap() {
+  if (voiceGapTimer != null) {
+    window.clearTimeout(voiceGapTimer)
+    voiceGapTimer = null
+  }
+}
+
+/** Free the channel if `gen` is still the current line, then start a waiting line after a short gap. */
 function releaseVoice(gen: number) {
   if (gen !== voiceGeneration) return
+  hideCue(gen)
   clearVoiceSafety()
-  currentLine = null
-  voiceFreeSince = 0
   const next = waitingLine
-  waitingLine = null
-  if (next && performance.now() <= next.until) {
-    // Small gap so two voices don't run into each other
-    window.setTimeout(() => {
-      if (!currentLine) playVoice(next.id, { ...next.opts, waitMs: 0 })
-    }, 250)
+  if (!next || performance.now() > next.until) {
+    waitingLine = null
+    currentLine = null
+    currentClip = null
+    heldVoice = null
+    voiceFreeSince = 0
+    return
   }
+  // Hold the channel through the gap so a new line waits instead of starting on top of the silence.
+  currentLine = { priority: 0, gen, audible: true, endsAt: performance.now() + SPEAKER_GAP_MS }
+  currentClip = null
+  heldVoice = null
+  clearVoiceGap()
+  voiceGapTimer = window.setTimeout(() => {
+    voiceGapTimer = null
+    if (gen !== voiceGeneration) return
+    const queued = waitingLine
+    waitingLine = null
+    currentLine = null
+    currentClip = null
+    if (queued && performance.now() <= queued.until) playVoice(queued.id, { ...queued.opts, waitMs: 0 })
+    else voiceFreeSince = 0
+  }, SPEAKER_GAP_MS)
 }
 
 /** 9.30-f: told when a clip actually starts playing (the line bags only count heard lines) */
 let voiceStartListener: ((clip: string) => void) | null = null
 export function setVoiceStartListener(fn: ((clip: string) => void) | null) {
   voiceStartListener = fn
+}
+
+/** Fired when a line actually starts, and with null when that audio ends. Visuals follow this, not the request. */
+export interface VoiceCue {
+  clip: string
+  text: string
+}
+let voiceCueListener: ((cue: VoiceCue | null) => void) | null = null
+let shownCueGen = -1
+export function setVoiceCueListener(fn: ((cue: VoiceCue | null) => void) | null) {
+  voiceCueListener = fn
+}
+function showCue(gen: number, clip: string) {
+  if (shownCueGen === gen) return
+  shownCueGen = gen
+  try {
+    voiceCueListener?.({ clip, text: voiceLineText(clip) ?? '' })
+  } catch {
+    /* a visual never breaks playback */
+  }
+}
+function hideCue(gen: number) {
+  if (shownCueGen !== gen) return
+  shownCueGen = -1
+  try {
+    voiceCueListener?.(null)
+  } catch {
+    /* a visual never breaks playback */
+  }
 }
 
 /**
@@ -658,9 +721,17 @@ export function setVoiceHeardListener(fn: ((clip: string) => void) | null) {
 
 /** Stop whatever is on the voice channel right now */
 function stopVoice() {
+  // Bump the generation before cancelling the start-watch. The watch's abort
+  // handler frees a timed-out line, and it must not free (or pause) a newer one.
+  const gen = voiceGeneration
   voiceGeneration += 1
+  stopCueWatch()
+  hideCue(gen)
   clearVoiceSafety()
+  clearVoiceGap()
   currentLine = null
+  currentClip = null
+  heldVoice = null
   voiceFreeSince = 0
   const el = voiceEl
   if (!el) return
@@ -691,6 +762,17 @@ export function cancelVoiceBelow(minPriority: number) {
 /** 9.30-e: a new board starts: lines queued on the last board don't play on this one (a line already playing still finishes) */
 export function dropWaitingVoice() {
   waitingLine = null
+}
+
+/**
+ * Leaving a board, or starting another one. Drop the queue, the speaker lock, and any
+ * clip still waiting on `playing`, so the next board's taps and voices are not stuck
+ * behind a line from the last one.
+ */
+export function resetBoardAudio() {
+  waitingLine = null
+  heldVoice = null
+  stopVoice()
 }
 
 export function setMuted(m: boolean) {
@@ -729,7 +811,9 @@ export function resetVoiceQuietClock() {
 }
 
 export function unlockAudio() {
+  // Resume first, inside the tap. The preload must not run ahead of it.
   ensureAudio()
+  warmUnseenVoices()
   try {
     const c = ac()
     if (c.state !== 'running' && c.state !== 'closed') void c.resume().catch(() => {})
@@ -1069,6 +1153,30 @@ export interface PlayVoiceOpts {
 }
 
 const clipUrlCache = new Map<string, string | null>()
+/** Raw bytes kept so a tap during the preload joins the in-flight fetch instead of starting another. */
+const clipBytes = new Map<string, ArrayBuffer>()
+let unseenWarmStarted = false
+
+/**
+ * Fetch the Unseen's lines after the first gesture, aside lines first.
+ * Bytes are cached for the audio element. They are NOT decoded on the live AudioContext:
+ * that decode queue (every one of his clips) held the effects context for minutes on iOS,
+ * so board taps stayed silent until it drained.
+ */
+function warmUnseenVoices() {
+  if (unseenWarmStarted || typeof fetch === 'undefined') return
+  unseenWarmStarted = true
+  const ids = Object.keys(VOICE_LINES).filter((id) => isPlayableVoiceClip(id) && roleForClip(id) === 'oldtimer')
+  ids.sort((a, b) => Number(b.startsWith('old_aside')) - Number(a.startsWith('old_aside')))
+  let n = 0
+  const pump = () => {
+    if (n >= ids.length) return
+    const id = ids[n++]
+    void clipObjectUrl(id).finally(pump)
+  }
+  pump()
+  pump()
+}
 const clipLoads = new Map<string, Promise<string | null>>()
 
 function isMp3Bytes(bytes: Uint8Array): boolean {
@@ -1092,6 +1200,7 @@ function clipObjectUrl(id: string): Promise<string | null> {
         return null
       }
       const buf = await res.arrayBuffer()
+      clipBytes.set(id, buf.slice(0))
       const bytes = new Uint8Array(buf)
       const type = (res.headers.get('content-type') || '').toLowerCase()
       if (type.includes('text/html') || !isMp3Bytes(bytes)) {
@@ -1113,31 +1222,39 @@ function clipObjectUrl(id: string): Promise<string | null> {
 
 /**
  * Play one voice line on the shared channel.
- * - Only catalog clips play (Roman = Brian, coach = Jenny); anything else is ignored (silent).
- * - While a line is loading or playing, a new line interrupts it only if its priority is higher;
- *   equal/lower priority is skipped (or waits, with waitMs), so lines never stack or overlap.
+ * One character speaks at a time. A new line waits for the current one (and a short gap) instead
+ * of cutting it off. If it would still be waiting after about 2s, it is skipped. A higher line
+ * that arrives while nothing has been heard yet plays first; the other line waits.
  */
 export function playVoice(id: string, opts: PlayVoiceOpts = {}) {
   if (muted || !voiceEnabled || !id) return
   const queue = [id, ...(opts.alts ?? [])].filter((clip, i, all) => isPlayableVoiceClip(clip) && all.indexOf(clip) === i).slice(0, 5)
   if (!queue.length) return
   const priority = opts.priority ?? 1
-  // 9.30-f: the same clip already playing or waiting its turn isn't asked for twice (a line only
+  // The same clip already playing or waiting its turn isn't asked for twice (a line only
   // counts as played once heard, so its bag can offer it again while it waits)
   if ((currentLine && currentClip === id) || waitingLine?.id === id) return
-  // 9.30-e: a line that has started always finishes; higher lines wait their turn (or go stale)
   const d = decideVoice(currentLine, { priority, waitMs: opts.waitMs }, performance.now())
   if (d.kind === 'skip') return
   if (d.kind === 'wait') {
     if (replacesWaiting(waitingLine ? (waitingLine.opts.priority ?? 1) : null, priority)) waitingLine = { id, opts, until: d.until }
     return
   }
-  if (waitingLine && priority >= (waitingLine.opts.priority ?? 1)) waitingLine = null
+  const displaced = d.kind === 'preempt' ? heldVoice : null
+  if (d.kind === 'play' && waitingLine && priority >= (waitingLine.opts.priority ?? 1)) waitingLine = null
   const el = voicePlayer()
   if (!el) return
 
   stopVoice()
+  if (displaced) {
+    const until = displaced.at + WAIT_LIMIT_MS
+    const wp = displaced.opts.priority ?? 1
+    if (performance.now() <= until && replacesWaiting(waitingLine ? (waitingLine.opts.priority ?? 1) : null, wp)) {
+      waitingLine = { id: displaced.id, opts: displaced.opts, until }
+    }
+  }
   const gen = voiceGeneration
+  heldVoice = { id, opts, at: performance.now() }
   currentLine = { priority, gen, audible: false, endsAt: 0 }
   currentClip = id
   voiceFreeSince = 0
@@ -1149,6 +1266,7 @@ export function playVoice(id: string, opts: PlayVoiceOpts = {}) {
 }
 
 async function playClipQueue(el: HTMLAudioElement, queue: string[], gen: number, rate: number, volume: number) {
+  let freed = false
   for (const clipId of queue) {
     if (gen !== voiceGeneration) return
     const url = await clipObjectUrl(clipId)
@@ -1181,24 +1299,54 @@ async function playClipQueue(el: HTMLAudioElement, queue: string[], gen: number,
     }
     if (role !== 'oldtimer' && role !== 'roman') el.defaultPlaybackRate = el.playbackRate
     const wantRate = el.playbackRate
-    let ok = false
+    // The picture waits for the real `playing` event. play() resolving, a queue slot,
+    // or a fetch finishing is not enough. If sound has not started within 1.5s, give
+    // up so he never pops out in silence and never talks with nobody on screen.
+    // The channel is freed here, not when play() settles: a hung play() used to hold
+    // the speaker lock until the 12s safety timer.
+    stopCueWatch()
+    const giveUp = () => {
+      if (freed || gen !== voiceGeneration) return
+      freed = true
+      try {
+        el.pause()
+      } catch {
+        /* already stopped */
+      }
+      releaseVoice(gen)
+    }
+    const watch = bindVisualToPlaying(el, {
+      onShow: () => {
+        try {
+          voiceStartListener?.(clipId)
+        } catch {
+          /* rotation bookkeeping never breaks playback */
+        }
+        showCue(gen, clipId)
+      },
+      onAbort: giveUp,
+    })
+    cancelCueWatch = () => {
+      watch.cancel()
+      cancelCueWatch = null
+    }
     let refused = false
     try {
       await el.play()
-      ok = !el.error
+      if (el.error) refused = true
     } catch {
       // The browser refused to play (autoplay / interrupted). The next clip would be refused too:
       // stop here instead of walking the pool in order (that made the first alts repeat a lot).
       refused = true
     }
     if (gen !== voiceGeneration) return
-    if (refused) break
-    if (ok) {
-      try {
-        voiceStartListener?.(clipId)
-      } catch {
-        /* rotation bookkeeping never breaks playback */
-      }
+    if (refused) {
+      watch.cancel()
+      break
+    }
+    const started = await watch.done
+    if (gen !== voiceGeneration) return
+    if (started === 'started') {
       // Heard now: nothing may cut it. Size the safety net to what's left of the clip at this rate.
       const markPlaying = () => {
         if (gen !== voiceGeneration || !currentLine) return
@@ -1251,9 +1399,11 @@ async function playClipQueue(el: HTMLAudioElement, queue: string[], gen: number,
       }
       return
     }
+    // Did not start in time, or the element failed: do not try the next alt (that made lines late).
+    break
   }
-  // No playable clip: stay silent (no speech-synthesis fallback)
-  releaseVoice(gen)
+  // No playable clip, or the start was aborted: the channel must not stay taken.
+  if (!freed) releaseVoice(gen)
 }
 
 /** Roman or coach line with emotional tone — one at a time on the shared channel */

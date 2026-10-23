@@ -4,6 +4,39 @@
  * the place comes from the server (Netlify request geo). Players can switch it off in Save & settings.
  */
 export const ANON_KEY = 'roman.anon.v1'
+/** The device's current thumbs vote. One vote, replaced when they tap the other way. */
+export const VOTE_KEY = 'roman.vote.v1'
+
+export function voteStorageKey(account = ''): string {
+  const who = account.trim().toLowerCase()
+  return who ? `${VOTE_KEY}:${who}` : VOTE_KEY
+}
+
+export function loadSavedVote(store: Pick<Storage, 'getItem'> | null, account = ''): 'up' | 'down' | null {
+  try {
+    const raw = store?.getItem(voteStorageKey(account))
+    const vote = raw ? (JSON.parse(raw) as { vote?: unknown }).vote : null
+    return vote === 'up' || vote === 'down' ? vote : null
+  } catch {
+    return null
+  }
+}
+
+export function saveSavedVote(store: Pick<Storage, 'setItem'> | null, vote: 'up' | 'down', account = ''): void {
+  try {
+    store?.setItem(voteStorageKey(account), JSON.stringify({ vote }))
+  } catch {
+    /* private mode: the tap still sends when analytics is on */
+  }
+}
+
+/** Signed out: the anonymous device id. Signed in: a hash of the account, so the tally is one vote per account. */
+export async function feedbackVoterId(anonId: string, email?: string): Promise<string> {
+  const who = email?.trim().toLowerCase()
+  if (!who || typeof crypto === 'undefined' || !crypto.subtle) return anonId
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`roman-vote:${who}`))
+  return [...new Uint8Array(buf)].slice(0, 16).map((b) => b.toString(16).padStart(2, '0')).join('')
+}
 
 export interface AnonState {
   id: string

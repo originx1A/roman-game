@@ -1025,11 +1025,12 @@ export const OLDTIMER_GOOD_CLIPS = [
 ] as const satisfies readonly VoiceClipId[]
 
 /**
- * The Unseen takes about one in three shared voice moments (wrong move, idle, hint, lose),
- * instead of Roman or the coach, never on top of them. A quiet gap keeps him from stacking
- * heckles. Each pool is its own saved shuffle bag (see voiceBags below).
+ * The Unseen takes a bit over half of the shared voice moments (wrong move, idle, hint, lose):
+ * 0.54, which is 1.5× the previous 0.36 share. He still waits his turn instead of talking over
+ * Roman or the coach. A quiet gap keeps him from stacking heckles. Each pool is its own saved
+ * shuffle bag (see voiceBags below).
  */
-export const OLDTIMER_SHARE = 0.36
+export const OLDTIMER_SHARE = 0.54
 export const OLDTIMER_COOLDOWN_MS = 6500
 let oldtimerLastAt = Number.NEGATIVE_INFINITY
 
@@ -1061,7 +1062,7 @@ function oldtimerTurn(share = OLDTIMER_SHARE, oldPool?: readonly VoiceClipId[], 
 // 9.30-k: a saved heard count per clip (roman.heard.v1, not tied to the build). Each moment offers its
 // LEAST-heard lines first (random among ties), so an unheard line always comes before a repeat.
 export const heardLog = createHeardLog({ store: browserBagStore() })
-const voiceBags = createBagSet({ store: browserBagStore(), commitOnPlay: true, heard: heardLog })
+const voiceBags = createBagSet({ store: browserBagStore(), commitOnPlay: true, heard: heardLog, speakerOf: roleForClip })
 /** The voice channel started this clip: its bag moves on (and it counts for no-back-to-back) */
 export function noteVoicePlayed(clip: string) {
   voiceBags.markPlayed(clip)
@@ -1277,6 +1278,11 @@ function voiced(
 }
 
 const roman = (clip: VoiceClipId, pool: readonly VoiceClipId[]) => ({ clip, pool })
+
+/** Home-screen tap on the Unseen: one line from his aside sayings, through the same bags and queue. */
+export function unseenHomeSaying(): Banter {
+  return voiced(pickOld(oldAside), 'neutral', 'neutral', VOICE_PRIORITY.idle)
+}
 
 export function banterFor(
   event:

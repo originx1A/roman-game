@@ -4,6 +4,7 @@ import { PetArt } from './PetArt'
 import type { PetId } from '../game/pets'
 import { petById } from '../game/pets'
 import { CAPPED_TAP_COINS, treasureIcon, treasureLabel, type Treasure } from '../game/paradeTreasure'
+import { paradeMarch, type BuddyMarch } from '../game/parade'
 import { dayLabel, type DayPerkKind } from '../game/buddyDay'
 
 export interface ParadeBuddy {
@@ -40,6 +41,7 @@ export function ParadeOverlay({
   capped = false,
   readPotPct,
   durationMs,
+  march,
   reduce,
   onCatch,
   readWallet,
@@ -56,6 +58,8 @@ export function ParadeOverlay({
   /** 9.30-t: percent of today's treasure pot still left (live) */
   readPotPct?: () => number
   durationMs: number
+  /** Per-buddy crossing. Missing only for older callers: a fresh march is built once. */
+  march?: BuddyMarch[]
   reduce: boolean
   /** returns what was really paid (a spin over the daily limit turns into coins) */
   onCatch: (t: Treasure) => Treasure
@@ -76,6 +80,7 @@ export function ParadeOverlay({
   const startWallet = useRef(readWallet())
   const caughtIdx = useRef(new Set<number>())
   const rootRef = useRef<HTMLDivElement | null>(null)
+  const motion = useRef(march ?? paradeMarch(buddies.length)).current
   const [grabAllOn, setGrabAllOn] = useState(false)
   const [holding, setHolding] = useState(false)
   const holdTimer = useRef<number | null>(null)
@@ -111,12 +116,12 @@ export function ParadeOverlay({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // "Grab all" appears after 6 seconds so a phone can never fail to collect
+  // Grab all shows while buddies are still crossing (the march itself is only a few seconds).
   useEffect(() => {
     if (phase !== 'march' || !total) return
-    const t = window.setTimeout(() => setGrabAllOn(true), reduce ? 2500 : 6000)
+    const t = window.setTimeout(() => setGrabAllOn(true), reduce ? 700 : Math.min(1600, Math.max(900, Math.round(durationMs * 0.35))))
     return () => window.clearTimeout(t)
-  }, [phase, total, reduce])
+  }, [phase, total, reduce, durationMs])
 
   const featuredName = featured ? petById(featured)?.name : null
   const sum = treasureSummary(caughtList)
@@ -307,7 +312,18 @@ export function ParadeOverlay({
           const t = treasure[i]
           const mine = got[i]
           return (
-            <div key={b.id} className="parade-buddy" style={{ ['--i' as string]: i, ['--n' as string]: buddies.length }}>
+            <div
+              key={b.id}
+              className="parade-buddy"
+              style={{
+                ['--i' as string]: i,
+                ['--n' as string]: buddies.length,
+                ['--cross' as string]: `${motion[i]?.crossMs ?? 2000}ms`,
+                ['--delay' as string]: `${motion[i]?.delayMs ?? 0}ms`,
+                ['--bob' as string]: `${motion[i]?.bobPx ?? 10}px`,
+                ['--bob-ms' as string]: `${motion[i]?.bobMs ?? 480}ms`,
+              }}
+            >
               <div className="parade-hop" data-parade-i={t ? i : undefined}>
                 {t ? (
                   <button

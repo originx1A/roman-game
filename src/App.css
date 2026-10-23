@@ -136,12 +136,23 @@ main,
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.45rem;
   border: 0;
   background: transparent;
-  color: var(--foam);
+  color: inherit;
   cursor: pointer;
   padding: 0;
+  text-decoration: none;
+  min-width: 0;
+}
+.site-link {
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--sun);
+  text-decoration: underline;
+  text-underline-offset: 0.14em;
+  white-space: nowrap;
 }
 
 .brand-mark {
@@ -197,6 +208,11 @@ main,
   color: var(--mint);
   font-weight: 800;
   border: 1px solid rgba(61, 255, 168, 0.35);
+}
+button.score-pill {
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
 }
 
 .score-pill span {
@@ -1967,6 +1983,11 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
 .how-top h2 {
   margin: 0;
   font-size: 1.35rem;
+  min-width: 0;
+}
+.how-top .site-link {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .how-back {
@@ -2534,6 +2555,13 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
 .buddy-crystal .buddy-body {
   background: radial-gradient(circle at 30% 28%, #fff, #a5f3fc 35%, #c4b5fd 70%, #67e8f9 100%);
   box-shadow: 0 0 12px rgba(165, 243, 252, 0.5), inset 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+/* Theme fills above share specificity with `.buddy.angry .buddy-body` and used to
+   paint over it, so a wrong buddy on Ember (and the other themes) looked normal. */
+.buddy.angry .buddy-body {
+  background: radial-gradient(circle at 32% 28%, #ffe0e0, #ff6b6b 55%, #b91c1c);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
 }
 
 .theme-cosmic .atmosphere,
@@ -4657,6 +4685,141 @@ html.play-locked #root {
 .win-screen[data-fit='4'] .win-screen-secondary .btn { min-height: 30px; font-size: 0.8rem; }
 .win-screen[data-fit='4'] .buddy-meter { margin-bottom: 0.25rem; }
 
+/* Phone victory (9.32-k): one viewport, no scroll. Share stays full width. Next board sits
+   beside Play again, Scores beside Switch player, Levels beside Home. Desktop keeps the column. */
+html[data-device='phone'] .shell-celebrate .win-screen,
+html[data-device='phone'] .win-screen {
+  --win-gap-top: 0.15rem;
+  --win-pad-t: max(0.3rem, env(safe-area-inset-top, 0px));
+  --win-pad-b: max(0.25rem, env(safe-area-inset-bottom, 0px));
+  place-items: start center;
+  align-content: start;
+  padding-left: max(0.4rem, env(safe-area-inset-left, 0px));
+  padding-right: max(0.4rem, env(safe-area-inset-right, 0px));
+}
+html[data-device='phone'] .shell-celebrate .win-screen-card,
+html[data-device='phone'] .win-screen-card {
+  margin-top: var(--win-gap-top);
+  padding: 0.45rem 0.6rem 0.35rem;
+  border-radius: 18px;
+}
+html[data-device='phone'] .win-screen-body {
+  overflow: hidden;
+  padding-top: 0.12rem;
+}
+html[data-device='phone'] .win-screen .win-screen-title {
+  font-size: 1.7rem;
+  line-height: 1.15;
+  margin: 0 0 0.04rem;
+  text-shadow: 0 2px 0 #c48900;
+}
+html[data-device='phone'] .next-parade-hint {
+  margin: 0 0 0.15rem;
+  font-size: 0.72rem;
+  line-height: 1.2;
+}
+html[data-device='phone'] .win-screen-kicker { margin-bottom: 0.22rem; }
+html[data-device='phone'] .win-roman-says {
+  margin-bottom: 0.28rem;
+  padding: 0.26rem 0.45rem;
+}
+html[data-device='phone'] .win-replay { margin-bottom: 0.15rem; }
+html[data-device='phone'] .win-replay-detail { margin-bottom: 0.22rem; }
+html[data-device='phone'] .win-stats { margin-bottom: 0.28rem; gap: 0.2rem; }
+html[data-device='phone'] .win-stat { padding: 0.2rem 0.08rem; }
+html[data-device='phone'] .buddy-meter { margin: 0; padding: 0.16rem 0.4rem; }
+html[data-device='phone'] .win-screen .win-screen-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.28rem;
+  align-items: stretch;
+}
+html[data-device='phone'] .win-screen-actions > .win-share,
+html[data-device='phone'] .win-screen-actions > .win-hunt,
+html[data-device='phone'] .win-screen-actions > .unseen-gain,
+html[data-device='phone'] .win-screen-actions > .win-fb-follow {
+  grid-column: 1 / -1;
+}
+html[data-device='phone'] .win-screen-actions > .win-screen-row,
+html[data-device='phone'] .win-screen-actions > .win-screen-secondary {
+  display: contents;
+}
+html[data-device='phone'] .win-share { order: 1; }
+html[data-device='phone'] .win-hunt { order: 2; }
+html[data-device='phone'] .win-next { order: 3; }
+html[data-device='phone'] .win-again { order: 4; }
+html[data-device='phone'] .unseen-gain { order: 5; margin: 0; padding: 0.25rem 0.45rem; }
+html[data-device='phone'] .cloud-btn { order: 6; }
+html[data-device='phone'] .cloud-switch { order: 7; }
+html[data-device='phone'] .win-duel { order: 8; }
+html[data-device='phone'] .win-spin { order: 9; }
+html[data-device='phone'] .win-levels { order: 10; }
+html[data-device='phone'] .win-home { order: 11; }
+html[data-device='phone'] .win-fb-follow {
+  order: 12;
+  margin-top: 0;
+  padding: 0.28rem 0.5rem;
+  font-size: 0.72rem;
+  line-height: 1.25;
+}
+/* Play again shares Next board's row. The odd-child rule would otherwise stretch it alone. */
+html[data-device='phone'] .win-screen-actions .win-screen-row > .win-again {
+  grid-column: auto;
+}
+/* A lone scores button stays full width. Next to Switch player it takes one column. */
+html[data-device='phone'] .win-screen-actions .cloud-btn:not(:has(+ .cloud-switch)) {
+  grid-column: 1 / -1;
+}
+html[data-device='phone'] .win-screen-actions .win-duel,
+html[data-device='phone'] .win-screen-actions .win-spin {
+  grid-column: 1 / -1;
+}
+html[data-device='phone'] .win-screen-actions .win-duel:has(+ .win-spin),
+html[data-device='phone'] .win-screen-actions .win-duel:has(+ .win-spin) + .win-spin {
+  grid-column: auto;
+}
+html[data-device='phone'] .win-screen .win-screen-actions .win-cta,
+html[data-device='phone'] .win-screen .win-screen-actions .cloud-btn,
+html[data-device='phone'] .win-screen .win-screen-actions .cloud-switch,
+html[data-device='phone'] .win-screen .win-screen-secondary .btn {
+  min-height: 38px;
+  padding-top: 0.28rem;
+  padding-bottom: 0.28rem;
+  font-size: 0.82rem;
+  min-width: 0;
+}
+html[data-device='phone'] .win-screen-actions .cloud-btn,
+html[data-device='phone'] .win-screen-actions .cloud-switch {
+  width: 100%;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  height: auto;
+  line-height: 1.25;
+  padding-left: 0.35rem;
+  padding-right: 0.35rem;
+}
+
+/* Popup buttons grow to their label. The card clips anything that paints outside a nowrap button. */
+.win-screen .win-cta,
+.win-screen .win-screen-secondary .btn,
+.win-screen .win-fb-follow,
+.result-card .result-btn,
+.cloud-offer .btn {
+  height: auto;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.25;
+  text-align: center;
+}
+
+/* Wide desktop: the victory scrim stops at the right column so the live board stays visible. */
+html[data-layout='wide'] .win-screen {
+  right: calc(clamp(200px, 17vw, 320px) + max(1rem, env(safe-area-inset-right, 0px)));
+  padding-right: 0.6rem;
+}
+
 /* Short landscape: text left, buttons right */
 @media (max-height: 520px) and (min-width: 560px) {
   .shell-celebrate .win-screen,
@@ -4688,14 +4851,6 @@ html.play-locked #root {
 .how-demo.is-animated[data-demo='combo'] .demo-pop-mark .mark-x,
 .how-demo.is-animated[data-demo='pace'] .demo-pace-buddy .buddy {
   animation: howPop 0.28s ease var(--at, 0.3s) both;
-}
-.how-demo.is-animated[data-demo='undo'] .demo-undo-mark .mark-x {
-  animation: howUndoMark 3.2s ease 0.3s both;
-}
-@keyframes howUndoMark {
-  0% { opacity: 0; transform: scale(0.35); }
-  10%, 42% { opacity: 1; transform: none; }
-  52%, 100% { opacity: 0; transform: scale(0.4) rotate(-40deg); }
 }
 .how-demo-combo {
   position: absolute;
@@ -4730,38 +4885,6 @@ html.play-locked #root {
   from { opacity: 0; transform: translateY(8px) scale(0.8); }
   to { opacity: 1; transform: scale(1.12); }
 }
-.how-demo-undo-btn {
-  position: absolute;
-  right: 6%;
-  bottom: 6%;
-  padding: 0.25rem 0.55rem;
-  border-radius: 10px;
-  background: rgba(244, 251, 255, 0.14);
-  border: 1px solid rgba(244, 251, 255, 0.35);
-  color: var(--foam);
-  font-size: 0.8rem;
-  font-weight: 800;
-}
-.how-demo.is-animated .how-demo-undo-btn { animation: howPress 0.35s ease 1.55s both; }
-@keyframes howPress {
-  0%, 100% { transform: none; }
-  50% { transform: scale(0.88); background: rgba(255, 209, 102, 0.45); }
-}
-.how-demo-float {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 30%;
-  text-align: center;
-  font-weight: 900;
-  font-size: 1rem;
-  color: #ff9a8a;
-  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
-  opacity: 0;
-  pointer-events: none;
-}
-.how-demo.is-animated .how-demo-float { animation: howFloatStay 0.5s ease 1.75s both; }
-.how-demo:not(.is-animated) .how-demo-float,
 .how-demo:not(.is-animated) .how-demo-combo .c5 { opacity: 1; }
 .how-demo-pace {
   position: absolute;
@@ -4872,12 +4995,9 @@ html.play-locked #root {
 }
 .demo-daily-streak { font-size: 1rem; color: #ffc49a; }
 .how-demo-combo,
-.how-demo-float,
-.how-demo-undo-btn,
 .how-demo-ghost,
 .how-demo-pace { z-index: 6; }
 .how-demo-combo b { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); }
-.how-demo-undo-btn { background: rgba(10, 22, 44, 0.9); }
 .how-demo-ghost { background: rgba(4, 10, 28, 0.7); }
 
 /* =====================================================================================
@@ -5022,6 +5142,13 @@ html[data-layout='wide'] .play-hud .hud-title strong {
   white-space: normal;
   line-height: 1.15;
 }
+html[data-device='phone'] .play-hud .hud-title strong {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  font-size: 0.84rem;
+  line-height: 1.05;
+}
 html[data-layout='wide'] .play-hud .hud-title span {
   font-size: 0.74rem;
   white-space: normal;
@@ -5123,9 +5250,17 @@ html[data-layout='wide'] .play-side {
   grid-area: side;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
+  align-self: stretch;
+  height: 100%;
+  max-height: 100%;
   min-height: 0;
   width: 100%;
+  overflow: hidden;
+}
+html[data-layout='wide'] .play-side > .play-toolbar,
+html[data-layout='wide'] .play-side > .buddy-spot {
+  flex-shrink: 0;
 }
 html[data-layout='wide'] .play-fixed .play-toolbar {
   display: grid;
@@ -5181,8 +5316,8 @@ html[data-layout='wide'] .buddy-spot {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 0.35rem;
-  padding: 1.1rem 0.9rem;
+  gap: 0.25rem;
+  padding: 0.65rem 0.7rem;
   border-radius: 18px;
   border: 2px dashed rgba(255, 214, 102, 0.35);
   background: rgba(5, 13, 31, 0.4);
@@ -5201,8 +5336,8 @@ html[data-layout='wide'] .buddy-spot {
 .buddy-spot-ring {
   display: grid;
   place-items: center;
-  width: 78px;
-  height: 78px;
+  width: 58px;
+  height: 58px;
   border-radius: 50%;
   background: radial-gradient(circle at 50% 40%, rgba(255, 214, 102, 0.22), rgba(255, 214, 102, 0.04) 70%);
   border: 2px solid rgba(255, 214, 102, 0.3);
@@ -5223,6 +5358,150 @@ html[data-layout='wide'] .play-fixed > .build-tag {
   align-self: end;
   text-align: right;
   margin: 0;
+}
+
+/* Desktop wide only: compact live board under the controls. Hidden on phone and upright. */
+.live-board { display: none; }
+html[data-layout='wide'][data-device='desktop'] .live-board {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 0 1 auto;
+  max-height: 100%;
+  min-height: 0;
+  padding: 0.55rem 0.65rem 0.5rem;
+  border-radius: 16px;
+  background: rgba(5, 13, 31, 0.55);
+  border: 1px solid rgba(255, 214, 102, 0.22);
+  overflow: hidden;
+}
+.live-board header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+.live-board h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  color: var(--sun);
+  font-size: 1.05rem;
+  font-weight: 400;
+}
+.live-board-all {
+  border: 0;
+  background: transparent;
+  color: var(--sun);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+  padding: 0.15rem 0;
+}
+.live-board ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.1rem;
+  overflow: auto;
+  min-height: 0;
+}
+.live-board li {
+  display: grid;
+  grid-template-columns: 1.35rem minmax(0, 1fr) auto;
+  gap: 0.3rem;
+  align-items: center;
+  min-height: 1.35rem;
+  padding: 0.08rem 0.25rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+.live-board li.is-you {
+  background: rgba(255, 209, 102, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 209, 102, 0.5);
+}
+.live-board li.is-own { position: sticky; bottom: 0; }
+.live-board .place { opacity: 0.65; font-variant-numeric: tabular-nums; }
+.live-board .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-board .score { font-variant-numeric: tabular-nums; }
+.live-board-note { margin: 0; font-size: 0.75rem; font-weight: 700; opacity: 0.75; }
+.live-board .board-cta {
+  width: 100%;
+  flex-shrink: 0;
+  min-height: 0;
+  margin-top: 0.15rem;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.75rem;
+  line-height: 1.25;
+  white-space: normal;
+}
+html[data-device='desktop'] .phone-board {
+  max-width: 560px;
+  width: 100%;
+  margin: 0 auto;
+}
+.phone-board-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+.phone-board-head h2 { margin: 0; }
+.board-x {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--foam);
+  font-size: 1.7rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.board-pop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+}
+.board-pop-scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: rgba(5, 13, 31, 0.72);
+  cursor: pointer;
+}
+.board-pop-card {
+  position: relative;
+  z-index: 1;
+  width: min(36rem, calc(100vw - 2.5rem));
+  min-height: min(22rem, 70vh);
+  max-height: min(80vh, 40rem);
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  background: #0c1830;
+  border: 1px solid rgba(255, 214, 102, 0.35);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+.board-pop-card .phone-board {
+  max-width: none;
+  margin: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
 }
 @media (prefers-reduced-motion: reduce) {
   .buddy-spot-face { animation: none; }
@@ -5736,6 +6015,7 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 .remix-entry {
   background: linear-gradient(135deg, rgba(160, 120, 255, 0.18), rgba(26, 200, 180, 0.14));
   border-color: rgba(190, 160, 255, 0.45);
+  cursor: pointer;
 }
 .remix-countdown {
   display: grid;
@@ -5834,13 +6114,13 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
   left: 0;
   top: 0;
   will-change: transform;
-  /* march left to right; buddies start staggered off-screen left and all finish inside the parade time */
-  animation: parade-march calc(var(--parade-ms, 6000ms) * 0.76) linear both;
-  animation-delay: calc(var(--i) * 0.24 * var(--parade-ms, 6000ms) / var(--n));
+  /* Each buddy crosses in its own 1.5–2.5s (--cross), starting after a short gap (--delay). */
+  animation: parade-march var(--cross, 2000ms) linear both;
+  animation-delay: var(--delay, 0ms);
 }
 .parade-hop {
-  animation: parade-hop 0.55s ease-in-out infinite;
-  animation-delay: calc(var(--i) * 0.11s);
+  animation: parade-hop var(--bob-ms, 480ms) ease-in-out infinite;
+  animation-delay: calc(var(--i) * 0.07s);
 }
 .parade-skip {
   font-size: 0.85rem;
@@ -5863,8 +6143,9 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
   to { transform: translate3d(calc(100vw + 10px), 0, 0); }
 }
 @keyframes parade-hop {
-  0%, 100% { transform: translateY(0) rotate(-4deg); }
-  50% { transform: translateY(-14px) rotate(4deg); }
+  0%, 100% { transform: translateY(0) rotate(-3deg); }
+  38% { transform: translateY(calc(var(--bob, 12px) * -1)) rotate(4deg); }
+  70% { transform: translateY(calc(var(--bob, 12px) * -0.28)) rotate(-2deg); }
 }
 @keyframes parade-fade {
   from { opacity: 0; }
@@ -6086,7 +6367,7 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
   will-change: transform, opacity;
 }
 .unseen-pop.is-entering { animation: unseenIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
-.unseen-pop.is-leaving { animation: unseenOut 0.4s cubic-bezier(0.55, 0.06, 0.68, 0.19) both; }
+.unseen-pop.is-leaving { animation: unseenFade 1s ease forwards; }
 /* same speed/easing/hold as the 10.06 old-timer pop-up; slides in from the right edge */
 @keyframes unseenIn {
   from { transform: translateX(120%); opacity: 0; }
@@ -6095,6 +6376,10 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 @keyframes unseenOut {
   from { transform: translateX(0); opacity: 1; }
   to { transform: translateX(120%); opacity: 0; }
+}
+@keyframes unseenFade {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 .unseen-art {
   display: block;
@@ -6361,6 +6646,8 @@ html[data-motion='reduce'] .td-invader {
 /* 9.32: Save my scores (Supabase) */
 .cloud-btn.is-compact { font-size: 0.8rem; padding: 0.35rem 0.7rem; min-height: 0; }
 .cloud-err { margin: 0.25rem 0 0; color: #ff8a8a; font-size: 0.82rem; font-weight: 600; }
+.cloud-auth-form { display: grid; gap: 0.5rem; }
+.cloud-turnstile { width: 100%; min-height: 0; }
 .cloud-sheet .name-input { width: 100%; }
 .cloud-code { letter-spacing: 0.22em; text-align: center; font-weight: 800; font-variant-numeric: tabular-nums; }
 .cloud-code::placeholder { letter-spacing: 0; font-weight: 600; }
@@ -6369,6 +6656,22 @@ html[data-motion='reduce'] .td-invader {
 .cloud-check input { width: 1.15rem; height: 1.15rem; flex-shrink: 0; margin-top: 0.12rem; accent-color: #f5c84c; }
 .cloud-check a { color: #ffd166; font-weight: 800; text-underline-offset: 0.12em; }
 .cloud-switch { font-size: 0.8rem; padding: 0.35rem 0.75rem; min-height: 0; opacity: 0.9; }
+.cloud-offer { text-align: center; }
+.cloud-offer .btn { width: 100%; min-height: 48px; }
+.cloud-quiet {
+  justify-self: center;
+  border: 0;
+  background: transparent;
+  color: rgba(244, 251, 255, 0.72);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.16em;
+  min-height: 44px;
+  padding: 0.2rem 0.4rem;
+  cursor: pointer;
+}
 
 /* 9.32-d: exclusive Unseen card, back while locked, flips to the animated front when earned */
 .unseen-card { position: relative; width: 44px; aspect-ratio: 2 / 3; flex: none; perspective: 900px; }
@@ -6405,3 +6708,749 @@ html[data-motion='reduce'] .td-invader {
 .unseen-gain { display: flex; align-items: center; gap: 12px; margin: 8px auto; padding: 8px 12px; border-radius: 12px; background: rgba(10,12,24,.8); border: 1px solid rgba(255,160,60,.55); color: #f3e6c4; animation: unseen-pop .5s ease-out; max-width: 340px; text-align: left; }
 .unseen-gain span { display: flex; flex-direction: column; }
 @keyframes unseen-pop { from { transform: scale(.9); opacity: 0 } to { transform: none; opacity: 1 } }
+
+/* Phone proposal (draft). Desktop is unchanged: these rules only apply when the app
+   has classified the device as a phone, or they use display:contents so the wrapper
+   does not change the existing desktop grid. */
+.cta-pair { display: contents; }
+.skip-short { display: none; }
+
+html[data-device='phone'] .nav { display: none !important; }
+
+html[data-device='phone'] .phone-tabs {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 0.25rem 0.45rem max(0.35rem, env(safe-area-inset-bottom));
+  background: rgba(5, 13, 31, 0.96);
+  border-top: 1px solid rgba(255, 209, 102, 0.28);
+}
+html[data-device='phone'] .phone-tabs button {
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: rgba(244, 251, 255, 0.75);
+  font: inherit;
+  font-weight: 800;
+  font-size: 0.95rem;
+  border-radius: 12px;
+}
+html[data-device='phone'] .phone-tabs button.on {
+  color: #07122a;
+  background: var(--sun);
+}
+
+html[data-device='phone'] .fixed-shell > .scroll-pane {
+  padding-bottom: calc(3.15rem + env(safe-area-inset-bottom));
+}
+
+html[data-device='phone'] .info-peek,
+html[data-device='phone'] button.score-pill.coin {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 44px;
+  min-width: 44px;
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0.3rem 0.75rem;
+}
+html[data-device='phone'] .info-peek {
+  border: 1px solid rgba(255, 209, 102, 0.5);
+  background: rgba(255, 209, 102, 0.14);
+  color: var(--sun);
+}
+html[data-device='phone'] button.score-pill.coin {
+  border: 1px solid rgba(61, 255, 168, 0.35);
+  background: rgba(61, 255, 168, 0.12);
+  color: var(--mint);
+}
+html[data-device='phone'] .info-peek-fixed {
+  position: fixed;
+  top: max(0.5rem, env(safe-area-inset-top));
+  right: 0.6rem;
+  z-index: 40;
+}
+
+.phone-home {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  max-width: 480px;
+  padding: 0.55rem 0.9rem 1rem;
+}
+html[data-device='phone'] .phone-home {
+  gap: 0.28rem;
+  padding: 0.15rem 0.7rem 0.3rem;
+}
+html[data-device='phone'] .phone-home .phone-who strong { font-size: 0.95rem; }
+html[data-device='phone'] .phone-home .family-link {
+  min-height: 44px;
+  font-size: 0.72rem;
+  padding: 0;
+}
+html[data-device='phone'] .phone-home .home-pet-row { margin: 0; }
+html[data-device='phone'] .phone-home .home-pet {
+  padding: 0.12rem 0.55rem 0.12rem 0.28rem;
+  gap: 0.35rem;
+}
+html[data-device='phone'] .phone-home .home-pet-empty {
+  width: 44px;
+  height: 44px;
+  font-size: 1.05rem;
+}
+html[data-device='phone'] .phone-home .pet-art { width: 48px; height: auto; }
+html[data-device='phone'] .phone-home .home-pet-text strong { font-size: 0.95rem; }
+html[data-device='phone'] .phone-home .phone-play {
+  min-height: 44px;
+  font-size: 1.05rem;
+  padding: 0.3rem 0.8rem;
+}
+html[data-device='phone'] .phone-home .phone-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.32rem;
+}
+html[data-device='phone'] .phone-home .phone-grid > button,
+html[data-device='phone'] .phone-home .phone-grid .cloud-btn.is-short {
+  min-height: 44px;
+  font-size: 0.75rem;
+  padding: 0.12rem 0.2rem;
+  border-radius: 12px;
+  gap: 0.15rem;
+}
+html[data-device='phone'] .phone-home .unseen-tile {
+  min-height: 44px;
+  padding: 4px 8px;
+  gap: 8px;
+}
+html[data-device='phone'] .phone-home .unseen-tile-text b { font-size: 0.8rem; }
+html[data-device='phone'] .phone-home .unseen-tile-text small { font-size: 0.66rem; }
+html[data-device='phone'] .phone-home .phone-quiet {
+  min-height: 44px;
+  font-size: 0.72rem;
+  padding: 0;
+}
+.phone-who {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+.phone-who strong { display: block; font-size: 1.05rem; color: var(--foam); }
+.phone-who small { display: block; font-size: 0.75rem; opacity: 0.7; }
+.family-link {
+  border: 0;
+  background: transparent;
+  color: rgba(244, 251, 255, 0.72);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.16em;
+  min-height: 44px;
+  padding: 0.35rem 0;
+  cursor: pointer;
+  text-align: right;
+}
+.phone-play {
+  width: 100%;
+  min-height: 56px;
+  font-size: 1.25rem;
+}
+.phone-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+.phone-grid > button,
+html[data-device='phone'] .phone-grid .cloud-btn.is-short {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--foam);
+  font: inherit;
+  font-weight: 800;
+  font-size: 0.98rem;
+  padding: 0.35rem 0.5rem;
+  box-shadow: none;
+}
+html[data-device='phone'] .phone-grid .cloud-btn.is-short::before { content: '☁'; }
+.phone-grid button small { font-size: 0.72rem; opacity: 0.75; font-weight: 700; }
+.phone-quiet {
+  align-self: center;
+  border: 0;
+  background: transparent;
+  color: rgba(244, 251, 255, 0.5);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  min-height: 44px;
+  cursor: pointer;
+}
+.phone-board {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  max-width: 480px;
+  padding: 0.55rem 0.9rem 1rem;
+}
+.phone-board h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  color: var(--sun);
+  font-size: 1.45rem;
+}
+.phone-board-empty { margin: 0.2rem 0 0; opacity: 0.75; font-weight: 700; }
+.phone-board ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.phone-board li {
+  display: grid;
+  grid-template-columns: 2.1rem minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: center;
+  min-height: 48px;
+  padding: 0.35rem 0.75rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  font-weight: 800;
+}
+.phone-board li.is-you { box-shadow: inset 0 0 0 1px rgba(255, 209, 102, 0.75); }
+.phone-board .place { opacity: 0.65; font-variant-numeric: tabular-nums; }
+.phone-board .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.phone-board .score { font-variant-numeric: tabular-nums; }
+.phone-board .board-cta { width: 100%; min-height: 48px; }
+html[data-device='phone'] .phone-home .home-pet-row { margin: 0; }
+html[data-device='phone'] .phone-home .unseen-tile { margin: 0; max-width: none; }
+/* Home-screen tap on wide layouts only. Fixed, so the home does not reflow.
+   Only the figure receives taps. The bubble is up only while his line plays.
+   Under 1200px his robe covers Play daily, the stat line, or the phone tabs. */
+.home-unseen-wrap {
+  position: fixed;
+  right: 0.6rem;
+  bottom: 0.85rem;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  width: max-content;
+  max-width: min(280px, 46vw);
+  pointer-events: none;
+}
+@media (max-width: 1199px) {
+  .home-unseen-wrap { display: none; }
+}
+.home-unseen {
+  pointer-events: auto;
+  width: 150px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.home-unseen img {
+  width: 150px;
+  height: auto;
+  display: block;
+  margin-right: -8px;
+  pointer-events: none;
+}
+.home-unseen-line {
+  position: relative;
+  display: block;
+  margin: 0 0.15rem 0.55rem 0;
+  padding: 0.5rem 0.7rem 0.55rem;
+  border-radius: 16px;
+  border: 3px solid #111;
+  background: #fffdf5;
+  color: #15121c;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: left;
+  max-width: 220px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+.home-unseen-line::after {
+  content: '';
+  position: absolute;
+  right: 42px;
+  bottom: -9px;
+  width: 12px;
+  height: 12px;
+  background: #fffdf5;
+  border-right: 3px solid #111;
+  border-bottom: 3px solid #111;
+  transform: rotate(45deg);
+  border-bottom-right-radius: 3px;
+}
+.home-unseen-line.is-leaving {
+  animation: unseenFade 1s ease forwards;
+}
+html[data-motion='reduce'] .home-unseen-line.is-leaving {
+  animation-duration: 0.2s;
+}
+html[data-device='phone'] .info-feedback { display: block; min-height: 0; padding: 0; }
+html[data-device='phone'] .info-vote {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 48px;
+  flex-wrap: nowrap;
+}
+html[data-device='phone'] .info-vote > span {
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+html[data-device='phone'] .info-vote .fb-btn {
+  flex: none;
+  min-width: 44px;
+  min-height: 44px;
+}
+html[data-device='phone'] .info-vote .fb-btn.is-on {
+  border-color: #fff;
+  opacity: 1;
+}
+html[data-device='phone'] .info-vote small {
+  flex: none;
+  font-size: 0.68rem;
+  font-weight: 700;
+  opacity: 0.75;
+}
+
+.phone-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.phone-sheet-scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(3, 8, 20, 0.62);
+  cursor: pointer;
+}
+.phone-sheet-card {
+  position: relative;
+  width: min(100%, 440px);
+  max-height: min(88dvh, 680px);
+  overflow: auto;
+  box-sizing: border-box;
+  background: #0d1f45;
+  color: var(--foam);
+  border-radius: 20px 20px 0 0;
+  padding: 0.75rem 0.95rem calc(0.9rem + env(safe-area-inset-bottom));
+  border: 1px solid rgba(255, 209, 102, 0.35);
+  box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.5);
+}
+.phone-sheet-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+.phone-sheet-card header strong { font-size: 1.12rem; }
+.phone-sheet-card header button {
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.info-list { display: grid; gap: 0.35rem; }
+.info-list > button,
+.info-list > a {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 48px;
+  padding: 0.35rem 0.7rem;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  text-decoration: none;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.info-list small { margin-left: auto; opacity: 0.75; font-weight: 700; }
+.info-feedback { display: flex; align-items: center; min-height: 48px; padding: 0 0.35rem; }
+.info-build { margin: 0.45rem 0 0; text-align: center; font-size: 0.75rem; opacity: 0.65; }
+.info-copy { display: grid; gap: 0.55rem; font-size: 1rem; }
+.info-copy p { margin: 0; }
+.info-copy a { color: var(--sun); font-weight: 800; }
+.info-muted { opacity: 0.75; font-size: 0.9rem; }
+.player-saved { margin: 0; opacity: 0.72; font-size: 0.85rem; }
+.player-coins { margin: 0.15rem 0 0.65rem; display: flex; align-items: baseline; gap: 0.4rem; }
+.player-coins b { font-size: 2.5rem; line-height: 1; color: var(--mint); }
+.player-coins span { opacity: 0.75; font-weight: 700; }
+.player-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; margin: 0 0 0.8rem; }
+.player-stats div { background: rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 0.4rem 0.45rem; }
+.player-stats dt { font-size: 0.68rem; opacity: 0.7; }
+.player-stats dd { margin: 0; font-weight: 800; font-size: 1.05rem; }
+.player-actions { display: flex; gap: 0.5rem; }
+.player-actions .btn { flex: 1; min-height: 48px; }
+.family-points { margin: 0.15rem 0 0.85rem; padding-left: 1.15rem; display: grid; gap: 0.4rem; }
+.family-points li { line-height: 1.35; }
+html[data-device='phone'] .profile > .family-link { margin: -0.15rem 0 0.35rem; text-align: left; }
+
+html[data-device='phone'] .cta-pair { display: flex; gap: 0.5rem; }
+html[data-device='phone'] .cta-pair > .btn { flex: 1 1 0; min-height: 44px; min-width: 0; }
+html[data-device='phone'] .skip-full { display: none; }
+html[data-device='phone'] .skip-short { display: inline; }
+
+html[data-device='phone'] .random-btn,
+html[data-device='phone'] .mix-btn,
+html[data-device='phone'] .panel.levels > .sub,
+html[data-device='phone'] .endless-block > .sub,
+html[data-device='phone'] .daily-card:not(.remix-entry) .daily-status,
+html[data-device='phone'] .remix-entry .daily-text > span,
+html[data-device='phone'] .start-sheet:not(.cloud-sheet):not(.name-prompt) .start-sheet-tip { display: none !important; }
+
+html[data-device='phone'] .play-toolbar { flex-wrap: nowrap; gap: 0.22rem; }
+html[data-device='phone'] .play-toolbar .btn.tool {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0.25rem 0.1rem;
+  font-size: 0.7rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.05;
+  white-space: nowrap;
+}
+html[data-device='phone'] .play-toolbar .tool-cost { font-size: 0.6rem; opacity: 0.8; font-weight: 700; }
+html[data-device='phone'] .play-toolbar .hud-board {
+  white-space: normal;
+}
+html[data-device='phone'] .play-toolbar .hud-board .tool-label {
+  font-size: 0.62rem;
+  line-height: 1.05;
+  white-space: normal;
+}
+
+.mode-picker {
+  display: flex;
+  gap: 0.35rem;
+  width: 100%;
+  max-width: 520px;
+  margin: 0.1rem auto 0.15rem;
+  flex-shrink: 0;
+}
+.mode-picker button {
+  flex: 1 1 0;
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--foam);
+  font: inherit;
+  font-weight: 800;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.mode-picker button.on {
+  background: var(--sun);
+  color: #07122a;
+  border-color: transparent;
+}
+
+.phone-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  max-width: 480px;
+  padding: 0.75rem 0.95rem 1rem;
+}
+.phone-settings h2 { margin: 0; font-size: 1.45rem; }
+.phone-settings h3 {
+  margin: 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+.set-block { display: grid; gap: 0.4rem; }
+.set-row,
+.phone-settings .cloud-btn.is-short {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  box-sizing: border-box;
+  padding: 0.45rem 0.85rem;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--foam);
+  font: inherit;
+  font-weight: 800;
+  text-align: left;
+  box-shadow: none;
+}
+.set-row small { margin-left: auto; opacity: 0.75; font-weight: 700; }
+.set-who { margin: 0; display: flex; flex-direction: column; gap: 0.1rem; }
+.set-who small { opacity: 0.7; font-size: 0.8rem; }
+.phone-settings .family-link { text-align: left; justify-self: start; }
+.phone-settings .cloud-btn.is-short::before { content: none; }
+
+html[data-device='phone'] .sheet-info {
+  position: fixed;
+  top: max(0.45rem, env(safe-area-inset-top));
+  right: 0.55rem;
+  z-index: 96;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 209, 102, 0.5);
+  background: #0d1f45;
+  color: var(--sun);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+/* 9.32-m: desktop menus use the width of the window. Phone rules stay above. */
+.stable-extra { display: contents; }
+
+html[data-device='desktop'] .topbar {
+  max-width: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+html[data-device='desktop'] .phone-sheet {
+  align-items: center;
+  padding: 1rem;
+}
+html[data-device='desktop'] .phone-sheet-card {
+  border-radius: 20px;
+}
+
+html[data-device='desktop'] main.home {
+  max-width: 1180px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.35rem 1.1rem 0.45rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr);
+  grid-template-areas:
+    'hero modes'
+    'side modes'
+    'stats stats';
+  column-gap: 1.15rem;
+  row-gap: 0.4rem;
+  align-content: start;
+}
+html[data-device='desktop'] main.home .hero {
+  grid-area: hero;
+  min-height: 0;
+  padding: 0;
+  justify-content: flex-start;
+}
+html[data-device='desktop'] main.home .eyebrow { margin-bottom: 0.2rem; }
+html[data-device='desktop'] main.home .logo-hero { font-size: clamp(3.1rem, 4.6vw, 4.4rem); }
+html[data-device='desktop'] main.home .lede {
+  max-width: none;
+  margin: 0.35rem 0 0.55rem;
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+html[data-device='desktop'] main.home .cta-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+html[data-device='desktop'] main.home .cta-row .btn,
+html[data-device='desktop'] main.home .cta-row .cloud-btn {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 0.45rem 0.55rem;
+  text-align: center;
+}
+html[data-device='desktop'] main.home .cta-row .unseen-tile {
+  grid-column: 1 / -1;
+  max-width: none;
+  margin: 0;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+html[data-device='desktop'] main.home .home-side {
+  grid-area: side;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+html[data-device='desktop'] main.home .treat-pile-widget {
+  margin: 0;
+  flex: 1 1 auto;
+  max-width: none;
+  min-width: 0;
+}
+html[data-device='desktop'] main.home .home-pet-row { margin: 0; justify-content: flex-start; }
+html[data-device='desktop'] main.home .home-modes {
+  grid-area: modes;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+  align-items: stretch;
+  min-width: 0;
+}
+html[data-device='desktop'] main.home .home-modes .daily-card {
+  flex-direction: column;
+  align-items: flex-start;
+  margin: 0;
+  min-width: 0;
+}
+html[data-device='desktop'] main.home .home-strip {
+  grid-area: stats;
+  margin: 0;
+  flex-wrap: nowrap;
+}
+.home-board { display: none; }
+html[data-layout='wide'][data-device='desktop'] main.home {
+  max-width: none;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  align-content: stretch;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  grid-template-areas:
+    'hero board'
+    'modes board'
+    'side board'
+    'stats board';
+  padding-right: 11.25rem;
+}
+html[data-layout='wide'][data-device='desktop'] main.home .home-strip {
+  align-self: start;
+}
+html[data-layout='wide'][data-device='desktop'] main.home .home-board {
+  display: flex;
+  grid-area: board;
+  min-height: 0;
+  min-width: 0;
+}
+html[data-layout='wide'][data-device='desktop'] main.home .home-board .live-board {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  max-height: 100%;
+}
+
+html[data-device='desktop'] main.rewards {
+  max-width: 1180px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.3rem 1.1rem 0.45rem;
+  display: grid;
+  grid-template-columns: minmax(280px, 0.82fr) minmax(0, 1.18fr);
+  column-gap: 1rem;
+  row-gap: 0.35rem;
+  align-content: start;
+}
+html[data-device='desktop'] main.rewards > h2 { grid-column: 1; margin: 0; font-size: 2rem; }
+html[data-device='desktop'] main.rewards > .sub { grid-column: 1; margin: 0; font-size: 0.82rem; line-height: 1.35; }
+html[data-device='desktop'] main.rewards > .stable-entry { grid-column: 1; margin: 0; padding: 0.4rem 0.65rem; }
+html[data-device='desktop'] main.rewards > .wallet-strip { grid-column: 1; margin: 0; }
+html[data-device='desktop'] main.rewards > .econ-card { grid-column: 1; margin: 0; font-size: 0.8rem; }
+html[data-device='desktop'] main.rewards > .btn.primary {
+  grid-column: 1;
+  justify-self: start;
+  padding: 0.5rem 0.9rem;
+  min-height: 44px;
+}
+html[data-device='desktop'] main.rewards > .ach-title { grid-column: 2; grid-row: 1; margin: 0; }
+html[data-device='desktop'] main.rewards > .badge-grid {
+  grid-column: 2;
+  grid-row: 2 / span 8;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+  align-content: start;
+}
+html[data-device='desktop'] main.rewards .badge-card { padding: 0.4rem 0.45rem; gap: 0.12rem; }
+html[data-device='desktop'] main.rewards .badge-card .product-value { font-size: 0.72rem; }
+html[data-device='desktop'] main.rewards .badge-upgrade { white-space: normal; line-height: 1.2; min-height: 36px; }
+
+html[data-device='desktop'] main.stable {
+  max-width: 1240px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.25rem 1rem 0.4rem;
+}
+html[data-device='desktop'] .stable-head { margin-bottom: 0.2rem; }
+html[data-device='desktop'] .stable-head h2 { font-size: 1.7rem; margin: 0; }
+html[data-device='desktop'] .stable-sub { margin: 0; font-size: 0.75rem; }
+html[data-device='desktop'] .stable-now,
+html[data-device='desktop'] .stable-stash { margin-bottom: 0.15rem; padding: 0.25rem 0.55rem; }
+html[data-device='desktop'] .stable-freepick { padding: 0.28rem 0.6rem; margin: 0 0 0.15rem; }
+html[data-device='desktop'] .stable-freepick-title { font-size: 0.95rem; }
+html[data-device='desktop'] .stable-freepick-sub { margin: 0; font-size: 0.75rem; }
+html[data-device='desktop'] .stable-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+html[data-device='desktop'] .stable-card { padding: 0.25rem 0.3rem 0.35rem; gap: 0.04rem; }
+html[data-device='desktop'] .stable-art { width: 56px; height: 56px; }
+html[data-device='desktop'] .stable-art .pet-art { width: 50px; height: auto; }
+html[data-device='desktop'] .stable-card h3 { font-size: 1rem; }
+html[data-device='desktop'] .stable-perk,
+html[data-device='desktop'] .stable-next { font-size: 0.72rem; }
+html[data-device='desktop'] .stable-extra {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
+  gap: 0.45rem;
+  align-items: start;
+  margin-top: 0.35rem;
+}
+html[data-device='desktop'] .stable-bundles {
+  margin: 0;
+  padding: 0.4rem 0.5rem;
+  gap: 0.3rem;
+}
+html[data-device='desktop'] .stable-bundle {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 0.3rem 0.45rem;
+  gap: 0.25rem 0.45rem;
+}
+html[data-device='desktop'] .stable-bundle .stable-btn {
+  grid-column: auto;
+  width: auto;
+  min-height: 36px;
+  margin: 0;
+  padding: 0.3rem 0.55rem;
+}
+html[data-device='desktop'] .stable-redeem { margin-top: 0; padding: 0.45rem 0.6rem; }
+html[data-device='desktop'] main.stable > .stable-note { margin: 0.35rem 0 0; }

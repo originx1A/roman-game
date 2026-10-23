@@ -1,16 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 /**
- * The Unseen heckler visual pop-up (9.31-u; was the Unseen pop-up from 10.06).
- *
- * Shows ONLY for the heckler's voice lines (clip ids starting with `old_`
- * or `tip_*_old_*`; the ids keep the old prefix so the recorded audio files still match)
- * — never for Roman or the Coach. The parent (App.tsx) decides when a line qualifies.
- *
- * - The hooded Unseen sticker rises out of the bottom-right corner, pointing up and in at the board
- * - Speech bubble above him with the line's text, shown while its clip plays
- * - Auto-dismisses after ~4.5s; a new line replaces the current one
- * - pointer-events: none — taps pass straight through, never blocks the board
+ * The Unseen heckler, shown only while his line is actually playing.
+ * The parent passes `pop` when his audio starts and null when it ends.
+ * A skipped or waiting line never reaches here, so he does not pop out in silence.
+ * pointer-events: none — taps pass straight through, never blocks the board.
  */
 
 export interface UnseenPop {
@@ -19,52 +13,40 @@ export interface UnseenPop {
   key: number
 }
 
-interface Props {
-  pop: UnseenPop | null
-  /** ms the pop-up stays visible (default 4500) */
-  holdMs?: number
-}
-
 /** Voice texts carry a speaker prefix ("The Unseen: ..."); the bubble has its own name tag. */
 function bubbleText(text: string): string {
-  return text.replace(/^(The Unseen|The Unseen):\s*/i, '')
+  return text.replace(/^The Unseen:\s*/i, '')
 }
 
-export function UnseenPopup({ pop, holdMs = 4500 }: Props) {
-  const [visible, setVisible] = useState(false)
+export function UnseenPopup({ pop }: { pop: UnseenPop | null }) {
+  const [shown, setShown] = useState<UnseenPop | null>(null)
   const [leaving, setLeaving] = useState(false)
-  const [text, setText] = useState('')
-  const hideTimer = useRef(0)
-  const leaveTimer = useRef(0)
-  const lastKey = useRef(-1)
 
   useEffect(() => {
-    if (!pop || pop.key === lastKey.current) return
-    lastKey.current = pop.key
-    window.clearTimeout(hideTimer.current)
-    window.clearTimeout(leaveTimer.current)
-    setText(bubbleText(pop.text))
-    setLeaving(false)
-    setVisible(true)
-    hideTimer.current = window.setTimeout(() => setLeaving(true), holdMs)
-    leaveTimer.current = window.setTimeout(() => setVisible(false), holdMs + 450)
-    return () => {
-      window.clearTimeout(hideTimer.current)
-      window.clearTimeout(leaveTimer.current)
+    if (pop) {
+      setShown(pop)
+      setLeaving(false)
+      return
     }
-  }, [pop, holdMs])
+    setLeaving(true)
+    const t = window.setTimeout(() => {
+      setShown(null)
+      setLeaving(false)
+    }, 1000)
+    return () => window.clearTimeout(t)
+  }, [pop])
 
-  if (!visible) return null
+  if (!shown) return null
 
   return (
     <div className={`unseen-pop ${leaving ? 'is-leaving' : 'is-entering'}`} aria-hidden="true">
       <div className="unseen-bubble">
         <span className="unseen-name">The Unseen</span>
-        <p>{text}</p>
+        <p>{bubbleText(shown.text)}</p>
       </div>
       <picture>
         <source srcSet="/images/unseen.webp" type="image/webp" />
-        <img className="unseen-art" src="/images/unseen.png" alt="The Unseen" draggable={false} />
+        <img className="unseen-art" src="/images/unseen.png" alt="" draggable={false} />
       </picture>
     </div>
   )

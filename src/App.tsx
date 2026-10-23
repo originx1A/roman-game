@@ -1,5 +1,5 @@
 import { useTapCount } from './components/useTapCount'
-import { loadAnon, openEvents, sendPing, PRIVACY_NOTE, ANON_KEY, gaEvent, setGaEnabled } from './game/analytics'
+import { loadAnon, openEvents, sendPing, PRIVACY_NOTE, ANON_KEY, gaEvent, setGaEnabled, saveSavedVote, feedbackVoterId } from './game/analytics'
 import { OWNER_PATH, OWNER_TAP_WINDOW_MS, OWNER_TAPS } from './game/ownerDoor'
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
@@ -17,13 +17,15 @@ import { ShareBar } from './components/ShareBar'
 import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './components/SparkCritter'
 import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
-import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
+import { UnseenPopup } from './components/UnseenPopup'
 import { CloudScoresButton } from './cloud/CloudScores'
-import { initCloud, saveScore } from './cloud/cloud'
+import { PhoneBoard } from './components/PhoneBoard'
+import { LiveBoard } from './components/LiveBoard'
+import { FamilySheet, HomeUnseen, InfoSheet, PhoneHome, PhoneSettings, PhoneVote, PlayerPanel } from './components/PhoneProposal'
+import { cloudState, initCloud, saveScore } from './cloud/cloud'
 import { UnseenCardTile } from './components/UnseenCard'
 import { noteCardWin } from './game/unseenCard'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
-import { TapButton } from './components/TapButton'
 import { BuddyHunt } from './components/BuddyHunt'
 import { PetArt } from './components/PetArt'
 import { Stable } from './components/Stable'
@@ -91,7 +93,7 @@ import {
   startHunt,
 } from './game/buddyHunt'
 import { createVoiceGate } from './game/voiceGate'
-import { loadParade, paradeDone, paradeHint, paradeLengthMs, paradeReady, paradeWin, saveParade, type ParadeState } from './game/parade'
+import { loadParade, paradeDone, paradeHint, paradeMarch, paradeReady, paradeSpanMs, paradeWin, saveParade, type BuddyMarch, type ParadeState } from './game/parade'
 import { ParadeOverlay, type ParadeBuddy } from './components/ParadeOverlay'
 import { makeCappedTreasure, makeTreasure, type Treasure } from './game/paradeTreasure'
 import {
@@ -115,7 +117,7 @@ import {
 } from './game/dailyEconomy'
 import { dayCoins, dayShort, loadDay, saveDay, startBuddyDay, useDayBoard, type BuddyDay, type DayPerkKind } from './game/buddyDay'
 import { BUILD_TAG } from './buildTag'
-import { amendMove, createHistory, pushMove, redoMove, restoreHistory, stepsToSave, undoMove } from './game/history'
+import { amendMove, createHistory, pushMove, restoreHistory, stepsToSave } from './game/history'
 import {
   applyHint,
   clearBuddy,
@@ -181,9 +183,10 @@ import {
   parseDuelFromHash,
   rankLabel,
 } from './game/challenges'
-import { publicLinkWithHash, publicPlayUrl } from './game/publicUrl'
+import { publicLinkWithHash, publicPlayUrl, worldLinkProps } from './game/publicUrl'
 import {
   banterFor,
+  unseenHomeSaying,
   unheardShare,
   heardSummary,
   heardLog,
@@ -194,6 +197,7 @@ import {
   type BoardOutcome,
   type ConflictKind as BanterConflictKind,
 } from './game/comments'
+import { roleForClip } from './game/voiceLines'
 import { canTip, missedStarReason, noteMastery, noteShown, TIP_TRIGGERS, type TipId, type TipReason, type TipState } from './game/voiceTips'
 import type { ConflictKind as BoardConflictKind } from './game/logic'
 import { THEMES, themeForPuzzle } from './game/themes'
@@ -256,6 +260,7 @@ import {
 } from './game/storage'
 import {
   playBanterClip,
+  setVoiceCueListener,
   setMuted,
   setVoiceEnabled,
   sfxAchievement,
@@ -264,7 +269,6 @@ import {
   sfxHint,
   sfxLose,
   sfxRecord,
-  sfxUndo,
   sfxWhoosh,
   sfxWin,
   resetVoiceQuietClock,
@@ -272,9 +276,10 @@ import {
   voiceQuietMs,
   warmVoices,
   cancelVoiceBelow,
-  dropWaitingVoice,
+  resetBoardAudio,
   petGiggle,
 } from './game/sound'
+import { nextAfterMistake } from './game/mistakes'
 import { COIN_PACKS, purchaseCoinPack, restorePurchases, isStoreBuild, subscribeStore, type CoinPackId } from './game/iap'
 import { loadWebPacks, type WebPackOffer } from './game/webPacks'
 import './App.css'
@@ -426,7 +431,29 @@ const MENU_CSS = `
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('home')
-  const [{ layout }, setLayoutInfo] = useState(() => readLayout())
+  const screenRef = useRef(screen)
+  screenRef.current = screen
+  // Leaving a board drops the voice queue and the speaker lock. A new board
+  // also resets inside startPuzzle, because the screen stays on 'play'.
+  useEffect(() => {
+    if (screen !== 'play') resetBoardAudio()
+  }, [screen])
+  const [{ layout, device }, setLayoutInfo] = useState(() => readLayout())
+  useEffect(() => {
+    if (device === 'tablet' && screen === 'board') setScreen('home')
+  }, [device, screen])
+  const [infoOpen, setInfoOpen] = useState(false)
+  const [playerOpen, setPlayerOpen] = useState(false)
+  const [boardOpen, setBoardOpen] = useState(false)
+  useEffect(() => {
+    if (!boardOpen) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setBoardOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [boardOpen])
+  const [familyOpen, setFamilyOpen] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(() => loadProfile())
   const [progress, setProgress] = useState(() => getProgress())
   const [settings, setSettings] = useState<Settings>(() => loadSettings())
@@ -491,6 +518,8 @@ export default function App() {
     }
   }, [])
   const [wallet, setWallet] = useState<Wallet>(() => loadWallet())
+  const walletRef = useRef(wallet)
+  walletRef.current = wallet
   // 9.30-a: buddies (The Stable)
   const [pets, setPets] = useState<PetState>(() => loadPets())
   const [petNow, setPetNow] = useState(() => Date.now())
@@ -505,8 +534,6 @@ export default function App() {
   const [econ, setEconState] = useState<Ledger>(() => loadLedger(typeof window === 'undefined' ? null : safeLocalStorage(), torontoDateKey()))
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null)
   const [cells, setCells] = useState<CellState[]>([])
-  const [history, setHistory] = useState<CellState[][]>([])
-  const [future, setFuture] = useState<CellState[][]>([])
   const [elapsedMs, setElapsedMs] = useState(0)
   const [running, setRunning] = useState(false)
   const [hintsUsed, setHintsUsed] = useState(0)
@@ -515,6 +542,9 @@ export default function App() {
   const [heartPop, setHeartPop] = useState<number | null>(null)
   const [hintText, setHintText] = useState('')
   const [celebrate, setCelebrate] = useState(false)
+  /** Phone only: ask to save after a first clear or a new best, once that moment is over. */
+  const [saveAsk, setSaveAsk] = useState(false)
+  const saveNonce = useRef(0)
   const [defeated, setDefeated] = useState(false)
   /** Set the moment a board is won or lost (before any state update lands), cleared for the next
    *  board. Voice lines check it so nothing from the live board speaks after the result. */
@@ -522,24 +552,25 @@ export default function App() {
   const [winLine, setWinLine] = useState('')
   const [loseLine, setLoseLine] = useState('')
   const [lives, setLives] = useState(MAX_LIVES)
+  const livesRef = useRef(lives)
+  livesRef.current = lives
   /** Hearts this board started with: 3, or 4 when a saved bonus heart was used */
   const [runMaxLives, setRunMaxLives] = useState(MAX_LIVES)
   const [lastScore, setLastScore] = useState<number | null>(null)
   const [toast, setToast] = useState('')
-  // 10.06: Unseen heckler pop-up — visual only, shown ONLY for Unseen
-  // voice lines (old_* / tip_*_old_* clips), never for Roman or the Coach
-  const [unseenPop, setUnseenPop] = useState<UnseenPop | null>(null)
-  const unseenKey = useRef(0)
-  /** The Unseen clip ids: `old_*`, plus tips like `tip_trial_old_life`. Roman is `roman_*`/`tip_*_roman_*`, Coach is `coach_*`/`tip_*_coach_*`. */
+  const toastTimer = useRef(0)
+  const voiceToast = useRef(false)
+  /** Set only when a clip has started playing. Null when that audio ends, or if the line was skipped. */
+  const [voiceCue, setVoiceCue] = useState<{ clip: string; text: string; n: number } | null>(null)
+  const voiceCueN = useRef(0)
+  /** His clips are old_* and tip lines voiced by him (`tip_<tip>_old_<name>`). */
   function isUnseenClip(clip: string | undefined): boolean {
-    if (!clip) return false
-    return clip.startsWith('old_') || (clip.startsWith('tip_') && clip.includes('_old_'))
+    return !!clip && roleForClip(clip) === 'oldtimer'
   }
-  function maybeUnseenPop(line: { text?: string; clip?: string; speak?: boolean; silent?: boolean }) {
-    if (!line.speak || line.silent || !line.text || !isUnseenClip(line.clip)) return
-    unseenKey.current += 1
-    setUnseenPop({ text: line.text, key: unseenKey.current })
+  function unseenCaption(text: string): string {
+    return text.replace(/^The Unseen:\s*/i, '').trim() || '\u00a0'
   }
+  const unseenSpeaking = voiceCue && isUnseenClip(voiceCue.clip) ? voiceCue : null
   const [shortfall, setShortfall] = useState<null | { action: ShortfallAction; need: number; detail?: string }>(null)
   const [incoming, setIncoming] = useState<Challenge | null>(null)
   const [, setChallenges] = useState(() => loadChallenges())
@@ -570,6 +601,7 @@ export default function App() {
     featured: PetId | null
     featuredKind: DayPerkKind
     capped?: boolean
+    march: BuddyMarch[]
   } | null>(null)
   // Buddy of the day (9.30-l): the featured buddy's perk for 3 boards after a parade
   const dayRef = useRef<BuddyDay>(loadDay(typeof window === 'undefined' ? null : safeLocalStorage()))
@@ -587,7 +619,6 @@ export default function App() {
   const shellRef = useRef<HTMLDivElement>(null)
   const tickRef = useRef<number | null>(null)
   const idleRef = useRef<number | null>(null)
-  const undoTimesRef = useRef<number[]>([])
   const lastActionRef = useRef(Date.now())
   // ---- Voice tips (9.28-b) ----
   const tipsRef = useRef<TipState>(loadTips())
@@ -634,6 +665,8 @@ export default function App() {
   const [remixBuilding, setRemixBuilding] = useState<RemixSize[]>([])
   const [remixFailed, setRemixFailed] = useState<RemixSize[]>([])
   const remixJobsRef = useRef(new Set<string>())
+  /** A tap during "Building…" should still open that board when the build finishes. */
+  const remixOpenAfterRef = useRef(new Set<string>())
   const [endless, setEndless] = useState<EndlessStats>(() => loadEndless())
   const [endlessBusy, setEndlessBusy] = useState<Difficulty | null>(null)
   /** Difficulty while this run is an Endless board (Next makes another fresh one) */
@@ -941,24 +974,18 @@ export default function App() {
     }
   }, [running, rotatePaused])
 
-  // PC keyboard shortcuts on a live board: Z undo, Y redo, H hint (plus Ctrl/Cmd+Z, Ctrl+Y, Ctrl+Shift+Z)
-  const keysRef = useRef<{ undo: () => void; redo: () => void; hint: () => void }>({ undo: () => {}, redo: () => {}, hint: () => {} })
+  // PC keyboard shortcut on a live board: H hint
+  const keysRef = useRef<{ hint: () => void }>({ hint: () => {} })
   useEffect(() => {
     if (screen !== 'play') return
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return
-      if (e.altKey || e.repeat) return
+      if (e.altKey || e.ctrlKey || e.metaKey || e.repeat) return
       if (document.querySelector('.start-sheet, .win-screen, .buddy-hunt, .prize-overlay, .shortfall-overlay, .result-overlay, .rotate-prompt.is-on')) return
-      const k = e.key.toLowerCase()
-      const mod = e.ctrlKey || e.metaKey
-      let act: 'undo' | 'redo' | 'hint' | null = null
-      if (k === 'z' && !e.shiftKey) act = 'undo'
-      else if ((k === 'z' && e.shiftKey && mod) || k === 'y') act = 'redo'
-      else if (k === 'h' && !mod) act = 'hint'
-      if (!act) return
+      if (e.key.toLowerCase() !== 'h') return
       e.preventDefault()
-      keysRef.current[act]()
+      keysRef.current.hint()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -1068,9 +1095,33 @@ export default function App() {
   }, [running, celebrate, defeated])
 
   function showToast(msg: string) {
+    voiceToast.current = false
+    window.clearTimeout(toastTimer.current)
     setToast(msg)
-    window.setTimeout(() => setToast(''), 2400)
+    toastTimer.current = window.setTimeout(() => setToast(''), 2400)
   }
+
+  useEffect(() => {
+    setVoiceCueListener((cue) => {
+      if (cue) {
+        voiceCueN.current += 1
+        setVoiceCue({ clip: cue.clip, text: cue.text, n: voiceCueN.current })
+        // On the home screen his own bubble is the caption, so a second toast is not added.
+        if (cue.text && !(screenRef.current === 'home' && isUnseenClip(cue.clip))) {
+          voiceToast.current = true
+          window.clearTimeout(toastTimer.current)
+          setToast(cue.text)
+        }
+      } else {
+        setVoiceCue(null)
+        if (voiceToast.current) {
+          voiceToast.current = false
+          setToast('')
+        }
+      }
+    })
+    return () => setVoiceCueListener(null)
+  }, [])
 
   /** Toast + one voice at a time (coach / Roman). Buddy giggle is separate via Board. */
   const voiceGateRef = useRef(createVoiceGate())
@@ -1085,11 +1136,12 @@ export default function App() {
     if (!voiceGateRef.current.allow(event, Date.now(), unheardShare(event))) return { text: '', mood: 'neutral', voiceMood: 'neutral', speak: false, silent: true } as ReturnType<typeof banterFor>
     const line = banterFor(event, conflict)
     if (line.silent && !line.giggle) return line
-    if (line.text) showToast(line.text)
     // place-good: Board already plays buddy giggle — don't speak here
-    if (line.giggle || !line.speak || !line.clip) return line
+    if (line.giggle || !line.speak || !line.clip) {
+      if (line.text) showToast(line.text)
+      return line
+    }
     playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
-    maybeUnseenPop(line)
     return line
   }
 
@@ -1139,9 +1191,7 @@ export default function App() {
       }
       const line = tipBanter(id, reason)
       if (line.silent || !line.clip) return false
-      if (line.text) showToast(line.text)
       playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
-      maybeUnseenPop(line)
       boardTipsRef.current = [...boardTipsRef.current, id]
       lastTipAtRef.current = now
       persistTips(noteShown(tipsRef.current, id, now))
@@ -1156,9 +1206,13 @@ export default function App() {
     if (isStoreBuild() || settingsRef.current.analytics === false) return
     sendPing({ id: loadAnon(safeLocalStorage()).id, ev: 'level_clear', size, ms: Math.round(ms) })
   }
-  function sendFeedback(vote: 'up' | 'down', note: string) {
+  function sendFeedback(vote: 'up' | 'down', note: string, account = '') {
+    saveSavedVote(safeLocalStorage(), vote, account)
     if (isStoreBuild() || settingsRef.current.analytics === false) return
-    sendPing({ id: loadAnon(safeLocalStorage()).id, ev: 'feedback', vote, note: note.slice(0, 200) })
+    const anon = loadAnon(safeLocalStorage()).id
+    void feedbackVoterId(anon, account || undefined).then((id) => {
+      sendPing({ id, ev: 'feedback', vote, note: note.slice(0, 200) })
+    })
   }
   function saveSettingsPatch(patch: Partial<Settings>) {
     if (patch.analytics !== undefined) setGaEnabled(patch.analytics !== false)
@@ -1197,6 +1251,7 @@ export default function App() {
   }
 
   function persistWallet(next: Wallet) {
+    walletRef.current = next
     setWallet(next)
     saveWallet(next)
   }
@@ -1359,8 +1414,6 @@ export default function App() {
 
   function commitHistory(nextHist: ReturnType<typeof createHistory>) {
     historyRef.current = nextHist
-    setHistory(nextHist.past)
-    setFuture(nextHist.future)
     setCells(nextHist.present)
   }
 
@@ -1420,9 +1473,11 @@ export default function App() {
     const budget = treasureBudget(ledP)
     const treasureOk = budget > 0
     paradeCountedRef.current = !treasureOk // a capped parade never uses up another treasure parade
+    const march = paradeMarch(buddies.length)
     setParade({
       buddies,
-      ms: paradeLengthMs(),
+      ms: paradeSpanMs(march),
+      march,
       go,
       treasure: treasureOk ? makeTreasure(buddies.length, Math.random, budget, canEarnSpin(ledP)) : makeCappedTreasure(buddies.length),
       capped: !treasureOk,
@@ -1476,7 +1531,7 @@ export default function App() {
       return
     }
     unlockAudio()
-    dropWaitingVoice()
+    resetBoardAudio()
     sfxWhoosh()
     resetPlayViewport()
     setStartSheet(null)
@@ -1559,6 +1614,8 @@ export default function App() {
     const themeId = p.theme ?? themeForPuzzle(p.id, p.difficulty)
     setPuzzle({ ...p, theme: themeId })
     recordedRef.current = false
+    saveNonce.current += 1
+    setSaveAsk(false)
     setCelebrate(false)
     setDefeated(false)
     setWinLine('')
@@ -1655,54 +1712,61 @@ export default function App() {
 
     if (meta.kind === 'mark') {
       // X marks: Board already played sfxMark — never banter/voice
-    } else if (meta.kind === 'stone' && meta.conflict) {
-      const kind: BanterConflictKind = meta.conflictKind ?? 'generic'
-      flawedRef.current = true
-      {
-        const now = Date.now()
-        const recent = [...wrongTimesRef.current.filter((t) => now - t < TIP_TRIGGERS.stuckWrongWindowMs), now]
-        wrongTimesRef.current = recent
-        if (recent.length >= TIP_TRIGGERS.stuckWrong) {
-          // after the wrong-move line has had its say
-          window.setTimeout(() => {
-            if (fireTip('stuck', undefined, { quietMs: 800 })) wrongTimesRef.current = []
-          }, 3500)
+    } else if (meta.kind === 'stone') {
+      const seen = puzzle ? findConflicts(puzzle, next) : null
+      const wrong = meta.conflict || (seen?.cells.has(meta.index) ?? false)
+      if (!wrong) {
+        lastProgressRef.current = Date.now()
+        // The winning buddy gets the win line only (no Unseen grumble cut off by the cheer)
+        if (!(puzzle && isSolved(puzzle, next))) pushBanter('place-good')
+        setGiggleIndex(meta.index)
+        window.setTimeout(() => setGiggleIndex((g) => (g === meta.index ? null : g)), 900)
+      } else {
+        const kind: BanterConflictKind = meta.conflictKind ?? seen?.kinds.get(meta.index) ?? 'generic'
+        flawedRef.current = true
+        {
+          const now = Date.now()
+          const recent = [...wrongTimesRef.current.filter((t) => now - t < TIP_TRIGGERS.stuckWrongWindowMs), now]
+          wrongTimesRef.current = recent
+          if (recent.length >= TIP_TRIGGERS.stuckWrong) {
+            // after the wrong-move line has had its say
+            window.setTimeout(() => {
+              if (fireTip('stuck', undefined, { quietMs: 800 })) wrongTimesRef.current = []
+            }, 3500)
+          }
+        }
+        // Refs, not the render's lives/wallet: two mistakes in one turn must not both
+        // read the same heart count. Daily, Remix, and Endless share this rule.
+        const beforeLives = livesRef.current
+        let w = { ...walletRef.current, totalMistakes: walletRef.current.totalMistakes + 1 }
+        const step = nextAfterMistake(beforeLives, w.shields)
+        livesRef.current = step.lives
+        // One line per move: the losing move gets the lose line only, not a wrong-move line too
+        if (step.taunt === 'place-bad') pushBanter('place-bad', kind)
+        if (step.spentShield) {
+          w = { ...w, shields: step.shields }
+          showToast('Shield blocked a mistake!')
+          sfxCoin()
+        } else {
+          const lostSlot = Math.max(0, beforeLives - 1)
+          setHeartPop(lostSlot)
+          sfxHeartLose()
+          window.setTimeout(() => setHeartPop(null), 700)
+          setLives(step.lives)
+        }
+        persistWallet(w)
+        if (step.gameOver) {
+          boardOverRef.current = 'lost'
+          cancelVoiceBelow(VOICE_PRIORITY.lose)
+          setDefeated(true)
+          setRunning(false)
+          saveDraft(null)
+          sfxLose()
+          const lose = pushBanter('lose')
+          setLoseLine(lose.text || 'Out of hearts')
+          setAwaitingComeback(true)
         }
       }
-      let nextLives = lives
-      let w = { ...wallet, totalMistakes: wallet.totalMistakes + 1 }
-      // One line per move: the losing move gets the lose line only, not a wrong-move line too
-      if (w.shields > 0 || lives > 1) pushBanter('place-bad', kind)
-      if (w.shields > 0) {
-        w = { ...w, shields: w.shields - 1 }
-        showToast('Shield blocked a mistake!')
-        sfxCoin()
-      } else {
-        const lostSlot = Math.max(0, lives - 1)
-        setHeartPop(lostSlot)
-        sfxHeartLose()
-        window.setTimeout(() => setHeartPop(null), 700)
-        nextLives = lives - 1
-        setLives(nextLives)
-      }
-      persistWallet(w)
-      if (nextLives <= 0) {
-        boardOverRef.current = 'lost'
-        cancelVoiceBelow(VOICE_PRIORITY.lose)
-        setDefeated(true)
-        setRunning(false)
-        saveDraft(null)
-        sfxLose()
-        const lose = pushBanter('lose')
-        setLoseLine(lose.text || 'Out of hearts')
-        setAwaitingComeback(true)
-      }
-    } else if (meta.kind === 'stone') {
-      lastProgressRef.current = Date.now()
-      // The winning buddy gets the win line only (no Unseen grumble cut off by the cheer)
-      if (!(puzzle && isSolved(puzzle, next))) pushBanter('place-good')
-      setGiggleIndex(meta.index)
-      window.setTimeout(() => setGiggleIndex((g) => (g === meta.index ? null : g)), 900)
     }
 
     saveBoardDraft(hist)
@@ -1789,6 +1853,15 @@ export default function App() {
         /* never block the win */
       }
       const isRecord = !!replay && (replay.newBestTime || replay.newBestScore)
+      const saveMoment = !!replay && !replay.tooFast && (replay.firstClear || replay.newBestTime || replay.newBestScore)
+      if (saveMoment && device === 'phone' && cloudState().status !== 'signed-in') {
+        const nonce = ++saveNonce.current
+        window.setTimeout(() => {
+          if (saveNonce.current !== nonce) return
+          if (cloudState().status === 'signed-in') return
+          setSaveAsk(true)
+        }, 2400)
+      }
       // 9.30-a (Tony): won a replayed board without beating the old best = ONE combined line (board
       // cleared + slower than your best), not a cheer followed by a tease. The win sound and banner stay.
       const notBest = !!replay && !replay.firstClear && !replay.newBestTime && !replay.newBestScore && runMode === 'normal' && dailyStreak == null
@@ -1937,7 +2010,7 @@ export default function App() {
         if (runMode === 'trial' && trialMult === 2) parts.unshift('2× coins')
         else if (runMode === 'trial') parts.unshift('Trial 2× is used up for today')
         const c = comboRef.current
-        const bits = [`combo ×${c.bestMult}`, `${undosRef.current} undo${undosRef.current === 1 ? '' : 's'}`]
+        const bits = [`combo ×${c.bestMult}`]
         if (perfect) bits.unshift('perfect')
         if (replay?.tooFast) bits.push('that time looked too fast to be real, so it was not saved as a best')
         else if (hintsUsed > 0 || rescuesUsed > 0) bits.push('help used: a clean run can replace this time')
@@ -2007,55 +2080,6 @@ export default function App() {
         }, 2200)
       }
     }
-  }
-
-  /** Undo/redo spam (4 within 5s) gives the Unseen an opening */
-  function noteUndoRedo() {
-    const now = Date.now()
-    const recent = [...undoTimesRef.current.filter((t) => now - t < 5000), now]
-    if (recent.length >= 4) {
-      undoTimesRef.current = []
-      pushBanter('undo-spam')
-    } else {
-      undoTimesRef.current = recent
-    }
-  }
-
-  function undo() {
-    if (historyRef.current.past.length === 0 || celebrate || defeated || modeRef.current === 'trial') return
-    // Board first: a sound or voice hiccup must never cost the undo itself.
-    const hist = undoMove(historyRef.current)
-    replaceBoard(hist)
-    try {
-      // Each undo costs points and breaks the combo
-      undosRef.current += 1
-      comboRef.current = comboMove(comboRef.current, 'undo', -1, Date.now()).combo
-      showToast(`Undo · −${UNDO_COST} pts`)
-      // Repeated undos: a voice tip about what undo costs (once the heckle, if any, has finished)
-      if (undosRef.current >= TIP_TRIGGERS.undoCount) window.setTimeout(() => fireTip('undo-spam', undefined, { quietMs: 800 }), 1400)
-    } catch {
-      /* scoring only */
-    }
-    // Without this the saved board kept the undone X's: Resume (or iOS reloading the tab) put them back.
-    saveBoardDraft(hist)
-    afterUndoRedo()
-  }
-
-  function afterUndoRedo() {
-    try {
-      sfxUndo()
-      noteUndoRedo()
-    } catch {
-      /* sound only */
-    }
-  }
-
-  function redo() {
-    if (historyRef.current.future.length === 0 || celebrate || defeated || modeRef.current === 'trial') return
-    const hist = redoMove(historyRef.current)
-    replaceBoard(hist)
-    saveBoardDraft(hist)
-    afterUndoRedo()
   }
 
   function onHint() {
@@ -2157,6 +2181,8 @@ export default function App() {
     flawedRef.current = false
     setLastScore(null)
     recordedRef.current = false
+    saveNonce.current += 1
+    setSaveAsk(false)
     setWinReplay(null)
     setRunning(true)
     setLives(runMaxLives)
@@ -2349,8 +2375,8 @@ export default function App() {
     })
 
     const line = sparkProgressBanter(have, CRITTER_STASH_GOAL)
-    if (line.text) showToast(line.text)
     if (line.speak && line.clip) playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
+    else if (line.text) showToast(line.text)
   }
 
   /** 10.06: buddy flyby catch — perk-flavored reward from the active buddy */
@@ -2631,20 +2657,24 @@ export default function App() {
   function buildRemix(size: RemixSize, openAfter = false) {
     const set = remixSet
     const key = `${set}-${size}`
+    if (openAfter) remixOpenAfterRef.current.add(key)
     if (remixJobsRef.current.has(key)) return
     remixJobsRef.current.add(key)
     setRemixBuilding((b) => [...b.filter((x) => x !== size), size])
     setRemixFailed((f) => f.filter((x) => x !== size))
     void buildRemixInBackground(set, size).then((p) => {
       remixJobsRef.current.delete(key)
+      const wantOpen = remixOpenAfterRef.current.has(key)
+      remixOpenAfterRef.current.delete(key)
       setRemixBuilding((b) => b.filter((x) => x !== size))
       if (!p) {
         setRemixFailed((f) => [...f.filter((x) => x !== size), size])
+        if (wantOpen) showToast('Try Remix again')
         return
       }
       saveRemixBoard(set, p)
       setRemixBoards((r) => (r.set === set ? { set, boards: { ...r.boards, [size]: p } } : r))
-      if (openAfter && screenNowRef.current === 'remix') setStartSheet(p)
+      if (wantOpen && screenNowRef.current === 'remix') setStartSheet(p)
     })
   }
 
@@ -2666,10 +2696,17 @@ export default function App() {
     })
   }
 
-  /** 9.32-f: menu "Mix it up" — a fresh Endless board at a random size */
-  function mixItUp() {
-    const diffs = ['easy', 'medium', 'hard', 'expert'] as const
-    startEndless(diffs[Math.floor(Math.random() * diffs.length)])
+  /** Proposal: one fresh board of the size already on screen. Endless stays endless. */
+  function newBoardSameSize() {
+    if (!puzzle) return
+    const runningEndless = endlessRef.current
+    if (runningEndless) {
+      startEndless(runningEndless)
+      return
+    }
+    const difficulty = puzzle.difficulty
+    showToast('New board…')
+    window.setTimeout(() => startPuzzleRef.current(createFreshPuzzle(difficulty)), 30)
   }
 
   /** 9.32-f: shared level-card rendering — used by the difficulty tabs AND the Classic boards set */
@@ -2705,7 +2742,11 @@ export default function App() {
     const freshMs = (REMIX_DAYS - 1) * 24 * 3600 * 1000
     const isFresh = remixMsLeft > freshMs
     return (
-      <section className="daily-card remix-entry" aria-label="Remix boards">
+      <section
+        className="daily-card remix-entry"
+        aria-label="Remix boards"
+        onClick={() => setScreen('remix')}
+      >
         <div className="daily-text">
           <strong>
             Remix boards
@@ -2717,9 +2758,6 @@ export default function App() {
         <div className="remix-entry-btns">
           <button type="button" className={`btn ${isFresh ? 'primary' : 'ghost'} daily-btn`} data-open-remix onClick={() => setScreen('remix')}>
             Remix
-          </button>
-          <button type="button" className="btn ghost daily-btn" onClick={mixItUp} disabled={endlessBusy != null} title="A fresh Endless board at a random size">
-            {endlessBusy ? 'Making…' : '🎲 Mix it up'}
           </button>
         </div>
       </section>
@@ -2764,24 +2802,26 @@ export default function App() {
                 ) : (
                   <p className="start-sheet-locked">⚔ Roman's Trial unlocks at 3 stars</p>
                 )}
-                {sheetRec?.bestMs != null ? (
-                  <button
-                    type="button"
-                    className="btn tool"
-                    data-testid="reset-best"
-                    onClick={() => {
-                      if (window.confirm(`Reset your best time on ${startSheet.name}? Your stars and top score stay.`)) {
-                        persistRecords(resetBestTime(records, startSheet.id))
-                        showToast('Best time reset. Set a new one!')
-                      }
-                    }}
-                  >
-                    Reset best time
+                <div className="cta-pair">
+                  {sheetRec?.bestMs != null ? (
+                    <button
+                      type="button"
+                      className="btn tool"
+                      data-testid="reset-best"
+                      onClick={() => {
+                        if (window.confirm(`Reset your best time on ${startSheet.name}? Your stars and top score stay.`)) {
+                          persistRecords(resetBestTime(records, startSheet.id))
+                          showToast('Best time reset. Set a new one!')
+                        }
+                      }}
+                    >
+                      Reset best time
+                    </button>
+                  ) : null}
+                  <button type="button" className="btn ghost" onClick={() => setStartSheet(null)}>
+                    Cancel
                   </button>
-                ) : null}
-                <button type="button" className="btn ghost" onClick={() => setStartSheet(null)}>
-                  Cancel
-                </button>
+                </div>
               </div>
             </div>,
             document.body,
@@ -2844,7 +2884,7 @@ export default function App() {
   }
   const trialLeftMs = puzzle && mode === 'trial' ? Math.max(0, trialTimeLimitMs(targetsFor(puzzle)) - elapsedMs) : 0
 
-  keysRef.current = { undo, redo, hint: onHint }
+  keysRef.current = { hint: onHint }
 
   return (
     <div
@@ -2856,17 +2896,11 @@ export default function App() {
       <style>{MENU_CSS}</style>
       {!hideChrome && (
         <header className="topbar topbar-slim">
-          <button
-            type="button"
-            className="brand"
-            onClick={() => {
-              setScreen('home')
-              sfxWhoosh()
-            }}
-          >
-            <span className="brand-mark" />
+          <a className="brand" {...worldLinkProps(device === 'phone')} aria-label="Roman's Game at romansgame.com">
+            <span className="brand-mark" aria-hidden="true" />
             <span className="brand-name">Roman</span>
-          </button>
+            <span className="site-link">romansgame.com</span>
+          </a>
           <nav className="nav">
             <button type="button" className={screen === 'levels' ? 'on' : ''} onClick={() => setScreen('levels')}>
               Play
@@ -2885,12 +2919,41 @@ export default function App() {
             </button>
           </nav>
           <div className="hud-pills">
-            <div className="score-pill coin" title="Coins">
+            {device === 'phone' ? (
+              <button type="button" className="info-peek" onClick={() => setInfoOpen(true)}>
+                Info
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="score-pill coin"
+              aria-label={`${wallet.coins} coins`}
+              onClick={() => setPlayerOpen(true)}
+            >
               {wallet.coins}
               <span>¢</span>
-            </div>
+            </button>
           </div>
         </header>
+      )}
+
+      {device === 'phone' && screen !== 'play' && screen !== 'how' && (
+        <nav className="phone-tabs" aria-label="Sections">
+          <button type="button" className={screen === 'levels' ? 'on' : ''} onClick={() => setScreen('levels')}>
+            Play
+          </button>
+          <button type="button" className={screen === 'rewards' ? 'on' : ''} onClick={() => setScreen('rewards')}>
+            Shop
+          </button>
+          <button type="button" className={screen === 'profile' ? 'on' : ''} onClick={() => setScreen('profile')}>
+            You
+          </button>
+        </nav>
+      )}
+      {device === 'phone' && screen === 'how' && (
+        <button type="button" className="info-peek info-peek-fixed" onClick={() => setInfoOpen(true)}>
+          Info
+        </button>
       )}
 
       {/* On a live board the toast text shows in the play caption slot instead (never over the board) */}
@@ -2919,12 +2982,15 @@ export default function App() {
                 aria-label="Your name"
                 onChange={(e) => setNameDraft(e.target.value.slice(0, PLAYER_NAME_MAX + 8))}
               />
-              <button type="submit" className="btn primary" disabled={!cleanPlayerName(nameDraft)}>
-                Save
-              </button>
-              <button type="button" className="btn ghost" onClick={() => closeNamePrompt(false)}>
-                Skip (share as “I scored…”)
-              </button>
+              <div className="cta-pair">
+                <button type="submit" className="btn primary" disabled={!cleanPlayerName(nameDraft)}>
+                  Save
+                </button>
+                <button type="button" className="btn ghost" onClick={() => closeNamePrompt(false)}>
+                  <span className="skip-full">Skip (share as “I scored…”)</span>
+                  <span className="skip-short">Skip</span>
+                </button>
+              </div>
             </form>
           </div>,
           document.body,
@@ -2946,7 +3012,56 @@ export default function App() {
         purchasesUnavailable={webShop === 'unavailable'}
       />
 
-      {screen === 'home' && (
+      {screen === 'home' && device === 'phone' && (
+        <PhoneHome
+          playerName={playerName}
+          onPlay={() => {
+            if (draftPuzzle) startPuzzle(draftPuzzle, true)
+            else {
+              const uncleared = PUZZLES.find((p) => !done.has(p.id))
+              if (uncleared) startPuzzle(uncleared)
+              else setScreen('levels')
+            }
+          }}
+          onHow={() => setScreen('how')}
+          onShop={() => setScreen('rewards')}
+          onAccount={() => setScreen('profile')}
+          onStable={() => setScreen('stable')}
+          onShare={() => setScreen('challenge')}
+          onBoard={() => setScreen('board')}
+          onBug={() => setScreen('bug')}
+          onFamily={() => setFamilyOpen(true)}
+          onInfo={() => setInfoOpen(true)}
+          buddy={
+            <section className="home-pet-row" aria-label="Your buddy">
+              <HomePet
+                id={activePet(pets, petNow)}
+                xp={(() => {
+                  const a = activePet(pets, petNow)
+                  return a ? petXp(pets, a) : 0
+                })()}
+                mood={(() => {
+                  const a = activePet(pets, petNow)
+                  return a && pets.owned[a] ? careInfo(pets, a, petNow, todayKey).kind : undefined
+                })()}
+                canPet={(() => {
+                  const a = activePet(pets, petNow)
+                  return !!a && !!pets.owned[a] && careInfo(pets, a, petNow, todayKey).canPet
+                })()}
+                onTap={() => petGiggle()}
+                onStable={() => setScreen('stable')}
+              />
+            </section>
+          }
+          unseen={<UnseenCardTile records={records} />}
+        />
+      )}
+
+      {screen === 'board' && device !== 'tablet' && (
+        <PhoneBoard playerName={playerName} onInfo={() => setInfoOpen(true)} />
+      )}
+
+      {screen === 'home' && device !== 'phone' && (
         <main className="home scroll-pane">
           <section className="hero no-callout">
             <p className="eyebrow">Logic puzzle</p>
@@ -2985,6 +3100,7 @@ export default function App() {
               <UnseenCardTile records={records} />
             </div>
           </section>
+          <div className="home-side">
           {/* 10.06: treat defense — the vulnerable field pile. Claim only on the board screen. */}
           <section className="treat-pile-widget" aria-label="Field treat pile">
             <span aria-hidden="true">🍖</span>
@@ -3016,8 +3132,21 @@ export default function App() {
               onStable={() => setScreen('stable')}
             />
           </section>
-          {dailyCard}
-          {remixCard}
+          </div>
+          <div className="home-modes">
+            {dailyCard}
+            {remixCard}
+          </div>
+          <div className="home-board">
+            <LiveBoard playerName={playerName} onSeeAll={() => setBoardOpen(true)} />
+          </div>
+          <HomeUnseen
+            onUnseen={() => {
+              const line = unseenHomeSaying()
+              if (line.speak && line.clip) playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
+            }}
+            unseenLine={unseenSpeaking ? unseenCaption(unseenSpeaking.text) : null}
+          />
           <section className="stat-strip home-strip">
             <div>
               <strong>{progress.clears.length}</strong>
@@ -3043,6 +3172,7 @@ export default function App() {
         <HowToPlay
           key={`how-${howStart}`}
           startAt={howStart}
+          sameTab={device === 'phone'}
           doneLabel={pendingStartRef.current ? "Let's play" : 'Choose a level'}
           onDone={() => {
             settingsRef.current = { ...settingsRef.current, howSeen: true }
@@ -3253,15 +3383,25 @@ export default function App() {
 
 
           <div className="play-side">
+          {device === 'phone' && !celebrate && !defeated ? (
+            <div className="mode-picker" role="group" aria-label="Play mode">
+              <button type="button" className={dailyTag ? 'on' : ''} onClick={() => startPuzzle(dailyBoard, false, { daily: true })}>
+                Daily
+              </button>
+              <button type="button" className={parseRemixId(puzzle.id) ? 'on' : ''} data-open-remix onClick={() => setScreen('remix')}>
+                Remix
+              </button>
+              <button
+                type="button"
+                className={endlessRef.current ? 'on' : ''}
+                disabled={endlessBusy != null}
+                onClick={() => startEndless(puzzle.difficulty)}
+              >
+                Endless
+              </button>
+            </div>
+          ) : null}
           <div className="toolbar play-toolbar">
-            <TapButton className="btn tool" onTap={undo} disabled={!history.length || celebrate || defeated || mode === 'trial'}>
-              {mode === 'trial' ? 'No undo' : 'Undo'}
-              <kbd className="kbd" aria-hidden="true">Z</kbd>
-            </TapButton>
-            <TapButton className="btn tool" onTap={redo} disabled={!future.length || celebrate || defeated || mode === 'trial'}>
-              Redo
-              <kbd className="kbd" aria-hidden="true">Y</kbd>
-            </TapButton>
             <button type="button" className="btn tool" onClick={onHint} disabled={celebrate || defeated}>
               <span className="tool-label">Hint</span>
               <span className="tool-cost">
@@ -3282,6 +3422,16 @@ export default function App() {
             <button type="button" className="btn tool" onClick={resetBoard}>
               Reset
             </button>
+            {device === 'phone' && mode !== 'trial' && !dailyTag && !parseRemixId(puzzle.id) && !endlessRef.current ? (
+              <button type="button" className="btn tool" onClick={newBoardSameSize} aria-label="New board">
+                <span className="tool-label">New</span>
+              </button>
+            ) : null}
+            {device === 'phone' ? (
+              <button type="button" className="btn tool hud-board" onClick={() => setScreen('board')} aria-label="Leaderboard">
+                <span className="tool-label">🏆 Leaderboard</span>
+              </button>
+            ) : null}
           </div>
           {/* Wide screens: the buddy riding along on this board (9.30-a) */}
           {(() => {
@@ -3311,6 +3461,9 @@ export default function App() {
               </div>
             )
           })()}
+          {device === 'desktop' ? (
+            <LiveBoard playerName={playerName} onSeeAll={() => setBoardOpen(true)} />
+          ) : null}
           </div>
           <p className="build-tag" data-build={BUILD_TAG}>{BUILD_TAG}</p>
 
@@ -3361,7 +3514,7 @@ export default function App() {
               perfect={hintsUsed === 0}
               replay={winReplay ?? undefined}
               cardGain={cardGain ?? undefined}
-              nextLabel={endlessRef.current ? 'Next Endless board' : parseRemixId(puzzle.id) ? 'Next Remix board' : 'Next board'}
+              nextLabel="Next board"
               paradeHint={settings.parade === false ? undefined : paradeHint(paradeRef.current).text}
               modeNote={endlessRef.current ? `Endless mode · ${endless.cleared} cleared. Levels list and Home are below.` : parseRemixId(puzzle.id) ? boardKindNote(puzzle.id) : undefined}
               onNext={() => maybeParade(() => {
@@ -3410,6 +3563,7 @@ export default function App() {
               onCatch={catchTreasure}
               readWallet={() => { const w = loadWallet(); return { coins: w.coins, hints: w.freeHints, spins: w.spins } }}
               durationMs={parade.ms}
+              march={parade.march}
               reduce={settings.reduceMotion}
               onDone={() => {
                 const go = parade.go
@@ -3492,7 +3646,7 @@ export default function App() {
       )}
 
       {screen === 'rewards' && (
-        <main className="panel scroll-pane">
+        <main className="panel rewards scroll-pane">
           <h2>Rewards</h2>
           <p className="sub">
             Unlock badges by playing, then spend coins to rank them up forever — each rank boosts coins on every win.
@@ -3630,7 +3784,29 @@ export default function App() {
         </main>
       )}
 
-      {screen === 'profile' && (
+      {screen === 'profile' && device === 'phone' && (
+        <PhoneSettings
+          playerName={playerName || profile?.displayName || ''}
+          soundOn={settings.sound}
+          reduceMotion={settings.reduceMotion}
+          buildTag={BUILD_TAG}
+          onToggleSound={() => {
+            const next = { ...settings, sound: !settings.sound }
+            setSettings(next)
+            saveSettings(next)
+            setMuted(!next.sound)
+          }}
+          onToggleMotion={() => {
+            const next = { ...settings, reduceMotion: !settings.reduceMotion }
+            setSettings(next)
+            saveSettings(next)
+          }}
+          onInfo={() => setInfoOpen(true)}
+          onFamily={() => setFamilyOpen(true)}
+        />
+      )}
+
+      {screen === 'profile' && device !== 'phone' && (
         <main className="panel profile scroll-pane">
           <h2>Save & settings</h2>
           {profile ? (
@@ -4026,13 +4202,68 @@ export default function App() {
         onClose={() => setShowWheel(false)}
       />
 
+      <InfoSheet
+        open={device === 'phone' && infoOpen}
+        onClose={() => setInfoOpen(false)}
+        buildTag={BUILD_TAG}
+        soundOn={settings.sound}
+        onToggleSound={() => {
+          const next = { ...settings, sound: !settings.sound }
+          setSettings(next)
+          saveSettings(next)
+          setMuted(!next.sound)
+        }}
+        feedback={<PhoneVote onVote={(vote, account) => sendFeedback(vote, '', account)} />}
+        onFamily={() => {
+          setInfoOpen(false)
+          setFamilyOpen(true)
+        }}
+      />
+      {boardOpen && device === 'desktop'
+        ? createPortal(
+            <div className="board-pop" role="dialog" aria-modal="true" aria-label="Leaderboard">
+              <button type="button" className="board-pop-scrim" aria-label="Close" onClick={() => setBoardOpen(false)} />
+              <div className="board-pop-card">
+                <PhoneBoard playerName={playerName} onClose={() => setBoardOpen(false)} onInfo={() => setInfoOpen(true)} />
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+      <PlayerPanel
+        open={playerOpen}
+        onClose={() => setPlayerOpen(false)}
+        fallbackName={playerName || profile?.displayName || ''}
+        coins={wallet.coins}
+        stats={[
+          { label: 'Cleared', value: String(progress.clears.length) },
+          { label: 'Wins', value: String(wallet.totalWins) },
+          { label: 'Streak', value: String(dailyStreakNow) },
+          { label: 'Badges', value: String(totalBadgePower(wallet)) },
+          { label: 'Hints', value: String(wallet.freeHints) },
+          { label: 'Spins', value: String(wallet.spins) },
+        ]}
+        onShop={() => {
+          setPlayerOpen(false)
+          setScreen('rewards')
+        }}
+        onAccount={() => {
+          setPlayerOpen(false)
+          setScreen('profile')
+        }}
+      />
+      <FamilySheet open={device === 'phone' && familyOpen} onClose={() => setFamilyOpen(false)} />
+      {device === 'phone' && saveAsk && !namePrompt && !showWheel && !showHunt && (
+        <CloudScoresButton suggestedName={playerName} forceOffer hidden onClose={() => setSaveAsk(false)} />
+      )}
+
       {/* Footer bar removed 2026-10-22 (Tony): it was eating screen space on every menu screen.
           Its contents live in Save & settings now — Sound effects toggle in Settings, and the
           version, thumbs, Privacy and JRNY credit in the About section at the bottom. */}
       {/* Keep clear of Netlify “Powered by” badge */}
       <div className="netlify-safe" aria-hidden />
       {/* 10.06: Unseen heckler pop-up — visual only, never blocks input */}
-      <UnseenPopup pop={unseenPop} />
+      <UnseenPopup pop={screen !== 'home' && unseenSpeaking ? { text: unseenSpeaking.text, key: unseenSpeaking.n } : null} />
       {/* 10.06: treat defense — wild pets vs the field treat pile (home + play) */}
       <TreatDefense
         active={screen === 'play' && !celebrate && !defeated && !showWheel && !rotatePaused}
