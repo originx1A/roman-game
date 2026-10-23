@@ -553,8 +553,10 @@ export default function App() {
   /** Phone only: ask to save after a first clear or a new best, once that moment is over. */
   const [saveAsk, setSaveAsk] = useState(false)
   const saveNonce = useRef(0)
-  /** Phone "Save your scores?" waits until Next or Home, so it never covers the Victory buttons. */
+  /** Phone "Save your scores?" waits until Home, so it never covers Victory or a running board. */
   const saveAskAfterLeave = useRef(false)
+  /** Phone "What should we call you?" waits until Home, same as the save sheet. */
+  const nameAskAfterHome = useRef(false)
   const [defeated, setDefeated] = useState(false)
   /** Set the moment a board is won or lost (before any state update lands), cleared for the next
    *  board. Voice lines check it so nothing from the live board speaks after the result. */
@@ -1150,8 +1152,11 @@ export default function App() {
       if (cue) {
         voiceCueN.current += 1
         setVoiceCue({ clip: cue.clip, text: cue.text, n: voiceCueN.current })
-        // On the home screen his own bubble is the caption, so a second toast is not added.
-        if (cue.text && !(screenRef.current === 'home' && isUnseenClip(cue.clip))) {
+        // Home and desktop play already show his bubble, so the caption must not repeat the line.
+        const unseen = isUnseenClip(cue.clip)
+        const bubbleOwnsLine =
+          unseen && (screenRef.current === 'home' || (deviceRef.current === 'desktop' && screenRef.current === 'play'))
+        if (cue.text && !bubbleOwnsLine) {
           voiceToast.current = true
           window.clearTimeout(toastTimer.current)
           setToast(cue.text)
@@ -1282,6 +1287,23 @@ export default function App() {
     setNamePrompt(null)
     if (then) window.setTimeout(then, 0)
   }
+
+  // Phone: the name prompt and the save sheet open only on Home. Never over the Victory card, and never on a board whose clock is running.
+  useEffect(() => {
+    if (screen !== 'home' || device !== 'phone') return
+    const pendingSave = saveAskAfterLeave.current
+    const pendingName = nameAskAfterHome.current
+    if (!pendingSave && !pendingName) return
+    saveAskAfterLeave.current = false
+    nameAskAfterHome.current = false
+    const openSave = () => {
+      if (pendingSave && cloudState().status !== 'signed-in') setSaveAsk(true)
+    }
+    if (pendingName && askNameOnce(pendingSave ? openSave : undefined)) return
+    openSave()
+    // askNameOnce reads the latest name; this runs only when the screen becomes Home.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, device])
 
   /** Share text for this board: name, score, level, stars, best time, New best! */
   function levelLabelFor(p: Puzzle): string {
@@ -2112,13 +2134,17 @@ export default function App() {
         })
       }
       if (shellRef.current) burstConfetti(shellRef.current)
-      // First finished board: ask once what to call the player on share cards
+      // First finished board: ask once what to call the player on share cards.
+      // Phone waits until Home so the prompt never covers Next board or Home.
       if (!settings.namePrompted && !playerName) {
-        window.setTimeout(() => {
-          // Only over the Victory card itself — never on top of Buddy Hunt or the prize wheel
-          if (!document.querySelector('.win-screen') || document.querySelector('.buddy-hunt, .prize-overlay')) return
-          askNameOnce()
-        }, 2200)
+        if (device === 'phone') nameAskAfterHome.current = true
+        else {
+          window.setTimeout(() => {
+            // Only over the Victory card itself — never on top of Buddy Hunt or the prize wheel
+            if (!document.querySelector('.win-screen') || document.querySelector('.buddy-hunt, .prize-overlay')) return
+            askNameOnce()
+          }, 2200)
+        }
       }
     }
   }
@@ -3436,11 +3462,14 @@ export default function App() {
           {/* Character lines, notices and hint text: a fixed two-line slot between the HUD and the
               board. Always takes its space (never reflows the board) and never overlaps it. */}
           {(() => {
-            // Once the board is won or lost the global toast carries notices; don't echo them here too
+            // Once the board is won or lost the global toast carries notices; don't echo them here too.
+            // On PC his bubble already shows the line, so the caption must not repeat it.
             const liveToast = celebrate || defeated ? '' : toast
+            const captionToast = device === 'desktop' && unseenSpeaking && liveToast === unseenSpeaking.text ? '' : liveToast
+            const captionText = captionToast || hintText
             return (
-              <p className={`play-caption ${liveToast || hintText ? '' : 'is-empty'} ${liveToast ? 'is-voice' : ''}`} aria-live="polite">
-                {liveToast || hintText}
+              <p className={`play-caption ${captionText ? '' : 'is-empty'} ${captionToast ? 'is-voice' : ''}`} aria-live="polite">
+                {captionText}
               </p>
             )
           })()}
@@ -3598,12 +3627,8 @@ export default function App() {
               paradeHint={settings.parade === false ? undefined : paradeHint(paradeRef.current).text}
               modeNote={endlessRef.current ? `Endless mode · ${endless.cleared} cleared. Levels list and Home are below.` : parseRemixId(puzzle.id) ? boardKindNote(puzzle.id) : undefined}
               onNext={() => maybeParade(() => {
-                const ask = saveAskAfterLeave.current
-                saveAskAfterLeave.current = false
-                const offerSave = () => {
-                  if (ask && cloudState().status !== 'signed-in') setSaveAsk(true)
-                }
-                // 9.30-i: Remix → the next uncleared board of the live set; Endless → another fresh board
+                // 9.30-i: Remix → the next uncleared board of the live set; Endless → another fresh board.
+                // The save sheet stays closed here: it opens on Home, never while the next clock is running.
                 const rm = parseRemixId(puzzle.id)
                 if (rm) {
                   const nxt = rm.set === remixSet ? nextRemixSize(rm.size, (s) => records.levels[remixId(rm.set, s)]?.bestMs != null) : null
@@ -3613,25 +3638,17 @@ export default function App() {
                     setScreen('remix')
                     if (nxt) buildRemix(nxt, true)
                   }
-                  offerSave()
                   return
                 }
                 if (endlessRef.current) {
                   startEndless(endlessRef.current)
-                  offerSave()
                   return
                 }
                 startPuzzle(pickNextBoard(puzzle, PUZZLES, getProgress().clears))
-                offerSave()
               })}
               onReplay={resetBoard}
               onLevels={() => setScreen('levels')}
-              onHome={() => {
-                const ask = saveAskAfterLeave.current
-                saveAskAfterLeave.current = false
-                setScreen('home')
-                if (ask && cloudState().status !== 'signed-in') setSaveAsk(true)
-              }}
+              onHome={() => setScreen('home')}
               onSpin={showSpinPrize(wallet.spins, buddyMeter.pending, huntJustEarned) ? openPrizeWheel : undefined}
               buddyMeter={{
                 notches: buddyMeter.notches,
@@ -4354,7 +4371,7 @@ export default function App() {
         }}
       />
       <FamilySheet open={device === 'phone' && familyOpen} onClose={() => setFamilyOpen(false)} />
-      {device === 'phone' && saveAsk && !namePrompt && !showWheel && !showHunt && (
+      {device === 'phone' && screen === 'home' && saveAsk && !namePrompt && !showWheel && !showHunt && (
         <CloudScoresButton suggestedName={playerName} forceOffer hidden onClose={() => setSaveAsk(false)} />
       )}
 
