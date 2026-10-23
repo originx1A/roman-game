@@ -939,6 +939,19 @@ html[data-motion='reduce'] .cell.pressed .cell-fill {
   font-weight: 700;
 }
 
+.profile label.toggle {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.profile label.toggle input {
+  width: auto;
+  flex: none;
+  padding: 0;
+}
+
 .challenge-list ul {
   list-style: none;
   margin: 0;
@@ -1973,6 +1986,23 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
   min-height: 0;
 }
 
+html[data-device='desktop'] main.how-panel.scroll-pane {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+  padding-bottom: 0.85rem !important;
+}
+html[data-device='desktop'] main.how-panel .how-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+html[data-device='desktop'] main.how-panel > .cta-row {
+  flex: 0 0 auto;
+  margin: 0.4rem 0 0;
+}
+
 .how-top {
   display: flex;
   align-items: center;
@@ -1988,6 +2018,22 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
 .how-top .site-link {
   margin-left: auto;
   flex-shrink: 0;
+}
+/* Phone How to play: the fixed Info button sits on the title row. The site link
+   takes the next line, clear of that button. */
+html[data-device='phone'] .how-top {
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 0.7rem;
+  padding-right: 5rem;
+}
+html[data-device='phone'] .how-top h2 {
+  flex: 1 1 auto;
+}
+html[data-device='phone'] .how-top .site-link {
+  flex: 1 0 100%;
+  margin-left: 0;
+  margin-top: 0.85rem;
 }
 
 .how-back {
@@ -3664,14 +3710,37 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
 
 
 
-/* Toast placement: never over the play HUD (timer / hearts) or Victory buttons.
-   Default stays at the top (menus). On the play screen it drops just below the HUD row;
-   while the Victory screen is up it goes back to the very top, above the card. */
+/* Toast placement: never over the play HUD, the phone control row, or the Victory title.
+   Default stays at the top (menus). On the play screen it drops just below the HUD row.
+   Desktop Victory keeps a gap above the card. Phone Victory keeps the toast in the
+   left side of the band under the card, above the Hint / Rescue / Reset row. */
 .shell-play .toast {
   top: calc(max(0.5rem, env(safe-area-inset-top, 0px)) + 3.1rem);
 }
 .shell-play.shell-celebrate .toast {
   top: max(0.4rem, env(safe-area-inset-top, 0px));
+}
+/* Phone play: stay under the HUD. bottom:auto so a Victory bottom pin cannot linger. */
+html[data-device='phone'] .shell-play:not(.shell-celebrate) .toast {
+  top: calc(max(0.45rem, env(safe-area-inset-top, 0px)) + 2.7rem);
+  bottom: auto;
+  max-height: 3.4rem;
+  overflow: hidden;
+}
+/* Phone Victory: the card stops above a bottom pocket. The toast sits on the left
+   of that pocket, clear of the title, the card buttons, and the control row. */
+html[data-device='phone'] .shell-play.shell-celebrate .win-screen {
+  --win-pad-b: calc(max(0.25rem, env(safe-area-inset-bottom, 0px)) + 11.2rem);
+}
+html[data-device='phone'] .shell-play.shell-celebrate .toast {
+  top: auto;
+  left: 0.4rem;
+  right: auto;
+  transform: none;
+  animation: none;
+  max-width: min(44vw, 168px);
+  text-align: left;
+  bottom: calc(4.8rem + env(safe-area-inset-bottom, 0px));
 }
 .shell-celebrate .win-screen-card {
   margin-top: 2.6rem;
@@ -6437,6 +6506,47 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
     padding: 0.4rem 0.55rem 0.45rem;
   }
 }
+/* Phone play: no figure and no caption line. His voice is enough; the bubble returns under the Victory card. */
+html[data-device='phone'] .shell-play:not(.shell-celebrate) .unseen-pop {
+  display: none;
+}
+/* Phone Victory: figure and bubble live in the pocket under the card (see --win-pad-b). */
+html[data-device='phone'] .shell-play.shell-celebrate .unseen-pop {
+  --unseen-w: 88px;
+  bottom: calc(4.7rem + env(safe-area-inset-bottom, 0px));
+  max-height: 6.4rem;
+  overflow: hidden;
+  z-index: 76;
+}
+html[data-device='phone'] .shell-play.shell-celebrate .unseen-bubble {
+  max-width: min(46vw, 172px);
+  margin: 0 0.3rem 0.15rem 0;
+}
+html[data-device='phone'] .shell-play.shell-celebrate .unseen-bubble p {
+  max-height: 2.6em;
+  overflow: hidden;
+}
+/* PC play: bottom-left, under the left stat panel, clear of the mini-board. */
+html[data-layout='wide'][data-device='desktop'] .shell-play:not(.shell-celebrate) .unseen-pop {
+  left: max(0.75rem, env(safe-area-inset-left, 0px));
+  right: auto;
+  bottom: max(0.55rem, env(safe-area-inset-bottom, 0px));
+  align-items: flex-start;
+  --unseen-w: 108px;
+  max-width: 200px;
+}
+html[data-layout='wide'][data-device='desktop'] .shell-play:not(.shell-celebrate) .unseen-bubble {
+  max-width: 200px;
+  margin: 0 0 0.3rem 0.15rem;
+}
+html[data-layout='wide'][data-device='desktop'] .shell-play:not(.shell-celebrate) .unseen-bubble::after {
+  right: auto;
+  left: 36px;
+}
+html[data-layout='wide'][data-device='desktop'] .shell-play:not(.shell-celebrate) .unseen-art {
+  margin-right: 0;
+  margin-left: -6px;
+}
 html[data-motion='reduce'] .unseen-pop.is-entering,
 html[data-motion='reduce'] .unseen-pop.is-leaving {
   animation-duration: 0.2s;
@@ -6912,24 +7022,169 @@ html[data-device='phone'] .phone-grid .cloud-btn.is-short::before { content: 'â˜
   color: var(--sun);
   font-size: 1.45rem;
 }
+.board-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.board-head-actions { display: flex; align-items: center; gap: 0.35rem; flex: none; }
+.board-head-actions .btn { min-height: 44px; }
+.board-inbox {
+  position: relative;
+  min-height: 44px;
+  padding: 0 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 209, 102, 0.45);
+  background: transparent;
+  color: var(--sun);
+  font: inherit;
+  font-weight: 800;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.board-inbox .badge {
+  position: absolute;
+  top: -0.28rem;
+  right: -0.2rem;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: var(--sun);
+  color: #07122a;
+  font-size: 0.68rem;
+  line-height: 1.15rem;
+  text-align: center;
+}
+.phone-board .mode-picker { max-width: none; margin: 0; }
 .phone-board-empty { margin: 0.2rem 0 0; opacity: 0.75; font-weight: 700; }
 .phone-board ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
-.phone-board li {
+.phone-board li { margin: 0; padding: 0; background: none; }
+.phone-board .board-row {
+  width: 100%;
   display: grid;
   grid-template-columns: 2.1rem minmax(0, 1fr) auto;
   gap: 0.45rem;
   align-items: center;
   min-height: 48px;
   padding: 0.35rem 0.75rem;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+.phone-board li.is-you .board-row { box-shadow: inset 0 0 0 1px rgba(255, 209, 102, 0.75); }
+.phone-board .place { opacity: 0.65; font-variant-numeric: tabular-nums; }
+.phone-board .name { display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem; min-width: 0; }
+.phone-board .who { overflow-wrap: anywhere; min-width: 0; }
+.friend-tag {
+  flex: none;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(61, 255, 168, 0.14);
+  color: var(--mint);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+.group-tag {
+  flex: none;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(255, 209, 102, 0.16);
+  color: var(--sun);
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.45;
+}
+.phone-board .score {
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.15;
+}
+.phone-board .score small { font-size: 0.62rem; font-weight: 700; opacity: 0.7; }
+.phone-board .board-cta { width: 100%; min-height: 48px; }
+.phone-sheet.board-sheet { z-index: 80; }
+.board-sheet .phone-sheet-card { display: grid; gap: 0.7rem; align-content: start; }
+.board-sheet .phone-sheet-card header strong { overflow-wrap: anywhere; min-width: 0; }
+.board-tools { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.board-tools .btn {
+  flex: 1 1 9.5rem;
+  min-height: 48px;
+  white-space: normal;
+  line-height: 1.15;
+  padding: 0.35rem 0.7rem;
+}
+.name-pick { display: grid; gap: 0.45rem; }
+.name-pick label { display: grid; gap: 0.25rem; font-weight: 800; font-size: 0.85rem; }
+.name-pick select {
+  min-height: 48px;
+  width: 100%;
+  font: inherit;
+  font-weight: 800;
+  border-radius: 12px;
+  padding: 0 0.6rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+.name-preview { margin: 0; font-weight: 800; color: var(--sun); overflow-wrap: anywhere; }
+.board-confirm {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.7rem;
+  border-radius: 14px;
+  background: rgba(255, 209, 102, 0.1);
+}
+.board-confirm p { margin: 0; font-weight: 800; overflow-wrap: anywhere; }
+.role-badge, .next-tag {
+  flex: none;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(255, 209, 102, 0.16);
+  color: var(--sun);
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.45;
+  white-space: nowrap;
+}
+.board-sheet .player-stats dd { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
+.board-sheet .player-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.board-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+.board-actions .btn { flex: 1 1 calc(50% - 0.45rem); min-height: 48px; }
+.board-create { display: grid; gap: 0.45rem; }
+.board-line { margin: 0; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; font-weight: 800; }
+.board-link {
+  border: 0;
+  background: transparent;
+  color: var(--sun);
+  font: inherit;
+  font-weight: 800;
+  min-height: 44px;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+.board-status { margin: 0; font-weight: 800; color: var(--sun); }
+.member-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+.member-list li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  min-height: 48px;
+  padding: 0.25rem 0.65rem;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.06);
   font-weight: 800;
 }
-.phone-board li.is-you { box-shadow: inset 0 0 0 1px rgba(255, 209, 102, 0.75); }
-.phone-board .place { opacity: 0.65; font-variant-numeric: tabular-nums; }
-.phone-board .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.phone-board .score { font-variant-numeric: tabular-nums; }
-.phone-board .board-cta { width: 100%; min-height: 48px; }
+.member-list .name { flex: 1 1 6rem; min-width: 0; overflow-wrap: anywhere; }
+.member-list .state { font-size: 0.72rem; opacity: 0.75; font-weight: 800; }
+.member-list .btn { flex: none; min-height: 44px; padding: 0.3rem 0.7rem; }
 html[data-device='phone'] .phone-home .home-pet-row { margin: 0; }
 html[data-device='phone'] .phone-home .unseen-tile { margin: 0; max-width: none; }
 /* Home-screen tap on wide layouts only. Fixed, so the home does not reflow.
@@ -7261,14 +7516,15 @@ html[data-device='desktop'] main.home {
   box-sizing: border-box;
   padding: 0.35rem 1.1rem 0.45rem;
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   grid-template-areas:
-    'hero modes'
-    'side modes'
+    'hero side'
     'stats stats';
-  column-gap: 1.15rem;
-  row-gap: 0.4rem;
-  align-content: start;
+  grid-template-rows: auto auto;
+  column-gap: 1.4rem;
+  row-gap: 0.7rem;
+  align-content: center;
+  position: relative;
 }
 html[data-device='desktop'] main.home .hero {
   grid-area: hero;
@@ -7286,7 +7542,7 @@ html[data-device='desktop'] main.home .lede {
 }
 html[data-device='desktop'] main.home .cta-row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.4rem;
 }
 html[data-device='desktop'] main.home .cta-row .btn,
@@ -7308,30 +7564,37 @@ html[data-device='desktop'] main.home .cta-row .unseen-tile {
 html[data-device='desktop'] main.home .home-side {
   grid-area: side;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
+  align-content: flex-start;
+  justify-content: flex-start;
   gap: 0.55rem;
   min-width: 0;
 }
+html[data-device='desktop'] main.home .home-side .unseen-tile {
+  max-width: none;
+  width: 100%;
+  margin: 0;
+}
 html[data-device='desktop'] main.home .treat-pile-widget {
   margin: 0;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   max-width: none;
   min-width: 0;
 }
 html[data-device='desktop'] main.home .home-pet-row { margin: 0; justify-content: flex-start; }
-html[data-device='desktop'] main.home .home-modes {
-  grid-area: modes;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.45rem;
-  align-items: stretch;
-  min-width: 0;
-}
-html[data-device='desktop'] main.home .home-modes .daily-card {
-  flex-direction: column;
-  align-items: flex-start;
+html[data-device='desktop'] main.home .home-audio {
+  justify-self: end;
+  align-self: flex-end;
   margin: 0;
-  min-width: 0;
+}
+html[data-device='desktop'] main.home .home-unseen-wrap {
+  position: relative;
+  right: auto;
+  bottom: auto;
+  align-self: flex-end;
+  margin: 0.15rem 0 0;
+  z-index: 2;
 }
 html[data-device='desktop'] main.home .home-strip {
   grid-area: stats;
@@ -7344,30 +7607,43 @@ html[data-layout='wide'][data-device='desktop'] main.home {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  align-content: stretch;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  align-content: center;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto auto;
   grid-template-areas:
-    'hero board'
-    'modes board'
-    'side board'
-    'stats board';
-  padding-right: 11.25rem;
+    'hero side'
+    'stats stats';
+  padding-right: 1.1rem;
+}
+html[data-layout='wide'][data-device='desktop'] .home-unseen-wrap {
+  position: relative;
+  right: auto;
+  bottom: auto;
+  z-index: 2;
+  flex: none;
+  margin-left: 0;
+  justify-self: end;
+  align-self: flex-end;
+}
+html[data-layout='wide'][data-device='desktop'] .home-unseen,
+html[data-layout='wide'][data-device='desktop'] .home-unseen img {
+  width: 140px;
+  margin-right: 0;
+}
+html[data-layout='wide'][data-device='desktop'] .home-unseen-line {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.35rem);
+  margin: 0;
 }
 html[data-layout='wide'][data-device='desktop'] main.home .home-strip {
   align-self: start;
 }
-html[data-layout='wide'][data-device='desktop'] main.home .home-board {
-  display: flex;
-  grid-area: board;
-  min-height: 0;
-  min-width: 0;
-}
-html[data-layout='wide'][data-device='desktop'] main.home .home-board .live-board {
+html[data-layout='wide'] .play-side > .live-board {
   flex: 1 1 auto;
-  width: 100%;
   min-height: 0;
-  max-height: 100%;
+  width: 100%;
+  overflow: auto;
 }
 
 html[data-device='desktop'] main.rewards {
@@ -7384,7 +7660,30 @@ html[data-device='desktop'] main.rewards {
 html[data-device='desktop'] main.rewards > h2 { grid-column: 1; margin: 0; font-size: 2rem; }
 html[data-device='desktop'] main.rewards > .sub { grid-column: 1; margin: 0; font-size: 0.82rem; line-height: 1.35; }
 html[data-device='desktop'] main.rewards > .stable-entry { grid-column: 1; margin: 0; padding: 0.4rem 0.65rem; }
-html[data-device='desktop'] main.rewards > .wallet-strip { grid-column: 1; margin: 0; }
+html[data-device='desktop'] main.rewards > .wallet-strip {
+  grid-column: 1;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  padding: 0.35rem 0.1rem;
+}
+html[data-device='desktop'] main.rewards > .wallet-strip > div {
+  flex: none;
+  min-width: 0;
+  padding: 0.3rem 0.35rem;
+}
+html[data-device='desktop'] main.rewards > .wallet-strip > div:nth-child(-n + 4) { grid-column: span 3; }
+html[data-device='desktop'] main.rewards > .wallet-strip > div:nth-child(n + 5) { grid-column: span 4; }
+html[data-device='desktop'] main.rewards > .wallet-strip > div:nth-child(4) { border-right: 0; }
+html[data-device='desktop'] main.rewards > .wallet-strip strong,
+html[data-device='desktop'] main.rewards > .wallet-strip span {
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  white-space: nowrap;
+}
+html[data-device='desktop'] main.rewards > .wallet-strip strong { font-size: 1.05rem; }
+html[data-device='desktop'] main.rewards > .wallet-strip span { font-size: 0.72rem; }
 html[data-device='desktop'] main.rewards > .econ-card { grid-column: 1; margin: 0; font-size: 0.8rem; }
 html[data-device='desktop'] main.rewards > .btn.primary {
   grid-column: 1;
@@ -7403,6 +7702,30 @@ html[data-device='desktop'] main.rewards > .badge-grid {
 html[data-device='desktop'] main.rewards .badge-card { padding: 0.4rem 0.45rem; gap: 0.12rem; }
 html[data-device='desktop'] main.rewards .badge-card .product-value { font-size: 0.72rem; }
 html[data-device='desktop'] main.rewards .badge-upgrade { white-space: normal; line-height: 1.2; min-height: 36px; }
+
+.audio-toggles {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.audio-toggles button {
+  min-height: 36px;
+  min-width: 36px;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 209, 102, 0.5);
+  background: #0d1f45;
+  color: var(--sun);
+  font-weight: 800;
+  cursor: pointer;
+}
+html[data-device='desktop'] .play-fixed .play-hud { position: relative; }
+html[data-device='desktop'] .shell-play .play-audio {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  z-index: 2;
+}
 
 html[data-device='desktop'] main.stable {
   max-width: 1240px;

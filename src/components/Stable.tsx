@@ -156,7 +156,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
           {active ? 'Go Solo' : 'Solo ✓'}
         </button>
         <button type="button" className="btn tool" onClick={onShop}>
-          Shop
+          Rewards
         </button>
       </div>
 
@@ -433,7 +433,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
       </div>
 
       <p className="stable-note">
-        Coins only, no random boxes. Win boards to earn coins, or grab more in the <button type="button" className="linkish" onClick={onShop}>Shop</button>. Coupons:
+        Coins only, no random boxes. Win boards to earn coins, or grab more in <button type="button" className="linkish" onClick={onShop}>Rewards</button>. Coupons:
         20% off for a 7-day daily streak, 30% off for a Roman's Trial clear (one per adoption).
       </p>
     </main>

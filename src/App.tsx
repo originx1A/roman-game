@@ -183,7 +183,7 @@ import {
   parseDuelFromHash,
   rankLabel,
 } from './game/challenges'
-import { publicLinkWithHash, publicPlayUrl, worldLinkProps } from './game/publicUrl'
+import { publicLinkWithHash, publicPlayUrl } from './game/publicUrl'
 import {
   banterFor,
   unseenHomeSaying,
@@ -262,6 +262,7 @@ import {
   playBanterClip,
   setVoiceCueListener,
   setMuted,
+  setMusicEnabled,
   setVoiceEnabled,
   sfxAchievement,
   sfxCoin,
@@ -439,6 +440,8 @@ export default function App() {
     if (screen !== 'play') resetBoardAudio()
   }, [screen])
   const [{ layout, device }, setLayoutInfo] = useState(() => readLayout())
+  const deviceRef = useRef(device)
+  deviceRef.current = device
   useEffect(() => {
     if (device === 'tablet' && screen === 'board') setScreen('home')
   }, [device, screen])
@@ -448,7 +451,8 @@ export default function App() {
   useEffect(() => {
     if (!boardOpen) return
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setBoardOpen(false)
+      if (event.key !== 'Escape' || document.querySelector('.board-sheet')) return
+      setBoardOpen(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -542,9 +546,17 @@ export default function App() {
   const [heartPop, setHeartPop] = useState<number | null>(null)
   const [hintText, setHintText] = useState('')
   const [celebrate, setCelebrate] = useState(false)
+  const celebrateRef = useRef(false)
+  celebrateRef.current = celebrate
+  const badgeToastQueue = useRef<string[]>([])
+  const playOriginRef = useRef<Screen | null>(null)
   /** Phone only: ask to save after a first clear or a new best, once that moment is over. */
   const [saveAsk, setSaveAsk] = useState(false)
   const saveNonce = useRef(0)
+  /** Phone "Save your scores?" waits until Home, so it never covers Victory or a running board. */
+  const saveAskAfterLeave = useRef(false)
+  /** "What should we call you?" waits until Home. Never during play or on Victory. */
+  const nameAskAfterHome = useRef(false)
   const [defeated, setDefeated] = useState(false)
   /** Set the moment a board is won or lost (before any state update lands), cleared for the next
    *  board. Voice lines check it so nothing from the live board speaks after the result. */
@@ -559,7 +571,12 @@ export default function App() {
   const [lastScore, setLastScore] = useState<number | null>(null)
   const [toast, setToast] = useState('')
   const toastTimer = useRef(0)
+  /** Delayed win toasts. Cleared when the player leaves the board, so none of them land on Home. */
+  const pendingToasts = useRef<number[]>([])
+  const homeHeckleTimer = useRef(0)
   const voiceToast = useRef(false)
+  /** The Unseen's home line, shown as soon as he is tapped. Audio can fail without hiding it. */
+  const [homeHeckle, setHomeHeckle] = useState<string | null>(null)
   /** Set only when a clip has started playing. Null when that audio ends, or if the line was skipped. */
   const [voiceCue, setVoiceCue] = useState<{ clip: string; text: string; n: number } | null>(null)
   const voiceCueN = useRef(0)
@@ -755,7 +772,8 @@ export default function App() {
     warmVoices()
     setMuted(!settings.sound)
     setVoiceEnabled(settings.voice)
-  }, [settings.sound, settings.voice])
+    setMusicEnabled(settings.music !== false)
+  }, [settings.sound, settings.voice, settings.music])
 
   useEffect(() => {
     if (isStoreBuild()) return
@@ -1094,20 +1112,73 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running, celebrate, defeated])
 
+  function toggleSound() {
+    const next = { ...settingsRef.current, sound: !settingsRef.current.sound }
+    settingsRef.current = next
+    setSettings(next)
+    saveSettings(next)
+    setMuted(!next.sound)
+  }
+
+  function toggleMusic() {
+    const next = { ...settingsRef.current, music: settingsRef.current.music === false }
+    settingsRef.current = next
+    setSettings(next)
+    saveSettings(next)
+    setMusicEnabled(next.music !== false)
+  }
+
   function showToast(msg: string) {
+    if (msg.startsWith('Badge unlocked:') && deviceRef.current === 'phone' && screenRef.current === 'play' && celebrateRef.current) {
+      badgeToastQueue.current.push(msg)
+      return
+    }
     voiceToast.current = false
     window.clearTimeout(toastTimer.current)
     setToast(msg)
     toastTimer.current = window.setTimeout(() => setToast(''), 2400)
   }
 
+  /** A win toast that must not survive leaving the board. */
+  function scheduleToast(ms: number, fn: () => void) {
+    const id = window.setTimeout(() => {
+      pendingToasts.current = pendingToasts.current.filter((t) => t !== id)
+      if (screenRef.current !== 'play') return
+      fn()
+    }, ms)
+    pendingToasts.current.push(id)
+  }
+
+  const leftPlay = useRef(screen === 'play')
+  useEffect(() => {
+    const wasPlay = leftPlay.current
+    leftPlay.current = screen === 'play'
+    if (!wasPlay || screen === 'play') return
+    for (const id of pendingToasts.current) window.clearTimeout(id)
+    pendingToasts.current = []
+    badgeToastQueue.current = []
+    window.clearTimeout(toastTimer.current)
+    setToast('')
+  }, [screen])
+
+  useEffect(() => {
+    if (celebrate) return
+    const queued = badgeToastQueue.current.splice(0)
+    queued.forEach((msg, i) => {
+      scheduleToast(i * 2600, () => showToast(msg))
+    })
+    // showToast reads the latest refs; the queue flushes when the victory card closes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [celebrate])
+
   useEffect(() => {
     setVoiceCueListener((cue) => {
       if (cue) {
         voiceCueN.current += 1
         setVoiceCue({ clip: cue.clip, text: cue.text, n: voiceCueN.current })
-        // On the home screen his own bubble is the caption, so a second toast is not added.
-        if (cue.text && !(screenRef.current === 'home' && isUnseenClip(cue.clip))) {
+        // Home and play already have his bubble (or just his voice). The caption does not repeat the line.
+        const bubbleOwnsLine = isUnseenClip(cue.clip) && (screenRef.current === 'home' || screenRef.current === 'play')
+        if (cue.text && !bubbleOwnsLine) {
           voiceToast.current = true
           window.clearTimeout(toastTimer.current)
           setToast(cue.text)
@@ -1223,9 +1294,9 @@ export default function App() {
     })
   }
 
-  /** Ask for a name once; `then` runs after Save or Skip */
+  /** Ask for a name once, and only on Home. Never during play or on the Victory card. */
   function askNameOnce(then?: () => void): boolean {
-    if (settings.namePrompted || playerName) return false
+    if (settings.namePrompted || playerName || screen !== 'home') return false
     setNameDraft('')
     setNamePrompt({ then })
     return true
@@ -1238,6 +1309,22 @@ export default function App() {
     setNamePrompt(null)
     if (then) window.setTimeout(then, 0)
   }
+
+  // Name prompt and save sheet open only on Home. Never during play, on Victory, or between boards.
+  useEffect(() => {
+    if (screen !== 'home') return
+    const pendingSave = device === 'phone' && saveAskAfterLeave.current
+    const pendingName = nameAskAfterHome.current
+    if (!pendingSave && !pendingName) return
+    saveAskAfterLeave.current = false
+    nameAskAfterHome.current = false
+    const openSave = () => {
+      if (pendingSave && cloudState().status !== 'signed-in') setSaveAsk(true)
+    }
+    if (pendingName && askNameOnce(pendingSave ? openSave : undefined)) return
+    openSave()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, device])
 
   /** Share text for this board: name, score, level, stars, best time, New best! */
   function levelLabelFor(p: Puzzle): string {
@@ -1522,8 +1609,12 @@ export default function App() {
   }
 
   function startPuzzle(p: Puzzle, resume = false, opts: { mode?: RunMode; daily?: boolean; endless?: boolean } = {}) {
-    // First board ever: How to play opens first (returning players start at the new cards)
-    if (!resume && !settingsRef.current.howSeen) {
+    if (screenRef.current !== 'play') {
+      if (!(screenRef.current === 'how' && playOriginRef.current === 'home')) playOriginRef.current = screenRef.current
+    }
+    // How to play is the demo. The first ordinary Play opens it once. Daily, Remix, Endless, and Trial start themselves.
+    const ownJob = !!(opts.daily || opts.endless || opts.mode || parseRemixId(p.id))
+    if (!resume && !ownJob && !settingsRef.current.howSeen) {
       pendingStartRef.current = { p, opts }
       setStartSheet(null)
       setHowStart(progress.clears.length > 0 ? HOW_NEW_START : 0)
@@ -1791,7 +1882,7 @@ export default function App() {
       setHuntJustEarned(metered.filledNow)
       paradeRef.current = paradeWin(paradeRef.current)
       saveParade(safeLocalStorage(), paradeRef.current)
-      if (metered.filledNow) window.setTimeout(() => showToast('Buddy meter full — Buddy Hunt unlocked!'), 1200)
+      if (metered.filledNow) scheduleToast(1200, () => showToast('Buddy meter full — Buddy Hunt unlocked!'))
       const targets = targetsFor(puzzle)
       const runMode = modeRef.current
       const score = scoreRunV2({
@@ -1854,14 +1945,7 @@ export default function App() {
       }
       const isRecord = !!replay && (replay.newBestTime || replay.newBestScore)
       const saveMoment = !!replay && !replay.tooFast && (replay.firstClear || replay.newBestTime || replay.newBestScore)
-      if (saveMoment && device === 'phone' && cloudState().status !== 'signed-in') {
-        const nonce = ++saveNonce.current
-        window.setTimeout(() => {
-          if (saveNonce.current !== nonce) return
-          if (cloudState().status === 'signed-in') return
-          setSaveAsk(true)
-        }, 2400)
-      }
+      saveAskAfterLeave.current = saveMoment && device === 'phone' && cloudState().status !== 'signed-in'
       // 9.30-a (Tony): won a replayed board without beating the old best = ONE combined line (board
       // cleared + slower than your best), not a cheer followed by a tease. The win sound and banner stay.
       const notBest = !!replay && !replay.firstClear && !replay.newBestTime && !replay.newBestScore && runMode === 'normal' && dailyStreak == null
@@ -1971,15 +2055,15 @@ export default function App() {
         if (runMode === 'trial') {
           const c = awardTrialClearCoupon(ps, Date.now())
           ps = c.state
-          if (c.coupon) window.setTimeout(() => showToast(`Trial clear prize: ${c.coupon!.pct}% off ${petById(c.coupon!.pet)?.name ?? 'a buddy'} in The Stable`), 4200)
+          if (c.coupon) scheduleToast(4200, () => showToast(`Trial clear prize: ${c.coupon!.pct}% off ${petById(c.coupon!.pet)?.name ?? 'a buddy'} in The Stable`))
         }
         if (dailyStreak != null) {
           ps = grantTreat(ps, 'snack')
-          window.setTimeout(() => showToast('Daily prize: a free Snack for your buddy'), 3600)
+          scheduleToast(3600, () => showToast('Daily prize: a free Snack for your buddy'))
           const c = awardStreakCoupon(ps, dailyStreak, Date.now())
           ps = c.state
           if (c.coupon) ps = grantTreat(ps, 'feast')
-          if (c.coupon) window.setTimeout(() => showToast(`${dailyStreak}-day streak prize: ${c.coupon!.pct}% off ${petById(c.coupon!.pet)?.name ?? 'a buddy'} in The Stable`), 4400)
+          if (c.coupon) scheduleToast(4400, () => showToast(`${dailyStreak}-day streak prize: ${c.coupon!.pct}% off ${petById(c.coupon!.pet)?.name ?? 'a buddy'} in The Stable`))
         }
         persistPets(ps)
         if (ridePet) {
@@ -1994,9 +2078,9 @@ export default function App() {
           if (isRecord) window.setTimeout(() => petGiggle({ quietOnly: true }), 3200)
           if (grown.levelUp) {
             const m = milestoneAt(grown.levelUp)
-            window.setTimeout(() => showToast(`${p.name} is Level ${grown.levelUp}!${m ? ` New: ${m.text}` : ''}`), 5200)
+            scheduleToast(5200, () => showToast(`${p.name} is Level ${grown.levelUp}!${m ? ` New: ${m.text}` : ''}`))
           }
-          if (grown.starUp) window.setTimeout(() => showToast(`${p.name} earned prestige star ${'★'.repeat(grown.starUp!)}`), 5200)
+          if (grown.starUp) scheduleToast(5200, () => showToast(`${p.name} earned prestige star ${'★'.repeat(grown.starUp!)}`))
         }
       } catch {
         /* buddies are extras; never block the win */
@@ -2034,7 +2118,7 @@ export default function App() {
           detail: bits.join(' · '),
           pet: petCheer,
         })
-        if (replay?.trialUnlockedNow) window.setTimeout(() => showToast(`3 stars! Roman's Trial unlocked on ${puzzle.name}`), 1600)
+        if (replay?.trialUnlockedNow) scheduleToast(1600, () => showToast(`3 stars! Roman's Trial unlocked on ${puzzle.name}`))
       }
       let w: Wallet = {
         ...paid.wallet,
@@ -2054,31 +2138,23 @@ export default function App() {
       w = evaled.wallet
       persistWallet(w)
       if (paid.bonusPct > 0) {
-        window.setTimeout(() => {
-          showToast(`+${paid.gained} coins (+${formatBonusPercent(paid.bonusPct)} badge bonus)`)
-        }, 900)
+        scheduleToast(900, () => showToast(`+${paid.gained} coins (+${formatBonusPercent(paid.bonusPct)} badge bonus)`))
       }
       const unlockedNow = freshBadgeIds(wallet, evaled.wallet)
       if (unlockedNow.length) {
         // Let the win Roman punchline finish before badge unlock voice/toast
         unlockedNow.forEach((badgeId, i) => {
           const badge = BADGES.find((b) => b.id === badgeId)
-          window.setTimeout(() => {
+          scheduleToast(3400 + i * 2600, () => {
             sfxAchievement()
             if (i === 0) pushBanter('achievement')
             showToast(`Badge unlocked: ${badge?.title ?? badgeId}`)
-          }, 3400 + i * 2600)
+          })
         })
       }
       if (shellRef.current) burstConfetti(shellRef.current)
-      // First finished board: ask once what to call the player on share cards
-      if (!settings.namePrompted && !playerName) {
-        window.setTimeout(() => {
-          // Only over the Victory card itself — never on top of Buddy Hunt or the prize wheel
-          if (!document.querySelector('.win-screen') || document.querySelector('.buddy-hunt, .prize-overlay')) return
-          askNameOnce()
-        }, 2200)
-      }
+      // First finished board: ask once, later, on Home. Never over the Victory card.
+      if (!settings.namePrompted && !playerName) nameAskAfterHome.current = true
     }
   }
 
@@ -2183,6 +2259,7 @@ export default function App() {
     recordedRef.current = false
     saveNonce.current += 1
     setSaveAsk(false)
+    saveAskAfterLeave.current = false
     setWinReplay(null)
     setRunning(true)
     setLives(runMaxLives)
@@ -2756,7 +2833,7 @@ export default function App() {
           <span className="daily-status">Next set in {remixCountdownLabel(remixMsLeft)} · plus Endless mode</span>
         </div>
         <div className="remix-entry-btns">
-          <button type="button" className={`btn ${isFresh ? 'primary' : 'ghost'} daily-btn`} data-open-remix onClick={() => setScreen('remix')}>
+          <button type="button" className={`btn ${isFresh ? 'primary' : 'ghost'} daily-btn`} data-testid="remix" data-open-remix onClick={() => setScreen('remix')}>
             Remix
           </button>
         </div>
@@ -2785,7 +2862,7 @@ export default function App() {
                 <ul className="start-sheet-goals">
                   <li className={(sheetRec?.stars ?? 0) >= 1 ? 'done' : ''}>★ Finish the board</li>
                   <li className={(sheetRec?.stars ?? 0) >= 2 ? 'done' : ''}>★★ Under {formatMs(sheetTargets.timeMs)}</li>
-                  <li className={(sheetRec?.stars ?? 0) >= 3 ? 'done' : ''}>★★★ Under {formatMs(sheetTargets.timeMs)}, {sheetTargets.score3}+ pts, no undos</li>
+                  <li className={(sheetRec?.stars ?? 0) >= 3 ? 'done' : ''}>★★★ Under {formatMs(sheetTargets.timeMs)}, {sheetTargets.score3}+ pts</li>
                 </ul>
                 <p className="start-sheet-tip">Quick good moves build a combo. Each undo costs {UNDO_COST} pts.</p>
                 <button type="button" className="btn primary" onClick={() => startPuzzle(startSheet)}>
@@ -2858,7 +2935,7 @@ export default function App() {
               : 'Only your first try counts. Clear it to grow your streak.'}
         </span>
       </div>
-      <button type="button" className={`btn ${dailyToday ? 'ghost' : 'primary'} daily-btn`} onClick={() => startPuzzle(dailyBoard, false, { daily: true })}>
+      <button type="button" className={`btn ${dailyToday ? 'ghost' : 'primary'} daily-btn`} data-testid="play-daily" onClick={() => startPuzzle(dailyBoard, false, { daily: true })}>
         {dailyToday ? 'Practice' : 'Play daily'}
       </button>
       {showStats ? (
@@ -2884,6 +2961,29 @@ export default function App() {
   }
   const trialLeftMs = puzzle && mode === 'trial' ? Math.max(0, trialTimeLimitMs(targetsFor(puzzle)) - elapsedMs) : 0
 
+  const audioToggles = (
+    <div className="audio-toggles">
+      <button
+        type="button"
+        data-testid="sound-toggle"
+        aria-pressed={settings.sound}
+        aria-label={settings.sound ? 'Sound on' : 'Sound off'}
+        onClick={toggleSound}
+      >
+        {settings.sound ? '🔊' : '🔇'}
+      </button>
+      <button
+        type="button"
+        data-testid="music-toggle"
+        aria-pressed={settings.music !== false}
+        aria-label={settings.music === false ? 'Music off' : 'Music on'}
+        onClick={toggleMusic}
+      >
+        {settings.music === false ? 'Music off' : 'Music on'}
+      </button>
+    </div>
+  )
+
   keysRef.current = { hint: onHint }
 
   return (
@@ -2896,10 +2996,12 @@ export default function App() {
       <style>{MENU_CSS}</style>
       {!hideChrome && (
         <header className="topbar topbar-slim">
-          <a className="brand" {...worldLinkProps(device === 'phone')} aria-label="Roman's Game at romansgame.com">
+          <button type="button" className="brand" data-testid="go-home" aria-label="Home" onClick={() => setScreen('home')}>
             <span className="brand-mark" aria-hidden="true" />
             <span className="brand-name">Roman</span>
-            <span className="site-link">romansgame.com</span>
+          </button>
+          <a className="site-link" data-testid="world-link" href="https://romansgame.com" target="_blank" rel="noopener noreferrer">
+            romansgame.com
           </a>
           <nav className="nav">
             <button type="button" className={screen === 'levels' ? 'on' : ''} onClick={() => setScreen('levels')}>
@@ -2927,6 +3029,7 @@ export default function App() {
             <button
               type="button"
               className="score-pill coin"
+              data-testid="coin-balance"
               aria-label={`${wallet.coins} coins`}
               onClick={() => setPlayerOpen(true)}
             >
@@ -2943,7 +3046,7 @@ export default function App() {
             Play
           </button>
           <button type="button" className={screen === 'rewards' ? 'on' : ''} onClick={() => setScreen('rewards')}>
-            Shop
+            Rewards
           </button>
           <button type="button" className={screen === 'profile' ? 'on' : ''} onClick={() => setScreen('profile')}>
             You
@@ -2959,7 +3062,7 @@ export default function App() {
       {/* On a live board the toast text shows in the play caption slot instead (never over the board) */}
       {toast && (screen !== 'play' || celebrate || defeated) && <div className="toast">{toast}</div>}
 
-      {namePrompt &&
+      {namePrompt && screen === 'home' &&
         createPortal(
           <div className="start-sheet name-prompt" role="dialog" aria-modal="true" aria-label="Your name">
             <div className="start-sheet-scrim" />
@@ -3097,10 +3200,15 @@ export default function App() {
                 🐛 Report a bug
               </button>
               <CloudScoresButton suggestedName={playerName} />
-              <UnseenCardTile records={records} />
             </div>
           </section>
           <div className="home-side">
+          {device === 'desktop' ? (
+            <div className="home-audio">
+              {audioToggles}
+            </div>
+          ) : null}
+          <UnseenCardTile records={records} />
           {/* 10.06: treat defense — the vulnerable field pile. Claim only on the board screen. */}
           <section className="treat-pile-widget" aria-label="Field treat pile">
             <span aria-hidden="true">🍖</span>
@@ -3132,21 +3240,17 @@ export default function App() {
               onStable={() => setScreen('stable')}
             />
           </section>
-          </div>
-          <div className="home-modes">
-            {dailyCard}
-            {remixCard}
-          </div>
-          <div className="home-board">
-            <LiveBoard playerName={playerName} onSeeAll={() => setBoardOpen(true)} />
-          </div>
           <HomeUnseen
             onUnseen={() => {
               const line = unseenHomeSaying()
+              setHomeHeckle(unseenCaption(line.text))
+              window.clearTimeout(homeHeckleTimer.current)
+              homeHeckleTimer.current = window.setTimeout(() => setHomeHeckle(null), 4500)
               if (line.speak && line.clip) playBanterClip(line.clip, line.voiceMood, line.alts, line.priority, line.waitMs)
             }}
-            unseenLine={unseenSpeaking ? unseenCaption(unseenSpeaking.text) : null}
+            unseenLine={homeHeckle ?? (unseenSpeaking ? unseenCaption(unseenSpeaking.text) : null)}
           />
+          </div>
           <section className="stat-strip home-strip">
             <div>
               <strong>{progress.clears.length}</strong>
@@ -3172,7 +3276,6 @@ export default function App() {
         <HowToPlay
           key={`how-${howStart}`}
           startAt={howStart}
-          sameTab={device === 'phone'}
           doneLabel={pendingStartRef.current ? "Let's play" : 'Choose a level'}
           onDone={() => {
             settingsRef.current = { ...settingsRef.current, howSeen: true }
@@ -3200,7 +3303,7 @@ export default function App() {
       {screen === 'levels' && (
         <main className="panel levels scroll-pane">
           <h2>Levels</h2>
-          <p className="sub">Beat your best time and score on any board. ★ finish · ★★ beat the target time · ★★★ target time, a high score and no undos. 3 stars unlocks Roman's Trial.</p>
+          <p className="sub">Beat your best time and score on any board. ★ finish · ★★ beat the target time · ★★★ target time and a high score. 3 stars unlocks Roman's Trial.</p>
           {dailyCard}
           {remixCard}
           <div className="level-tabs" role="tablist" aria-label="Difficulty">
@@ -3255,7 +3358,19 @@ export default function App() {
         <main className={`play play-fixed ${runPetRef.current ? 'has-hud-pet' : ''} ${THEMES[puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)].className}`}>
           <ThemeBackdrop themeId={puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)} />
           <div className="play-hud">
-            <button type="button" className="hud-back" onClick={() => setScreen(parseRemixId(puzzle.id) || endlessRef.current ? 'remix' : 'levels')} aria-label="Back">
+            {device === 'desktop' ? <div className="play-audio">{audioToggles}</div> : null}
+            <button
+              type="button"
+              className="hud-back"
+              onClick={() => {
+                if (device === 'phone' && playOriginRef.current === 'home') {
+                  setScreen('home')
+                  return
+                }
+                setScreen(parseRemixId(puzzle.id) || endlessRef.current ? 'remix' : 'levels')
+              }}
+              aria-label="Back"
+            >
               ←
             </button>
             <div className="hud-title">
@@ -3343,7 +3458,7 @@ export default function App() {
                   <ul>
                     <li className={have >= 1 ? 'done' : ''}>★ Finish</li>
                     <li className={have >= 2 ? 'done' : ''}>★★ Under {formatMs(tg.timeMs)}</li>
-                    <li className={have >= 3 ? 'done' : ''}>★★★ {tg.score3}+ pts, no undo</li>
+                    <li className={have >= 3 ? 'done' : ''}>★★★ {tg.score3}+ pts</li>
                   </ul>
                   <p className="hud-goal-best">
                     Best {best?.bestMs != null ? formatMs(best.bestMs) : '—'} · {best?.bestScore != null ? `${best.bestScore} pts` : '—'}
@@ -3356,11 +3471,14 @@ export default function App() {
           {/* Character lines, notices and hint text: a fixed two-line slot between the HUD and the
               board. Always takes its space (never reflows the board) and never overlaps it. */}
           {(() => {
-            // Once the board is won or lost the global toast carries notices; don't echo them here too
+            // Once the board is won or lost the global toast carries notices; don't echo them here too.
+            // His line lives in the bubble (PC) or only in the voice (phone play). The caption never repeats it.
             const liveToast = celebrate || defeated ? '' : toast
+            const captionToast = unseenSpeaking && liveToast === unseenSpeaking.text ? '' : liveToast
+            const captionText = captionToast || hintText
             return (
-              <p className={`play-caption ${liveToast || hintText ? '' : 'is-empty'} ${liveToast ? 'is-voice' : ''}`} aria-live="polite">
-                {liveToast || hintText}
+              <p className={`play-caption ${captionText ? '' : 'is-empty'} ${captionToast ? 'is-voice' : ''}`} aria-live="polite">
+                {captionText}
               </p>
             )
           })()}
@@ -3383,7 +3501,7 @@ export default function App() {
 
 
           <div className="play-side">
-          {device === 'phone' && !celebrate && !defeated ? (
+          {!celebrate && !defeated ? (
             <div className="mode-picker" role="group" aria-label="Play mode">
               <button type="button" className={dailyTag ? 'on' : ''} onClick={() => startPuzzle(dailyBoard, false, { daily: true })}>
                 Daily
@@ -3518,7 +3636,8 @@ export default function App() {
               paradeHint={settings.parade === false ? undefined : paradeHint(paradeRef.current).text}
               modeNote={endlessRef.current ? `Endless mode · ${endless.cleared} cleared. Levels list and Home are below.` : parseRemixId(puzzle.id) ? boardKindNote(puzzle.id) : undefined}
               onNext={() => maybeParade(() => {
-                // 9.30-i: Remix → the next uncleared board of the live set; Endless → another fresh board
+                // 9.30-i: Remix → the next uncleared board of the live set; Endless → another fresh board.
+                // The save sheet stays closed here: it opens on Home, never while the next clock is running.
                 const rm = parseRemixId(puzzle.id)
                 if (rm) {
                   const nxt = rm.set === remixSet ? nextRemixSize(rm.size, (s) => records.levels[remixId(rm.set, s)]?.bestMs != null) : null
@@ -3665,12 +3784,12 @@ export default function App() {
           </button>
           <div className="stat-strip wallet-strip">
             <div><strong>{wallet.coins}</strong><span>coins</span></div>
-            <div><strong>{wallet.freeHints}</strong><span>free hints</span></div>
+            <div><strong>{wallet.freeHints}</strong><span>hints</span></div>
             <div><strong>{wallet.shields}</strong><span>shields</span></div>
             <div><strong>{wallet.spins}</strong><span>spins</span></div>
-            <div><strong>{wallet.bonusHearts ?? 0}</strong><span>bonus hearts</span></div>
+            <div><strong>{wallet.bonusHearts ?? 0}</strong><span>hearts</span></div>
             <div><strong>{totalBadgePower(wallet)}</strong><span>power</span></div>
-            <div><strong>+{formatBonusPercent(totalCoinBonusPercent(wallet))}</strong><span>win bonus</span></div>
+            <div><strong>+{formatBonusPercent(totalCoinBonusPercent(wallet))}</strong><span>bonus</span></div>
           </div>
           <div className="econ-card" data-testid="econ-card">
             {(() => {
@@ -3788,14 +3907,11 @@ export default function App() {
         <PhoneSettings
           playerName={playerName || profile?.displayName || ''}
           soundOn={settings.sound}
+          musicOn={settings.music !== false}
           reduceMotion={settings.reduceMotion}
           buildTag={BUILD_TAG}
-          onToggleSound={() => {
-            const next = { ...settings, sound: !settings.sound }
-            setSettings(next)
-            saveSettings(next)
-            setMuted(!next.sound)
-          }}
+          onToggleSound={toggleSound}
+          onToggleMusic={toggleMusic}
           onToggleMotion={() => {
             const next = { ...settings, reduceMotion: !settings.reduceMotion }
             setSettings(next)
@@ -3864,6 +3980,20 @@ export default function App() {
                 }}
               />
               Sound effects
+            </label>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={settings.music !== false}
+                onChange={(e) => {
+                  const next = { ...settings, music: e.target.checked }
+                  settingsRef.current = next
+                  setSettings(next)
+                  saveSettings(next)
+                  setMusicEnabled(next.music !== false)
+                }}
+              />
+              Music
             </label>
             <label className="toggle">
               <input
@@ -4207,12 +4337,9 @@ export default function App() {
         onClose={() => setInfoOpen(false)}
         buildTag={BUILD_TAG}
         soundOn={settings.sound}
-        onToggleSound={() => {
-          const next = { ...settings, sound: !settings.sound }
-          setSettings(next)
-          saveSettings(next)
-          setMuted(!next.sound)
-        }}
+        musicOn={settings.music !== false}
+        onToggleSound={toggleSound}
+        onToggleMusic={toggleMusic}
         feedback={<PhoneVote onVote={(vote, account) => sendFeedback(vote, '', account)} />}
         onFamily={() => {
           setInfoOpen(false)
@@ -4253,7 +4380,7 @@ export default function App() {
         }}
       />
       <FamilySheet open={device === 'phone' && familyOpen} onClose={() => setFamilyOpen(false)} />
-      {device === 'phone' && saveAsk && !namePrompt && !showWheel && !showHunt && (
+      {device === 'phone' && screen === 'home' && saveAsk && !namePrompt && !showWheel && !showHunt && (
         <CloudScoresButton suggestedName={playerName} forceOffer hidden onClose={() => setSaveAsk(false)} />
       )}
 

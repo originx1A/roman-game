@@ -40,14 +40,11 @@ export function HowToPlay({
   onBack,
   startAt = 0,
   doneLabel = 'Choose a level',
-  sameTab = false,
 }: {
   onDone: () => void
   onBack?: () => void
   startAt?: number
   doneLabel?: string
-  /** Phone opens romansgame.com in this tab. Wider screens open a new one. */
-  sameTab?: boolean
 }) {
   const [step, setStep] = useState(() => Math.max(0, Math.min(STEPS.length - 1, startAt)))
   const current = STEPS[step]
@@ -67,10 +64,11 @@ export function HowToPlay({
           </button>
         )}
         <h2>How to play</h2>
-        <a className="site-link" {...worldLinkProps(sameTab)}>
+        <a className="site-link" {...worldLinkProps(false)}>
           romansgame.com
         </a>
       </div>
+      <div className="how-body">
       <p className="sub how-sub">Watch the demo, then jump in.</p>
       <div className="how-stage" data-demo={current.demo}>
         <HowDemo key={current.demo} demo={current.demo} />
@@ -111,6 +109,7 @@ export function HowToPlay({
         <li>Every win earns 5 treats. Treats feed and upgrade pets. Swap safe treats for coins anytime.</li>
         <li>No pets yet? Claim your FREE buddy in the Stable — without defenders your treats are in danger.</li>
       </ol>
+      </div>
       <div className="cta-row">
         <button type="button" className="btn primary" onClick={onDone}>
           {doneLabel}

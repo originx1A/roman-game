@@ -18,7 +18,7 @@ export function HomeUnseen({ onUnseen, unseenLine }: { onUnseen: () => void; uns
   return (
     <div className="home-unseen-wrap">
       {bubble ? <span className={`home-unseen-line${bubble.leaving ? ' is-leaving' : ''}`}>{bubble.text}</span> : null}
-      <button type="button" className="home-unseen" aria-label="The Unseen" onClick={onUnseen}>
+      <button type="button" className="home-unseen" data-testid="home-unseen" aria-label="The Unseen" onClick={onUnseen}>
         <picture>
           <source srcSet="/images/unseen.webp" type="image/webp" />
           <img src="/images/unseen.png" alt="" draggable={false} />
@@ -77,7 +77,7 @@ export function PhoneHome({
         Play
       </button>
       <div className="phone-grid">
-        <button type="button" onClick={onShop}><span aria-hidden>🪙</span>Shop</button>
+        <button type="button" onClick={onShop}><span aria-hidden>🪙</span>Rewards</button>
         <CloudScoresButton suggestedName={playerName} short onInfo={onInfo} />
         <button type="button" onClick={onAccount}><span aria-hidden>☺</span>You</button>
         <button type="button" onClick={onHow}><span aria-hidden>?</span>How</button>
@@ -115,7 +115,9 @@ export function InfoSheet({
   onClose,
   buildTag,
   soundOn,
+  musicOn,
   onToggleSound,
+  onToggleMusic,
   feedback,
   onFamily,
 }: {
@@ -123,7 +125,9 @@ export function InfoSheet({
   onClose: () => void
   buildTag: string
   soundOn: boolean
+  musicOn: boolean
   onToggleSound: () => void
+  onToggleMusic: () => void
   feedback: ReactNode
   onFamily: () => void
 }) {
@@ -141,7 +145,8 @@ export function InfoSheet({
         </header>
         {view === 'main' ? (
           <div className="info-list">
-            <button type="button" onClick={onToggleSound}><span aria-hidden>🔊</span>Sound<small>{soundOn ? 'On' : 'Off'}</small></button>
+            <button type="button" onClick={onToggleSound}><span aria-hidden>{soundOn ? '🔊' : '🔇'}</span>Sound<small>{soundOn ? 'On' : 'Off'}</small></button>
+            <button type="button" onClick={onToggleMusic}><span aria-hidden>🎵</span>Music<small>{musicOn ? 'On' : 'Off'}</small></button>
             <div className="info-feedback">{feedback}</div>
             <button type="button" onClick={() => setView('privacy')}><span aria-hidden>🔒</span>Privacy</button>
             <button type="button" onClick={() => setView('terms')}><span aria-hidden>📄</span>Terms</button>
@@ -200,7 +205,7 @@ export function PlayerPanel({
   return createPortal(
     <div className="phone-sheet" role="dialog" aria-modal="true" aria-label="Player">
       <button type="button" className="phone-sheet-scrim" aria-label="Close" onClick={onClose} />
-      <div className="phone-sheet-card player-panel">
+      <div className="phone-sheet-card player-panel" data-testid="player-panel">
         <header>
           <strong>{who}</strong>
           <button type="button" onClick={onClose} aria-label="Close">✕</button>
@@ -213,7 +218,7 @@ export function PlayerPanel({
           ))}
         </dl>
         <div className="player-actions">
-          <button type="button" className="btn primary" onClick={onShop}>Shop</button>
+          <button type="button" className="btn primary" data-testid="coin-shop" onClick={onShop}>Coin shop</button>
           <button type="button" className="btn ghost" onClick={onAccount}>You</button>
         </div>
       </div>
@@ -226,8 +231,10 @@ export function PlayerPanel({
 export function PhoneSettings({
   playerName,
   soundOn,
+  musicOn,
   reduceMotion,
   onToggleSound,
+  onToggleMusic,
   onToggleMotion,
   onInfo,
   onFamily,
@@ -235,8 +242,10 @@ export function PhoneSettings({
 }: {
   playerName: string
   soundOn: boolean
+  musicOn: boolean
   reduceMotion: boolean
   onToggleSound: () => void
+  onToggleMusic: () => void
   onToggleMotion: () => void
   onInfo: () => void
   onFamily: () => void
@@ -249,8 +258,12 @@ export function PhoneSettings({
     <main className="phone-settings scroll-pane">
       <h2>Settings</h2>
       <button type="button" className="set-row" onClick={onToggleSound}>
-        <span>Sound</span>
+        <span>{soundOn ? '🔊' : '🔇'} Sound</span>
         <small>{soundOn ? 'On' : 'Off'}</small>
+      </button>
+      <button type="button" className="set-row" onClick={onToggleMusic}>
+        <span>🎵 Music</span>
+        <small>{musicOn ? 'On' : 'Off'}</small>
       </button>
       <button type="button" className="set-row" onClick={onToggleMotion}>
         <span>Reduce motion</span>

@@ -23,9 +23,9 @@ export function useCloud(): CloudState {
 
 type Sheet = null | 'offer' | 'email' | 'sent' | 'name' | 'account' | 'parent' | 'noemail' | 'parentlink'
 
-export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, forceOffer, hidden, onClose }: { suggestedName?: string; compact?: boolean; short?: boolean; onInfo?: () => void; cta?: string; forceOffer?: boolean; hidden?: boolean; onClose?: () => void }) {
+export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, forceOffer, forceSignIn, note, hidden, onClose }: { suggestedName?: string; compact?: boolean; short?: boolean; onInfo?: () => void; cta?: string; forceOffer?: boolean; forceSignIn?: boolean; note?: string; hidden?: boolean; onClose?: () => void }) {
   const cloud = useCloud()
-  const [sheet, setSheet] = useState<Sheet>(forceOffer ? 'offer' : null)
+  const [sheet, setSheet] = useState<Sheet>(forceOffer ? 'offer' : forceSignIn ? (phoneSaveCard() ? 'offer' : 'email') : null)
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
   const [name, setName] = useState(suggestedName ?? '')
@@ -106,6 +106,7 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, 
       {!hidden && (
       <button
         type="button"
+        data-testid={cta ? 'board-signin' : 'save-scores'}
         className={cta ? 'btn primary board-cta' : `btn ghost cloud-btn${compact ? ' is-compact' : ''}${short ? ' is-short' : ''}`}
         onClick={() => {
           setErr('')
@@ -122,7 +123,7 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, 
       )}
       {sheet &&
         createPortal(
-          <div className="start-sheet cloud-sheet" role="dialog" aria-modal="true" aria-label={sheet === 'offer' ? 'Save your scores?' : 'Save my scores'}>
+          <div className="start-sheet cloud-sheet" data-testid="save-sheet" role="dialog" aria-modal="true" aria-label={sheet === 'offer' ? 'Save your scores?' : 'Save my scores'}>
             <div className="start-sheet-scrim" onClick={closeSheet} />
             {onInfo ? (
               <button type="button" className="sheet-info" onClick={onInfo}>
@@ -131,6 +132,7 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, 
             ) : null}
             {captchaOn && (
               <div className="start-sheet-card">
+                {note ? <p className="start-sheet-tip" data-testid="signin-note">{note}</p> : null}
                 <div className="cloud-turnstile" ref={captcha.box} />
                 {sheet === 'email' && (
               <form
@@ -262,6 +264,7 @@ export function CloudScoresButton({ suggestedName, compact, short, onInfo, cta, 
             )}
             {sheet === 'offer' && (
               <div className="start-sheet-card cloud-offer" data-testid="save-offer">
+                {note ? <p className="start-sheet-tip" data-testid="signin-note">{note}</p> : null}
                 <h3>Save your scores?</h3>
                 <button type="button" className="btn primary" onClick={() => { setErr(''); setSheet('email') }}>
                   Save with email (13+)

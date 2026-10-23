@@ -145,6 +145,10 @@ function writeQueue(q: ScoreRow[], owner: string | null = queueOwner) {
   }
 }
 
+export function cloudClient(): Promise<SupabaseClient | null> {
+  return client()
+}
+
 function client(): Promise<SupabaseClient | null> {
   if (!clientP) {
     clientP = import('@supabase/supabase-js')
@@ -302,8 +306,11 @@ export async function flushScores(): Promise<void> {
     const { error } = await sb.from('scores').insert(rows)
     if (!error) {
       const best = rows.reduce((top, row) => Math.max(top, row.score), 0)
-      // One number on the board, and only for this signed-in player. A miss here still keeps the saved games.
+      // Personal best stays on the player. Each game also adds its score to the group they are in now.
       await sb.rpc('save_my_board_score', { new_score: best })
+      for (const row of rows) {
+        await sb.rpc('record_my_group_points', { new_score: row.score })
+      }
       // keep anything queued while we were sending
       writeQueue(readQueue(owner).slice(q.length), owner)
       set({ lastSync: new Date().toISOString() })

@@ -46,7 +46,7 @@ export function LiveBoard({ playerName, onSeeAll }: { playerName: string; onSeeA
     <section className="live-board" data-testid="live-board" aria-label="Leaderboard">
       <header>
         <h3>Leaderboard</h3>
-        <button type="button" className="live-board-all" onClick={onSeeAll}>
+        <button type="button" className="live-board-all" data-testid="see-all" onClick={onSeeAll}>
           See all
         </button>
       </header>
