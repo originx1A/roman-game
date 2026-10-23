@@ -3694,23 +3694,37 @@ html[data-device='desktop'] main.how-panel > .cta-row {
 
 
 
-/* Toast placement: never over the play HUD (timer / hearts) or the Victory title.
+/* Toast placement: never over the play HUD, the phone control row, or the Victory title.
    Default stays at the top (menus). On the play screen it drops just below the HUD row.
-   Desktop Victory keeps a gap above the card. Phone Victory puts the toast under the card. */
+   Desktop Victory keeps a gap above the card. Phone Victory keeps the toast in the
+   left side of the band under the card, above the Hint / Rescue / Reset row. */
 .shell-play .toast {
   top: calc(max(0.5rem, env(safe-area-inset-top, 0px)) + 3.1rem);
 }
 .shell-play.shell-celebrate .toast {
   top: max(0.4rem, env(safe-area-inset-top, 0px));
 }
-/* Phone Victory fills the screen, so a top toast lands on the title. Keep the
-   toast in the band under the card instead. The card's bottom padding reserves it. */
+/* Phone play: stay under the HUD. bottom:auto so a Victory bottom pin cannot linger. */
+html[data-device='phone'] .shell-play:not(.shell-celebrate) .toast {
+  top: calc(max(0.45rem, env(safe-area-inset-top, 0px)) + 2.7rem);
+  bottom: auto;
+  max-height: 3.4rem;
+  overflow: hidden;
+}
+/* Phone Victory: the card stops above a bottom pocket. The toast sits on the left
+   of that pocket, clear of the title, the card buttons, and the control row. */
 html[data-device='phone'] .shell-play.shell-celebrate .win-screen {
-  --win-pad-b: calc(max(0.25rem, env(safe-area-inset-bottom, 0px)) + 4.6rem);
+  --win-pad-b: calc(max(0.25rem, env(safe-area-inset-bottom, 0px)) + 11.2rem);
 }
 html[data-device='phone'] .shell-play.shell-celebrate .toast {
   top: auto;
-  bottom: max(0.4rem, env(safe-area-inset-bottom, 0px));
+  left: 0.4rem;
+  right: auto;
+  transform: none;
+  animation: none;
+  max-width: min(44vw, 168px);
+  text-align: left;
+  bottom: calc(4.8rem + env(safe-area-inset-bottom, 0px));
 }
 .shell-celebrate .win-screen-card {
   margin-top: 2.6rem;
@@ -6476,6 +6490,48 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
     padding: 0.4rem 0.55rem 0.45rem;
   }
 }
+/* Phone play: keep the figure and a 2-line bubble in the gap above Hint / Rescue / Reset,
+   and shrink the board while he is up so the bubble cannot sit on the grid. */
+html[data-device='phone'] .shell-play:not(.shell-celebrate):has(.unseen-pop) .board-stage {
+  padding-bottom: 7.4rem;
+}
+html[data-device='phone'] .shell-play:not(.shell-celebrate) .unseen-pop {
+  --unseen-w: 72px;
+  bottom: calc(4.85rem + env(safe-area-inset-bottom, 0px));
+  max-height: none;
+  overflow: visible;
+}
+html[data-device='phone'] .shell-play:not(.shell-celebrate) .unseen-art {
+  width: 72px;
+  max-height: 56px;
+  object-fit: cover;
+  object-position: 70% 100%;
+  margin: 0;
+}
+html[data-device='phone'] .shell-play:not(.shell-celebrate) .unseen-bubble {
+  max-width: min(48vw, 176px);
+  margin-bottom: 0.15rem;
+}
+html[data-device='phone'] .shell-play:not(.shell-celebrate) .unseen-bubble p {
+  max-height: 2.6em;
+  overflow: hidden;
+}
+/* Phone Victory: figure and bubble live in the pocket under the card (see --win-pad-b). */
+html[data-device='phone'] .shell-play.shell-celebrate .unseen-pop {
+  --unseen-w: 88px;
+  bottom: calc(4.7rem + env(safe-area-inset-bottom, 0px));
+  max-height: 6.4rem;
+  overflow: hidden;
+  z-index: 76;
+}
+html[data-device='phone'] .shell-play.shell-celebrate .unseen-bubble {
+  max-width: min(46vw, 172px);
+  margin: 0 0.3rem 0.15rem 0;
+}
+html[data-device='phone'] .shell-play.shell-celebrate .unseen-bubble p {
+  max-height: 2.6em;
+  overflow: hidden;
+}
 html[data-motion='reduce'] .unseen-pop.is-entering,
 html[data-motion='reduce'] .unseen-pop.is-leaving {
   animation-duration: 0.2s;
@@ -7445,14 +7501,14 @@ html[data-device='desktop'] main.home {
   box-sizing: border-box;
   padding: 0.35rem 1.1rem 0.45rem;
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   grid-template-areas:
-    'hero audio'
-    'side unseen'
+    'hero side'
     'stats stats';
-  column-gap: 1.15rem;
-  row-gap: 0.4rem;
-  align-content: start;
+  grid-template-rows: auto auto;
+  column-gap: 1.4rem;
+  row-gap: 0.7rem;
+  align-content: center;
   position: relative;
 }
 html[data-device='desktop'] main.home .hero {
@@ -7471,7 +7527,7 @@ html[data-device='desktop'] main.home .lede {
 }
 html[data-device='desktop'] main.home .cta-row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.4rem;
 }
 html[data-device='desktop'] main.home .cta-row .btn,
@@ -7493,31 +7549,36 @@ html[data-device='desktop'] main.home .cta-row .unseen-tile {
 html[data-device='desktop'] main.home .home-side {
   grid-area: side;
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: stretch;
   align-content: flex-start;
+  justify-content: flex-start;
   gap: 0.55rem;
   min-width: 0;
 }
+html[data-device='desktop'] main.home .home-side .unseen-tile {
+  max-width: none;
+  width: 100%;
+  margin: 0;
+}
 html[data-device='desktop'] main.home .treat-pile-widget {
   margin: 0;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   max-width: none;
   min-width: 0;
 }
 html[data-device='desktop'] main.home .home-pet-row { margin: 0; justify-content: flex-start; }
 html[data-device='desktop'] main.home .home-audio {
-  grid-area: audio;
   justify-self: end;
-  align-self: start;
+  align-self: flex-end;
+  margin: 0;
 }
 html[data-device='desktop'] main.home .home-unseen-wrap {
-  grid-area: unseen;
   position: relative;
   right: auto;
   bottom: auto;
-  justify-self: end;
-  align-self: end;
-  margin: 0;
+  align-self: flex-end;
+  margin: 0.15rem 0 0;
   z-index: 2;
 }
 html[data-device='desktop'] main.home .home-strip {
@@ -7531,12 +7592,11 @@ html[data-layout='wide'][data-device='desktop'] main.home {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  align-content: start;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr);
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  align-content: center;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto auto;
   grid-template-areas:
-    'hero audio'
-    'side unseen'
+    'hero side'
     'stats stats';
   padding-right: 1.1rem;
 }
@@ -7547,8 +7607,8 @@ html[data-layout='wide'][data-device='desktop'] .home-unseen-wrap {
   z-index: 2;
   flex: none;
   margin-left: 0;
-  justify-self: center;
-  align-self: center;
+  justify-self: end;
+  align-self: flex-end;
 }
 html[data-layout='wide'][data-device='desktop'] .home-unseen,
 html[data-layout='wide'][data-device='desktop'] .home-unseen img {

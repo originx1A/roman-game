@@ -3169,10 +3169,15 @@ export default function App() {
                 🐛 Report a bug
               </button>
               <CloudScoresButton suggestedName={playerName} />
-              <UnseenCardTile records={records} />
             </div>
           </section>
           <div className="home-side">
+          {device === 'desktop' ? (
+            <div className="home-audio">
+              {audioToggles}
+            </div>
+          ) : null}
+          <UnseenCardTile records={records} />
           {/* 10.06: treat defense — the vulnerable field pile. Claim only on the board screen. */}
           <section className="treat-pile-widget" aria-label="Field treat pile">
             <span aria-hidden="true">🍖</span>
@@ -3204,12 +3209,6 @@ export default function App() {
               onStable={() => setScreen('stable')}
             />
           </section>
-          </div>
-          {device === 'desktop' ? (
-            <div className="home-audio">
-              {audioToggles}
-            </div>
-          ) : null}
           <HomeUnseen
             onUnseen={() => {
               const line = unseenHomeSaying()
@@ -3220,6 +3219,7 @@ export default function App() {
             }}
             unseenLine={homeHeckle ?? (unseenSpeaking ? unseenCaption(unseenSpeaking.text) : null)}
           />
+          </div>
           <section className="stat-strip home-strip">
             <div>
               <strong>{progress.clears.length}</strong>
