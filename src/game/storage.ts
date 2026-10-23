@@ -38,6 +38,8 @@ export interface Settings {
   parade?: boolean
   /** Anonymous play counts (9.30-r). Undefined = on. */
   analytics?: boolean
+  /** Realm music. Undefined = on. Separate from sound effects. */
+  music?: boolean
 }
 
 export const PLAYER_NAME_MAX = 16

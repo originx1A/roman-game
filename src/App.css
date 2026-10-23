@@ -939,6 +939,19 @@ html[data-motion='reduce'] .cell.pressed .cell-fill {
   font-weight: 700;
 }
 
+.profile label.toggle {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.profile label.toggle input {
+  width: auto;
+  flex: none;
+  padding: 0;
+}
+
 .challenge-list ul {
   list-style: none;
   margin: 0;
@@ -1971,6 +1984,23 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
   padding-top: 0.5rem !important;
   padding-bottom: 1rem !important;
   min-height: 0;
+}
+
+html[data-device='desktop'] main.how-panel.scroll-pane {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+  padding-bottom: 0.85rem !important;
+}
+html[data-device='desktop'] main.how-panel .how-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+html[data-device='desktop'] main.how-panel > .cta-row {
+  flex: 0 0 auto;
+  margin: 0.4rem 0 0;
 }
 
 .how-top {
@@ -7408,12 +7438,13 @@ html[data-device='desktop'] main.home {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr);
   grid-template-areas:
-    'hero modes'
-    'side modes'
+    'hero audio'
+    'side unseen'
     'stats stats';
   column-gap: 1.15rem;
   row-gap: 0.4rem;
   align-content: start;
+  position: relative;
 }
 html[data-device='desktop'] main.home .hero {
   grid-area: hero;
@@ -7464,19 +7495,20 @@ html[data-device='desktop'] main.home .treat-pile-widget {
   min-width: 0;
 }
 html[data-device='desktop'] main.home .home-pet-row { margin: 0; justify-content: flex-start; }
-html[data-device='desktop'] main.home .home-modes {
-  grid-area: modes;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.45rem;
-  align-items: stretch;
-  min-width: 0;
+html[data-device='desktop'] main.home .home-audio {
+  grid-area: audio;
+  justify-self: end;
+  align-self: start;
 }
-html[data-device='desktop'] main.home .home-modes .daily-card {
-  flex-direction: column;
-  align-items: flex-start;
+html[data-device='desktop'] main.home .home-unseen-wrap {
+  grid-area: unseen;
+  position: relative;
+  right: auto;
+  bottom: auto;
+  justify-self: end;
+  align-self: end;
   margin: 0;
-  min-width: 0;
+  z-index: 2;
 }
 html[data-device='desktop'] main.home .home-strip {
   grid-area: stats;
@@ -7484,11 +7516,6 @@ html[data-device='desktop'] main.home .home-strip {
   flex-wrap: nowrap;
 }
 .home-board { display: none; }
-html[data-device='desktop'] main.home .home-modes .mode-picker {
-  grid-column: 1 / -1;
-  max-width: none;
-  margin: 0;
-}
 html[data-layout='wide'][data-device='desktop'] main.home {
   max-width: none;
   height: 100%;
@@ -7496,10 +7523,10 @@ html[data-layout='wide'][data-device='desktop'] main.home {
   overflow: hidden;
   align-content: start;
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr);
-  grid-template-rows: auto auto auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-areas:
-    'hero modes'
-    'side modes'
+    'hero audio'
+    'side unseen'
     'stats stats';
   padding-right: 1.1rem;
 }
@@ -7509,12 +7536,13 @@ html[data-layout='wide'][data-device='desktop'] .home-unseen-wrap {
   bottom: auto;
   z-index: 2;
   flex: none;
-  margin-left: auto;
-  align-self: end;
+  margin-left: 0;
+  justify-self: center;
+  align-self: center;
 }
 html[data-layout='wide'][data-device='desktop'] .home-unseen,
 html[data-layout='wide'][data-device='desktop'] .home-unseen img {
-  width: 88px;
+  width: 140px;
   margin-right: 0;
 }
 html[data-layout='wide'][data-device='desktop'] .home-unseen-line {
@@ -7547,7 +7575,30 @@ html[data-device='desktop'] main.rewards {
 html[data-device='desktop'] main.rewards > h2 { grid-column: 1; margin: 0; font-size: 2rem; }
 html[data-device='desktop'] main.rewards > .sub { grid-column: 1; margin: 0; font-size: 0.82rem; line-height: 1.35; }
 html[data-device='desktop'] main.rewards > .stable-entry { grid-column: 1; margin: 0; padding: 0.4rem 0.65rem; }
-html[data-device='desktop'] main.rewards > .wallet-strip { grid-column: 1; margin: 0; }
+html[data-device='desktop'] main.rewards > .wallet-strip {
+  grid-column: 1;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  padding: 0.35rem 0.1rem;
+}
+html[data-device='desktop'] main.rewards > .wallet-strip > div {
+  flex: none;
+  min-width: 0;
+  padding: 0.3rem 0.35rem;
+}
+html[data-device='desktop'] main.rewards > .wallet-strip > div:nth-child(-n + 4) { grid-column: span 3; }
+html[data-device='desktop'] main.rewards > .wallet-strip > div:nth-child(n + 5) { grid-column: span 4; }
+html[data-device='desktop'] main.rewards > .wallet-strip > div:nth-child(4) { border-right: 0; }
+html[data-device='desktop'] main.rewards > .wallet-strip strong,
+html[data-device='desktop'] main.rewards > .wallet-strip span {
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  white-space: nowrap;
+}
+html[data-device='desktop'] main.rewards > .wallet-strip strong { font-size: 1.05rem; }
+html[data-device='desktop'] main.rewards > .wallet-strip span { font-size: 0.72rem; }
 html[data-device='desktop'] main.rewards > .econ-card { grid-column: 1; margin: 0; font-size: 0.8rem; }
 html[data-device='desktop'] main.rewards > .btn.primary {
   grid-column: 1;
@@ -7566,6 +7617,30 @@ html[data-device='desktop'] main.rewards > .badge-grid {
 html[data-device='desktop'] main.rewards .badge-card { padding: 0.4rem 0.45rem; gap: 0.12rem; }
 html[data-device='desktop'] main.rewards .badge-card .product-value { font-size: 0.72rem; }
 html[data-device='desktop'] main.rewards .badge-upgrade { white-space: normal; line-height: 1.2; min-height: 36px; }
+
+.audio-toggles {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.audio-toggles button {
+  min-height: 36px;
+  min-width: 36px;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 209, 102, 0.5);
+  background: #0d1f45;
+  color: var(--sun);
+  font-weight: 800;
+  cursor: pointer;
+}
+html[data-device='desktop'] .play-fixed .play-hud { position: relative; }
+html[data-device='desktop'] .shell-play .play-audio {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  z-index: 2;
+}
 
 html[data-device='desktop'] main.stable {
   max-width: 1240px;

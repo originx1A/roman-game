@@ -12,8 +12,9 @@ import {
   demoteCaptain,
   leaveGroup,
   leavePreview,
-  loadEveryone,
+  loadEveryonePeriod,
   loadFriends,
+  loadFriendsPeriod,
   loadGroupBoard,
   loadGroupCard,
   loadInbox,
@@ -150,7 +151,7 @@ export function PhoneBoard({ playerName, onInfo, onClose }: { playerName: string
         setRows([])
         return
       }
-      void loadFriends().then((result) => {
+      void loadFriendsPeriod(period).then((result) => {
         if (gone) return
         if (!result.ok) {
           setRows([])
@@ -161,7 +162,7 @@ export function PhoneBoard({ playerName, onInfo, onClose }: { playerName: string
       })
     } else {
       setRows(null)
-      void loadEveryone().then((result) => {
+      void loadEveryonePeriod(period).then((result) => {
         if (gone) return
         if (!result.ok) {
           setRows([])
@@ -220,7 +221,11 @@ export function PhoneBoard({ playerName, onInfo, onClose }: { playerName: string
   const you = signed ? cloud.publicName : ''
   const list = tab === 'groups' ? groups : rows
   const empty =
-    tab === 'friends' ? (signed ? 'No friends yet.' : 'Sign in to see friends.') : tab === 'groups' ? (period === 'month' ? 'No groups this month.' : 'No groups this week.') : 'No scores yet.'
+    tab === 'friends'
+      ? (signed ? (period === 'month' ? 'No friends this month.' : 'No friends this week.') : 'Sign in to see friends.')
+      : tab === 'groups'
+        ? (period === 'month' ? 'No groups this month.' : 'No groups this week.')
+        : (period === 'month' ? 'No scores this month.' : 'No scores this week.')
 
   return (
     <main className="phone-board scroll-pane" data-testid="phone-board">
@@ -241,12 +246,10 @@ export function PhoneBoard({ playerName, onInfo, onClose }: { playerName: string
         <button type="button" role="tab" data-testid="board-tab-friends" aria-selected={tab === 'friends'} className={tab === 'friends' ? 'on' : undefined} onClick={() => setTab('friends')}>Friends</button>
         <button type="button" role="tab" data-testid="board-tab-groups" aria-selected={tab === 'groups'} className={tab === 'groups' ? 'on' : undefined} onClick={() => setTab('groups')}>Groups</button>
       </div>
-      {tab === 'groups' ? (
-        <div className="mode-picker" role="group" aria-label="Group period">
-          <button type="button" data-testid="board-period-week" aria-pressed={period === 'week'} className={period === 'week' ? 'on' : undefined} onClick={() => setPeriod('week')}>Week</button>
-          <button type="button" data-testid="board-period-month" aria-pressed={period === 'month'} className={period === 'month' ? 'on' : undefined} onClick={() => setPeriod('month')}>Month</button>
-        </div>
-      ) : null}
+      <div className="mode-picker" role="group" aria-label="Board period">
+        <button type="button" data-testid="board-period-week" aria-pressed={period === 'week'} className={period === 'week' ? 'on' : undefined} onClick={() => setPeriod('week')}>Week</button>
+        <button type="button" data-testid="board-period-month" aria-pressed={period === 'month'} className={period === 'month' ? 'on' : undefined} onClick={() => setPeriod('month')}>Month</button>
+      </div>
       {tab === 'groups' && (!signed || myGroup !== undefined) ? (
         <div className="board-tools">
           {signed && myGroup ? (
@@ -254,10 +257,6 @@ export function PhoneBoard({ playerName, onInfo, onClose }: { playerName: string
           ) : (
             <button type="button" className="btn primary" data-testid="create-group" onClick={() => (signed ? setOpen({ kind: 'create' }) : askSignIn())}>+ Create a group</button>
           )}
-          <button type="button" className="btn ghost" data-testid="group-requests" onClick={() => (signed ? setOpen({ kind: 'inbox' }) : askSignIn())}>
-            Requests
-            {signed && pending > 0 ? <span className="count"> {pending}</span> : null}
-          </button>
         </div>
       ) : null}
       {list === null ? null : note ? (

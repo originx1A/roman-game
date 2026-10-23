@@ -153,6 +153,80 @@ async function offlineOr<T>(run: (sb: NonNullable<Awaited<ReturnType<typeof clou
   }
 }
 
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+function torontoCalendar(now: Date): { year: number; month: number; day: number; weekday: string } {
+  const date = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
+  const weekday = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Toronto', weekday: 'short' }).format(now)
+  const [year, month, day] = date.split('-').map((part) => Number(part))
+  return { year, month, day, weekday }
+}
+
+function torontoOffsetMinutes(instant: Date): number {
+  const label = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Toronto', timeZoneName: 'shortOffset', hour: '2-digit' }).format(instant)
+  const match = label.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/)
+  if (!match) return -300
+  const sign = match[1] === '-' ? -1 : 1
+  return sign * (Number(match[2]) * 60 + Number(match[3] ?? 0))
+}
+
+/** Monday 00:00 or the 1st, America/Toronto, as UTC. Matches date_trunc('week'|'month'). */
+function torontoPeriodStart(period: 'week' | 'month', now = new Date()): string {
+  const parts = torontoCalendar(now)
+  let year = parts.year
+  let month = parts.month
+  let day = parts.day
+  if (period === 'month') {
+    day = 1
+  } else {
+    const index = WEEKDAYS.indexOf(parts.weekday)
+    const sinceMonday = index < 0 ? 0 : (index + 6) % 7
+    const utc = new Date(Date.UTC(year, month - 1, day))
+    utc.setUTCDate(utc.getUTCDate() - sinceMonday)
+    year = utc.getUTCFullYear()
+    month = utc.getUTCMonth() + 1
+    day = utc.getUTCDate()
+  }
+  const probe = new Date(Date.UTC(year, month - 1, day, 16, 0, 0))
+  const offset = torontoOffsetMinutes(probe)
+  return new Date(Date.UTC(year, month - 1, day, 0, 0, 0) - offset * 60_000).toISOString()
+}
+
+function rankPlayers(rows: { name: string; score: number; groupName: string | null }[]): PlayerRow[] {
+  const best = new Map<string, { name: string; score: number; groupName: string | null }>()
+  for (const row of rows) {
+    const key = row.name.toLowerCase()
+    const prev = best.get(key)
+    if (!prev || row.score > prev.score) best.set(key, row)
+  }
+  const sorted = [...best.values()].sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+  let place = 0
+  let last = Number.POSITIVE_INFINITY
+  return sorted.slice(0, 100).map((row, index) => {
+    if (row.score !== last) {
+      place = index + 1
+      last = row.score
+    }
+    return { name: row.name, score: row.score, place, groupName: row.groupName }
+  })
+}
+
+async function periodScores(
+  sb: NonNullable<Awaited<ReturnType<typeof cloudClient>>>,
+  period: 'week' | 'month',
+): Promise<BoardResult<{ name: string; score: number }[]>> {
+  const start = torontoPeriodStart(period)
+  const { data, error } = await sb.from('public_scores').select('name, score, created_at').gte('created_at', start).order('score', { ascending: false }).limit(400)
+  if (error) return { ok: false, error: UP_YET }
+  const rows: { name: string; score: number }[] = []
+  for (const row of rowsOf(data)) {
+    const name = text(row.name)
+    if (!name) continue
+    rows.push({ name, score: num(row.score) })
+  }
+  return { ok: true, data: rows }
+}
+
 export function loadEveryone(): Promise<BoardResult<PlayerRow[]>> {
   return offlineOr(async (sb) => {
     const next = await sb.from('everyone_board').select('name, score, place, group_name').order('place', { ascending: true }).limit(100)
@@ -168,6 +242,40 @@ export function loadFriends(): Promise<BoardResult<PlayerRow[]>> {
     const { data, error } = await sb.rpc('friends_board')
     if (error) return { ok: false, error: boardError(error) }
     return { ok: true, data: parsePlayers(data) }
+  })
+}
+
+/** Best score in the Toronto week or month. A failed read stays an error, never the all-time board. */
+export function loadEveryonePeriod(period: 'week' | 'month'): Promise<BoardResult<PlayerRow[]>> {
+  return offlineOr(async (sb) => {
+    const scores = await periodScores(sb, period)
+    if (!scores.ok) return scores
+    const groups = await sb.from('everyone_board').select('name, score, place, group_name').order('place', { ascending: true }).limit(100)
+    const groupByName = new Map<string, string | null>()
+    if (!groups.error) {
+      for (const row of parsePlayers(groups.data)) groupByName.set(row.name.toLowerCase(), row.groupName)
+    }
+    return {
+      ok: true,
+      data: rankPlayers(scores.data.map((row) => ({ name: row.name, score: row.score, groupName: groupByName.get(row.name.toLowerCase()) ?? null }))),
+    }
+  })
+}
+
+/** Friends from friends_board, scored from the same Toronto week or month as Everyone. */
+export function loadFriendsPeriod(period: 'week' | 'month'): Promise<BoardResult<PlayerRow[]>> {
+  return offlineOr(async (sb) => {
+    const friends = await sb.rpc('friends_board')
+    if (friends.error) return { ok: false, error: boardError(friends.error) }
+    const roster = parsePlayers(friends.data)
+    const allow = new Map(roster.map((row) => [row.name.toLowerCase(), row.groupName]))
+    const scores = await periodScores(sb, period)
+    if (!scores.ok) return scores
+    const mine = scores.data.filter((row) => allow.has(row.name.toLowerCase()))
+    return {
+      ok: true,
+      data: rankPlayers(mine.map((row) => ({ name: row.name, score: row.score, groupName: allow.get(row.name.toLowerCase()) ?? null }))),
+    }
   })
 }
 

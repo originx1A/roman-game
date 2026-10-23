@@ -787,11 +787,13 @@ function musicEl(): HTMLAudioElement | null {
   return music
 }
 
-/** Quiet realm loop. Volume follows the Sound control: off is mute (volume 0). */
+let musicOn = true
+
+/** Quiet realm loop. The Music control is separate from sound-effect mute. */
 export function syncMusic() {
   const el = musicEl()
   if (!el) return
-  if (muted) {
+  if (!musicOn) {
     el.pause()
     el.volume = 0
     return
@@ -807,6 +809,10 @@ export function setMuted(m: boolean) {
     waitingLine = null
     stopVoice()
   }
+}
+
+export function setMusicEnabled(on: boolean) {
+  musicOn = on
   syncMusic()
 }
 

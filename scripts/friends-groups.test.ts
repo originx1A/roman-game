@@ -110,7 +110,20 @@ test('the full board, with friends and groups, opens on the desktop too', () => 
   assert.doesNotMatch(app, /Mix it up/)
   assert.doesNotMatch(app, /no undos/)
   assert.doesNotMatch(app, /no undo</)
-  assert.match(tag, /build 9\.33-h/)
+  assert.match(tag, /build 9\.33-i/)
+  const desktopHome = app.split("screen === 'home' && device !== 'phone'")[1]?.split("screen === 'how'")[0] ?? ''
+  assert.equal(desktopHome.includes('mode-daily'), false)
+  assert.equal(desktopHome.includes('mode-remix'), false)
+  assert.equal(desktopHome.includes('mode-endless'), false)
+  assert.match(app, /data-testid="sound-toggle"/)
+  assert.match(app, /data-testid="music-toggle"/)
+  assert.match(app, /playOriginRef/)
+  assert.doesNotMatch(ui, /data-testid="group-requests"/)
+  assert.match(ui, /aria-label="Board period"/)
+  assert.match(ui, /loadEveryonePeriod/)
+  assert.match(ui, /loadFriendsPeriod/)
+  assert.match(api, /from\('public_scores'\)\.select\('name, score, created_at'\)/)
+  assert.match(api, /America\/Toronto/)
 })
 
 test('migration 012 adds ranks and listed names without touching old tables', () => {
@@ -177,6 +190,25 @@ test('a group name is two listed words, with no free-text field', () => {
   assert.match(api, /rpc\('create_group', \{ adjective, noun \}\)/)
   assert.match(api, /rpc\('rename_group', \{ adjective, noun \}\)/)
   assert.doesNotMatch(api, /create_group', \{ group_name/)
+})
+
+test('migration 016 lists any group with points and leaves the old files alone', () => {
+  const sql16 = readFileSync(new URL('../supabase/migration-016-group-board-min.sql', import.meta.url), 'utf8')
+  assert.match(sql16, /create or replace function public\.group_period_rows\(which text\)/)
+  assert.match(sql16, /create or replace view public\.group_week_board/)
+  assert.match(sql16, /create or replace view public\.group_month_board/)
+  assert.match(sql16, /group_closed/)
+  assert.match(sql16, /grant execute on function public\.group_period_rows\(text\) to anon, authenticated/)
+  assert.match(sql16, /grant select \(group_name, average, place, active_members, season_points\) on public\.group_week_board/)
+  assert.doesNotMatch(sql16, /rg_games_between/)
+  assert.doesNotMatch(sql16, /active_count/)
+  assert.doesNotMatch(sql16, />= 3/)
+  assert.doesNotMatch(sql16, /email/i)
+  assert.doesNotMatch(sql16, /auth\.users/i)
+  assert.doesNotMatch(sql16, /service_role/i)
+  assert.doesNotMatch(sql16, /delete from public\.group_points/i)
+  assert.match(sql, /rg_games_between\(m\.player_id, b\.start_on, b\.end_on\) >= 3/)
+  assert.match(sql12, /ac\.active_count >= 3/)
 })
 
 test('board errors stay short and never pass an address through', () => {

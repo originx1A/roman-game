@@ -262,6 +262,7 @@ import {
   playBanterClip,
   setVoiceCueListener,
   setMuted,
+  setMusicEnabled,
   setVoiceEnabled,
   sfxAchievement,
   sfxCoin,
@@ -439,6 +440,8 @@ export default function App() {
     if (screen !== 'play') resetBoardAudio()
   }, [screen])
   const [{ layout, device }, setLayoutInfo] = useState(() => readLayout())
+  const deviceRef = useRef(device)
+  deviceRef.current = device
   useEffect(() => {
     if (device === 'tablet' && screen === 'board') setScreen('home')
   }, [device, screen])
@@ -543,6 +546,10 @@ export default function App() {
   const [heartPop, setHeartPop] = useState<number | null>(null)
   const [hintText, setHintText] = useState('')
   const [celebrate, setCelebrate] = useState(false)
+  const celebrateRef = useRef(false)
+  celebrateRef.current = celebrate
+  const badgeToastQueue = useRef<string[]>([])
+  const playOriginRef = useRef<Screen | null>(null)
   /** Phone only: ask to save after a first clear or a new best, once that moment is over. */
   const [saveAsk, setSaveAsk] = useState(false)
   const saveNonce = useRef(0)
@@ -759,7 +766,8 @@ export default function App() {
     warmVoices()
     setMuted(!settings.sound)
     setVoiceEnabled(settings.voice)
-  }, [settings.sound, settings.voice])
+    setMusicEnabled(settings.music !== false)
+  }, [settings.sound, settings.voice, settings.music])
 
   useEffect(() => {
     if (isStoreBuild()) return
@@ -1098,12 +1106,42 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running, celebrate, defeated])
 
+  function toggleSound() {
+    const next = { ...settingsRef.current, sound: !settingsRef.current.sound }
+    settingsRef.current = next
+    setSettings(next)
+    saveSettings(next)
+    setMuted(!next.sound)
+  }
+
+  function toggleMusic() {
+    const next = { ...settingsRef.current, music: settingsRef.current.music === false }
+    settingsRef.current = next
+    setSettings(next)
+    saveSettings(next)
+    setMusicEnabled(next.music !== false)
+  }
+
   function showToast(msg: string) {
+    if (msg.startsWith('Badge unlocked:') && deviceRef.current === 'phone' && screenRef.current === 'play' && celebrateRef.current) {
+      badgeToastQueue.current.push(msg)
+      return
+    }
     voiceToast.current = false
     window.clearTimeout(toastTimer.current)
     setToast(msg)
     toastTimer.current = window.setTimeout(() => setToast(''), 2400)
   }
+
+  useEffect(() => {
+    if (celebrate) return
+    const queued = badgeToastQueue.current.splice(0)
+    queued.forEach((msg, i) => {
+      window.setTimeout(() => showToast(msg), i * 2600)
+    })
+    // showToast reads the latest refs; the queue flushes when the victory card closes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [celebrate])
 
   useEffect(() => {
     setVoiceCueListener((cue) => {
@@ -1526,6 +1564,9 @@ export default function App() {
   }
 
   function startPuzzle(p: Puzzle, resume = false, opts: { mode?: RunMode; daily?: boolean; endless?: boolean } = {}) {
+    if (screenRef.current !== 'play') {
+      if (!(screenRef.current === 'how' && playOriginRef.current === 'home')) playOriginRef.current = screenRef.current
+    }
     // How to play is the demo. The first ordinary Play opens it once. Daily, Remix, Endless, and Trial start themselves.
     const ownJob = !!(opts.daily || opts.endless || opts.mode || parseRemixId(p.id))
     if (!resume && !ownJob && !settingsRef.current.howSeen) {
@@ -2889,6 +2930,29 @@ export default function App() {
   }
   const trialLeftMs = puzzle && mode === 'trial' ? Math.max(0, trialTimeLimitMs(targetsFor(puzzle)) - elapsedMs) : 0
 
+  const audioToggles = (
+    <div className="audio-toggles">
+      <button
+        type="button"
+        data-testid="sound-toggle"
+        aria-pressed={settings.sound}
+        aria-label={settings.sound ? 'Sound on' : 'Sound off'}
+        onClick={toggleSound}
+      >
+        {settings.sound ? '🔊' : '🔇'}
+      </button>
+      <button
+        type="button"
+        data-testid="music-toggle"
+        aria-pressed={settings.music !== false}
+        aria-label={settings.music === false ? 'Music off' : 'Music on'}
+        onClick={toggleMusic}
+      >
+        {settings.music === false ? 'Music off' : 'Music on'}
+      </button>
+    </div>
+  )
+
   keysRef.current = { hint: onHint }
 
   return (
@@ -2951,7 +3015,7 @@ export default function App() {
             Play
           </button>
           <button type="button" className={screen === 'rewards' ? 'on' : ''} onClick={() => setScreen('rewards')}>
-            Shop
+            Rewards
           </button>
           <button type="button" className={screen === 'profile' ? 'on' : ''} onClick={() => setScreen('profile')}>
             You
@@ -3140,6 +3204,12 @@ export default function App() {
               onStable={() => setScreen('stable')}
             />
           </section>
+          </div>
+          {device === 'desktop' ? (
+            <div className="home-audio">
+              {audioToggles}
+            </div>
+          ) : null}
           <HomeUnseen
             onUnseen={() => {
               const line = unseenHomeSaying()
@@ -3150,14 +3220,6 @@ export default function App() {
             }}
             unseenLine={homeHeckle ?? (unseenSpeaking ? unseenCaption(unseenSpeaking.text) : null)}
           />
-          </div>
-          <div className="home-modes">
-            <div className="mode-picker" role="group" aria-label="Game mode">
-              <button type="button" data-testid="mode-daily" onClick={() => startPuzzle(dailyBoard, false, { daily: true })}>Daily</button>
-              <button type="button" data-testid="mode-remix" onClick={() => setScreen('remix')}>Remix</button>
-              <button type="button" data-testid="mode-endless" onClick={() => startEndless(levelTab)}>Endless</button>
-            </div>
-          </div>
           <section className="stat-strip home-strip">
             <div>
               <strong>{progress.clears.length}</strong>
@@ -3265,7 +3327,19 @@ export default function App() {
         <main className={`play play-fixed ${runPetRef.current ? 'has-hud-pet' : ''} ${THEMES[puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)].className}`}>
           <ThemeBackdrop themeId={puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)} />
           <div className="play-hud">
-            <button type="button" className="hud-back" onClick={() => setScreen(parseRemixId(puzzle.id) || endlessRef.current ? 'remix' : 'levels')} aria-label="Back">
+            {device === 'desktop' ? <div className="play-audio">{audioToggles}</div> : null}
+            <button
+              type="button"
+              className="hud-back"
+              onClick={() => {
+                if (device === 'phone' && playOriginRef.current === 'home') {
+                  setScreen('home')
+                  return
+                }
+                setScreen(parseRemixId(puzzle.id) || endlessRef.current ? 'remix' : 'levels')
+              }}
+              aria-label="Back"
+            >
               ←
             </button>
             <div className="hud-title">
@@ -3675,12 +3749,12 @@ export default function App() {
           </button>
           <div className="stat-strip wallet-strip">
             <div><strong>{wallet.coins}</strong><span>coins</span></div>
-            <div><strong>{wallet.freeHints}</strong><span>free hints</span></div>
+            <div><strong>{wallet.freeHints}</strong><span>hints</span></div>
             <div><strong>{wallet.shields}</strong><span>shields</span></div>
             <div><strong>{wallet.spins}</strong><span>spins</span></div>
-            <div><strong>{wallet.bonusHearts ?? 0}</strong><span>bonus hearts</span></div>
+            <div><strong>{wallet.bonusHearts ?? 0}</strong><span>hearts</span></div>
             <div><strong>{totalBadgePower(wallet)}</strong><span>power</span></div>
-            <div><strong>+{formatBonusPercent(totalCoinBonusPercent(wallet))}</strong><span>win bonus</span></div>
+            <div><strong>+{formatBonusPercent(totalCoinBonusPercent(wallet))}</strong><span>bonus</span></div>
           </div>
           <div className="econ-card" data-testid="econ-card">
             {(() => {
@@ -3798,14 +3872,11 @@ export default function App() {
         <PhoneSettings
           playerName={playerName || profile?.displayName || ''}
           soundOn={settings.sound}
+          musicOn={settings.music !== false}
           reduceMotion={settings.reduceMotion}
           buildTag={BUILD_TAG}
-          onToggleSound={() => {
-            const next = { ...settings, sound: !settings.sound }
-            setSettings(next)
-            saveSettings(next)
-            setMuted(!next.sound)
-          }}
+          onToggleSound={toggleSound}
+          onToggleMusic={toggleMusic}
           onToggleMotion={() => {
             const next = { ...settings, reduceMotion: !settings.reduceMotion }
             setSettings(next)
@@ -3874,6 +3945,20 @@ export default function App() {
                 }}
               />
               Sound effects
+            </label>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={settings.music !== false}
+                onChange={(e) => {
+                  const next = { ...settings, music: e.target.checked }
+                  settingsRef.current = next
+                  setSettings(next)
+                  saveSettings(next)
+                  setMusicEnabled(next.music !== false)
+                }}
+              />
+              Music
             </label>
             <label className="toggle">
               <input
@@ -4217,12 +4302,9 @@ export default function App() {
         onClose={() => setInfoOpen(false)}
         buildTag={BUILD_TAG}
         soundOn={settings.sound}
-        onToggleSound={() => {
-          const next = { ...settings, sound: !settings.sound }
-          setSettings(next)
-          saveSettings(next)
-          setMuted(!next.sound)
-        }}
+        musicOn={settings.music !== false}
+        onToggleSound={toggleSound}
+        onToggleMusic={toggleMusic}
         feedback={<PhoneVote onVote={(vote, account) => sendFeedback(vote, '', account)} />}
         onFamily={() => {
           setInfoOpen(false)

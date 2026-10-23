@@ -68,6 +68,7 @@ export function HowToPlay({
           romansgame.com
         </a>
       </div>
+      <div className="how-body">
       <p className="sub how-sub">Watch the demo, then jump in.</p>
       <div className="how-stage" data-demo={current.demo}>
         <HowDemo key={current.demo} demo={current.demo} />
@@ -108,6 +109,7 @@ export function HowToPlay({
         <li>Every win earns 5 treats. Treats feed and upgrade pets. Swap safe treats for coins anytime.</li>
         <li>No pets yet? Claim your FREE buddy in the Stable — without defenders your treats are in danger.</li>
       </ol>
+      </div>
       <div className="cta-row">
         <button type="button" className="btn primary" onClick={onDone}>
           {doneLabel}
