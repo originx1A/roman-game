@@ -553,6 +553,8 @@ export default function App() {
   /** Phone only: ask to save after a first clear or a new best, once that moment is over. */
   const [saveAsk, setSaveAsk] = useState(false)
   const saveNonce = useRef(0)
+  /** Phone "Save your scores?" waits until Next or Home, so it never covers the Victory buttons. */
+  const saveAskAfterLeave = useRef(false)
   const [defeated, setDefeated] = useState(false)
   /** Set the moment a board is won or lost (before any state update lands), cleared for the next
    *  board. Voice lines check it so nothing from the live board speaks after the result. */
@@ -1900,14 +1902,7 @@ export default function App() {
       }
       const isRecord = !!replay && (replay.newBestTime || replay.newBestScore)
       const saveMoment = !!replay && !replay.tooFast && (replay.firstClear || replay.newBestTime || replay.newBestScore)
-      if (saveMoment && device === 'phone' && cloudState().status !== 'signed-in') {
-        const nonce = ++saveNonce.current
-        window.setTimeout(() => {
-          if (saveNonce.current !== nonce) return
-          if (cloudState().status === 'signed-in') return
-          setSaveAsk(true)
-        }, 2400)
-      }
+      saveAskAfterLeave.current = saveMoment && device === 'phone' && cloudState().status !== 'signed-in'
       // 9.30-a (Tony): won a replayed board without beating the old best = ONE combined line (board
       // cleared + slower than your best), not a cheer followed by a tease. The win sound and banner stay.
       const notBest = !!replay && !replay.firstClear && !replay.newBestTime && !replay.newBestScore && runMode === 'normal' && dailyStreak == null
@@ -2229,6 +2224,7 @@ export default function App() {
     recordedRef.current = false
     saveNonce.current += 1
     setSaveAsk(false)
+    saveAskAfterLeave.current = false
     setWinReplay(null)
     setRunning(true)
     setLives(runMaxLives)
@@ -3602,6 +3598,11 @@ export default function App() {
               paradeHint={settings.parade === false ? undefined : paradeHint(paradeRef.current).text}
               modeNote={endlessRef.current ? `Endless mode · ${endless.cleared} cleared. Levels list and Home are below.` : parseRemixId(puzzle.id) ? boardKindNote(puzzle.id) : undefined}
               onNext={() => maybeParade(() => {
+                const ask = saveAskAfterLeave.current
+                saveAskAfterLeave.current = false
+                const offerSave = () => {
+                  if (ask && cloudState().status !== 'signed-in') setSaveAsk(true)
+                }
                 // 9.30-i: Remix → the next uncleared board of the live set; Endless → another fresh board
                 const rm = parseRemixId(puzzle.id)
                 if (rm) {
@@ -3612,17 +3613,25 @@ export default function App() {
                     setScreen('remix')
                     if (nxt) buildRemix(nxt, true)
                   }
+                  offerSave()
                   return
                 }
                 if (endlessRef.current) {
                   startEndless(endlessRef.current)
+                  offerSave()
                   return
                 }
                 startPuzzle(pickNextBoard(puzzle, PUZZLES, getProgress().clears))
+                offerSave()
               })}
               onReplay={resetBoard}
               onLevels={() => setScreen('levels')}
-              onHome={() => setScreen('home')}
+              onHome={() => {
+                const ask = saveAskAfterLeave.current
+                saveAskAfterLeave.current = false
+                setScreen('home')
+                if (ask && cloudState().status !== 'signed-in') setSaveAsk(true)
+              }}
               onSpin={showSpinPrize(wallet.spins, buddyMeter.pending, huntJustEarned) ? openPrizeWheel : undefined}
               buddyMeter={{
                 notches: buddyMeter.notches,

@@ -2019,6 +2019,22 @@ html[data-device='desktop'] main.how-panel > .cta-row {
   margin-left: auto;
   flex-shrink: 0;
 }
+/* Phone How to play: the fixed Info button sits on the title row. The site link
+   takes the next line, clear of that button. */
+html[data-device='phone'] .how-top {
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 0.7rem;
+  padding-right: 5rem;
+}
+html[data-device='phone'] .how-top h2 {
+  flex: 1 1 auto;
+}
+html[data-device='phone'] .how-top .site-link {
+  flex: 1 0 100%;
+  margin-left: 0;
+  margin-top: 0.85rem;
+}
 
 .how-back {
   flex-shrink: 0;
@@ -6490,31 +6506,17 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
     padding: 0.4rem 0.55rem 0.45rem;
   }
 }
-/* Phone play: keep the figure and a 2-line bubble in the gap above Hint / Rescue / Reset,
-   and shrink the board while he is up so the bubble cannot sit on the grid. */
-html[data-device='phone'] .shell-play:not(.shell-celebrate):has(.unseen-pop) .board-stage {
-  padding-bottom: 7.4rem;
-}
+/* Phone play: no corner figure. His line is the one-line caption under the timer. */
 html[data-device='phone'] .shell-play:not(.shell-celebrate) .unseen-pop {
-  --unseen-w: 72px;
-  bottom: calc(4.85rem + env(safe-area-inset-bottom, 0px));
-  max-height: none;
-  overflow: visible;
+  display: none;
 }
-html[data-device='phone'] .shell-play:not(.shell-celebrate) .unseen-art {
-  width: 72px;
-  max-height: 56px;
-  object-fit: cover;
-  object-position: 70% 100%;
-  margin: 0;
-}
-html[data-device='phone'] .shell-play:not(.shell-celebrate) .unseen-bubble {
-  max-width: min(48vw, 176px);
-  margin-bottom: 0.15rem;
-}
-html[data-device='phone'] .shell-play:not(.shell-celebrate) .unseen-bubble p {
-  max-height: 2.6em;
+html[data-device='phone'] .shell-play:not(.shell-celebrate) .play-caption {
+  height: 1.4em;
+  display: block;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   overflow: hidden;
+  -webkit-line-clamp: unset;
 }
 /* Phone Victory: figure and bubble live in the pocket under the card (see --win-pad-b). */
 html[data-device='phone'] .shell-play.shell-celebrate .unseen-pop {
@@ -6531,6 +6533,27 @@ html[data-device='phone'] .shell-play.shell-celebrate .unseen-bubble {
 html[data-device='phone'] .shell-play.shell-celebrate .unseen-bubble p {
   max-height: 2.6em;
   overflow: hidden;
+}
+/* PC play: bottom-left, under the left stat panel, clear of the mini-board. */
+html[data-layout='wide'][data-device='desktop'] .shell-play:not(.shell-celebrate) .unseen-pop {
+  left: max(0.75rem, env(safe-area-inset-left, 0px));
+  right: auto;
+  bottom: max(0.55rem, env(safe-area-inset-bottom, 0px));
+  align-items: flex-start;
+  --unseen-w: 108px;
+  max-width: 200px;
+}
+html[data-layout='wide'][data-device='desktop'] .shell-play:not(.shell-celebrate) .unseen-bubble {
+  max-width: 200px;
+  margin: 0 0 0.3rem 0.15rem;
+}
+html[data-layout='wide'][data-device='desktop'] .shell-play:not(.shell-celebrate) .unseen-bubble::after {
+  right: auto;
+  left: 36px;
+}
+html[data-layout='wide'][data-device='desktop'] .shell-play:not(.shell-celebrate) .unseen-art {
+  margin-right: 0;
+  margin-left: -6px;
 }
 html[data-motion='reduce'] .unseen-pop.is-entering,
 html[data-motion='reduce'] .unseen-pop.is-leaving {
