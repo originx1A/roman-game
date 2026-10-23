@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto'
-import { chargeMatchesPack } from '../../src/game/shopOffers.ts'
+import { chargeMatchesPack, SHOP_OFFERS } from '../../src/game/shopOffers.ts'
 import { CHECKOUT_TEST_ONLY, webPackById, type WebCoinPack } from './coinPacks.ts'
 
 /** Gift-code alphabet. No 0/O or 1/I/L. Codes are not dated. */
@@ -92,11 +92,20 @@ export interface CompletedSession {
     productId?: string
     playerId?: string
     purpose?: string
+    cart_id?: string
+    user_id?: string
+    device_ua_hash?: string
+    ip_hash?: string
   } | null
+  mode?: string
+  status?: string
+  customer?: string | null
+  customerEmail?: string | null
+  paymentMethod?: string | null
 }
 
 export type GrantResult =
-  | { ok: true; duplicate?: boolean; ignored?: 'live'; giftCode?: string; coins?: number }
+  | { ok: true; duplicate?: boolean; ignored?: 'live' | 'not_parent'; giftCode?: string; coins?: number }
   | { ok: false; error: string }
 
 function newId(): string {
@@ -182,6 +191,59 @@ function purchaseFrom(
     giftCodeId,
     deviceClaimedAt: null,
   }
+}
+
+function starterGiftCoins(): number {
+  return SHOP_OFFERS.find((offer) => offer.id === 'starter')?.coins ?? 0
+}
+
+/**
+ * A priced cart line bought as a gift is credited to the linked child.
+ * The buyer is not credited. Unpriced lines add nothing.
+ */
+export async function grantLinkedChild(
+  ledger: Ledger,
+  session: CompletedSession,
+  cart: { giftMode: string | null; giftChildId: string | null; items: { sku: string; qty: number }[] },
+  parentLinked: boolean,
+): Promise<GrantResult> {
+  if (session.livemode && CHECKOUT_TEST_ONLY) return { ok: true, ignored: 'live' }
+  if (session.payment_status !== 'paid') return { ok: false, error: 'unpaid' }
+  if (cart.giftMode !== 'linked_child' || !cart.giftChildId) return { ok: true, coins: 0 }
+  if (!parentLinked) return { ok: true, ignored: 'not_parent' }
+  const existing = await ledger.findPurchaseBySession(session.id)
+  if (existing) return { ok: true, duplicate: true, coins: existing.coins }
+  const per = starterGiftCoins()
+  let coins = 0
+  for (const item of cart.items) {
+    if (item.sku === 'starter_bundle' && per > 0) coins += per * item.qty
+  }
+  const childId = cart.giftChildId
+  const purchase = purchaseFrom(
+    session,
+    {
+      id: 'starter',
+      productId: 'roman.cad.bundle.starter',
+      label: 'Starter Pack',
+      coins,
+      treats: 0,
+      pets: [],
+      once: false,
+      currency: 'cad',
+      unitAmount: typeof session.amount_total === 'number' ? session.amount_total : 0,
+      priceLabel: '',
+      contents: [],
+    },
+    childId,
+    'self',
+    'paid',
+    null,
+  )
+  purchase.playerId = childId
+  purchase.coins = coins
+  await ledger.insertPurchase(purchase)
+  if (coins > 0) await ledger.creditCoins(childId, session.id, coins)
+  return { ok: true, coins }
 }
 
 export interface ChargeReversal {

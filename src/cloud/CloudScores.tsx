@@ -4,7 +4,10 @@ import { KeyboardNameSheet, useKeyboardNameEntry } from '../components/KeyboardN
 import { LegalLine } from '../components/LegalLine'
 import { playVoice } from '../game/sound'
 import { isProfane } from './profanity'
-import { NAME_MAX, cloudState, loadConsent, saveConsent, onCloud, renamePlayer, savePlayerName, scoreSaveLabel, sendMagicLink, signInCode, signInEmail, signOut, verifyEmailCode, type CloudState } from './cloud'
+import { NAME_MAX, cloudState, loadConsent, noteAutoNamed, persistServerSession, saveConsent, onCloud, renamePlayer, savePlayerName, scoreSaveLabel, sendMagicLink, signInCode, signInEmail, signOut, signOutEverywhere, verifyEmailCode, type CloudState } from './cloud'
+import { shownPublicName } from '../game/playerName'
+import { FamilyPanel } from './FamilyPanel'
+import { useTurnstile } from './useTurnstile'
 
 /**
  * "Save my scores" button + sheets: email magic link or the code from that email, then a one-time name prompt.
@@ -60,16 +63,28 @@ export function CloudScoresButton({
   const [editing, setEditing] = useState(false)
   const [nameEdit, setNameEdit] = useState('')
   const [nameDismissed, setNameDismissed] = useState(false)
-  const [age13, setAge13] = useState(() => loadConsent()?.age13 ?? false)
+  const [ageChoice, setAgeChoice] = useState<'13_plus' | 'under_13' | null>(null)
+  const [parentEmail, setParentEmail] = useState('')
+  const [parentName, setParentName] = useState('')
+  const [parentPassword, setParentPassword] = useState('')
   const [optIn, setOptIn] = useState(() => loadConsent()?.optIn ?? false)
   const [terms, setTerms] = useState(false)
+  const captchaOn = sheet === 'email' || sheet === 'sent' || sheet === 'parent'
+  const captcha = useTurnstile(captchaOn, sheet ?? '')
   const touchName = useKeyboardNameEntry()
   const consentChecks = (
     <div className="cloud-checks">
-      <label className="cloud-check">
-        <input type="checkbox" checked={age13} onChange={(e) => setAge13(e.target.checked)} />
-        <span>I'm 13 or older</span>
-      </label>
+      <fieldset className="cloud-checks">
+        <legend className="start-sheet-tip">How old are you?</legend>
+        <label className="cloud-check">
+          <input type="radio" name="age-choice" checked={ageChoice === '13_plus'} onChange={() => setAgeChoice('13_plus')} />
+          <span>I'm 13 or older</span>
+        </label>
+        <label className="cloud-check">
+          <input type="radio" name="age-choice" checked={ageChoice === 'under_13'} onChange={() => setAgeChoice('under_13')} />
+          <span>I'm under 13</span>
+        </label>
+      </fieldset>
       <label className="cloud-check">
         <input type="checkbox" checked={terms} onChange={(e) => setTerms(e.target.checked)} />
         <span>
@@ -150,7 +165,12 @@ export function CloudScoresButton({
     setBusy(true)
     setErr('')
     try {
-      const r = await sendMagicLink(address)
+      const token = await captcha.takeToken()
+      if (!token) {
+        setErr(captcha.reason() || "This page couldn't complete the check. Try again.")
+        return false
+      }
+      const r = await sendMagicLink(address, token)
       if (!r.ok || !r.email) {
         setErr(r.error ?? 'Something went wrong.')
         return false
@@ -161,6 +181,7 @@ export function CloudScoresButton({
       setCode('')
       return true
     } finally {
+      captcha.reset()
       sendingRef.current = false
       setBusy(false)
     }
@@ -173,7 +194,6 @@ export function CloudScoresButton({
     setErr('')
     setEmail('')
     setCode('')
-    if (cloud.status === 'signed-in') setAge13(true)
     setSheet('email')
   }
 
@@ -202,10 +222,11 @@ export function CloudScoresButton({
         const active = document.activeElement
         if (active instanceof HTMLElement) active.blur()
         if (!name.trim() || nameProblem) return
-        if (!age13) return setSheet('parent')
+        if (!ageChoice) return setErr('Choose an age to continue.')
+        if (ageChoice === 'under_13') return setSheet('parent')
         if (!loadConsent()?.age13 && !terms) return setErr('Please agree to the Terms and Privacy.')
         setBusy(true)
-        const r = await savePlayerName(name, { age13, optIn })
+        const r = await savePlayerName(name, { age13: true, optIn })
         setBusy(false)
         if (r.ok) setSheet(r.publicName && r.publicName !== name.trim() ? 'account' : null)
         else setErr(r.error ?? 'Something went wrong.')
@@ -258,16 +279,20 @@ export function CloudScoresButton({
             style={frame ? { top: frame.top, height: frame.height, bottom: 'auto' } : undefined}
           >
             <div className="start-sheet-scrim" onClick={closeSheet} />
-            {sheet === 'email' && (
+            {(sheet === 'email' || sheet === 'sent') && (
+              <div className="start-sheet-card">
+                <div className="cloud-turnstile" ref={captcha.box} />
+                {sheet === 'email' && (
               <form
-                className="start-sheet-card"
+                className="cloud-auth-form"
                 onSubmit={async (e) => {
                   e.preventDefault()
-                  if (!age13) return setSheet('parent')
+                  if (!switching && !ageChoice) return setErr('Choose an age to continue.')
+                  if (!switching && ageChoice === 'under_13') return setSheet('parent')
                   if (!terms) return setErr('Please agree to the Terms and Privacy.')
                   const address = signInEmail(email)
                   if (!/^\S+@\S+\.\S+$/.test(address)) return setErr('Type a full email address.')
-                  saveConsent({ age13, optIn })
+                  saveConsent({ age13: switching || ageChoice === '13_plus', optIn })
                   const ok = await deliverLink(address)
                   if (!ok) return
                   // Only a sent link switches players. A failed send leaves the current player signed in.
@@ -283,7 +308,7 @@ export function CloudScoresButton({
                 <h3>{switching ? 'Switch player' : 'Save your scores'}</h3>
                 <p className="start-sheet-tip">
                   {switching
-                    ? `You're signed in as ${cloud.publicName ?? cloud.name ?? cloud.email}. Not now keeps this player. We'll only switch after the new sign-in link is sent.`
+                    ? `You're signed in as ${shownPublicName(cloud.publicName) || shownPublicName(cloud.name) || 'this player'}. Not now keeps this player. We'll only switch after the new sign-in link is sent.`
                     : "Get on the leaderboard and keep your scores on any device. We'll email you a sign-in link and the code from your email. No password."}
                 </p>
                 <input className="name-input" type="email" inputMode="email" autoComplete="email" placeholder="Email address" aria-label="Email address" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -296,10 +321,10 @@ export function CloudScoresButton({
                   Not now
                 </button>
               </form>
-            )}
-            {sheet === 'sent' && (
+                )}
+                {sheet === 'sent' && (
               <form
-                className="start-sheet-card"
+                className="cloud-auth-form"
                 onSubmit={async (e) => {
                   e.preventDefault()
                   const digits = signInCode(code)
@@ -308,11 +333,18 @@ export function CloudScoresButton({
                   if (digits.length < 6 || digits.length > 10 || verifyingRef.current) return
                   verifyingRef.current = true
                   setBusy(true)
+                  setErr('')
                   try {
-                    const r = await verifyEmailCode(sentEmail || signInEmail(email), digits)
+                    const token = await captcha.takeToken()
+                    if (!token) {
+                      setErr(captcha.reason() || "This page couldn't complete the check. Try again.")
+                      return
+                    }
+                    const r = await verifyEmailCode(sentEmail || signInEmail(email), digits, token)
                     if (!r.ok) setErr(r.error ?? 'Code expired or already used, send a new one.')
                     // A good code signs them in. The listener closes this sheet, or asks for a name once.
                   } finally {
+                    captcha.reset()
                     verifyingRef.current = false
                     setBusy(false)
                   }
@@ -380,18 +412,76 @@ export function CloudScoresButton({
                   Not now
                 </button>
               </form>
+                )}
+                {captcha.note && !err && <p className="cloud-err" role="alert">{captcha.note}</p>}
+              </div>
             )}
             {sheet === 'name' && nameForm}
             {sheet === 'parent' && (
-              <div className="start-sheet-card">
-                <h3>Ask a parent to sign up for you</h3>
+              <form
+                className="start-sheet-card"
+                onSubmit={async (e) => {
+                  e.preventDefault()
+                  const address = parentEmail.trim().toLowerCase()
+                  if (!/^\S+@\S+\.\S+$/.test(address)) return setErr('Type a parent email.')
+                  if (parentName.trim().length < 3) return setErr('Type a player name.')
+                  setBusy(true)
+                  setErr('')
+                  try {
+                    const token = await captcha.takeToken()
+                    if (!token) {
+                      setErr(captcha.reason() || "This page couldn't complete the check. Try again.")
+                      return
+                    }
+                    const res = await fetch('/api/auth/signup', {
+                      method: 'POST',
+                      headers: { 'content-type': 'application/json', accept: 'application/json' },
+                      body: JSON.stringify({
+                        name: parentName,
+                        password: parentPassword,
+                        recovery_email: address,
+                        age_choice: 'under_13',
+                        captchaToken: token,
+                      }),
+                    })
+                    const data = (await res.json().catch(() => null)) as {
+                      error?: string
+                      auto_named?: boolean
+                      player_name?: string
+                      display_name?: string
+                      session?: { access_token?: string; refresh_token?: string }
+                    } | null
+                    if (!res.ok || !data?.session?.access_token || !data.session.refresh_token) {
+                      setErr(data?.error === 'weak_password' ? 'Use a longer password that is not the name.' : 'Could not save that email yet.')
+                      return
+                    }
+                    await persistServerSession(data.session.access_token, data.session.refresh_token)
+                    if (data.auto_named) noteAutoNamed(true, data.player_name, data.display_name)
+                    setErr('')
+                    setNotice('A parent has the approval email. That address is for recovery only.')
+                    setSheet(null)
+                  } finally {
+                    captcha.reset()
+                    setBusy(false)
+                  }
+                }}
+              >
+                <h3>A parent approves this account</h3>
                 <p className="start-sheet-tip">
-                  You need to be 13 or older to make an account. You can keep playing everything without one. Your scores just stay on this device.
+                  Enter a parent email. They get a link. That address is for recovery only. It does not let this account spend.
                 </p>
-                <button type="button" className="btn primary" onClick={closeSheet}>
+                <div className="cloud-turnstile" ref={captcha.box} />
+                <input className="name-input" type="text" autoComplete="nickname" aria-label="Player name" placeholder="Player name" value={parentName} onChange={(e) => setParentName(e.target.value)} />
+                <input className="name-input" type="password" autoComplete="new-password" aria-label="Password" placeholder="Password" value={parentPassword} onChange={(e) => setParentPassword(e.target.value)} />
+                <input className="name-input" type="email" autoComplete="email" aria-label="Parent email" placeholder="Parent email" value={parentEmail} onChange={(e) => setParentEmail(e.target.value)} />
+                {err && <p className="cloud-err" role="alert">{err}</p>}
+                <button type="submit" className="btn primary" disabled={busy}>
+                  {busy ? 'Sending…' : 'Email my parent'}
+                </button>
+                <button type="button" className="btn ghost" onClick={closeSheet}>
                   Keep playing
                 </button>
-              </div>
+              </form>
             )}
             {sheet === 'account' && (
               <div className="start-sheet-card">
@@ -424,7 +514,7 @@ export function CloudScoresButton({
                 ) : (
                   <>
                     <p className="start-sheet-tip">
-                      Signed in as {cloud.email}. Leaderboard name: <b className="player-name-mark">{cloud.publicName ?? cloud.name}</b>.
+                      Signed in. Leaderboard name: <b className="player-name-mark">{shownPublicName(cloud.publicName) || shownPublicName(cloud.name) || 'Player'}</b>.
                       {cloud.pending ? ` ${cloud.pending} score${cloud.pending === 1 ? '' : 's'} will send when you're back online.` : ' Every game you finish is saved.'}
                     </p>
                     <button type="button" className="btn primary" onClick={closeSheet}>
@@ -441,10 +531,11 @@ export function CloudScoresButton({
                     >
                       Change name
                     </button>
+                    <FamilyPanel />
                     <button type="button" className="btn ghost" data-testid="switch-player" onClick={beginSwitch}>
                       Switch player
                     </button>
-                    <button type="button" className="btn ghost" onClick={() => { void signOut(); closeSheet() }}>
+                    <button type="button" className="btn ghost" onClick={() => { void signOutEverywhere(); closeSheet() }}>
                       Sign out
                     </button>
                   </>

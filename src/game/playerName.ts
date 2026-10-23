@@ -8,6 +8,13 @@ export function cleanPlayerName(raw: unknown): string {
   return Array.from(s).slice(0, PLAYER_NAME_MAX).join('').trim()
 }
 
+/** A public label. An email address is never shown. */
+export function shownPublicName(raw: unknown): string {
+  const name = cleanPlayerName(raw)
+  if (!name || name.includes('@')) return ''
+  return name
+}
+
 /**
  * A name the player never chose. The live default looks like "Roman's Game official".
  * That must not replace the name they already picked on this device.
@@ -27,8 +34,8 @@ export function getPlayerName(sources: {
   playerName?: string | null
   displayName?: string | null
 }): string {
-  const account = cleanPlayerName(sources.publicName) || cleanPlayerName(sources.name)
-  const local = [sources.playerName, sources.displayName].map(cleanPlayerName).find(Boolean) ?? ''
+  const account = shownPublicName(sources.publicName) || shownPublicName(sources.name)
+  const local = [sources.playerName, sources.displayName].map(shownPublicName).find(Boolean) ?? ''
   if (account && !isUnsetAccountName(account)) return account
   if (local) return local
   return account

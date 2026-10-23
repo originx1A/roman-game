@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { packValueBlurb, isStoreBuild, type CoinPack } from '../game/iap'
 import type { CoinPackId } from '../game/iap'
 import { coinStackDiscs, formatPackCoins } from '../game/coinPackDisplay'
+import { PURCHASE_OWNER_NOTICE } from '../game/purchaseNotice'
 import { useOnline } from '../game/useOnline'
 
 export interface CoinPackCardProps {
@@ -48,6 +49,7 @@ export function CoinPackCard({ pack, onBuy, priceText, webBuy = false }: CoinPac
       <h3>{pack.label}</h3>
       <p className="product-coins">{formatPackCoins(pack.coins)}</p>
       <p className="product-value">{packValueBlurb(pack.coins)}</p>
+      {showBuy ? <p className="purchase-owner-notice" data-testid="purchase-owner-notice">{PURCHASE_OWNER_NOTICE}</p> : null}
       <div className="product-card-foot">
         <span className="product-price">
           <span className="pay-mark" aria-hidden="true">💳</span> {price}

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
 import { CloudScoresButton } from '../cloud/CloudScores'
-import { getSupabase, holdAnonymous, resumePlayAccount, signOut } from '../cloud/cloud'
+import { getSupabase, holdAnonymous, linkGoogle, resumePlayAccount, signOut } from '../cloud/cloud'
+import { useTurnstile } from '../cloud/useTurnstile'
 import { AUTH_LABEL, availableAuthMethods, deviceCodeDigits, deviceCodeReady, type AuthMethod } from '../game/authMethods'
 import { publicPlayUrl } from '../game/publicUrl'
 import { withInviteRef } from '../game/friendRef'
@@ -53,6 +54,14 @@ export function AccountSocial() {
   })
   const videoRef = useRef<HTMLVideoElement>(null)
   const scanStop = useRef<(() => void) | null>(null)
+  const captcha = useTurnstile(true)
+
+  async function takeCaptcha(): Promise<string | null> {
+    const token = await captcha.takeToken()
+    if (!token) setNote(captcha.reason() || "This page couldn't complete the check. Try again.")
+    captcha.reset()
+    return token
+  }
 
   useEffect(() => onSocial(() => setCode(socialSnapshot().code)), [])
 
@@ -115,10 +124,12 @@ export function AccountSocial() {
     }
     if (method === 'email') return
     if (method === 'google') {
-      const sb = await getSupabase()
-      if (!sb) return
+      const captchaToken = await takeCaptcha()
+      if (!captchaToken) return
       const redirect = `${window.location.origin}${window.location.pathname}`
-      await sb.auth.linkIdentity({ provider: 'google', options: { redirectTo: redirect } })
+      const linked = await linkGoogle(redirect, captchaToken)
+      captcha.reset()
+      if (!linked.ok) setNote(linked.error || "The captcha check didn't go through. Try again.")
       return
     }
     if (method === 'passkey') await registerPasskey()
@@ -178,13 +189,23 @@ export function AccountSocial() {
       return
     }
     const sb = await getSupabase()
-    const { error } = await sb!.auth.verifyOtp({ token_hash: done.token_hash, type: 'email' })
-    setNote(error ? 'Could not switch devices.' : 'You are on your player.')
+    const captchaToken = await takeCaptcha()
+    if (!sb || !captchaToken) return
+    const { error } = await sb.auth.verifyOtp({
+      token_hash: done.token_hash,
+      type: 'email',
+      options: { captchaToken },
+    } as Parameters<typeof sb.auth.verifyOtp>[0])
+    captcha.reset()
+    setNote(error ? (/captcha/i.test(error.message ?? '') ? "The captcha check didn't go through. Try again." : 'Could not switch devices.') : 'You are on your player.')
   }
 
   async function submitDeviceCode() {
     if (!deviceCodeReady(joinCode)) return
-    const result = await redeemDeviceLink(deviceCodeDigits(joinCode))
+    const captchaToken = await takeCaptcha()
+    if (!captchaToken) return
+    const result = await redeemDeviceLink(deviceCodeDigits(joinCode), captchaToken)
+    captcha.reset()
     setNote(result.ok ? 'You are on that player.' : result.error || 'That code did not work.')
     if (result.ok) setProfiles(loadProfiles())
   }
@@ -236,7 +257,11 @@ export function AccountSocial() {
       const token = raw.match(/[?&]link=([a-f0-9]{32})/i)?.[1]
       if (token) {
         scanStop.current?.()
-        const result = await redeemDeviceLink(token)
+        const captchaToken = await takeCaptcha()
+        const result = captchaToken
+          ? await redeemDeviceLink(token, captchaToken)
+          : { ok: false, error: "This page couldn't complete the check. Try again." }
+        captcha.reset()
         setNote(result.ok ? 'You are on that player.' : result.error || 'That code did not work.')
         return
       }
@@ -250,10 +275,13 @@ export function AccountSocial() {
       setNote('This device already has 6 players.')
       return
     }
+    const sb = await getSupabase()
+    const captchaToken = await takeCaptcha()
+    if (!sb || !captchaToken) return
     holdAnonymous(true)
     await signOut()
-    const sb = await getSupabase()
-    const { error } = await sb!.auth.signInAnonymously()
+    const { error } = await sb.auth.signInAnonymously({ options: { captchaToken } })
+    captcha.reset()
     holdAnonymous(false)
     if (error) {
       resumePlayAccount()
@@ -320,6 +348,7 @@ export function AccountSocial() {
 
   return (
     <section className="account-social" data-testid="account-social">
+      <div className="cloud-turnstile" ref={captcha.box} />
       <h3>Friends</h3>
       {code ? (
         <p className="friend-code" data-testid="friend-code">

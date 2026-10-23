@@ -29,6 +29,125 @@
     Content-Type = "text/plain; charset=utf-8"
     Cache-Control = "public, max-age=3600"
 
+# Name+password auth. These must sit above /api/* because the first match wins
+# and the splat would look for a function named auth/signup.
+[[redirects]]
+  from = "/api/auth/signup"
+  to = "/.netlify/functions/auth-signup"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/signin"
+  to = "/.netlify/functions/auth-signin"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/password/change"
+  to = "/.netlify/functions/auth-password-change"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/recover/email/start"
+  to = "/.netlify/functions/auth-recover-email-start"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/recover/email/finish"
+  to = "/.netlify/functions/auth-recover-email-finish"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/recover/lost/start"
+  to = "/.netlify/functions/auth-recover-lost-start"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/recover/lost/code"
+  to = "/.netlify/functions/auth-recover-lost-code"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/recover/lost/finish"
+  to = "/.netlify/functions/auth-recover-lost-finish"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/recover/card"
+  to = "/.netlify/functions/auth-recover-card"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/recover/parent"
+  to = "/.netlify/functions/auth-recover-parent"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/recovery-card/issue"
+  to = "/.netlify/functions/auth-recovery-card-issue"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/signout"
+  to = "/.netlify/functions/auth-signout"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/refresh"
+  to = "/.netlify/functions/auth-refresh"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/account"
+  to = "/.netlify/functions/auth-account"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/name"
+  to = "/.netlify/functions/auth-name"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/flags"
+  to = "/.netlify/functions/auth-flags"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/session"
+  to = "/.netlify/functions/auth-session"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/family"
+  to = "/.netlify/functions/auth-family"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/parent-email"
+  to = "/.netlify/functions/auth-parent-email"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/auth/parent-approve"
+  to = "/.netlify/functions/auth-parent-approve"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/payments/setup"
+  to = "/.netlify/functions/payments-setup"
+  status = 200
+  force = true
+[[redirects]]
+  from = "/api/payments/remove"
+  to = "/.netlify/functions/payments-remove"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/cart"
+  to = "/.netlify/functions/cart"
+  status = 200
+  force = true
+
 # Payment API before the single-page fallback. Static hosts ignore this file.
 [[redirects]]
   from = "/api/*"

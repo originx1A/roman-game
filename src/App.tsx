@@ -12,6 +12,7 @@ import { WinScreen, type WinReplay } from './components/WinScreen'
 import { type ShortfallAction } from './components/ShortfallSheet'
 import { ShortfallSheetHost } from './components/ShortfallSheetHost'
 import { OfflineBuyButton } from './components/CoinPackCard'
+import { PURCHASE_OWNER_NOTICE } from './game/purchaseNotice'
 import { HelpMark } from './components/HelpMark'
 import { LegalLine } from './components/LegalLine'
 import { formatCad, formatStarterLadder, savingsCents, SHOP_OFFERS, shopOfferById } from './game/shopOffers'
@@ -32,8 +33,9 @@ import { KeyboardNameSheet, useKeyboardNameEntry } from './components/KeyboardNa
 import { UnseenGuide, PetPopout, type GuideItem, type PetPopoutInfo } from './components/UnseenGuide'
 import { HomeUnseenReminder } from './components/UnseenReminder'
 import { CloudScoresButton, useCloud } from './cloud/CloudScores'
+import { PickPlayerName } from './cloud/PickPlayerName'
 import { Leaderboard } from './cloud/Leaderboard'
-import { NAME_MAX, getSupabase, initCloud, loadPublicScores, renamePlayer, saveScore, scoreSaveLabel, signOut as cloudSignOut } from './cloud/cloud'
+import { NAME_MAX, getSupabase, initCloud, loadPublicScores, renamePlayer, saveScore, scoreSaveLabel, signOutEverywhere as cloudSignOut } from './cloud/cloud'
 import { noteWalletCoins, type CoinMeta } from './social/coins'
 import { armRound, isFriend, noteRoundScore, sendChallenge, sendLive, setPlaying, startSocial, type InboxItem } from './social/hub'
 import { setQuietRound } from './game/quietQueue'
@@ -486,6 +488,7 @@ export default function App() {
   const [{ layout }, setLayoutInfo] = useState(() => readLayout())
   const [profile, setProfile] = useState<Profile | null>(() => loadProfile())
   const cloud = useCloud()
+  const [namePromptLater, setNamePromptLater] = useState(false)
   const [progress, setProgress] = useState(() => getProgress())
   const [settings, setSettings] = useState<Settings>(() => loadSettings())
   // Level select difficulty tab — persisted so it survives reloads
@@ -2890,15 +2893,37 @@ export default function App() {
       showToast('Connect to buy')
       return
     }
+    const sb = await getSupabase()
+    const token = sb ? (await sb.auth.getSession()).data.session?.access_token : undefined
     if (!isStoreBuild()) {
-      const sb = await getSupabase()
-      const token = sb ? (await sb.auth.getSession()).data.session?.access_token : undefined
-      const { startWebCheckout } = await import('./game/webCheckout')
-      const started = await startWebCheckout(packId, token)
+      const { startCardSetup, startWebCheckout } = await import('./game/webCheckout')
+      let owner = false
+      if (token) {
+        const session = await fetch('/api/auth/session', {
+          method: 'POST',
+          headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', accept: 'application/json' },
+          body: '{}',
+        }).catch(() => null)
+        const data = (await session?.json().catch(() => null)) as { flags?: { owner_role?: string | null } } | null
+        owner = data?.flags?.owner_role === 'adult'
+      }
+      const started = owner || !token ? await startWebCheckout(packId, token) : await startCardSetup(token)
       if (!started.ok) showToast(started.reason)
       return
     }
     if (packId !== 'coins_100' && packId !== 'coins_500' && packId !== 'coins_1200' && packId !== 'coins_3000') return
+    if (token) {
+      const session = await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', accept: 'application/json' },
+        body: '{}',
+      }).catch(() => null)
+      const data = session?.ok ? ((await session.json().catch(() => null)) as { flags?: { owner_role?: string | null } } | null) : null
+      if (!session?.ok || data?.flags?.owner_role !== 'adult') {
+        showToast("This account can't make purchases.")
+        return
+      }
+    }
     const result = await purchaseCoinPack(packId)
     if (!result.ok) {
       showToast(result.reason)
@@ -4059,6 +4084,7 @@ export default function App() {
             <p className="shop-proposed" data-testid="shop-proposed">Prices are in Canadian dollars.</p>
             <section className="pay-real" aria-label="Real money" data-testid="real-money">
               <h3><span className="pay-mark" aria-hidden="true">💳</span> Real money</h3>
+              <p className="purchase-owner-notice" data-testid="purchase-owner-notice">{PURCHASE_OWNER_NOTICE}</p>
               <div className="coin-shop">
                 {SHOP_OFFERS.filter((offer) => offer.pets.length === 0).map((offer) => {
                   const discs = coinStackDiscs(offer.coins)
@@ -4252,7 +4278,6 @@ export default function App() {
               {signedIn ? (
                 <>
                   Signed in as <strong className="player-name-mark">{playerName}</strong>
-                  {cloud.email ? <> ({cloud.email})</> : null}
                 </>
               ) : playerName ? (
                 <>Playing as <strong className="player-name-mark">{playerName}</strong></>
@@ -4279,6 +4304,7 @@ export default function App() {
                 Help / How to play
               </button>
             </div>
+            {signedIn && cloud.autoNamed ? <PickPlayerName /> : null}
             <LegalLine />
             {editingName ? (
               <label className="name-setting">
@@ -4665,6 +4691,15 @@ export default function App() {
         onDone={() => setPetPop(null)}
       />
       {/* 10.06: treat defense — wild pets vs the field treat pile (home + play) */}
+      {signedIn && cloud.autoNamed && screen !== 'profile' && !namePromptLater
+        ? createPortal(
+            <div className="start-sheet name-prompt" role="dialog" aria-modal="true" aria-label="Pick your player name">
+              <div className="start-sheet-scrim" />
+              <PickPlayerName onDismiss={() => setNamePromptLater(true)} />
+            </div>,
+            document.body,
+          )
+        : null}
       <TreatDefense
         active={screen === 'play' && !celebrate && !defeated && !showWheel && !rotatePaused}
         defenders={(Object.keys(pets.owned) as PetId[]).slice(0, 3)}

@@ -1,12 +1,14 @@
 import { gaEvent } from '../game/analytics'
+import { resetManagedCaptcha, takeManagedCaptcha } from './useTurnstile'
 import { getPlayerName, isUnsetAccountName } from '../game/playerName'
 import { rememberPlayerName } from '../game/storage'
 /**
  * Player accounts + score saving (Supabase, project romans-game).
  *
- * - Sign-in: email magic link, or the code from that same email (no passwords). The session
- *   lives in localStorage, but the player row and every score live on the server, so a cache clear
- *   only means "sign in again". The code is {{ .Token }} in the Magic Link email; Tony adds that.
+ * - Primary sign-in is player name + password (POST /api/auth/signin). The session
+ *   lives in localStorage. Load and window focus check it again. A cache clear means "sign in again".
+ * - Email is recovery: a code to the address saved on the account. The email-code sheet still
+ *   works (magic link and the code from that email). Tony may keep that sheet as an option.
  * - Scores: queued locally first, then sent. Offline / Supabase down / not signed in = they wait
  *   in the queue (max 200) and flush on sign-in, on `online`, and after each new game.
  * - supabase-js is loaded lazily, so the game never waits on it and works fully without it.
@@ -47,6 +49,8 @@ export interface CloudState {
   name?: string | null
   /** The unique name shown on the leaderboard (server adds 02, 03... if the name was taken) */
   publicName?: string
+  /** The server invented this player name because sign-up used an email. */
+  autoNamed?: boolean
   pending: number
   lastSync?: string
 }
@@ -77,7 +81,12 @@ export function readStoredSession(store: Pick<Storage, 'getItem'> | null = typeo
   }
 }
 
-interface ProfileCache { userId: string; email?: string; name?: string | null; publicName?: string }
+interface ProfileCache { userId: string; email?: string; name?: string | null; publicName?: string; autoNamed?: boolean }
+
+function visibleName(value: unknown): string | undefined {
+  if (typeof value !== 'string' || value.includes('@')) return undefined
+  return value
+}
 
 function readProfileCache(userId: string): ProfileCache | null {
   try {
@@ -88,14 +97,17 @@ function readProfileCache(userId: string): ProfileCache | null {
   }
 }
 
-function writeProfileCache(userId: string, email: string | undefined, name: string | null | undefined, publicName?: string) {
+function writeProfileCache(userId: string, email: string | undefined, name: string | null | undefined, publicName?: string, autoNamed?: boolean) {
   try {
     const prev = readProfileCache(userId)
+    const safeName = name === undefined ? prev?.name ?? null : visibleName(name) ?? null
+    const safePublic = publicName === undefined ? prev?.publicName : visibleName(publicName)
     localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify({
       userId,
       email: email ?? prev?.email,
-      name: name === undefined ? prev?.name ?? null : name,
-      publicName: publicName ?? prev?.publicName,
+      name: safeName,
+      publicName: safePublic,
+      autoNamed: autoNamed ?? prev?.autoNamed,
     }))
   } catch {
     /* private mode */
@@ -227,8 +239,9 @@ function restoredState(): CloudState {
   return {
     status: 'signed-in',
     email: saved.user.email ?? cached?.email,
-    name: cached?.name,
-    publicName: cached?.publicName,
+    name: visibleName(cached?.name),
+    publicName: visibleName(cached?.publicName),
+    autoNamed: cached?.autoNamed === true,
     pending: readQueue(saved.user.id).length,
   }
 }
@@ -273,11 +286,30 @@ export function useCloudClientForTests(sb: SupabaseClient | null): void {
   clientP = Promise.resolve(sb)
 }
 
+/** Set just before Google linking. The authorize GET forwards spare query params to Google, so the token travels on this header instead. */
+let googleCaptcha: string | null = null
+
+function authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const url = input instanceof Request ? input.url : String(input)
+  if (!googleCaptcha || !url.includes('/user/identities/authorize')) return fetch(input, init)
+  const token = googleCaptcha
+  googleCaptcha = null
+  const headers = new Headers(init?.headers)
+  if (input instanceof Request) {
+    input.headers.forEach((value, key) => {
+      if (!headers.has(key)) headers.set(key, value)
+    })
+  }
+  headers.set('x-captcha-token', token)
+  return fetch(input, { ...init, headers })
+}
+
 function client(): Promise<SupabaseClient | null> {
   if (!clientP) {
     clientP = import('@supabase/supabase-js')
       .then(({ createClient }) =>
         createClient(SUPABASE_URL, SUPABASE_KEY, {
+          global: { fetch: authFetch },
           auth: {
             persistSession: true,
             autoRefreshToken: true,
@@ -317,19 +349,58 @@ async function ensurePlayerRow(sb: SupabaseClient): Promise<void> {
   await sb.rpc('ensure_player').then(() => undefined, () => undefined)
 }
 
+let anonBusy = false
+
 /** Silent anonymous account. Play already started. Failures retry in the background. */
 async function ensureAnonymous(attempt = 0): Promise<void> {
-  if (anonHeld || explicitSignOut) return
-  if (typeof window === 'undefined') return
-  if (readStoredSession()) return
+  if (anonBusy && attempt === 0) return
+  anonBusy = true
+  try {
+    if (anonHeld || explicitSignOut) return
+    if (typeof window === 'undefined') return
+    if (readStoredSession()) return
+    const sb = await client()
+    if (!sb || anonHeld) return
+    const { data } = await sb.auth.getSession()
+    if (data.session || anonHeld) return
+    const captchaToken = await takeManagedCaptcha()
+    if (anonHeld || explicitSignOut || readStoredSession()) return
+    if (!captchaToken) {
+      resetManagedCaptcha()
+      if (attempt >= 5) return
+      window.setTimeout(() => void ensureAnonymous(attempt + 1), Math.min(30_000, 2000 * 2 ** attempt))
+      return
+    }
+    const { error } = await sb.auth.signInAnonymously({ options: { captchaToken } })
+    resetManagedCaptcha()
+    if (!error || anonHeld) return
+    if (attempt >= 5) return
+    window.setTimeout(() => void ensureAnonymous(attempt + 1), Math.min(30_000, 2000 * 2 ** attempt))
+  } finally {
+    anonBusy = false
+  }
+}
+
+/**
+ * Continue with Google on the current player.
+ * options.captchaToken is set for the same shape as the other auth calls.
+ * This client builds the authorize URL without that field, and spare query params are copied to Google,
+ * so the token is also sent on x-captcha-token.
+ */
+export async function linkGoogle(redirectTo: string, captchaToken: string): Promise<{ ok: boolean; error?: string }> {
   const sb = await client()
-  if (!sb || anonHeld) return
-  const { data } = await sb.auth.getSession()
-  if (data.session || anonHeld) return
-  const { error } = await sb.auth.signInAnonymously()
-  if (!error || anonHeld) return
-  if (attempt >= 5) return
-  window.setTimeout(() => void ensureAnonymous(attempt + 1), Math.min(30_000, 2000 * 2 ** attempt))
+  if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
+  googleCaptcha = captchaToken
+  const { error } = await sb.auth.linkIdentity({
+    provider: 'google',
+    options: { redirectTo, captchaToken },
+  } as unknown as Parameters<SupabaseClient['auth']['linkIdentity']>[0])
+  googleCaptcha = null
+  if (error) {
+    if (/captcha/i.test(error.message ?? '')) return { ok: false, error: "The captcha check didn't go through. Try again." }
+    return { ok: false, error: error.message }
+  }
+  return { ok: true }
 }
 
 function sessionFromStore(): Session | null {
@@ -343,7 +414,7 @@ async function loadPlayer(sb: SupabaseClient, session: Session | null) {
   if (!session) {
     queueOwner = null
     try { localStorage.removeItem(PROFILE_CACHE_KEY) } catch { /* ignore */ }
-    return set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined })
+    return set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined, autoNamed: false })
   }
   if (queueOwner !== session.user.id) {
     queueOwner = session.user.id
@@ -354,8 +425,9 @@ async function loadPlayer(sb: SupabaseClient, session: Session | null) {
   set({
     status: 'signed-in',
     email: session.user.email ?? cached?.email,
-    name: state.name ?? cached?.name,
-    publicName: state.publicName ?? cached?.publicName,
+    name: visibleName(state.name ?? cached?.name),
+    publicName: visibleName(state.publicName ?? cached?.publicName),
+    autoNamed: state.autoNamed ?? cached?.autoNamed === true,
   })
   const { data, error } = await sb.from('players').select('display_name, public_name').eq('id', session.user.id).maybeSingle()
   if (error) {
@@ -363,8 +435,8 @@ async function loadPlayer(sb: SupabaseClient, session: Session | null) {
     void flushScores()
     return
   }
-  const name = data?.display_name ?? null
-  const publicName = data?.public_name
+  const name = visibleName(data?.display_name) ?? null
+  const publicName = visibleName(data?.public_name)
   set({ status: 'signed-in', email: session.user.email, name, publicName })
   writeProfileCache(session.user.id, session.user.email, name, publicName)
   void ensurePlayerRow(sb)
@@ -403,10 +475,12 @@ export async function initCloud(): Promise<void> {
       refreshIfDue(sb)
       void flushScores()
     })
+    window.addEventListener('focus', () => { void recheckSession() })
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') refreshIfDue(sb)
+      if (document.visibilityState === 'visible') void recheckSession()
     })
     window.setInterval(() => refreshIfDue(sb), 60_000)
+    void recheckSession()
     if (!data.session && !readStoredSession()) void ensureAnonymous()
   } catch {
     if (!readStoredSession()) set({ status: 'off' })
@@ -427,14 +501,21 @@ export function signInCode(token: string): string {
 export function explainCodeError(message: string | undefined): string {
   const raw = message?.trim() ?? ''
   if (!raw) return 'Code expired or already used, send a new one.'
+  if (/captcha/i.test(raw)) return "The captcha check didn't go through. Try again."
   if (/rate/i.test(raw)) return 'Too many tries. Wait a minute and try again.'
   if (/expired|already used|otp_expired|is invalid/i.test(raw)) return `Code expired or already used, send a new one. ${raw}`
   return raw
 }
 
+/** A captcha rejection is not a wrong code. Do not try another OTP type with the same token. */
+function captchaFailure(message: string | undefined): boolean {
+  return /captcha/i.test(message ?? '')
+}
+
 /** Wrong OTP type and a burned code look the same. Only those may try the next type. */
 function otpTypeMismatch(message: string | undefined): boolean {
   const raw = message?.trim() ?? ''
+  if (captchaFailure(raw)) return false
   return /expired|already used|otp_expired|is invalid/i.test(raw)
 }
 
@@ -445,8 +526,9 @@ let sendFlight: { email: string; promise: Promise<SignInResult> } | null = null
 /** One verify per address+code. A second tap reuses the first result instead of burning the code. */
 const verifyOnce = new Map<string, Promise<{ ok: boolean; error?: string }>>()
 
-export async function sendMagicLink(email: string): Promise<SignInResult> {
+export async function sendMagicLink(email: string, captchaToken?: string): Promise<SignInResult> {
   const address = signInEmail(email)
+  if (!captchaToken) return { ok: false, error: "This page couldn't complete the check. Try again." }
   if (sendFlight) {
     console.info(`[signin] send skipped email=${address} inFlight=${sendFlight.email}`)
     return sendFlight.email === address ? sendFlight.promise : { ok: false, error: 'A code is already on its way.' }
@@ -459,8 +541,14 @@ export async function sendMagicLink(email: string): Promise<SignInResult> {
     // The link returns to the page the player is on, including a deploy preview.
     // verifyOtp does not send this URL. A preview origin cannot change the code check.
     const redirect = `${window.location.origin}${window.location.pathname}`
-    const { error } = await sb.auth.signInWithOtp({ email: address, options: { emailRedirectTo: redirect, shouldCreateUser: true } })
-    if (error) return { ok: false, error: error.message?.trim() || "Couldn't send the link. Check the email and try again." }
+    const { error } = await sb.auth.signInWithOtp({
+      email: address,
+      options: { emailRedirectTo: redirect, shouldCreateUser: true, captchaToken },
+    })
+    if (error) {
+      if (captchaFailure(error.message)) return { ok: false, error: "The captcha check didn't go through. Try again." }
+      return { ok: false, error: error.message?.trim() || "Couldn't send the link. Check the email and try again." }
+    }
     return { ok: true, email: address, sentAt }
   })().finally(() => {
     if (sendFlight?.promise === promise) sendFlight = null
@@ -477,10 +565,11 @@ export async function sendMagicLink(email: string): Promise<SignInResult> {
  * loadPlayer, which copies this device's queued scores onto the account and flushes them.
  * That is the same path as opening the link.
  */
-export async function verifyEmailCode(email: string, token: string): Promise<{ ok: boolean; error?: string }> {
+export async function verifyEmailCode(email: string, token: string, captchaToken?: string): Promise<{ ok: boolean; error?: string }> {
   const address = signInEmail(email)
   const code = signInCode(token)
   if (!/^\d{6,10}$/.test(code)) return { ok: false, error: 'Enter the code from your email.' }
+  if (!captchaToken) return { ok: false, error: "This page couldn't complete the check. Try again." }
   const key = `${address}|${code}`
   const existing = verifyOnce.get(key)
   if (existing) {
@@ -492,14 +581,23 @@ export async function verifyEmailCode(email: string, token: string): Promise<{ o
     if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
     // email is the type the merged sign-in uses. If Supabase stored the code as a magic link
     // or a new-user signup, that call says the token is invalid and the next type is tried once.
+    // The captcha token is single-use, so only the first verifyOtp may carry it.
     let last = ''
+    let sentCaptcha = false
     for (const type of ['email', 'magiclink', 'signup'] as const) {
       console.info(`[signin] verify type=${type} email=${address} digits=${code.length} at=${new Date().toISOString()}`)
-      const { data, error } = await sb.auth.verifyOtp({ email: address, token: code, type })
+      const { data, error } = await sb.auth.verifyOtp({
+        email: address,
+        token: code,
+        type,
+        options: sentCaptcha ? undefined : { captchaToken },
+      })
+      sentCaptcha = true
       const message = error?.message
       console.info(`[signin] verify result type=${type} ok=${!error && !!data.session} message=${message ?? ''}`)
       if (!error && data.session) return { ok: true }
       last = message ?? ''
+      if (captchaFailure(message)) return { ok: false, error: explainCodeError(message) }
       if (!otpTypeMismatch(message)) return { ok: false, error: explainCodeError(message) }
     }
     return { ok: false, error: explainCodeError(last) }
@@ -631,17 +729,174 @@ export async function signOut(): Promise<void> {
   explicitSignOut = true
   try {
     const sb = await client()
-    // local scope: only this device; this player's unsent scores stay queued under their id
+    // local scope: only this device. Profile switch uses this. Logout of every device is signOutEverywhere.
     await sb?.auth.signOut({ scope: 'local' }).catch(() => undefined)
-    try {
-      localStorage.removeItem(AUTH_STORAGE_KEY)
-      localStorage.removeItem(PROFILE_CACHE_KEY)
-    } catch { /* ignore */ }
-    queueOwner = null
-    set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined })
+    clearSavedLogin()
+    set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined, autoNamed: false })
   } finally {
     explicitSignOut = false
     if (!anonHeld) void ensureAnonymous()
+  }
+}
+
+const RECHECK_GAP_MS = 4000
+let recheckAt = 0
+
+function clearSavedLogin(): void {
+  try {
+    localStorage.removeItem(AUTH_STORAGE_KEY)
+    localStorage.removeItem(PROFILE_CACHE_KEY)
+  } catch { /* ignore */ }
+  queueOwner = null
+}
+
+function authRejection(status: number | undefined, message: string | undefined): boolean {
+  if (status === 401 || status === 403) return true
+  return /invalid jwt|session not found|refresh token|user not found|session_expired/i.test(message ?? '')
+}
+
+/** Another device signed out everywhere, or this session is past its idle or absolute limit. */
+async function dropRevokedSession(): Promise<void> {
+  explicitSignOut = true
+  try {
+    const sb = await client()
+    await sb?.auth.signOut({ scope: 'local' }).catch(() => undefined)
+    clearSavedLogin()
+    set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined, autoNamed: false })
+  } finally {
+    explicitSignOut = false
+    if (!anonHeld) void ensureAnonymous()
+  }
+}
+
+/**
+ * Sign this player out on every device. Other open games drop the session on their next load or focus.
+ * This device then starts a guest session so play can continue.
+ */
+export async function signOutEverywhere(): Promise<void> {
+  explicitSignOut = true
+  try {
+    const saved = readStoredSession()
+    if (saved?.access_token) {
+      await fetch('/api/auth/signout', {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${saved.access_token}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ all_devices: true }),
+      }).catch(() => undefined)
+    }
+    const sb = await client()
+    await sb?.auth.signOut({ scope: 'global' }).catch(() => undefined)
+    clearSavedLogin()
+    set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined, autoNamed: false })
+  } finally {
+    explicitSignOut = false
+    if (!anonHeld) void ensureAnonymous()
+  }
+}
+
+/** Remember that this login still needs a player name, or that one was just chosen. */
+export function noteAutoNamed(on: boolean, playerName?: string, publicName?: string): void {
+  const name = visibleName(playerName)
+  const shown = visibleName(publicName)
+  set({
+    autoNamed: on,
+    ...(name ? { name } : {}),
+    ...(shown ? { publicName: shown } : {}),
+  })
+  const saved = readStoredSession()
+  if (!saved) return
+  writeProfileCache(saved.user.id, state.email, name ?? state.name, shown ?? state.publicName, on)
+}
+
+/**
+ * Keep a name+password API session in the same localStorage slot the game already restores.
+ * Call this after POST /api/auth/signin or /api/auth/signup returns session tokens.
+ */
+export async function persistServerSession(accessToken: string, refreshToken: string): Promise<boolean> {
+  const sb = await client()
+  if (!sb) return false
+  const { data, error } = await sb.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+  if (error || !data.session) return false
+  await loadPlayer(sb, data.session)
+  return true
+}
+
+/**
+ * Ask the server whether the saved login is still good. Called on startup and when the window focuses.
+ * A network failure keeps the saved session. A 401 drops it.
+ */
+export async function recheckSession(): Promise<void> {
+  if (explicitSignOut) return
+  const now = Date.now()
+  if (now - recheckAt < RECHECK_GAP_MS) return
+  recheckAt = now
+  const saved = readStoredSession()
+  if (!saved) return
+  try {
+    const sb = await client()
+    if (!sb) return
+    let access = saved.access_token
+    const expiresAt = (saved.expires_at ?? 0) * 1000
+    if (!expiresAt || expiresAt - Date.now() <= 60_000) {
+      const refreshed = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ refresh_token: saved.refresh_token }),
+      }).catch(() => null)
+      if (!refreshed) return
+      if (refreshed.status === 401) {
+        await dropRevokedSession()
+        return
+      }
+      if (refreshed.ok) {
+        const body = (await refreshed.json()) as { session?: { access_token?: string; refresh_token?: string } }
+        if (body.session?.access_token && body.session.refresh_token) {
+          await sb.auth.setSession({ access_token: body.session.access_token, refresh_token: body.session.refresh_token })
+          access = body.session.access_token
+        }
+      }
+    }
+    const { data, error } = await sb.auth.getUser(access)
+    if (error) {
+      const status = (error as { status?: number }).status
+      if (authRejection(status, error.message)) await dropRevokedSession()
+      return
+    }
+    if (!data.user) {
+      await dropRevokedSession()
+      return
+    }
+    const checked = await fetch('/api/auth/session', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${access}`, 'content-type': 'application/json' },
+      body: '{}',
+    }).catch(() => null)
+    if (!checked) return
+    if (checked.status === 401) {
+      await dropRevokedSession()
+      return
+    }
+    let sessionFlags: { auto_named?: boolean } | undefined
+    let sessionPlayer: string | undefined
+    let sessionDisplay: string | undefined
+    if (checked.ok) {
+      const body = (await checked.json().catch(() => null)) as {
+        flags?: { auto_named?: boolean }
+        player_name?: string
+        display_name?: string
+      } | null
+      sessionFlags = body?.flags
+      sessionPlayer = body?.player_name
+      sessionDisplay = body?.display_name
+    }
+    const { data: sessionData } = await sb.auth.getSession()
+    await loadPlayer(sb, sessionData.session ?? sessionFromStore())
+    if (sessionFlags) noteAutoNamed(sessionFlags.auto_named === true, sessionPlayer, sessionDisplay)
+  } catch {
+    /* offline: the saved session stays */
   }
 }
 
@@ -807,9 +1062,7 @@ async function ensureNamedPlayer(sb: SupabaseClient, uid: string): Promise<boole
         publicName = (renamed.data.public_name as string | undefined) || name
       }
     }
-    set({ name, publicName })
-    writeProfileCache(uid, state.email, name, publicName)
-    if (!isUnsetAccountName(publicName)) rememberPlayerName(publicName)
+    publishPlayerNames(uid, name, publicName)
     return true
   }
   const display_name = deviceName
@@ -827,10 +1080,17 @@ async function ensureNamedPlayer(sb: SupabaseClient, uid: string): Promise<boole
   if (error || !row?.display_name) return false
   const name = row.display_name as string
   const publicName = (row.public_name as string | undefined) || name
-  set({ name, publicName })
-  writeProfileCache(uid, state.email, name, publicName)
-  rememberPlayerName(publicName)
+  publishPlayerNames(uid, name, publicName)
   return true
+}
+
+function publishPlayerNames(uid: string, name: string, publicName: string): void {
+  const safeName = visibleName(name)
+  const safePublic = visibleName(publicName)
+  if (!safeName && !safePublic) return
+  set({ name: safeName ?? null, publicName: safePublic })
+  writeProfileCache(uid, state.email, safeName ?? null, safePublic)
+  if (safePublic && !isUnsetAccountName(safePublic)) rememberPlayerName(safePublic)
 }
 
 async function insertScoreBatch(sb: SupabaseClient, rows: Array<Omit<ScoreRow, 'at' | 'dedupeKey'>>): Promise<WriteError> {

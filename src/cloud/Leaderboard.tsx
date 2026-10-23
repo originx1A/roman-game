@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { shownPublicName } from '../game/playerName'
 import { HelpMark } from '../components/HelpMark'
 import { CloudScoresButton, useCloud } from './CloudScores'
 import { loadPublicScores } from './cloud'
@@ -199,7 +200,8 @@ function Row({
   onLive?: (name: string) => void
 }) {
   const icons = yours ? badges.slice(0, 4) : []
-  const starLabel = friend ? `${line.name} is a friend` : asked ? `Asked ${line.name}` : `Ask ${line.name} to be friends`
+  const label = shownPublicName(line.name) || 'Player'
+  const starLabel = friend ? `${label} is a friend` : asked ? `Asked ${label}` : `Ask ${label} to be friends`
   return (
     <li className={`lb-row${yours ? ' is-you' : ''}${friend ? ' is-friend' : ''}`} data-testid={yours ? 'lb-you-row' : 'lb-row'}>
       <button
@@ -214,7 +216,7 @@ function Row({
       <span className="lb-rank">#{line.rank}</span>
       <span className={`lb-name${friend ? ' is-friend' : ''}`}>
         {online ? <span className="lb-online" title="Playing now" aria-label="Playing now" /> : null}
-        {yours ? <strong className="player-name-mark">{line.name}</strong> : line.name}
+        {yours ? <strong className="player-name-mark">{label}</strong> : label}
         {yours ? <small> you</small> : null}
         <span className="lb-badges" aria-label={yours && icons.length ? 'Your badges' : undefined}>
           {icons.map((icon, i) => (

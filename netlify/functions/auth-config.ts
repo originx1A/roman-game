@@ -1,3 +1,4 @@
+import { TURNSTILE_HOSTS, TURNSTILE_SITE_KEY } from '../../src/game/turnstileSite.ts'
 import { json } from '../lib/http.ts'
 import { SUPABASE_PUBLISHABLE, SUPABASE_URL } from '../lib/supabaseAdmin.ts'
 
@@ -19,5 +20,7 @@ export default async function authConfig(): Promise<Response> {
     passkey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
     google,
     vapidPublic: process.env.VAPID_PUBLIC_KEY || '',
+    turnstileSiteKey: TURNSTILE_SITE_KEY,
+    turnstileHosts: TURNSTILE_HOSTS,
   })
 }
