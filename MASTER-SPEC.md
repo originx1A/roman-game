@@ -1,6 +1,6 @@
 # Roman's Game master list (Tony, 2026-10-22)
 
-Where this list conflicts with earlier instructions, this list wins. Build 9.33-m against items 1–24 only. Items 25–30 are owned elsewhere: Cooper's login PR draws the game login screen, and the sign-in backend stays in PR #63. This PR does not build that screen or that backend. Items 33–38 are recorded here only. They are built in PR #63 and Cooper's login PR. This PR does not change that code.
+Where this list conflicts with earlier instructions, this list wins. Build 9.33-n against items 1–24 only. Items 25–30 are owned elsewhere: Cooper's login PR draws the game login screen, and the sign-in backend stays in PR #63. This PR does not build that screen or that backend. Items 33–38 are recorded here only. They are built in PR #63 and Cooper's login PR. This PR does not change that code.
 
 1. The Roman logo/header goes to game HOME (never the website). A small separate 'romansgame.com' link opens in a new tab, in the header of home and menu screens, never on the board during play.
 2. Every screen (Play, Rewards, Stable, Share, Save) has a clear way back Home, on PC and phone.

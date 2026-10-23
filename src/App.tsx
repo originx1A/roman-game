@@ -571,6 +571,8 @@ export default function App() {
   const [lastScore, setLastScore] = useState<number | null>(null)
   const [toast, setToast] = useState('')
   const toastTimer = useRef(0)
+  /** Delayed win toasts. Cleared when the player leaves the board, so none of them land on Home. */
+  const pendingToasts = useRef<number[]>([])
   const homeHeckleTimer = useRef(0)
   const voiceToast = useRef(false)
   /** The Unseen's home line, shown as soon as he is tapped. Audio can fail without hiding it. */
@@ -1137,11 +1139,33 @@ export default function App() {
     toastTimer.current = window.setTimeout(() => setToast(''), 2400)
   }
 
+  /** A win toast that must not survive leaving the board. */
+  function scheduleToast(ms: number, fn: () => void) {
+    const id = window.setTimeout(() => {
+      pendingToasts.current = pendingToasts.current.filter((t) => t !== id)
+      if (screenRef.current !== 'play') return
+      fn()
+    }, ms)
+    pendingToasts.current.push(id)
+  }
+
+  const leftPlay = useRef(screen === 'play')
+  useEffect(() => {
+    const wasPlay = leftPlay.current
+    leftPlay.current = screen === 'play'
+    if (!wasPlay || screen === 'play') return
+    for (const id of pendingToasts.current) window.clearTimeout(id)
+    pendingToasts.current = []
+    badgeToastQueue.current = []
+    window.clearTimeout(toastTimer.current)
+    setToast('')
+  }, [screen])
+
   useEffect(() => {
     if (celebrate) return
     const queued = badgeToastQueue.current.splice(0)
     queued.forEach((msg, i) => {
-      window.setTimeout(() => showToast(msg), i * 2600)
+      scheduleToast(i * 2600, () => showToast(msg))
     })
     // showToast reads the latest refs; the queue flushes when the victory card closes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1858,7 +1882,7 @@ export default function App() {
       setHuntJustEarned(metered.filledNow)
       paradeRef.current = paradeWin(paradeRef.current)
       saveParade(safeLocalStorage(), paradeRef.current)
-      if (metered.filledNow) window.setTimeout(() => showToast('Buddy meter full — Buddy Hunt unlocked!'), 1200)
+      if (metered.filledNow) scheduleToast(1200, () => showToast('Buddy meter full — Buddy Hunt unlocked!'))
       const targets = targetsFor(puzzle)
       const runMode = modeRef.current
       const score = scoreRunV2({
@@ -2031,15 +2055,15 @@ export default function App() {
         if (runMode === 'trial') {
           const c = awardTrialClearCoupon(ps, Date.now())
           ps = c.state
-          if (c.coupon) window.setTimeout(() => showToast(`Trial clear prize: ${c.coupon!.pct}% off ${petById(c.coupon!.pet)?.name ?? 'a buddy'} in The Stable`), 4200)
+          if (c.coupon) scheduleToast(4200, () => showToast(`Trial clear prize: ${c.coupon!.pct}% off ${petById(c.coupon!.pet)?.name ?? 'a buddy'} in The Stable`))
         }
         if (dailyStreak != null) {
           ps = grantTreat(ps, 'snack')
-          window.setTimeout(() => showToast('Daily prize: a free Snack for your buddy'), 3600)
+          scheduleToast(3600, () => showToast('Daily prize: a free Snack for your buddy'))
           const c = awardStreakCoupon(ps, dailyStreak, Date.now())
           ps = c.state
           if (c.coupon) ps = grantTreat(ps, 'feast')
-          if (c.coupon) window.setTimeout(() => showToast(`${dailyStreak}-day streak prize: ${c.coupon!.pct}% off ${petById(c.coupon!.pet)?.name ?? 'a buddy'} in The Stable`), 4400)
+          if (c.coupon) scheduleToast(4400, () => showToast(`${dailyStreak}-day streak prize: ${c.coupon!.pct}% off ${petById(c.coupon!.pet)?.name ?? 'a buddy'} in The Stable`))
         }
         persistPets(ps)
         if (ridePet) {
@@ -2054,9 +2078,9 @@ export default function App() {
           if (isRecord) window.setTimeout(() => petGiggle({ quietOnly: true }), 3200)
           if (grown.levelUp) {
             const m = milestoneAt(grown.levelUp)
-            window.setTimeout(() => showToast(`${p.name} is Level ${grown.levelUp}!${m ? ` New: ${m.text}` : ''}`), 5200)
+            scheduleToast(5200, () => showToast(`${p.name} is Level ${grown.levelUp}!${m ? ` New: ${m.text}` : ''}`))
           }
-          if (grown.starUp) window.setTimeout(() => showToast(`${p.name} earned prestige star ${'★'.repeat(grown.starUp!)}`), 5200)
+          if (grown.starUp) scheduleToast(5200, () => showToast(`${p.name} earned prestige star ${'★'.repeat(grown.starUp!)}`))
         }
       } catch {
         /* buddies are extras; never block the win */
@@ -2094,7 +2118,7 @@ export default function App() {
           detail: bits.join(' · '),
           pet: petCheer,
         })
-        if (replay?.trialUnlockedNow) window.setTimeout(() => showToast(`3 stars! Roman's Trial unlocked on ${puzzle.name}`), 1600)
+        if (replay?.trialUnlockedNow) scheduleToast(1600, () => showToast(`3 stars! Roman's Trial unlocked on ${puzzle.name}`))
       }
       let w: Wallet = {
         ...paid.wallet,
@@ -2114,20 +2138,18 @@ export default function App() {
       w = evaled.wallet
       persistWallet(w)
       if (paid.bonusPct > 0) {
-        window.setTimeout(() => {
-          showToast(`+${paid.gained} coins (+${formatBonusPercent(paid.bonusPct)} badge bonus)`)
-        }, 900)
+        scheduleToast(900, () => showToast(`+${paid.gained} coins (+${formatBonusPercent(paid.bonusPct)} badge bonus)`))
       }
       const unlockedNow = freshBadgeIds(wallet, evaled.wallet)
       if (unlockedNow.length) {
         // Let the win Roman punchline finish before badge unlock voice/toast
         unlockedNow.forEach((badgeId, i) => {
           const badge = BADGES.find((b) => b.id === badgeId)
-          window.setTimeout(() => {
+          scheduleToast(3400 + i * 2600, () => {
             sfxAchievement()
             if (i === 0) pushBanter('achievement')
             showToast(`Badge unlocked: ${badge?.title ?? badgeId}`)
-          }, 3400 + i * 2600)
+          })
         })
       }
       if (shellRef.current) burstConfetti(shellRef.current)
