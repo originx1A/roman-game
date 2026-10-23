@@ -110,7 +110,7 @@ test('the full board, with friends and groups, opens on the desktop too', () => 
   assert.doesNotMatch(app, /Mix it up/)
   assert.doesNotMatch(app, /no undos/)
   assert.doesNotMatch(app, /no undo</)
-  assert.match(tag, /build 9\.33-i/)
+  assert.match(tag, /build 9\.33-j/)
   const desktopHome = app.split("screen === 'home' && device !== 'phone'")[1]?.split("screen === 'how'")[0] ?? ''
   assert.equal(desktopHome.includes('mode-daily'), false)
   assert.equal(desktopHome.includes('mode-remix'), false)

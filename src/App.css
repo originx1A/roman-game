@@ -3694,14 +3694,23 @@ html[data-device='desktop'] main.how-panel > .cta-row {
 
 
 
-/* Toast placement: never over the play HUD (timer / hearts) or Victory buttons.
-   Default stays at the top (menus). On the play screen it drops just below the HUD row;
-   while the Victory screen is up it goes back to the very top, above the card. */
+/* Toast placement: never over the play HUD (timer / hearts) or the Victory title.
+   Default stays at the top (menus). On the play screen it drops just below the HUD row.
+   Desktop Victory keeps a gap above the card. Phone Victory puts the toast under the card. */
 .shell-play .toast {
   top: calc(max(0.5rem, env(safe-area-inset-top, 0px)) + 3.1rem);
 }
 .shell-play.shell-celebrate .toast {
   top: max(0.4rem, env(safe-area-inset-top, 0px));
+}
+/* Phone Victory fills the screen, so a top toast lands on the title. Keep the
+   toast in the band under the card instead. The card's bottom padding reserves it. */
+html[data-device='phone'] .shell-play.shell-celebrate .win-screen {
+  --win-pad-b: calc(max(0.25rem, env(safe-area-inset-bottom, 0px)) + 4.6rem);
+}
+html[data-device='phone'] .shell-play.shell-celebrate .toast {
+  top: auto;
+  bottom: max(0.4rem, env(safe-area-inset-bottom, 0px));
 }
 .shell-celebrate .win-screen-card {
   margin-top: 2.6rem;
@@ -7484,7 +7493,8 @@ html[data-device='desktop'] main.home .cta-row .unseen-tile {
 html[data-device='desktop'] main.home .home-side {
   grid-area: side;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  align-content: flex-start;
   gap: 0.55rem;
   min-width: 0;
 }
