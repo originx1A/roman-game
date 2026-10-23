@@ -10,6 +10,9 @@ import { hashCard, hashCode, hashIp, hashUa, scrubMetadata } from '../netlify/li
 import { COMMON_PASSWORDS } from '../netlify/lib/commonPasswords.ts'
 import { hibpRange } from '../netlify/lib/hibp.ts'
 import { NAME_FILTER } from '../netlify/lib/nameFilterData.ts'
+import { mergeAccountFlags, emptyAccountFlags } from '../netlify/lib/accountFlags.ts'
+import { GROUP_ADJECTIVES, GROUP_NOUNS, groupPlayerName } from '../netlify/lib/groupNames.ts'
+import { checkoutAllowed } from '../netlify/lib/payGate.ts'
 import { decideName, publicDisplayName } from '../netlify/lib/namePolicy.ts'
 import { passwordRejectReason } from '../netlify/lib/passwordPolicy.ts'
 import { playerInsert, profileInsert } from '../netlify/lib/authTypes.ts'
@@ -111,6 +114,7 @@ test('names normalize, and the filter rejects reserved, leet, and PII', () => {
   if (!handle.ok) assert.equal(handle.normalized, null)
   assert.equal(publicDisplayName('Cool Kid'), 'Cool')
   assert.equal(publicDisplayName('shit head'), '')
+  assert.equal(publicDisplayName('kid@mail.com'), '')
 })
 
 test('passwords reject length, the player name, and the common list', () => {
@@ -590,7 +594,7 @@ test('logout is global and the saved session is checked on load and focus', () =
   assert.match(source, /recheckSession/)
   assert.match(source, /addEventListener\('focus'/)
   assert.match(source, /\/api\/auth\/session/)
-  assert.match(read('../src/buildTag.ts'), /build 9\.32-i/)
+  assert.match(read('../src/buildTag.ts'), /build 9\.32-j/)
   assert.match(read('../src/App.tsx'), /signOutEverywhere as cloudSignOut/)
   assert.match(read('../src/cloud/CloudScores.tsx'), /signOutEverywhere\(\)/)
   assert.match(read('../public/_redirects'), /\/api\/auth\/account/)
@@ -953,4 +957,203 @@ test('a recovery code expires after 10 minutes and a mailbox is limited to 3 sen
   assert.equal(blocked.status, 429)
   assert.equal(blockedBody.error, 'rate_limited')
   assert.equal(sent.filter((row) => row.purpose === 'reset').length, 3)
+})
+
+function generatedName(playerName: unknown): { adjective: string; noun: string; number: string } {
+  const text = String(playerName)
+  const match = /^([A-Za-z]+) ([A-Za-z]+) (\d{1,2})$/.exec(text)
+  assert.ok(match, text)
+  return { adjective: match[1].toLowerCase(), noun: match[2].toLowerCase(), number: match[3] }
+}
+
+test('every group-name pair is a legal player name and never an email', () => {
+  for (const adjective of GROUP_ADJECTIVES) {
+    for (const noun of GROUP_NOUNS) {
+      const built = groupPlayerName(adjective, noun, 1)
+      assert.ok(built, `${adjective} ${noun}`)
+      assert.equal(built.displayName.includes('@'), false)
+      assert.equal(built.normalized.includes('@'), false)
+      assert.match(built.normalized, /^[a-z][a-z0-9-]{2,19}$/)
+    }
+  }
+})
+
+test('an email in the name field signs up, signs in, then yields to a chosen player name', async () => {
+  const backend = new MemoryAuth()
+  const { authDeps, sent } = deps(backend)
+  const email = 'ada.parent@example.com'
+  const created = await call('signup', { name: 'Ada.Parent@Example.com', password: PASSWORD, captchaToken: TOKEN }, authDeps)
+  assert.equal(created.status, 201)
+  const body = await json(created)
+  const playerName = String(body.player_name)
+  const parts = generatedName(playerName)
+  assert.equal((GROUP_ADJECTIVES as readonly string[]).includes(parts.adjective), true)
+  assert.equal((GROUP_NOUNS as readonly string[]).includes(parts.noun), true)
+  assert.equal(Number(parts.number) >= 1 && Number(parts.number) <= 99, true)
+  assert.equal(playerName.includes('@'), false)
+  assert.equal(body.display_name, playerName.split(' ')[0])
+  assert.equal(body.auto_named, true)
+  assert.equal((body.flags as { auto_named: boolean }).auto_named, true)
+  assert.equal(JSON.stringify(body).includes(email), false)
+  assert.equal(sent.some((row) => row.email === email && row.purpose === 'verify'), true)
+  const recovery = await backend.getRecovery(String(body.user_id))
+  assert.equal(recovery?.pendingEmail, email)
+  const userId = String(body.user_id)
+
+  const byEmail = await json(await call('signin', { name: email, password: PASSWORD, captchaToken: TOKEN }, authDeps))
+  assert.equal(byEmail.user_id, userId)
+  assert.equal(String(byEmail.player_name).includes('@'), false)
+  const byName = await json(await call('signin', { name: playerName, password: PASSWORD, captchaToken: TOKEN }, authDeps))
+  assert.equal(byName.user_id, userId)
+
+  const headers = { authorization: `Bearer ${(body.session as { access_token: string }).access_token}` }
+  const missingToken = await call('name', { name: 'Cool Kid' }, authDeps, headers)
+  assert.equal(missingToken.status, 403)
+  const unnamed = await call('name', { name: 'Cool Kid', captchaToken: TOKEN }, authDeps)
+  assert.equal(unnamed.status, 401)
+  const rejected = await call('name', { name: 'kid@mail.com', captchaToken: TOKEN }, authDeps, headers)
+  assert.equal(rejected.status, 422)
+  const renamed = await call('name', { name: 'Cool Kid', captchaToken: TOKEN }, authDeps, headers)
+  assert.equal(renamed.status, 200)
+  const renamedBody = await json(renamed)
+  assert.equal(renamedBody.player_name, 'Cool Kid')
+  assert.equal(renamedBody.display_name, 'Cool')
+  assert.equal(renamedBody.auto_named, false)
+  assert.equal((renamedBody.flags as { auto_named: boolean }).auto_named, false)
+
+  const oldName = await call('signin', { name: playerName, password: PASSWORD, captchaToken: TOKEN }, authDeps)
+  assert.equal(oldName.status, 401)
+  const chosen = await json(await call('signin', { name: 'cool kid', password: PASSWORD, captchaToken: TOKEN }, authDeps))
+  assert.equal(chosen.user_id, userId)
+  const stillEmail = await json(await call('signin', { name: 'ADA.PARENT@example.com', password: PASSWORD, captchaToken: TOKEN }, authDeps))
+  assert.equal(stillEmail.user_id, userId)
+
+  const taken = await call('signup', { name: email, password: PASSWORD, captchaToken: TOKEN }, authDeps)
+  assert.equal(taken.status, 409)
+  assert.equal((await json(taken)).error, 'email_taken')
+  const kept = mergeAccountFlags({ ...emptyAccountFlags(), autoNamed: true }, { auto_named: false }, '2026-10-22T00:00:00.000Z')
+  assert.equal(kept.autoNamed, true)
+})
+
+test('an under-13 email signup stays a player name, and the parent email opens the parent', async () => {
+  const backend = new MemoryAuth()
+  const { authDeps, sent } = deps(backend)
+  const email = 'parent.hold@example.com'
+  const created = await call('signup', {
+    name: email,
+    password: PASSWORD,
+    age_choice: 'under_13',
+    age_confirmed: true,
+    captchaToken: TOKEN,
+  }, authDeps)
+  assert.equal(created.status, 201)
+  const body = await json(created)
+  const playerName = String(body.player_name)
+  generatedName(playerName)
+  assert.equal(playerName.includes('@'), false)
+  assert.equal(body.auto_named, true)
+  assert.equal(body.parent_email_pending, true)
+  assert.equal((body.flags as { age_confirmed_at: string | null }).age_confirmed_at, null)
+  assert.equal(backend.recovery.size, 0)
+  assert.equal(sent.some((row) => row.purpose === 'verify'), false)
+  assert.equal(sent.filter((row) => row.purpose === 'approve').length, 1)
+  assert.equal(JSON.stringify(body).includes(email), false)
+  const kidId = String(body.user_id)
+  const blocked = await call('signin', { name: email, password: PASSWORD, captchaToken: TOKEN }, authDeps)
+  assert.equal(blocked.status, 401)
+  const byName = await json(await call('signin', { name: playerName, password: PASSWORD, captchaToken: TOKEN }, authDeps))
+  assert.equal(byName.user_id, kidId)
+
+  const token = new URL(sent[0].code).searchParams.get('token') || ''
+  const { approveParentHold } = await import('../netlify/lib/parentApprove.ts')
+  const approved = await approveParentHold(new Request(`https://play.romansgame.com/api/auth/parent-approve?token=${encodeURIComponent(token)}`), authDeps)
+  assert.equal(approved.status, 200)
+  const stillKid = await call('signin', { name: email, password: PASSWORD, captchaToken: TOKEN }, authDeps)
+  assert.equal(stillKid.status, 401)
+
+  const parent = await call('signup', { name: email, password: PASSWORD, age_choice: '13_plus', captchaToken: TOKEN }, authDeps)
+  assert.equal(parent.status, 201)
+  const parentBody = await json(parent)
+  assert.notEqual(parentBody.user_id, kidId)
+  assert.equal(String(parentBody.player_name).includes('@'), false)
+  const opened = await json(await call('signin', { name: email, password: PASSWORD, captchaToken: TOKEN }, authDeps))
+  assert.equal(opened.user_id, parentBody.user_id)
+  const kidStill = await json(await call('signin', { name: playerName, password: PASSWORD, captchaToken: TOKEN }, authDeps))
+  assert.equal(kidStill.user_id, kidId)
+  assert.equal(await backend.isLinkedChild(kidId), true)
+})
+
+test('email sign-in uses the same generic error and a hashed lockout', async () => {
+  const backend = new MemoryAuth()
+  const { authDeps } = deps(backend)
+  const email = 'ada.parent@example.com'
+  await call('signup', { name: email, password: PASSWORD, captchaToken: TOKEN }, authDeps)
+  const badShape = await call('signin', { name: 'not-an-email@', password: PASSWORD, captchaToken: TOKEN }, authDeps)
+  assert.equal(badShape.status, 401)
+  assert.equal((await json(badShape)).error, 'invalid_credentials')
+  for (let i = 0; i < 4; i += 1) {
+    const wrong = await call('signin', { name: email, password: 'wrong-password-value', captchaToken: TOKEN }, authDeps)
+    assert.equal(wrong.status, 401)
+  }
+  const fifth = await call('signin', { name: email, password: 'wrong-password-value', captchaToken: TOKEN }, authDeps)
+  assert.equal(fifth.status, 429)
+  const locked = await call('signin', { name: email, password: PASSWORD, captchaToken: TOKEN }, authDeps)
+  assert.equal(locked.status, 429)
+  const keys = [...backend.limits.keys()]
+  assert.equal(keys.some((key) => key.includes('@') || key.includes('ada.parent')), false)
+  assert.equal(keys.some((key) => key.startsWith('signin_name:e.')), true)
+  const dumped = JSON.stringify(backend.audits)
+  assert.equal(dumped.includes(email), false)
+})
+
+test('sign-out everywhere revokes the global scope', async () => {
+  const backend = new MemoryAuth()
+  const { authDeps } = deps(backend)
+  const created = await json(await call('signup', { name: 'Cool Kid', password: PASSWORD, captchaToken: TOKEN }, authDeps))
+  const headers = { authorization: `Bearer ${(created.session as { access_token: string }).access_token}` }
+  const signedOut = await call('signout', { all_devices: true }, authDeps, headers)
+  assert.equal(signedOut.status, 204)
+  assert.equal(backend.revokes.some((row) => row.scope === 'global'), true)
+  assert.match(read('../src/cloud/cloud.ts'), /signOut\(\{ scope: 'global' \}\)/)
+  assert.match(read('../netlify/lib/authHandler.ts'), /all_devices === true \? 'global'/)
+})
+
+test('kid mode is blocked on every purchase path, and public names never render an email', () => {
+  const blocked = checkoutAllowed({
+    signedIn: true,
+    paymentsEnabled: true,
+    parentLocked: false,
+    age13Plus: true,
+    ownerAdult: false,
+    reauthOk: true,
+    country: null,
+    requireReauth: false,
+  })
+  assert.equal(blocked.ok, false)
+  assert.match(read('../netlify/functions/create-checkout.ts'), /checkoutAllowed/)
+  assert.match(read('../netlify/lib/cartHandler.ts'), /checkoutAllowed/)
+  assert.match(read('../netlify/functions/confirm-checkout.ts'), /requireCheckoutGate/)
+  assert.match(read('../netlify/functions/coin-credit.ts'), /requireCheckoutGate/)
+  const app = read('../src/App.tsx')
+  const buy = app.slice(app.indexOf('async function onBuyCoins'), app.indexOf('async function onRestorePurchases'))
+  const refusal = buy.indexOf("This account can't make purchases.")
+  const pack = buy.indexOf('purchaseCoinPack')
+  assert.equal(refusal !== -1 && refusal < pack, true)
+  assert.equal(app.includes('cloud.email'), false)
+  assert.equal(read('../src/cloud/CloudScores.tsx').includes('cloud.email'), false)
+  assert.match(read('../src/cloud/Leaderboard.tsx'), /shownPublicName/)
+  assert.match(read('../src/cloud/FamilyPanel.tsx'), /shownPublicName/)
+  assert.match(read('../src/components/WinScreen.tsx'), /shownPublicName/)
+  assert.match(read('../src/cloud/PickPlayerName.tsx'), /Pick your player name/)
+  assert.match(app, /PickPlayerName/)
+  assert.equal(read('../index.html').includes('9.32-e'), false)
+  assert.equal(read('../src/game/analytics.ts').includes('9.32-e'), false)
+  const sql = read('../supabase/migration-015-auto-name.sql').replace(/--[^\n]*/g, '')
+  assert.match(sql, /auto_named boolean not null default false/)
+  assert.equal(sql.includes('age_13_plus'), false)
+  assert.equal(/drop table/i.test(sql), false)
+  assert.match(read('../public/_redirects'), /\/api\/auth\/name /)
+  assert.match(read('../netlify.toml'), /\/api\/auth\/name/)
+  assert.match(read('../docs/auth-api.md'), /POST \/api\/auth\/name/)
+  assert.match(read('../docs/auth-api.md'), /migration-015-auto-name/)
 })

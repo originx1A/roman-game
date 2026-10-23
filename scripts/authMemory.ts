@@ -66,6 +66,30 @@ export class MemoryAuth implements AuthBackend {
     return this.byId.get(playerId) ?? null
   }
 
+  async renameAccount(playerId: string, displayName: string, normalized: string, publicName: string): Promise<'ok' | 'taken' | 'failed'> {
+    const existing = this.profiles.get(normalized)
+    if (existing && existing.playerId !== playerId) return 'taken'
+    const profile = this.byId.get(playerId)
+    if (!profile) return 'failed'
+    if (publicName.includes('@') || displayName.includes('@')) return 'failed'
+    const password = this.passwords.get(profile.normalized)
+    this.profiles.delete(profile.normalized)
+    this.passwords.delete(profile.normalized)
+    profile.displayName = displayName
+    profile.normalized = normalized
+    this.profiles.set(normalized, profile)
+    if (password != null) this.passwords.set(normalized, password)
+    return 'ok'
+  }
+
+  async isLinkedChild(playerId: string): Promise<boolean> {
+    for (const key of this.parents) {
+      const child = key.split(':')[1]
+      if (child === playerId) return true
+    }
+    return this.links.some((link) => link.childId === playerId && link.status === 'active')
+  }
+
   async signIn(normalized: string, password: string, captchaToken?: string): Promise<PasswordSignIn> {
     this.captchaUses.push({ where: 'signIn', token: captchaToken })
     if (this.failCaptcha) return 'captcha'

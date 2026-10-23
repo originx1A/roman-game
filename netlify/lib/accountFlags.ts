@@ -10,6 +10,8 @@ export type AccountFlags = {
   ownerRole: 'adult' | null
   ownerAssumedAt: string | null
   ownerEmail: string | null
+  /** True when the server invented the player name because sign-up used an email. */
+  autoNamed: boolean
 }
 
 export function emptyAccountFlags(): AccountFlags {
@@ -22,6 +24,7 @@ export function emptyAccountFlags(): AccountFlags {
     ownerRole: null,
     ownerAssumedAt: null,
     ownerEmail: null,
+    autoNamed: false,
   }
 }
 
@@ -35,6 +38,7 @@ export function accountFlagsBody(flags: AccountFlags) {
     owner_role: flags.ownerRole,
     owner_assumed_at: flags.ownerAssumedAt,
     owner_email: flags.ownerEmail,
+    auto_named: flags.autoNamed,
   }
 }
 
@@ -47,7 +51,8 @@ function sameFlags(left: AccountFlags, right: AccountFlags): boolean {
     left.marketingAnsweredAt === right.marketingAnsweredAt &&
     left.ownerRole === right.ownerRole &&
     left.ownerAssumedAt === right.ownerAssumedAt &&
-    left.ownerEmail === right.ownerEmail
+    left.ownerEmail === right.ownerEmail &&
+    left.autoNamed === right.autoNamed
   )
 }
 

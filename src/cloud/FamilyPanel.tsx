@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { shownPublicName } from '../game/playerName'
 import { getSupabase } from './cloud'
 
 type Kid = { user_id: string; display_name: string }
@@ -65,7 +66,7 @@ export function FamilyPanel() {
       {kids.length === 0 ? <p className="start-sheet-tip">No kids linked yet.</p> : null}
       {kids.map((kid) => (
         <p key={kid.user_id}>
-          {kid.display_name || 'Player'}{' '}
+          {shownPublicName(kid.display_name) || 'Player'}{' '}
           <button type="button" className="btn ghost btn-sm" onClick={() => void remove(kid.user_id)}>
             Remove
           </button>

@@ -106,9 +106,10 @@ export function decideName(raw: unknown): NameDecision {
   return { ok: true, normalized, displayName }
 }
 
-/** First word only. A profane first word is skipped (empty), not shown. */
+/** First word only. A profane first word, or any email, is skipped (empty), not shown. */
 export function publicDisplayName(displayName: string): string {
+  if (displayName.includes('@')) return ''
   const first = displayName.trim().split(' ')[0] ?? ''
-  if (!first || isBlockedWord(first)) return ''
+  if (!first || first.includes('@') || isBlockedWord(first)) return ''
   return first.slice(0, 24)
 }

@@ -49,6 +49,8 @@ export interface CloudState {
   name?: string | null
   /** The unique name shown on the leaderboard (server adds 02, 03... if the name was taken) */
   publicName?: string
+  /** The server invented this player name because sign-up used an email. */
+  autoNamed?: boolean
   pending: number
   lastSync?: string
 }
@@ -79,7 +81,12 @@ export function readStoredSession(store: Pick<Storage, 'getItem'> | null = typeo
   }
 }
 
-interface ProfileCache { userId: string; email?: string; name?: string | null; publicName?: string }
+interface ProfileCache { userId: string; email?: string; name?: string | null; publicName?: string; autoNamed?: boolean }
+
+function visibleName(value: unknown): string | undefined {
+  if (typeof value !== 'string' || value.includes('@')) return undefined
+  return value
+}
 
 function readProfileCache(userId: string): ProfileCache | null {
   try {
@@ -90,14 +97,17 @@ function readProfileCache(userId: string): ProfileCache | null {
   }
 }
 
-function writeProfileCache(userId: string, email: string | undefined, name: string | null | undefined, publicName?: string) {
+function writeProfileCache(userId: string, email: string | undefined, name: string | null | undefined, publicName?: string, autoNamed?: boolean) {
   try {
     const prev = readProfileCache(userId)
+    const safeName = name === undefined ? prev?.name ?? null : visibleName(name) ?? null
+    const safePublic = publicName === undefined ? prev?.publicName : visibleName(publicName)
     localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify({
       userId,
       email: email ?? prev?.email,
-      name: name === undefined ? prev?.name ?? null : name,
-      publicName: publicName ?? prev?.publicName,
+      name: safeName,
+      publicName: safePublic,
+      autoNamed: autoNamed ?? prev?.autoNamed,
     }))
   } catch {
     /* private mode */
@@ -229,8 +239,9 @@ function restoredState(): CloudState {
   return {
     status: 'signed-in',
     email: saved.user.email ?? cached?.email,
-    name: cached?.name,
-    publicName: cached?.publicName,
+    name: visibleName(cached?.name),
+    publicName: visibleName(cached?.publicName),
+    autoNamed: cached?.autoNamed === true,
     pending: readQueue(saved.user.id).length,
   }
 }
@@ -403,7 +414,7 @@ async function loadPlayer(sb: SupabaseClient, session: Session | null) {
   if (!session) {
     queueOwner = null
     try { localStorage.removeItem(PROFILE_CACHE_KEY) } catch { /* ignore */ }
-    return set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined })
+    return set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined, autoNamed: false })
   }
   if (queueOwner !== session.user.id) {
     queueOwner = session.user.id
@@ -414,8 +425,9 @@ async function loadPlayer(sb: SupabaseClient, session: Session | null) {
   set({
     status: 'signed-in',
     email: session.user.email ?? cached?.email,
-    name: state.name ?? cached?.name,
-    publicName: state.publicName ?? cached?.publicName,
+    name: visibleName(state.name ?? cached?.name),
+    publicName: visibleName(state.publicName ?? cached?.publicName),
+    autoNamed: state.autoNamed ?? cached?.autoNamed === true,
   })
   const { data, error } = await sb.from('players').select('display_name, public_name').eq('id', session.user.id).maybeSingle()
   if (error) {
@@ -423,8 +435,8 @@ async function loadPlayer(sb: SupabaseClient, session: Session | null) {
     void flushScores()
     return
   }
-  const name = data?.display_name ?? null
-  const publicName = data?.public_name
+  const name = visibleName(data?.display_name) ?? null
+  const publicName = visibleName(data?.public_name)
   set({ status: 'signed-in', email: session.user.email, name, publicName })
   writeProfileCache(session.user.id, session.user.email, name, publicName)
   void ensurePlayerRow(sb)
@@ -720,7 +732,7 @@ export async function signOut(): Promise<void> {
     // local scope: only this device. Profile switch uses this. Logout of every device is signOutEverywhere.
     await sb?.auth.signOut({ scope: 'local' }).catch(() => undefined)
     clearSavedLogin()
-    set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined })
+    set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined, autoNamed: false })
   } finally {
     explicitSignOut = false
     if (!anonHeld) void ensureAnonymous()
@@ -750,7 +762,7 @@ async function dropRevokedSession(): Promise<void> {
     const sb = await client()
     await sb?.auth.signOut({ scope: 'local' }).catch(() => undefined)
     clearSavedLogin()
-    set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined })
+    set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined, autoNamed: false })
   } finally {
     explicitSignOut = false
     if (!anonHeld) void ensureAnonymous()
@@ -778,11 +790,25 @@ export async function signOutEverywhere(): Promise<void> {
     const sb = await client()
     await sb?.auth.signOut({ scope: 'global' }).catch(() => undefined)
     clearSavedLogin()
-    set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined })
+    set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined, autoNamed: false })
   } finally {
     explicitSignOut = false
     if (!anonHeld) void ensureAnonymous()
   }
+}
+
+/** Remember that this login still needs a player name, or that one was just chosen. */
+export function noteAutoNamed(on: boolean, playerName?: string, publicName?: string): void {
+  const name = visibleName(playerName)
+  const shown = visibleName(publicName)
+  set({
+    autoNamed: on,
+    ...(name ? { name } : {}),
+    ...(shown ? { publicName: shown } : {}),
+  })
+  const saved = readStoredSession()
+  if (!saved) return
+  writeProfileCache(saved.user.id, state.email, name ?? state.name, shown ?? state.publicName, on)
 }
 
 /**
@@ -853,8 +879,22 @@ export async function recheckSession(): Promise<void> {
       await dropRevokedSession()
       return
     }
+    let sessionFlags: { auto_named?: boolean } | undefined
+    let sessionPlayer: string | undefined
+    let sessionDisplay: string | undefined
+    if (checked.ok) {
+      const body = (await checked.json().catch(() => null)) as {
+        flags?: { auto_named?: boolean }
+        player_name?: string
+        display_name?: string
+      } | null
+      sessionFlags = body?.flags
+      sessionPlayer = body?.player_name
+      sessionDisplay = body?.display_name
+    }
     const { data: sessionData } = await sb.auth.getSession()
     await loadPlayer(sb, sessionData.session ?? sessionFromStore())
+    if (sessionFlags) noteAutoNamed(sessionFlags.auto_named === true, sessionPlayer, sessionDisplay)
   } catch {
     /* offline: the saved session stays */
   }
@@ -1022,9 +1062,7 @@ async function ensureNamedPlayer(sb: SupabaseClient, uid: string): Promise<boole
         publicName = (renamed.data.public_name as string | undefined) || name
       }
     }
-    set({ name, publicName })
-    writeProfileCache(uid, state.email, name, publicName)
-    if (!isUnsetAccountName(publicName)) rememberPlayerName(publicName)
+    publishPlayerNames(uid, name, publicName)
     return true
   }
   const display_name = deviceName
@@ -1042,10 +1080,17 @@ async function ensureNamedPlayer(sb: SupabaseClient, uid: string): Promise<boole
   if (error || !row?.display_name) return false
   const name = row.display_name as string
   const publicName = (row.public_name as string | undefined) || name
-  set({ name, publicName })
-  writeProfileCache(uid, state.email, name, publicName)
-  rememberPlayerName(publicName)
+  publishPlayerNames(uid, name, publicName)
   return true
+}
+
+function publishPlayerNames(uid: string, name: string, publicName: string): void {
+  const safeName = visibleName(name)
+  const safePublic = visibleName(publicName)
+  if (!safeName && !safePublic) return
+  set({ name: safeName ?? null, publicName: safePublic })
+  writeProfileCache(uid, state.email, safeName ?? null, safePublic)
+  if (safePublic && !isUnsetAccountName(safePublic)) rememberPlayerName(safePublic)
 }
 
 async function insertScoreBatch(sb: SupabaseClient, rows: Array<Omit<ScoreRow, 'at' | 'dedupeKey'>>): Promise<WriteError> {

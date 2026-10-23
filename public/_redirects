@@ -12,6 +12,7 @@
 /api/auth/signout /.netlify/functions/auth-signout 200!
 /api/auth/refresh /.netlify/functions/auth-refresh 200!
 /api/auth/account /.netlify/functions/auth-account 200!
+/api/auth/name /.netlify/functions/auth-name 200!
 /api/auth/flags /.netlify/functions/auth-flags 200!
 /api/auth/session /.netlify/functions/auth-session 200!
 /api/auth/family /.netlify/functions/auth-family 200!

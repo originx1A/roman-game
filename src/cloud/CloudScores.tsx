@@ -4,7 +4,8 @@ import { KeyboardNameSheet, useKeyboardNameEntry } from '../components/KeyboardN
 import { LegalLine } from '../components/LegalLine'
 import { playVoice } from '../game/sound'
 import { isProfane } from './profanity'
-import { NAME_MAX, cloudState, loadConsent, persistServerSession, saveConsent, onCloud, renamePlayer, savePlayerName, scoreSaveLabel, sendMagicLink, signInCode, signInEmail, signOut, signOutEverywhere, verifyEmailCode, type CloudState } from './cloud'
+import { NAME_MAX, cloudState, loadConsent, noteAutoNamed, persistServerSession, saveConsent, onCloud, renamePlayer, savePlayerName, scoreSaveLabel, sendMagicLink, signInCode, signInEmail, signOut, signOutEverywhere, verifyEmailCode, type CloudState } from './cloud'
+import { shownPublicName } from '../game/playerName'
 import { FamilyPanel } from './FamilyPanel'
 import { useTurnstile } from './useTurnstile'
 
@@ -307,7 +308,7 @@ export function CloudScoresButton({
                 <h3>{switching ? 'Switch player' : 'Save your scores'}</h3>
                 <p className="start-sheet-tip">
                   {switching
-                    ? `You're signed in as ${cloud.publicName ?? cloud.name ?? cloud.email}. Not now keeps this player. We'll only switch after the new sign-in link is sent.`
+                    ? `You're signed in as ${shownPublicName(cloud.publicName) || shownPublicName(cloud.name) || 'this player'}. Not now keeps this player. We'll only switch after the new sign-in link is sent.`
                     : "Get on the leaderboard and keep your scores on any device. We'll email you a sign-in link and the code from your email. No password."}
                 </p>
                 <input className="name-input" type="email" inputMode="email" autoComplete="email" placeholder="Email address" aria-label="Email address" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -445,6 +446,9 @@ export function CloudScoresButton({
                     })
                     const data = (await res.json().catch(() => null)) as {
                       error?: string
+                      auto_named?: boolean
+                      player_name?: string
+                      display_name?: string
                       session?: { access_token?: string; refresh_token?: string }
                     } | null
                     if (!res.ok || !data?.session?.access_token || !data.session.refresh_token) {
@@ -452,6 +456,7 @@ export function CloudScoresButton({
                       return
                     }
                     await persistServerSession(data.session.access_token, data.session.refresh_token)
+                    if (data.auto_named) noteAutoNamed(true, data.player_name, data.display_name)
                     setErr('')
                     setNotice('A parent has the approval email. That address is for recovery only.')
                     setSheet(null)
@@ -509,7 +514,7 @@ export function CloudScoresButton({
                 ) : (
                   <>
                     <p className="start-sheet-tip">
-                      Signed in as {cloud.email}. Leaderboard name: <b className="player-name-mark">{cloud.publicName ?? cloud.name}</b>.
+                      Signed in. Leaderboard name: <b className="player-name-mark">{shownPublicName(cloud.publicName) || shownPublicName(cloud.name) || 'Player'}</b>.
                       {cloud.pending ? ` ${cloud.pending} score${cloud.pending === 1 ? '' : 's'} will send when you're back online.` : ' Every game you finish is saved.'}
                     </p>
                     <button type="button" className="btn primary" onClick={closeSheet}>

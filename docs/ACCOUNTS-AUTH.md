@@ -15,7 +15,8 @@ The game host calls these. Cooper’s sign-in face should set `nameAuth.signIn` 
 | Method and path | Success |
 | --- | --- |
 | `POST /api/auth/signup` | `201` with `user_id`, public `display_name` (first word), and `session.access_token` plus `session.refresh_token` |
-| `POST /api/auth/signin` | `200` with the same session shape |
+| `POST /api/auth/signin` | `200` with the same session shape. `name` may be a player name or a recovery email |
+| `POST /api/auth/name` | `200` `{ok:true, player_name, display_name, auto_named:false}` |
 | `POST /api/auth/password/change` | `200 {ok:true}` and other sessions revoked |
 | `POST /api/auth/recover/email/start` | `202 {ok:true}` whether or not the name exists |
 | `POST /api/auth/recover/email/finish` | `200` with a session, or `401` |

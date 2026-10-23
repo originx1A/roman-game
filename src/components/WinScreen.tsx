@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties } from 'react'
 import { CRITTER_STASH_GOAL } from './SparkCritter'
 import { PetArt } from './PetArt'
 import { CloudScoresButton } from '../cloud/CloudScores'
+import { shownPublicName } from '../game/playerName'
 import { UnseenCardGain } from './UnseenCard'
 import { BuddyMeterStrip } from './BuddyMeterStrip'
 import type { PetId } from '../game/pets'
@@ -254,9 +255,12 @@ export function WinScreen({
               {(cloud) =>
                 cloud.saving ? (
                   <p className="win-save-note" role="status" data-testid="win-saved">
-                    {cloud.pending && typeof navigator !== 'undefined' && navigator.onLine === false
-                      ? `Saved on this phone${cloud.publicName ? ` as ${cloud.publicName}` : ''}. It sends when you're back online.`
-                      : `Score saved${cloud.publicName ? ` as ${cloud.publicName}` : ''}`}
+                    {(() => {
+                      const savedAs = shownPublicName(cloud.publicName)
+                      return cloud.pending && typeof navigator !== 'undefined' && navigator.onLine === false
+                        ? `Saved on this phone${savedAs ? ` as ${savedAs}` : ''}. It sends when you're back online.`
+                        : `Score saved${savedAs ? ` as ${savedAs}` : ''}`
+                    })()}
                   </p>
                 ) : (
                   <button type="button" className="win-save-link" data-testid="win-signin" onClick={cloud.openSignIn}>

@@ -2,8 +2,9 @@ import { accountFlagsBody, flagsChanged, mergeAccountFlags } from './accountFlag
 import { PARENT_HOLD_MS, readAgeChoice } from './ageChoice.ts'
 import { siteBase } from './http.ts'
 import { hashCard, hashCode, hashIp, hashUa, hashesEqual, newCardToken, scrubMetadata, sixDigitCode } from './authCrypto.ts'
-import { accountCheckIpBlocked, nameLocked, noteAccountCheck, notePasswordChange, noteRecoverAttempt, noteSigninAttempt, noteSigninFailure, noteSignupAttempt, passwordChangeBlocked, recoverIpBlocked, recoverNameBlocked, signinIpBlocked, signupIpBlocked } from './authLimits.ts'
+import { accountCheckIpBlocked, nameLocked, noteAccountCheck, notePasswordChange, noteRecoverAttempt, noteSigninAttempt, noteSigninFailure, noteSignupAttempt, passwordChangeBlocked, recoverIpBlocked, recoverNameBlocked, signinIpBlocked, signupIpBlocked, type LimitRow } from './authLimits.ts'
 import { ABSOLUTE_SHORT_MS, ABSOLUTE_STAY_MS, sessionExpired, sessionIdFromAccessToken } from './sessionClock.ts'
+import { allocateGroupName } from './groupNames.ts'
 import { decideName, publicDisplayName } from './namePolicy.ts'
 import { PASSWORD_HINT, passwordRejectReason } from './passwordPolicy.ts'
 import { hibpRange } from './hibp.ts'
@@ -25,6 +26,7 @@ export type AuthRoute =
   | 'refresh'
   | 'signout'
   | 'account'
+  | 'name'
   | 'flags'
   | 'session'
   | 'family'
@@ -122,6 +124,8 @@ export async function handleAuth(req: Request, route: AuthRoute, deps: AuthDeps)
         return await signout(ctx)
       case 'account':
         return await accountCheck(ctx)
+      case 'name':
+        return await setPlayerName(ctx)
       case 'flags':
         return await saveFlags(ctx)
       case 'session':
@@ -159,25 +163,11 @@ async function signup(ctx: Ctx): Promise<Response> {
   const captchaToken = readCaptchaToken(body)
   if (!captchaToken) return authResponse({ error: 'turnstile_required' }, 403, origin)
 
-  const name = decideName(body.name)
-  if (!name.ok) {
-    await audit(ctx, 'signup', null, { rejected: name.reason, name_normalized: name.normalized })
-    return authResponse({ error: 'name_rejected' }, 422, origin)
-  }
-  const shown = publicDisplayName(name.displayName)
-  if (!shown) {
-    await audit(ctx, 'signup', null, { rejected: 'profanity', name_normalized: name.normalized })
-    return authResponse({ error: 'name_rejected' }, 422, origin)
-  }
-  const weak = passwordRejectReason(body.password, nameParts(name.displayName, name.normalized))
-  if (weak || (await deps.hibp(body.password as string)) === 'pwned') {
-    await audit(ctx, 'signup', null, { rejected: 'weak_password', name_normalized: name.normalized })
-    return authResponse({ error: 'weak_password', hint: PASSWORD_HINT }, 422, origin)
-  }
   const age = readAgeChoice(body.age_choice)
   if (!age) return authResponse({ error: 'age_required' }, 422, origin)
-  const email = readRecoveryEmail(body)
-  if (email === 'bad') return authResponse({ error: 'bad_recovery_email' }, 422, origin)
+  const named = await signupIdentity(ctx)
+  if (named instanceof Response) return named
+  const { name, shown, email, autoNamed } = named
   const saveEmail = age === '13_plus' ? email : null
 
   let codeHash: string | null = null
@@ -219,11 +209,12 @@ async function signup(ctx: Ctx): Promise<Response> {
   }
   if (saveEmail && plainCode) await deps.sendCode(saveEmail, plainCode, 'verify').catch(() => undefined)
   if (saveEmail) await deps.backend.linkKidsByEmail(created.playerId, saveEmail).catch(() => undefined)
+  if (autoNamed) await markAutoNamed(ctx, created.playerId, true)
   await rememberDevice(ctx, created.playerId, created.session.access_token)
-  await audit(ctx, 'signup', created.playerId, { name_normalized: name.normalized, age_choice: age })
+  await audit(ctx, 'signup', created.playerId, { name_normalized: name.normalized, age_choice: age, auto_named: autoNamed })
   return authResponse(
     await withFlags(ctx, created.playerId, {
-      ...sessionBody(created.playerId, shown, created.session, stayUntil(ctx)),
+      ...sessionBody(created.playerId, shown, created.session, { ...stayUntil(ctx), player_name: name.displayName, auto_named: autoNamed }),
       age_choice: age,
       parent_email_pending: age === 'under_13' && !!email,
     }),
@@ -243,6 +234,9 @@ async function signin(ctx: Ctx): Promise<Response> {
     await audit(ctx, 'lockout', null, { scope: 'ip' })
     return authResponse(LIMITED, 429, origin)
   }
+
+  const rawName = typeof body.name === 'string' ? body.name.trim() : ''
+  if (rawName.includes('@')) return signInWithEmail(ctx, rawName, ipKey, attempted)
 
   const name = decideName(body.name)
   if (!name.ok) {
@@ -275,8 +269,150 @@ async function signin(ctx: Ctx): Promise<Response> {
   await deps.backend.putLimit('signin_name', name.normalized, cleared)
   await rememberDevice(ctx, signed.playerId, signed.session.access_token)
   await audit(ctx, 'signin_ok', signed.playerId, { name_normalized: name.normalized })
-  const shown = publicDisplayName(profile.displayName)
-  return authResponse(await withFlags(ctx, signed.playerId, sessionBody(signed.playerId, shown, signed.session, stayUntil(ctx))), 200, origin)
+  return authResponse(await withFlags(ctx, signed.playerId, namedSession(signed.playerId, profile.displayName, signed.session, stayUntil(ctx))), 200, origin)
+}
+
+type SignupIdentity = {
+  name: { displayName: string; normalized: string }
+  shown: string
+  email: string | null
+  autoNamed: boolean
+}
+
+/** A name field that is an email becomes recovery. The public name is generated. */
+async function signupIdentity(ctx: Ctx): Promise<Response | SignupIdentity> {
+  const { body, deps, origin } = ctx
+  const raw = typeof body.name === 'string' ? body.name.trim() : ''
+  const fromName = raw.includes('@') ? readRecoveryEmail({ email: raw }) : null
+  if (fromName === 'bad') return authResponse({ error: 'bad_recovery_email' }, 422, origin)
+  let email: string | null
+  let autoNamed = false
+  let displayName: string
+  let normalized: string
+  if (fromName) {
+    email = fromName
+    autoNamed = true
+    if (await emailOwnedByAdult(ctx, fromName)) return authResponse({ error: 'email_taken' }, 409, origin)
+    const generated = await allocateGroupName(async (candidate) => !!(await deps.backend.lookupName(candidate)))
+    if (!generated) return authResponse({ error: 'unavailable' }, 503, origin)
+    displayName = generated.displayName
+    normalized = generated.normalized
+  } else {
+    const parsed = readRecoveryEmail(body)
+    if (parsed === 'bad') return authResponse({ error: 'bad_recovery_email' }, 422, origin)
+    email = parsed
+    const decided = decideName(body.name)
+    if (!decided.ok) {
+      await audit(ctx, 'signup', null, { rejected: 'name' })
+      return authResponse({ error: 'name_rejected' }, 422, origin)
+    }
+    displayName = decided.displayName
+    normalized = decided.normalized
+  }
+  const shown = publicDisplayName(displayName)
+  if (!shown || displayName.includes('@')) return authResponse({ error: 'name_rejected' }, 422, origin)
+  const parts = nameParts(displayName, normalized)
+  if (email) parts.push(email)
+  const weak = passwordRejectReason(body.password, parts)
+  if (weak || (await deps.hibp(body.password as string)) === 'pwned') {
+    return authResponse({ error: 'weak_password', hint: PASSWORD_HINT }, 422, origin)
+  }
+  return { name: { displayName, normalized }, shown, email, autoNamed }
+}
+
+/** Another non-kid account already uses this address, so email sign-in would be ambiguous. */
+async function emailOwnedByAdult(ctx: Ctx, email: string): Promise<boolean> {
+  return (await adultEmailOwners(ctx, email)).length > 0
+}
+
+async function adultEmailOwners(ctx: Ctx, email: string): Promise<{ id: string; banned: boolean }[]> {
+  const ids = await ctx.deps.backend.findRecoveryByEmail(email)
+  const owners: { id: string; banned: boolean }[] = []
+  for (const id of ids) {
+    const profile = await ctx.deps.backend.profileById(id)
+    if (!profile) continue
+    const age = await ctx.deps.backend.getAgeChoice(id)
+    if (age === 'under_13') continue
+    if (await ctx.deps.backend.isLinkedChild(id)) continue
+    const recovery = await ctx.deps.backend.getRecovery(id)
+    if (!recovery) continue
+    const pending = recovery.pendingEmail === email
+    const verified = recovery.recoveryEmail === email && recovery.emailVerifiedAt != null
+    if (!pending && !verified) continue
+    owners.push({ id, banned: profile.banned })
+  }
+  return owners
+}
+
+/** Verified recovery, or this account's own pending address. Never a kid or a linked child. */
+async function eligibleEmailAccount(ctx: Ctx, email: string): Promise<string | null> {
+  const open = (await adultEmailOwners(ctx, email)).filter((owner) => !owner.banned)
+  return open.length === 1 ? open[0].id : null
+}
+
+async function signInWithEmail(ctx: Ctx, raw: string, ipKey: string, attempted: LimitRow): Promise<Response> {
+  const { body, deps, now, origin } = ctx
+  const parsed = readRecoveryEmail({ email: raw })
+  const subject = 'e.' + deps.hashCode(parsed && parsed !== 'bad' ? parsed : raw.trim().toLowerCase())
+  const nameRow = await deps.backend.getLimit('signin_name', subject)
+  if (nameLocked(nameRow, now)) {
+    await audit(ctx, 'lockout', null, { scope: 'email' })
+    return authResponse(LIMITED, 429, origin)
+  }
+  const captchaToken = readCaptchaToken(body)
+  if (!captchaToken) return authResponse({ error: 'turnstile_required' }, 403, origin)
+  const playerId = parsed && parsed !== 'bad' ? await eligibleEmailAccount(ctx, parsed) : null
+  const profile = playerId ? await deps.backend.profileById(playerId) : null
+  const password = typeof body.password === 'string' ? body.password : ''
+  const signed = profile ? await deps.backend.signIn(profile.normalized, password, captchaToken) : null
+  if (signed === 'captcha') return authResponse({ error: 'turnstile_required' }, 403, origin)
+  if (!signed || !profile || profile.banned || signed.playerId !== profile.playerId) {
+    if (signed) await deps.backend.revoke(signed.playerId, 'global', signed.session.access_token).catch(() => undefined)
+    const noted = noteSigninFailure(nameRow, attempted, now)
+    await deps.backend.putLimit('signin_name', subject, noted.name)
+    await deps.backend.putLimit('signin_ip', ipKey, noted.ip)
+    await audit(ctx, noted.locked ? 'lockout' : 'signin_fail', null, { scope: 'email' })
+    return authResponse(noted.locked ? LIMITED : INVALID, noted.locked ? 429 : 401, origin)
+  }
+  const cleared = { ...nameRow, failures: [], lockedUntil: null }
+  await deps.backend.putLimit('signin_name', subject, cleared)
+  await rememberDevice(ctx, signed.playerId, signed.session.access_token)
+  await audit(ctx, 'signin_ok', signed.playerId, { scope: 'email' })
+  return authResponse(await withFlags(ctx, signed.playerId, namedSession(signed.playerId, profile.displayName, signed.session, stayUntil(ctx))), 200, origin)
+}
+
+async function markAutoNamed(ctx: Ctx, playerId: string, on: boolean): Promise<void> {
+  try {
+    const flags = await ctx.deps.backend.getFlags(playerId)
+    if (flags.autoNamed === on) return
+    flags.autoNamed = on
+    await ctx.deps.backend.saveFlags(playerId, flags, new Date(ctx.now).toISOString())
+  } catch {
+    /* Migration 015 may not be applied yet. The response still reports auto_named. */
+  }
+}
+
+async function setPlayerName(ctx: Ctx): Promise<Response> {
+  const { body, deps, now, origin } = ctx
+  const live = await livePlayer(ctx)
+  if (live instanceof Response) return live
+  if (!readCaptchaToken(body)) return authResponse({ error: 'turnstile_required' }, 403, origin)
+  const row = await deps.backend.getLimit('player_name', live.playerId)
+  if (passwordChangeBlocked(row, now)) return authResponse(LIMITED, 429, origin)
+  await deps.backend.putLimit('player_name', live.playerId, notePasswordChange(row, now))
+  const decided = decideName(body.name)
+  const shown = decided.ok ? publicDisplayName(decided.displayName) : ''
+  if (!decided.ok || !shown || decided.displayName.includes('@')) return authResponse({ error: 'name_rejected' }, 422, origin)
+  const renamed = await deps.backend.renameAccount(live.playerId, decided.displayName, decided.normalized, shown)
+  if (renamed === 'taken') return authResponse({ error: 'name_taken' }, 409, origin)
+  if (renamed !== 'ok') return authResponse({ error: 'unavailable' }, 503, origin)
+  await markAutoNamed(ctx, live.playerId, false)
+  const flags = await deps.backend.getFlags(live.playerId)
+  return authResponse(
+    { ok: true, player_name: decided.displayName, display_name: shown, auto_named: false, flags: accountFlagsBody(flags) },
+    200,
+    origin,
+  )
 }
 
 async function changePassword(ctx: Ctx): Promise<Response> {
@@ -711,6 +847,7 @@ async function sessionCheck(ctx: Ctx): Promise<Response> {
     {
       user_id: live.playerId,
       display_name: profile ? publicDisplayName(profile.displayName) : '',
+      player_name: profile && !profile.displayName.includes('@') ? profile.displayName : '',
       age_choice: ageChoice,
       flags: accountFlagsBody(flags),
       ...stay,
@@ -739,6 +876,11 @@ async function withFlags(ctx: Ctx, playerId: string, body: Record<string, unknow
 
 function sessionBody(userId: string, displayName: string, session: SessionPair, extra?: Record<string, unknown>) {
   return { user_id: userId, display_name: displayName, session, ...extra }
+}
+
+function namedSession(userId: string, displayName: string, session: SessionPair, extra?: Record<string, unknown>) {
+  const playerName = displayName.includes('@') ? '' : displayName
+  return sessionBody(userId, publicDisplayName(displayName), session, { ...extra, player_name: playerName })
 }
 
 function stayUntil(ctx: Ctx): { absolute_until: string; stay_signed_in: boolean } {

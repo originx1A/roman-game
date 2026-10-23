@@ -102,6 +102,11 @@
   status = 200
   force = true
 [[redirects]]
+  from = "/api/auth/name"
+  to = "/.netlify/functions/auth-name"
+  status = 200
+  force = true
+[[redirects]]
   from = "/api/auth/flags"
   to = "/.netlify/functions/auth-flags"
   status = 200

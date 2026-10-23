@@ -36,6 +36,31 @@ class SupabaseAuthBackend implements AuthBackend {
     return this.withBan(data as Row)
   }
 
+  async renameAccount(playerId: string, displayName: string, normalized: string, publicName: string): Promise<'ok' | 'taken' | 'failed'> {
+    const existing = await this.lookupName(normalized)
+    if (existing && existing.playerId !== playerId) return 'taken'
+    const { error: profileError } = await this.admin
+      .from('profiles')
+      .update({ display_name: displayName, name_normalized: normalized })
+      .eq('player_id', playerId)
+    if (profileError) return duplicate(profileError) ? 'taken' : 'failed'
+    const { error: playerError } = await this.admin.from('players').update({ display_name: publicName }).eq('id', playerId)
+    if (playerError) return 'failed'
+    const { error: userError } = await this.admin.auth.admin.updateUserById(playerId, { email: loginEmail(normalized) })
+    if (userError) return 'failed'
+    return 'ok'
+  }
+
+  async isLinkedChild(playerId: string): Promise<boolean> {
+    const { data, error } = await this.admin
+      .from('parent_links')
+      .select('id')
+      .eq('child_id', playerId)
+      .eq('status', 'active')
+      .limit(1)
+    return !error && Array.isArray(data) && data.length > 0
+  }
+
   async profileById(playerId: string): Promise<ProfileRecord | null> {
     const { data, error } = await this.admin
       .from('profiles')
@@ -325,6 +350,7 @@ class SupabaseAuthBackend implements AuthBackend {
       terms_version: flags.termsVersion,
       marketing_opt_in: flags.marketingOptIn,
       marketing_answered_at: flags.marketingAnsweredAt,
+      auto_named: flags.autoNamed,
       updated_at: updatedAt,
     })
   }
@@ -503,6 +529,7 @@ function flagsFrom(row: Row): AccountFlags {
     ownerRole: row.owner_role === 'adult' ? 'adult' : null,
     ownerAssumedAt: row.owner_assumed_at ? String(row.owner_assumed_at) : null,
     ownerEmail: row.owner_email ? String(row.owner_email) : null,
+    autoNamed: row.auto_named === true,
   }
 }
 

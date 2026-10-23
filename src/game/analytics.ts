@@ -59,7 +59,7 @@ export function sendPing(body: PingBody, enabled = true): void {
 }
 
 /**
- * 9.32-e: Google Analytics events (gtag is loaded in index.html, web only).
+ * Google Analytics events (gtag is loaded in index.html, web only).
  * Only these anonymous events, and only a board id / level number. Never names, emails or user ids.
  */
 export type GaEvent = 'game_start' | 'game_win' | 'sign_in' | 'daily_puzzle_complete'

@@ -1,12 +1,14 @@
 # Auth API for the game login screen
 
-Cooper’s screen calls these. This repo does not draw that screen. Primary sign-in is the player name and a password. Email is recovery only: a code to the address saved on the account. "Can't get in?" uses that address to show the player name and set a new password. The in-game email-code sheet (magic link and the code from that email) still works. Tony may keep it as an option.
+Cooper’s screen calls these. This repo does not draw that screen. Sign-in is a player name or a recovery email, plus a password. The email is never the public name. "Can't get in?" uses that address to show the player name and set a new password. The in-game email-code sheet (magic link and the code from that email) still works. Tony may keep it as an option.
 
 Preview: `https://deploy-preview-63--romans-game.netlify.app`
 
 `supabase/migration-013-account-flags.sql` is the script already applied in production as `migration_013_account_flags`. The app does not run it. It creates `public.account_flags` only. It does not alter tables from 001–009 and it does not write `players.age_13_plus`. `010` is `player_board`, so this file is not numbered 010.
 
-`supabase/migration-014-age-and-owner.sql` is the next script for Tony to paste. It adds `age_choices`, `parent_email_holds`, and `payment_evidence`, and three columns on `account_flags`: `owner_role`, `owner_assumed_at`, `owner_email`. The app does not run it.
+`supabase/migration-014-age-and-owner.sql` is applied in production. It adds `age_choices`, `parent_email_holds`, and `payment_evidence`, and three columns on `account_flags`: `owner_role`, `owner_assumed_at`, `owner_email`. The app does not run it.
+
+`supabase/migration-015-auto-name.sql` is the next script for Tony to paste. It adds `account_flags.auto_named` (default false). It does not alter the name check from migration 009 and it does not write `players.age_13_plus`. The app does not run it.
 
 Every password, signup, recovery, and code call still sends `captchaToken` (or `turnstile_token`). Supabase Attack Protection checks it. This repo does not hold the captcha secret. A missing or rejected token is `403` `{error:"turnstile_required"}` and is not a wrong password. Reset the widget after every try.
 
@@ -20,9 +22,9 @@ Every password, signup, recovery, and code call still sends `captchaToken` (or `
 { "name": "Cool Kid", "password": "lantern-river-stone", "captchaToken": "...", "stay_signed_in": true }
 ```
 
-`200` with `user_id`, public `display_name` (first word only), `session.access_token`, `session.refresh_token`, `stay_signed_in`, `absolute_until`, and `flags`.
+`200` with `user_id`, public `display_name` (first word only), full `player_name`, `session.access_token`, `session.refresh_token`, `stay_signed_in`, `absolute_until`, and `flags`. If `name` contains `@`, sign-in looks up a verified recovery email, or a pending email on that same account. A kid account and a linked child are never opened by a parent email. Unknown address, wrong password, and more than one eligible account are the same `401` `{error:"invalid_credentials"}`. The lockout key is a hash of the address, not the address.
 
-`POST /api/auth/signup` is the same body plus required `age_choice` (`13_plus` or `under_13`) and optional `email` or `recovery_email`. Missing `age_choice` is `422` `{error:"age_required"}` and no account is created. There is no default. `13_plus` may save that address as their own recovery mailbox and a code is sent there. `under_13` does not save it and no mail goes to the child: the address is held until the parent opens the link in `POST` response field `parent_email_pending`. That link is `GET /api/auth/parent-approve?token=...`. Opening it saves the address as the kid's recovery email. It does not create a parent account and it does not allow purchases. An email alone is recovery only.
+`POST /api/auth/signup` is the same body plus required `age_choice` (`13_plus` or `under_13`) and optional `email` or `recovery_email`. Missing `age_choice` is `422` `{error:"age_required"}` and no account is created. There is no default. When `name` is a valid email, that address is the recovery email and it is not stored as the player name. The server creates a kid-safe name (adjective, noun, and number) and sets `auto_named` true. The `201` includes full `player_name` and public `display_name` (the first word). It does not include the email. `13_plus` saves that address as their own recovery mailbox and a code is sent there. `under_13` does not save it and no mail goes to the child: the address is held until the parent opens the link in `POST` response field `parent_email_pending`. That link is `GET /api/auth/parent-approve?token=...`. Opening it saves the address as the kid's recovery email. It does not create a parent account and it does not allow purchases. An email alone is recovery only. A second non-kid account with the same address is `409` `{error:"email_taken"}`. Kids who already use that address do not block the parent signup.
 
 The login email inside Supabase is `<normalized-name>@players.romansgame.invalid`. The screen never shows or collects that address.
 
@@ -41,7 +43,8 @@ Errors: `401` `{error:"invalid_credentials"}` (unknown name, wrong password, and
   "marketing_answered_at": null,
   "owner_role": null,
   "owner_assumed_at": null,
-  "owner_email": null
+  "owner_email": null,
+  "auto_named": false
 }
 ```
 
@@ -53,7 +56,17 @@ Send the answers on signup, sign-in, or `POST /api/auth/flags` with the bearer a
 { "age_confirmed": true, "terms_accepted": true, "terms_version": "2026-10-20", "marketing_opt_in": false }
 ```
 
-`age_confirmed: true` sets `age_confirmed_at` once. A later `false` does not clear it. A `13_plus` signup sets it. An `under_13` signup does not. Terms need `terms_version` (1–40 characters) or they are not stored. `marketing_opt_in` is stored only the first time it is a boolean. `POST /api/auth/flags` returns `{flags}` and `401` without a bearer token. The screen cannot set `owner_role`. That changes only when Stripe verifies a payment method, or when the card is removed.
+`age_confirmed: true` sets `age_confirmed_at` once. A later `false` does not clear it. A `13_plus` signup sets it. An `under_13` signup does not. Terms need `terms_version` (1–40 characters) or they are not stored. `marketing_opt_in` is stored only the first time it is a boolean. `POST /api/auth/flags` returns `{flags}` and `401` without a bearer token. The screen cannot set `owner_role` or `auto_named`. `owner_role` changes only when Stripe verifies a payment method, or when the card is removed. `auto_named` is set by the server and cleared by `POST /api/auth/name`.
+
+## Pick a player name
+
+`POST /api/auth/name` with the bearer access token:
+
+```json
+{ "name": "Cool Kid", "captchaToken": "..." }
+```
+
+`200` is `{ok:true, player_name, display_name, auto_named:false, flags}`. The name uses the same rules as sign-up (`decideName`): 3–20 characters, letters, digits, and hyphens, unique case-insensitively, and it cannot contain `@`. `422` `{error:"name_rejected"}`, `409` `{error:"name_taken"}`, `403` `{error:"turnstile_required"}`, `401` without a bearer token, `429` `{error:"rate_limited"}` after 5 tries in an hour. The old generated name stops signing in. The email still signs in. While `flags.auto_named` is true, the game and the account screen show "Pick your player name". Public boards, profiles, and lists show the first word of the player name, never an email.
 
 Signup and `POST /api/auth/session` also return `age_choice`: `13_plus`, `under_13`, or `null` (unanswered). Unanswered is not under-13.
 
@@ -69,7 +82,7 @@ Kid mode cannot buy. `flags.owner_role` becomes `adult` only after Stripe verifi
 
 On load and when the window gains focus, the game calls `recheckSession()`. That refreshes a token that is inside a minute of expiry, then `POST /api/auth/session` with `Authorization: Bearer <access_token>` and body `{}`.
 
-`200` is `user_id`, `display_name`, `flags`, `stay_signed_in`, `absolute_until`. `401` is `{error:"invalid_credentials"}` or `{error:"session_expired"}`. A network failure keeps the saved session.
+`200` is `user_id`, `display_name`, `player_name`, `flags` (including `auto_named`), `stay_signed_in`, `absolute_until`. `401` is `{error:"invalid_credentials"}` or `{error:"session_expired"}`. A network failure keeps the saved session.
 
 Logout is `signOutEverywhere()`: `POST /api/auth/signout` with the bearer token and `{ "all_devices": true }`, then `signOut({ scope: 'global' })`. Other devices drop the session on their next load or focus. `204` on success. Sign-out of this device only remains `signOut()` (profile switch).
 

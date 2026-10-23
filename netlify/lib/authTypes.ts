@@ -78,6 +78,10 @@ export type DeviceWrite = {
 export interface AuthBackend {
   lookupName(normalized: string): Promise<ProfileRecord | null>
   profileById(playerId: string): Promise<ProfileRecord | null>
+  /** Replace the login name. Moves the synthetic auth email. Does not change the password. */
+  renameAccount(playerId: string, displayName: string, normalized: string, publicName: string): Promise<'ok' | 'taken' | 'failed'>
+  /** True when an active parent link lists this player as the child. */
+  isLinkedChild(playerId: string): Promise<boolean>
   signIn(normalized: string, password: string, captchaToken?: string): Promise<PasswordSignIn>
   createAccount(input: CreateAccountInput): Promise<{ playerId: string; session: SessionPair } | 'taken' | 'failed' | 'captcha'>
   checkPassword(playerId: string, password: string, captchaToken?: string): Promise<boolean | 'captcha'>
