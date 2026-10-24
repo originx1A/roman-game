@@ -86,7 +86,7 @@ export const en = {
   decline: 'Decline',
   seller: 'Seller',
   payWith: 'You pay on a secure Stripe page, with a card in your own name.',
-  refunds: 'No refund for a purchase you authorised. Coins have no cash value.',
+  refunds: 'No refund for a purchase you authorised, except where the law requires. Coins have no cash value.',
   passwordEvery: 'Needed at every purchase. You pay next on a secure Stripe page.',
   continuePay: 'Continue to payment',
   paymentFailed: 'Payment failed. Nothing was taken.',
@@ -377,7 +377,7 @@ export const fr: typeof en = {
   decline: 'Refuser',
   seller: 'Vendeur',
   payWith: 'Tu paies sur une page Stripe sécurisée, avec une carte à ton nom.',
-  refunds: 'Pas de remboursement pour un achat que tu as autorisé. Les pièces n’ont pas de valeur en argent.',
+  refunds: 'Pas de remboursement pour un achat que tu as autorisé, sauf si la loi l’exige. Les pièces n’ont pas de valeur en argent.',
   passwordEvery: 'Demandé à chaque achat. Ensuite, la page de paiement sécurisée.',
   continuePay: 'Continuer vers le paiement',
   paymentFailed: 'Le paiement a échoué. Rien n’a été pris.',
@@ -603,10 +603,13 @@ const LEGAL: Record<Lang, Record<string, string[]>> = {
     terms: [
       'The agreement|These rules cover play.romansgame.com. By pressing Join and play you agree to them.',
       'Accounts|A player name and a password. Email is for recovery. A Family account links players to an account holder.',
-      'Coins|Coins are for use in the game. They have no cash value and cannot be transferred or redeemed.',
-      'Buying|The account holder who pays is responsible for charges, including by anyone they let use the device. No refund for an authorised purchase.',
+      'Coins|Coins are for use in the game only. They have no cash value. They cannot be cashed out, sold, traded, or moved to another account. Coins are not refunded, except where the law requires it.',
+      'What you get|Coins, defenders and their uses, and clothing are a permission to use them in the game. You do not own them, and they are not property.',
+      'Buying|The account holder who pays is responsible for charges, including by anyone they let use the device. No refund for an authorised purchase, except where the law requires.',
       'Conduct|No cheating, no sharing of an account to get around a stop on buying.',
       'Changes|If these rules change in a way that matters, we will say so the next time you sign in.',
+      'Changes to the game|We may change, reprice, add, or remove items and features, or close the game. For changes that matter, we will tell you in the game first.',
+      'If the game closes|We will tell you in the game first and stop selling coins. The game keeps running after that so you can use your coins, and wins still earn coins. Refunds are given only where the law requires, such as an accidental double charge.',
     ],
     privacy: [
       'What we keep|Player name, password (held by the account system), optional email, over-or-under answer (not the date), scores, purchases, and consent records.',
@@ -625,7 +628,7 @@ const LEGAL: Record<Lang, Record<string, string[]>> = {
     purchases: [
       'What you can buy|Coin packs and a one-time Starter Pack. Prices are set per country. The smallest pack is CA$2.99 or US$1.99.',
       'Before you pay|Review your order shows the seller, the price, how you pay, and the refund rule. Accept or Decline.',
-      'Refunds|No refund for a purchase you authorised. Wasn\'t me stops more buying. It is not a refund.',
+      'Refunds|No refund for a purchase you authorised, except where the law requires. Wasn\'t me stops more buying. It is not a refund.',
       'Receipt|We email a receipt with the item, price, date, seller, and the Terms of Use version.',
     ],
     cookies: [
@@ -646,10 +649,13 @@ const LEGAL: Record<Lang, Record<string, string[]>> = {
     terms: [
       'L’accord|Ces règles couvrent play.romansgame.com. En appuyant sur Rejoindre et jouer, vous les acceptez.',
       'Comptes|Un nom de joueur et un mot de passe. Le courriel sert à la récupération. Un compte familial relie des joueurs à un titulaire.',
-      'Pièces|Les pièces servent dans le jeu. Elles n’ont pas de valeur en argent et ne se transfèrent pas.',
-      'Achats|Le titulaire qui paie est responsable des frais, y compris pour les personnes à qui il laisse l’appareil. Pas de remboursement pour un achat autorisé.',
+      'Pièces|Les pièces servent seulement dans le jeu. Elles n’ont pas de valeur en argent. Elles ne peuvent pas être échangées contre de l’argent, vendues, échangées ni transférées à un autre compte. Les pièces ne sont pas remboursées, sauf si la loi l’exige.',
+      'Ce que vous obtenez|Les pièces, les défenseurs et leurs utilisations, et les vêtements sont une permission de les utiliser dans le jeu. Vous n’en êtes pas propriétaire et ce ne sont pas des biens.',
+      'Achats|Le titulaire qui paie est responsable des frais, y compris pour les personnes à qui il laisse l’appareil. Pas de remboursement pour un achat autorisé, sauf si la loi l’exige.',
       'Conduite|Pas de triche, pas de partage de compte pour contourner un arrêt des achats.',
       'Changements|Si ces règles changent de façon importante, nous le dirons à la prochaine connexion.',
+      'Changements au jeu|Nous pouvons modifier, changer le prix, ajouter ou retirer des articles et des fonctions, ou fermer le jeu. Pour les changements importants, nous vous le dirons d’abord dans le jeu.',
+      'Si le jeu ferme|Nous vous le dirons d’abord dans le jeu et nous arrêterons la vente de pièces. Le jeu reste ouvert ensuite pour que vous puissiez utiliser vos pièces, et les victoires donnent toujours des pièces. Les remboursements sont faits seulement si la loi l’exige, par exemple pour un double paiement par erreur.',
     ],
     privacy: [
       'Ce que nous gardons|Nom de joueur, mot de passe (gardé par le système de compte), courriel facultatif, réponse au-dessus ou en dessous de l’âge (pas la date), scores, achats et traces de consentement.',
@@ -668,7 +674,7 @@ const LEGAL: Record<Lang, Record<string, string[]>> = {
     purchases: [
       'Ce que tu peux acheter|Des paquets de pièces et une Trousse de départ, une seule fois. Les prix sont fixés par pays. Le plus petit paquet est 2,99 $ CA ou 1,99 $ US.',
       'Avant de payer|Vérifie ta commande montre le vendeur, le prix, le mode de paiement et la règle de remboursement. Accepter ou Refuser.',
-      'Remboursements|Pas de remboursement pour un achat autorisé. « Ce n’était pas moi » arrête les achats suivants. Ce n’est pas un remboursement.',
+      'Remboursements|Pas de remboursement pour un achat autorisé, sauf si la loi l’exige. « Ce n’était pas moi » arrête les achats suivants. Ce n’est pas un remboursement.',
       'Reçu|Nous envoyons un reçu avec l’article, le prix, la date, le vendeur et la version des Conditions d’utilisation.',
     ],
     cookies: [
