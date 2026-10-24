@@ -93,13 +93,13 @@ export function App() {
       {!onPlay ? <a className="site-link" href="https://romansgame.com" target="_blank" rel="noreferrer">{t.website}</a> : <span />}
       {pc ? (
         <nav className="tabs" style={{ flex: 1 }}>
-          <button className="tab" type="button" onClick={() => go('/play')}>{t.play}</button>
-          <button className="tab" type="button" onClick={() => go('/shop')}>{t.shop}</button>
-          <button className="tab" type="button" onClick={() => go('/leaderboard')}>{t.leaderboard}</button>
-          <button className="tab" type="button" onClick={() => go('/teams')}>{t.teams}</button>
-          <button className="tab" type="button" onClick={() => go('/stable')}>{t.stable}</button>
-          <button className="tab" type="button" onClick={() => go('/thrones')}>{t.throne}</button>
-          <button className="tab" type="button" onClick={() => go('/settings')}>{t.settings}</button>
+          <button className={`tab ${path === '/' || path === '/play' ? 'on' : ''}`} type="button" onClick={() => go('/play')}>{t.play}</button>
+          <button className={`tab ${path.startsWith('/shop') ? 'on' : ''}`} type="button" onClick={() => go('/shop')}>{t.shop}</button>
+          <button className={`tab ${path === '/leaderboard' ? 'on' : ''}`} type="button" onClick={() => go('/leaderboard')}>{t.leaderboard}</button>
+          <button className={`tab ${path.startsWith('/teams') || path.startsWith('/t/') ? 'on' : ''}`} type="button" onClick={() => go('/teams')}>{t.teams}</button>
+          <button className={`tab ${path === '/stable' ? 'on' : ''}`} type="button" onClick={() => go('/stable')}>{t.stable}</button>
+          <button className={`tab ${path === '/thrones' ? 'on' : ''}`} type="button" onClick={() => go('/thrones')}>{t.throne}</button>
+          <button className={`tab ${path.startsWith('/settings') ? 'on' : ''}`} type="button" onClick={() => go('/settings')}>{t.settings}</button>
         </nav>
       ) : <span style={{ flex: 1 }} />}
       {me?.hostPet ? <DefenderArt id={me.hostPet} size={36} /> : null}

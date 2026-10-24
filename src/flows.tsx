@@ -92,64 +92,177 @@ async function shareHome(title: string) {
   }
 }
 
+function guestBoard(): { streak: number; bestRun: number } {
+  try {
+    const raw = JSON.parse(localStorage.getItem('rg.guest') || '') as { streak?: number; bestRun?: Record<string, number> }
+    const runs = raw.bestRun ? Object.values(raw.bestRun) : []
+    const best = runs.reduce((top, n) => Math.max(top, Number(n) || 0), 0)
+    return { streak: Number(raw.streak) || 0, bestRun: best }
+  } catch {
+    return { streak: 0, bestRun: 0 }
+  }
+}
+
+function StreakPips({ streak }: { streak: number }) {
+  const filled = Math.min(7, Math.max(0, streak))
+  return (
+    <span className="pips" aria-hidden="true">
+      {Array.from({ length: 7 }, (_, i) => <span key={i} className={i < filled ? 'on' : ''} />)}
+    </span>
+  )
+}
+
+function AccountMenu({ t, me }: { t: Copy; me: Me }) {
+  return (
+    <div className="card stack pop">
+      <button className="btn" type="button" onClick={() => go('/settings')}>{t.settings}</button>
+      {me.holder ? <button className="btn" type="button" onClick={() => go('/family')}>{t.family}</button> : null}
+      <button className="btn" type="button" onClick={() => go('/leaderboard')}>{t.openLeaderboard}</button>
+      <button className="btn" type="button" onClick={() => go('/teams')}>{t.myTeam}</button>
+      <button className="btn" type="button" onClick={() => void api('/api/signout', {}).then(() => location.assign('/'))}>{t.signOutDevice}</button>
+    </div>
+  )
+}
+
 export function HomeScreen({ t, lang, me, pc }: Bag) {
   const [open, setOpen] = useState(false)
-  return (
-    <div className={pc ? 'pc-body' : 'body'}>
-      <div className={pc ? 'pc-main stack' : 'stack'} style={{ flex: 1 }}>
-        <div className="spread">
-          {me ? (
+  const guest = guestBoard()
+  const streak = me?.streak ?? guest.streak
+  const bestRun = me ? Object.values(me.bestRun ?? {}).reduce((top, n) => Math.max(top, Number(n) || 0), 0) : guest.bestRun
+  const hostName = PETS.find((pet) => pet.id === me?.hostPet)?.name ?? DEFENDERS.find((defender) => defender.id === me?.hostPet)?.name ?? t.noHost
+  const [rows, setRows] = useState<{ name: string; score: number; hostPet?: string | null }[]>([])
+  const [boardNote, setBoardNote] = useState('')
+  const [team, setTeam] = useState<{ name?: string; mascot?: string; score?: number } | null>(null)
+  useEffect(() => {
+    if (!pc) return
+    void api<{ rows: { name: string; score: number; hostPet?: string | null }[] }>('/api/leaderboard?scope=today').then((res) => {
+      setRows((res.rows ?? []).slice(0, 8))
+    }).catch((err) => setBoardNote(errText(t, err)))
+    void api<{ team: { name?: string; mascot?: string; score?: number } | null }>('/api/team').then((res) => {
+      setTeam(res.team)
+    }).catch(() => setTeam(null))
+  }, [pc, t])
+
+  const tabs = (
+    <div className="tabs">
+      <button className="tab on" type="button" onClick={() => go('/play')}>{t.play}</button>
+      <button className="tab" type="button" onClick={() => go('/stable')}>{t.stable}</button>
+      <button className="tab" type="button" onClick={() => void shareHome(t.brand)}>{t.share}</button>
+      <button className="tab" type="button" onClick={() => go('/thrones')}>{t.throne}</button>
+      {!me ? <button className="tab" type="button" onClick={() => go('/settings')}>{t.save}</button> : null}
+    </div>
+  )
+  const hero = (
+    <>
+      <span className="eyebrow">{t.logic}</span>
+      <p className="home-mark">{t.brand}</p>
+      <div className="home-hero">
+        <button className="btn gold home-play" type="button" onClick={() => go('/play')}>{t.play}</button>
+        <a href="https://romansgame.com" target="_blank" rel="noreferrer"><img className="logo-tile" src="/site-logo.png" alt={t.website} /></a>
+      </div>
+    </>
+  )
+  const legal = (
+    <div className="home-legal">
+      <button className="legal-link" type="button" onClick={() => go('/help')}>{t.helpLegal}</button>
+      <LegalLinks t={t} />
+      <span className="build">{t.build} {BUILD_NUMBER}</span>
+    </div>
+  )
+
+  if (!pc) {
+    return (
+      <div className="body home-phone">
+        {tabs}
+        {me ? (
+          <div className="home-name">
             <button className="name-chip" type="button" onClick={() => setOpen((v) => !v)}>{me.playerName}</button>
-          ) : <span className="muted">{t.logic}</span>}
-          {pc ? <button className="coin" type="button" onClick={() => go('/shop')}>{formatCoins(me?.coins ?? 0, lang)} ¢</button> : null}
-        </div>
-        {open && me ? (
-          <div className="card stack">
-            <button className="btn" type="button" onClick={() => go('/settings')}>{t.settings}</button>
-            {me.holder ? <button className="btn" type="button" onClick={() => go('/family')}>{t.family}</button> : null}
-            <button className="btn" type="button" onClick={() => go('/leaderboard')}>{t.openLeaderboard}</button>
-            <button className="btn" type="button" onClick={() => go('/teams')}>{t.myTeam}</button>
-            <button className="btn" type="button" onClick={() => void api('/api/signout', {}).then(() => location.assign('/'))}>{t.signOutDevice}</button>
+            {open ? <AccountMenu t={t} me={me} /> : null}
           </div>
         ) : null}
-        <div className="spread">
-          <button className="btn gold" type="button" onClick={() => go('/play')} style={{ fontSize: pc ? 28 : 20, padding: pc ? '18px 36px' : '12px 18px', flex: 1 }}>{t.play}</button>
-          <a href="https://romansgame.com" target="_blank" rel="noreferrer"><img className="logo-tile" src="/site-logo.png" alt={t.website} /></a>
-        </div>
-        <div className="grid2">
-          <button className="card" type="button" onClick={() => go('/leaderboard')} style={{ textAlign: 'left' }}>
-            <b>{t.goal}</b>
-            {pc ? (
-              <>
-                <p className="muted">{t.week}</p>
-                <span>{me?.throne ? (lang === 'fr' ? me.throne.nameFr : me.throne.name) : `${t.streak} ${me?.streak ?? 0}`}</span>
-              </>
-            ) : (
-              <WeekGoal t={t} wins={me?.weekWins ?? 0} />
-            )}
-          </button>
-          <button className="card" type="button" onClick={() => go('/play')} style={{ textAlign: 'left' }}>
-            <b>{t.daily}</b>
-            <p className="muted">{t.streak} {me?.streak ?? 0}</p>
-          </button>
-        </div>
-        {!pc ? (
-          <div className="spread">
+        {hero}
+        {me ? (
+          <>
             <button className="chip" type="button" onClick={() => go('/leaderboard')}>{t.solo}</button>
-            <button className="chip" type="button" onClick={() => go('/settings')}>{t.settings}</button>
+            <button className="card stack home-goal" type="button" onClick={() => go('/shop')}>
+              <span className="spread"><b>{t.goal}</b><span>{t.shop}</span></span>
+              <WeekGoal t={t} wins={me.weekWins ?? 0} />
+            </button>
+            <button className="card stack home-daily" type="button" onClick={() => go('/play')}>
+              <b>{t.daily}</b>
+              <span>{t.streak} {streak}</span>
+              <StreakPips streak={streak} />
+            </button>
+          </>
+        ) : (
+          <div className="card stack">
+            <p className="guest-prompt">{t.guestLine}</p>
+            <button className="btn gold" type="button" onClick={() => go('/settings')}>{t.guestSave}</button>
+            <p className="muted">{t.already}</p>
           </div>
-        ) : null}
-        <div className="tabs">
-          <button className="tab on" type="button" onClick={() => go('/play')}>{t.play}</button>
-          <button className="tab" type="button" onClick={() => go('/stable')}>{t.stable}</button>
-          <button className="tab" type="button" onClick={() => void shareHome(t.brand)}>{t.share}</button>
-          <button className="tab" type="button" onClick={() => go('/thrones')}>{t.throne}</button>
-          {!me ? <button className="tab" type="button" onClick={() => go('/settings')}>{t.save}</button> : null}
+        )}
+        {legal}
+      </div>
+    )
+  }
+
+  return (
+    <div className="pc-body home-pc">
+      <div className="home-col">
+        {hero}
+        <div className="card stack home-modes">
+          <button className="spread" type="button" onClick={() => go('/play')}><b>{t.daily}</b></button>
+          <button className="spread" type="button" onClick={() => go('/play')}><b>{t.freePlay}</b><span className="muted">6×6 · {t.medium}</span></button>
+          <button className="spread" type="button" onClick={() => go('/play')}><b>{t.survival}</b><span className="muted">{t.bestRun} {bestRun}</span></button>
         </div>
-        {!me ? <p className="guest-prompt">{t.guestLine}</p> : null}
-        <div className="foot">
-          <LegalLinks t={t} />
-          <span className="build">{t.build} {BUILD_NUMBER}</span>
+        <div className="card stack home-you">
+          <div className="home-name">
+            {me ? <button className="name-chip" type="button" onClick={() => setOpen((v) => !v)}>{me.playerName}</button> : <b>{t.solo}</b>}
+            {open && me ? <AccountMenu t={t} me={me} /> : null}
+          </div>
+          <span className="row">{me?.hostPet ? <DefenderArt id={me.hostPet} size={48} /> : null}<span>{t.host} · {hostName}</span></span>
+          <div className="row">
+            <button className="btn" type="button" onClick={() => go('/stable')}>{t.stable}</button>
+            <button className="btn gold" type="button" onClick={() => go('/shop')}>{t.shop} · {formatCoins(me?.coins ?? 0, lang)} ¢</button>
+          </div>
+          {!me ? (
+            <>
+              <p className="guest-prompt">{t.guestLine}</p>
+              <button className="btn gold" type="button" onClick={() => go('/settings')}>{t.guestSave}</button>
+              <p className="muted">{t.already}</p>
+            </>
+          ) : null}
+        </div>
+        {legal}
+      </div>
+      <div className="home-col">
+        <div className="card stack home-daily">
+          <b>{t.daily}</b>
+          <span>{t.streak} {streak}</span>
+          <StreakPips streak={streak} />
+          <button className="btn" type="button" onClick={() => go('/play')}>{t.play}</button>
+        </div>
+        <button className="card stack home-goal" type="button" onClick={() => go('/shop')}>
+          <span className="spread"><b>{t.goal}</b><span>{t.shop}</span></span>
+          <WeekGoal t={t} wins={me?.weekWins ?? 0} />
+        </button>
+        <div className="card stack">
+          <b>{t.myTeam}</b>
+          {team?.name ? (
+            <span className="row"><DefenderArt id={team.mascot} size={40} /><span>{team.name}{typeof team.score === 'number' ? ` · ${team.score}` : ''}</span></span>
+          ) : <p className="muted">{me ? t.openTeams : t.guestLine}</p>}
+          <button className="btn" type="button" onClick={() => go('/teams')}>{team?.name ? t.myTeam : t.openTeams}</button>
+        </div>
+      </div>
+      <div className="home-col">
+        <div className="card stack home-board">
+          <span className="spread"><b>{t.today}</b><span className="muted">{t.leaderboard}</span></span>
+          <div className="scroll stack">
+            {rows.length === 0 ? <p className="muted">{boardNote || t.noRank}</p> : rows.map((row, index) => (
+              <span key={`${row.name}-${index}`} className="spread"><span className="row"><DefenderArt id={row.hostPet} size={28} />{index + 1}. {row.name}</span><span>{row.score}</span></span>
+            ))}
+          </div>
+          <button className="btn" type="button" onClick={() => go('/leaderboard')}>{t.seeAll}</button>
         </div>
       </div>
     </div>

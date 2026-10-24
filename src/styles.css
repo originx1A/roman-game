@@ -315,6 +315,42 @@ button.spread {
 .pc-split > .stack { min-height: 0; overflow: auto; }
 .pc-root > .body { max-width: 1080px; margin: 0 auto; width: 100%; padding-left: 22px; padding-right: 22px; }
 .pc-body > .pc-main:only-child { max-width: 560px; margin-left: auto; margin-right: auto; }
+.pc-body.home-pc {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(280px, .92fr);
+  gap: 14px;
+  align-items: stretch;
+  width: 100%;
+}
+.home-col { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
+.home-col > .card { flex: none; }
+.eyebrow {
+  letter-spacing: .2em; font-size: 11px; font-weight: 800; text-transform: uppercase; color: #c5d4f5;
+}
+.home-mark {
+  font-family: 'Titan One', Nunito, sans-serif; font-weight: 400; color: #f4fbff;
+  text-shadow: 0 3px 0 #f4b93a; line-height: 1.05; margin: 0; padding-bottom: 3px;
+}
+.pc-root .home-mark { font-size: clamp(46px, 4.4vw, 76px); }
+.home-hero { display: flex; align-items: center; gap: 12px; }
+.home-play { font-size: 19px; padding: 11px 30px; }
+.pc-root .home-play { font-size: 28px; padding: 14px 28px; width: min(300px, 100%); }
+.home-modes .spread, .home-you .row { flex-wrap: wrap; }
+.home-daily { border-color: #3dd68c; }
+.home-goal { border-color: rgba(255, 209, 102, .85); }
+.home-col > .home-board { flex: 1; min-height: 0; }
+.home-board .scroll { flex: 1; min-height: 0; }
+.home-name { position: relative; align-self: flex-start; }
+.home-legal { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; margin-top: auto; }
+.pips { display: flex; gap: 6px; }
+.pips span {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.28);
+}
+.pips span.on { background: #3dd68c; border-color: #d8ffe9; }
+.phone-stage .home-phone { overflow: hidden; gap: 7px; padding: 2px 16px 8px; }
+.phone-stage .home-mark { font-size: 36px; }
+.phone-stage .home-phone .card { padding: 8px 10px; }
 .pc-root .board-slot { width: min(100%, 480px); }
 .team-columns { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr); gap: 16px; align-items: start; }
 .team-flat { display: contents; }
@@ -385,8 +421,8 @@ button.spread {
   background: #ffd166; border-radius: 8px; padding: 2px 6px;
 }
 .err { color: #ffb0a4; font-weight: 800; font-size: 13px; }
-.logo-tile { width: 64px; height: 64px; border-radius: 14px; object-fit: cover; border: 0; padding: 0; background: #fff; }
-.pc-root .logo-tile { width: 110px; height: 110px; }
+.logo-tile { width: 64px; height: 64px; border-radius: 16px; object-fit: cover; border: 2px solid #ffd166; padding: 0; background: #fff; }
+.pc-root .logo-tile { width: 110px; height: 110px; border-radius: 26px; border-width: 3px; }
 .foot { margin-top: auto; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .legal p { margin: 0 0 8px; }
 .hidden-file { position: absolute; left: -999px; }
