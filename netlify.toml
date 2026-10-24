@@ -4,6 +4,8 @@
 
 [build.environment]
   NODE_VERSION = "22.23.4"
+  # Public project URL, already in the repo. Not a credential.
+  SECRETS_SCAN_OMIT_KEYS = "SUPABASE_URL"
 
 [functions]
   directory = "netlify/functions"
