@@ -1,4 +1,4 @@
-/api/* /.netlify/functions/:splat 200!
+/api/* /.netlify/functions/rg 200!
 # Netlify reads this file before netlify.toml, and the first match wins.
 # The /* rule below would otherwise serve the game's index.html for the feed.
 /news/feed.xml /.netlify/functions/news-feed 200!

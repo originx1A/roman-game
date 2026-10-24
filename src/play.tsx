@@ -1,0 +1,434 @@
+import { useEffect, useState } from 'react'
+import { api, type Me } from './api'
+import { BoardView } from './ui/BoardView'
+import { CHARGE_LABEL, DEFENDERS, MAX_HEARTS, type Ability } from './game/catalog'
+import { dailyPuzzle, makePuzzle, type Difficulty } from './game/generate'
+import { buddyIndexes, conflicts, cycleCell, emptyBoard, isSolved, ruledOut, type Cell, type Puzzle } from './game/logic'
+import { playVoice, sfxError, sfxMark, sfxPlace, sfxWin } from './game/sound'
+import { throneForWins, throneProgress } from './game/thrones'
+import { pickUnseen, type UnseenLine } from './game/unseen'
+import type { Copy, Lang } from './i18n'
+import { go } from './nav'
+
+type Mode = 'daily' | 'free' | 'survival'
+type Phase = 'play' | 'unseen' | 'victory' | 'loss' | 'over' | 'hunt' | 'hunt-end'
+
+interface Guest {
+  wins: number
+  perfects: number
+  charges: Record<string, number>
+  bestRun: Record<string, number>
+  streak: number
+  streakDay: string
+}
+
+function loadGuest(): Guest {
+  try {
+    const raw = JSON.parse(localStorage.getItem('rg.guest') || '') as Guest
+    if (raw && typeof raw.wins === 'number') return raw
+  } catch {
+    /* ignore */
+  }
+  return { wins: 0, perfects: 0, charges: {}, bestRun: {}, streak: 0, streakDay: '' }
+}
+
+function saveGuest(guest: Guest) {
+  localStorage.setItem('rg.guest', JSON.stringify(guest))
+}
+
+export function PlayScreen({
+  t,
+  lang,
+  pc,
+  me,
+  onMe,
+}: {
+  t: Copy
+  lang: Lang
+  pc: boolean
+  me: Me | null
+  onMe: (me: Me | null) => void
+}) {
+  const [mode, setMode] = useState<Mode>('daily')
+  const [size, setSize] = useState<5 | 6 | 7 | 8>(6)
+  const [difficulty, setDifficulty] = useState<Difficulty>(1)
+  const [puzzle, setPuzzle] = useState<Puzzle>(() => dailyPuzzle())
+  const [cells, setCells] = useState<Cell[]>(() => emptyBoard(6))
+  const [hearts, setHearts] = useState(MAX_HEARTS)
+  const [run, setRun] = useState(0)
+  const [moves, setMoves] = useState(0)
+  const [started, setStarted] = useState(() => Date.now())
+  const [tick, setTick] = useState(0)
+  const [phase, setPhase] = useState<Phase>('play')
+  const [line, setLine] = useState<UnseenLine | null>(null)
+  const [hurt, setHurt] = useState(false)
+  const [used, setUsed] = useState(false)
+  const [highlights, setHighlights] = useState<number[]>([])
+  const [seconds, setSeconds] = useState(0)
+  const [huntTiles, setHuntTiles] = useState<boolean[]>([])
+  const [huntOpen, setHuntOpen] = useState<boolean[]>([])
+  const [guest, setGuest] = useState<Guest>(loadGuest)
+  const wins = me?.wins ?? guest.wins
+  const charges = me?.charges ?? guest.charges
+  const throne = throneForWins(wins)
+  const progress = throneProgress(wins)
+  const diffLabel = [t.easy, t.medium, t.hard][difficulty]
+
+  useEffect(() => {
+    const id = window.setInterval(() => setTick((n) => n + 1), 1000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    if (phase !== 'play') return
+    const quiet = Date.now() - started > 25000 && moves < 2 && tick > 0 && tick % 28 === 0
+    if (!quiet) return
+    const picked = pickUnseen('slow', true)
+    setLine(picked)
+    playVoice(picked.id)
+  }, [tick, phase, moves, started])
+
+  function boot(nextMode: Mode, nextSize: number, nextDiff: Difficulty, nextHearts: number, nextRun: number) {
+    const seed = nextMode === 'daily' ? undefined : `${nextMode}-${nextRun}-${Date.now()}`
+    const next = nextMode === 'daily' ? dailyPuzzle() : makePuzzle(nextSize, nextDiff, seed!)
+    setPuzzle(next)
+    setCells(emptyBoard(next.size))
+    setHearts(nextHearts)
+    setRun(nextRun)
+    setMoves(0)
+    setHurt(false)
+    setUsed(false)
+    setHighlights([])
+    setPhase('play')
+    setLine(null)
+    setStarted(Date.now())
+  }
+
+  function finish(won: boolean) {
+    const secs = Math.max(1, Math.round((Date.now() - started) / 1000))
+    setSeconds(secs)
+    const slow = secs > 90
+    const picked = pickUnseen(won ? 'win' : 'loss', slow)
+    setLine(picked)
+    playVoice(picked.id)
+    setPhase('unseen')
+    if (!won) return
+    const perfect = !hurt && !used
+    if (me) {
+      void api<{ me: Me }>('/api/win', {
+        size: puzzle.size,
+        seconds: secs,
+        moves: Math.max(moves, puzzle.size),
+        puzzleId: puzzle.id,
+        mode,
+        perfect,
+        run: run + 1,
+        hearts,
+      })
+        .then((res) => onMe(res.me))
+        .catch(() => undefined)
+    } else {
+      const next = { ...guest, wins: guest.wins + 1, perfects: guest.perfects + (perfect ? 1 : 0) }
+      if (mode === 'survival') next.bestRun = { ...guest.bestRun, [puzzle.size]: Math.max(guest.bestRun[puzzle.size] ?? 0, run + 1) }
+      setGuest(next)
+      saveGuest(next)
+    }
+  }
+
+  function tap(index: number) {
+    if (phase !== 'play') return
+    const nextState = cycleCell(cells[index])
+    const next = cells.slice()
+    next[index] = nextState
+    if (nextState === 'mark') sfxMark()
+    if (nextState === 'buddy') {
+      sfxPlace()
+      if (conflicts(puzzle, next).size) {
+        sfxError()
+        setHurt(true)
+        const left = hearts - 1
+        setHearts(left)
+        setMoves((n) => n + 1)
+        if (left <= 0) finish(false)
+        return
+      }
+    }
+    setCells(next)
+    setMoves((n) => n + 1)
+    if (isSolved(puzzle, next)) {
+      sfxWin()
+      finish(true)
+    }
+  }
+
+  function spend(ability: Ability) {
+    const have = charges[ability] ?? 0
+    if (have < 1 || phase !== 'play') return
+    const nextCharges = { ...charges, [ability]: have - 1 }
+    if (me) void api<{ me: Me }>('/api/charge', { ability }).then((res) => onMe(res.me)).catch(() => undefined)
+    else {
+      const next = { ...guest, charges: nextCharges }
+      setGuest(next)
+      saveGuest(next)
+    }
+    setUsed(true)
+    if (ability === 'place') {
+      const open = puzzle.solution.find((index) => cells[index] !== 'buddy')
+      if (open == null) return
+      const next = cells.slice()
+      next[open] = 'buddy'
+      sfxPlace()
+      setCells(next)
+      if (isSolved(puzzle, next)) {
+        sfxWin()
+        finish(true)
+      }
+    } else if (ability === 'heart') {
+      setHearts((n) => Math.min(MAX_HEARTS, n + 1))
+    } else if (ability === 'rule') {
+      const marks = ruledOut(puzzle, cells).slice(0, 12)
+      const next = cells.slice()
+      marks.forEach((index) => {
+        if (next[index] === 'empty') next[index] = 'mark'
+      })
+      sfxMark()
+      setCells(next)
+    } else if (ability === 'light' || ability === 'light6') {
+      const buddies = new Set(buddyIndexes(cells).map((index) => Math.floor(index / puzzle.size)))
+      const row = Array.from({ length: puzzle.size }, (_, r) => r).find((r) => !buddies.has(r)) ?? 0
+      const cellsInRow = Array.from({ length: puzzle.size }, (_, c) => row * puzzle.size + c)
+      setHighlights(ability === 'light' ? cellsInRow : ruledOut(puzzle, cells).slice(0, 6))
+    }
+    if (!me) return
+    me.charges = nextCharges
+    onMe({ ...me, charges: nextCharges })
+  }
+
+  function afterUnseen() {
+    if (hearts <= 0 && !isSolved(puzzle, cells)) setPhase(mode === 'survival' ? 'over' : 'loss')
+    else setPhase('victory')
+  }
+
+  function nextBoard() {
+    if (mode === 'survival') {
+      const held = throneForWins((me?.wins ?? guest.wins))
+      const nextSize = held?.size ?? size
+      const nextDiff = (held?.difficulty ?? difficulty) as Difficulty
+      boot('survival', nextSize, nextDiff, hearts, run + 1)
+      return
+    }
+    if (mode === 'daily') boot('daily', 6, 1, MAX_HEARTS, 0)
+    else boot('free', size, difficulty, MAX_HEARTS, 0)
+  }
+
+  async function shareBoard(copyOnly = false) {
+    const res = await api<{ code: string; path: string }>('/api/challenge', { puzzle, seconds })
+    const url = `${location.origin}${res.path}`
+    if (copyOnly) {
+      await navigator.clipboard.writeText(url)
+      return
+    }
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: t.brand, url })
+        return
+      } catch {
+        /* dismissed */
+      }
+    }
+    await navigator.clipboard.writeText(url)
+  }
+
+  const modeName = mode === 'daily' ? t.daily : mode === 'free' ? t.freePlay : t.survival
+  const boardBlock = (
+    <div className="stack" style={{ flex: 1, minHeight: 0 }}>
+      <div className="spread">
+        <button className="logo" type="button" onClick={() => go('/')}>{t.brand}</button>
+        <span className="chip">{modeName}</span>
+        <span className="chip">{'♥'.repeat(Math.max(0, hearts))}</span>
+        <button className="chip" type="button" onClick={() => go('/thrones')}>{throne ? (lang === 'fr' ? throne.nameFr : throne.name) : t.throne}</button>
+      </div>
+      {mode === 'survival' ? (
+        <div className="spread muted">
+          <span>{t.boardsCleared} {run}</span>
+          <span>{t.bestRun} {me?.bestRun?.[String(size)] ?? guest.bestRun[size] ?? 0}</span>
+          <span>{progress.next.wins - wins} → {lang === 'fr' ? progress.next.nameFr : progress.next.name}</span>
+        </div>
+      ) : null}
+      <BoardView puzzle={puzzle} cells={cells} highlights={highlights} onTap={tap} />
+      <div className="defs">
+        {DEFENDERS.map((defender) => (
+          <button key={defender.id} className="btn" type="button" onClick={() => spend(defender.ability)}>
+            {defender.name}
+            <br />
+            {CHARGE_LABEL[defender.ability][lang]} · {charges[defender.ability] ?? 0}
+          </button>
+        ))}
+      </div>
+      <div className="grid2">
+        <div className="tabs">
+          {(['daily', 'free', 'survival'] as Mode[]).map((item) => (
+            <button
+              key={item}
+              className={`tab ${mode === item ? 'on' : ''}`}
+              type="button"
+              onClick={() => {
+                setMode(item)
+                const nextSize = item === 'daily' ? 6 : size
+                const nextDiff = item === 'daily' ? 1 : difficulty
+                boot(item, nextSize, nextDiff as Difficulty, item === 'survival' ? hearts : MAX_HEARTS, item === 'survival' ? run : 0)
+              }}
+            >
+              {item === 'daily' ? t.daily : item === 'free' ? t.freePlay : t.survival}
+            </button>
+          ))}
+        </div>
+        {mode !== 'daily' ? (
+          <div className="tabs">
+            <button className="tab on" type="button" onClick={() => {
+              const order = [5, 6, 7, 8] as const
+              const next = order[(order.indexOf(size) + 1) % order.length]
+              setSize(next)
+              boot(mode, next, difficulty, mode === 'survival' ? hearts : MAX_HEARTS, run)
+            }}>{size}×{size}</button>
+            <button className="tab" type="button" onClick={() => {
+              const next = ((difficulty + 1) % 3) as Difficulty
+              setDifficulty(next)
+              boot(mode, size, next, mode === 'survival' ? hearts : MAX_HEARTS, run)
+            }}>{diffLabel}</button>
+          </div>
+        ) : <span className="muted">{t.daily}</span>}
+      </div>
+    </div>
+  )
+
+  const overlay = phase === 'play' ? null : (
+    <div className="modal-back">
+      <div className="modal">
+        {phase === 'unseen' && line ? (
+          <button type="button" className="unseen" onClick={afterUnseen}>
+            <img src="/unseen.png" alt="" />
+            <span className="bubble"><small>The Unseen</small>{line.text}<br /><span className="muted">{t.tapContinue}</span></span>
+          </button>
+        ) : null}
+        {phase === 'victory' ? (
+          <>
+            <h2>{t.victory}</h2>
+            <p className="muted">{formatTime(seconds)} · {moves}</p>
+            <button className="btn gold full" type="button" onClick={() => void shareBoard()}>{t.share}</button>
+            {pc ? <button className="btn full" type="button" onClick={() => void shareBoard(true)}>{t.copyLink}</button> : null}
+            <div className="grid2">
+              <button className="btn" type="button" onClick={nextBoard}>{t.nextBoard}</button>
+              <button className="btn" type="button" onClick={() => void shareBoard()}>{t.challenge}</button>
+              <button className="btn" type="button" onClick={() => boot(mode, size, difficulty, mode === 'survival' ? hearts : MAX_HEARTS, run)}>{t.playAgain}</button>
+              <button className="btn" type="button" onClick={() => go('/')}>{t.home}</button>
+            </div>
+            {(me?.perfects ?? guest.perfects) >= 3 ? (
+              <button className="btn" type="button" onClick={() => {
+                const flags = [true, true, true, false, false, false, false, false, false].sort(() => Math.random() - 0.5)
+                setHuntTiles(flags)
+                setHuntOpen(flags.map(() => false))
+                setPhase('hunt')
+              }}>{t.hunt}</button>
+            ) : null}
+          </>
+        ) : null}
+        {phase === 'loss' ? (
+          <>
+            <h2>{t.outOfHearts}</h2>
+            <div className="grid2">
+              <button className="btn gold" type="button" onClick={() => boot(mode, size, difficulty, MAX_HEARTS, 0)}>{t.tryAgain}</button>
+              <button className="btn" type="button" onClick={() => void shareBoard()}>{t.challenge}</button>
+              <button className="btn" type="button" onClick={() => go('/')}>{t.home}</button>
+            </div>
+          </>
+        ) : null}
+        {phase === 'over' ? (
+          <>
+            <h2>{t.runOver}</h2>
+            <p className="muted">{t.boardsCleared} {run}</p>
+            <div className="grid2">
+              <button className="btn gold" type="button" onClick={() => boot('survival', size, difficulty, MAX_HEARTS, 0)}>{t.playAgain}</button>
+              <button className="btn" type="button" onClick={() => go('/')}>{t.home}</button>
+            </div>
+          </>
+        ) : null}
+        {phase === 'hunt' ? (
+          <>
+            <h2>{t.hunt}</h2>
+            <div className="grid2">
+              {huntTiles.map((buddy, index) => (
+                <button key={index} className="btn" type="button" onClick={() => {
+                  const next = huntOpen.slice()
+                  next[index] = true
+                  setHuntOpen(next)
+                  if (buddy) sfxPlace()
+                  else sfxMark()
+                  if (next.every(Boolean)) {
+                    const picked = pickUnseen('hunt', false)
+                    setLine(picked)
+                    playVoice(picked.id)
+                    setPhase('hunt-end')
+                  }
+                }}>{huntOpen[index] ? (buddy ? '●' : '×') : '·'}</button>
+              ))}
+            </div>
+          </>
+        ) : null}
+        {phase === 'hunt-end' && line ? (
+          <>
+            <button type="button" className="unseen" onClick={() => setPhase('victory')}>
+              <img src="/unseen.png" alt="" />
+              <span className="bubble"><small>The Unseen</small>{line.text}</span>
+            </button>
+            <p>{t.huntFound} {huntTiles.filter((buddy, index) => buddy && huntOpen[index]).length} {t.huntOf}</p>
+          </>
+        ) : null}
+      </div>
+    </div>
+  )
+
+  if (!pc) {
+    return (
+      <div className="body" style={{ position: 'relative', overflow: 'hidden' }}>
+        {boardBlock}
+        {overlay}
+      </div>
+    )
+  }
+
+  return (
+    <div className="pc-body" style={{ position: 'relative', width: '100%' }}>
+      <div className="pc-side">
+        <div className="card"><b>{t.goal}</b><p className="muted">{t.streak} {me?.streak ?? guest.streak}</p></div>
+        <div className="card"><b>{t.myTeam}</b><button className="btn" type="button" onClick={() => go('/teams')}>{t.teams}</button></div>
+        <button className="btn" type="button" onClick={() => go('/shop')}>{t.shop}</button>
+        <button className="btn" type="button" onClick={() => go('/stable')}>{t.stable}</button>
+      </div>
+      <div className="pc-main" style={{ position: 'relative' }}>{boardBlock}{overlay}</div>
+      <MiniBoard t={t} />
+    </div>
+  )
+}
+
+function MiniBoard({ t }: { t: Copy }) {
+  const [rows, setRows] = useState<{ name: string; score: number }[]>([])
+  useEffect(() => {
+    void api<{ rows: { name: string; score: number }[] }>('/api/leaderboard?scope=week').then((res) => setRows(res.rows.slice(0, 8))).catch(() => undefined)
+  }, [])
+  return (
+    <aside className="pc-side">
+      <div className="card scroll">
+        <b>{t.week}</b>
+        {rows.length === 0 ? <p className="muted">{t.noRank}</p> : rows.map((row, index) => (
+          <div key={row.name} className="spread"><span>{index + 1}. {row.name}</span><span>{row.score}</span></div>
+        ))}
+        <button className="btn" type="button" onClick={() => go('/leaderboard')}>{t.seeAll}</button>
+      </div>
+    </aside>
+  )
+}
+
+function formatTime(seconds: number): string {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+}
