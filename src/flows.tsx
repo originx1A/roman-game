@@ -317,12 +317,12 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
   }
 
   const cents = centsForSku(sku, prices)
-  const price = cents == null ? t.placeholderCoins : formatPrice(cents, prices.symbol)
+  const price = cents == null ? t.placeholderCoins : formatPrice(cents, prices.symbol, lang)
   const offerName = packName(t, sku)
   const offerLine = sku === 'starter'
     ? `${formatCoins(STARTER_COINS, lang)} ${t.coins} · ${t.bonusIcons}`
     : `${formatCoins(PACKS.find((pack) => pack.sku === sku)?.coins ?? 0, lang)} ${t.coins}`
-  const wrap = (node: ReactNode) => <div className="body stack">{node}</div>
+  const wrap = (node: ReactNode) => <div className="body stack shop-scroll">{node}</div>
 
   if (step === 'birthday') {
     return wrap(
@@ -448,7 +448,7 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
           <b>{t.starter}</b>
           <p className="muted">{t.oneTime}</p>
           <p>{t.bonusIcons}</p>
-          <p>{formatPrice(prices.starterCents, prices.symbol)}</p>
+          <p>{formatPrice(prices.starterCents, prices.symbol, lang)}</p>
         </button>
       ) : null}
       {pc || tab === 'charges' ? (
@@ -473,7 +473,7 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
             {tag ? <span className="tag">{tag}</span> : null}
             <b>{packName(t, pack.sku)}</b>
             <p>{formatCoins(pack.coins, lang)} {t.coins}</p>
-            <p>{packCents == null ? t.placeholderCoins : formatPrice(packCents, prices.symbol)}</p>
+            <p>{packCents == null ? t.placeholderCoins : formatPrice(packCents, prices.symbol, lang)}</p>
           </>
         )
         if (packCents == null) return <div key={pack.sku} className="card">{body}</div>
@@ -481,7 +481,7 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
           <button key={pack.sku} className="card" type="button" onClick={() => void begin(pack.sku)}>{body}</button>
         )
       })}
-      <div className="card"><p className="muted">{t.priceUnset}</p><button className="btn" type="button" disabled>{t.buyFree}</button> <button className="btn" type="button" onClick={() => go('/shop')}>{t.notNow}</button></div>
+      <div className="card"><button className="btn" type="button" disabled>{t.buyFree}</button> <button className="btn" type="button" onClick={() => go('/shop')}>{t.notNow}</button></div>
       <p className="muted">{t.shopTabsNote}</p>
       {error ? <p className="err">{error}</p> : null}
     </div>,

@@ -998,7 +998,7 @@ async function acceptOrder(kv: Store, me: Account | null, body: Record<string, u
     sku,
     cents,
     currency: price.currency,
-    price: formatPrice(cents, price.symbol),
+    price: formatPrice(cents, price.symbol, me.language === 'fr' ? 'fr' : 'en'),
     status: 'review',
     acceptedAt: new Date().toISOString(),
     paidAt: null,

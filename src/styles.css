@@ -25,6 +25,9 @@ h1, h2, .display { font-family: 'Titan One', Nunito, sans-serif; font-weight: 40
 .spread { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .stack { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.shop-scroll { flex: 1; min-height: 0; overflow: auto; }
+.shop-scroll > *,
+.shop-scroll .stack > * { flex-shrink: 0; }
 .phone-viewport { height: 100dvh; display: grid; place-items: center; overflow: hidden; background: #040916; }
 .phone-stage {
   width: 390px; height: 636px; overflow: hidden; transform-origin: center center;

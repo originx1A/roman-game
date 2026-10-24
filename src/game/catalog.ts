@@ -1,7 +1,7 @@
 /** Shared numbers. Pet and clothing coin prices stay unset. */
 
 export const TERMS_VERSION = '2026-10-24'
-export const BUILD_NUMBER = '2026.10.24.8'
+export const BUILD_NUMBER = '2026.10.24.9'
 
 /** Working cash-buying age. Quebec's 14 is not applied. Asked once, then only over/under is kept. */
 export const CASH_AGE = 13
@@ -77,7 +77,13 @@ export function centsForSku(
   return prices.largeCents
 }
 
-export function formatPrice(cents: number, symbol: 'CA$' | 'US$'): string {
+export function formatPrice(cents: number, symbol: 'CA$' | 'US$', lang: 'en' | 'fr' = 'en'): string {
+  if (lang === 'fr') {
+    return new Intl.NumberFormat('fr-CA', {
+      style: 'currency',
+      currency: symbol === 'US$' ? 'USD' : 'CAD',
+    }).format(cents / 100)
+  }
   return `${symbol}${ (cents / 100).toFixed(2) }`
 }
 
