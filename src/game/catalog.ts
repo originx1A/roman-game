@@ -1,7 +1,7 @@
 /** Shared numbers. Pet and clothing coin prices stay unset. */
 
 export const TERMS_VERSION = '2026-10-24'
-export const BUILD_NUMBER = '2026.10.24.9'
+export const BUILD_NUMBER = '2026.10.24.10'
 
 /** Working cash-buying age. Quebec's 14 is not applied. Asked once, then only over/under is kept. */
 export const CASH_AGE = 13
@@ -136,13 +136,17 @@ export function creditCoins<T extends { coins: number }>(account: T, sku: string
   return { ...account, coins: account.coins + pack.coins }
 }
 
-/** Shop pets and clothing. Coin prices are intentionally unset. */
+/** Shop pets besides the defenders. Leo is the defender, not a second pet. Coin prices stay unset. */
 export const PETS = [
-  { id: 'leo', name: 'Leo', free: false },
   { id: 'war-horse', name: 'War Horse', free: false },
   { id: 'night-owl', name: 'Night Owl', free: false },
   { id: 'eagle', name: 'Eagle', free: false },
 ] as const
+
+export function petName(id: string | null | undefined): string | null {
+  if (!id) return null
+  return PETS.find((pet) => pet.id === id)?.name ?? DEFENDERS.find((pet) => pet.id === id)?.name ?? id
+}
 
 export const CLOTHES = [
   { id: 'for-lupa', name: 'For Lupa', pet: 'lupa' },

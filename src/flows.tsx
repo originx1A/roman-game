@@ -4,7 +4,7 @@ import { BoardView } from './ui/BoardView'
 import { isSolved } from './game/logic'
 import { isMuted, setMuted, sfxMark, sfxPlace } from './game/sound'
 import { ADJECTIVES, NOUNS, formatTeamName } from './game/teamNames'
-import { DEFENDERS, PETS, CLOTHES, PACKS, SELLER, SUPPORT_EMAIL, STARTER_COINS, centsForSku, formatCoins, formatPrice, isSku, priceForCountry, type Sku } from './game/catalog'
+import { DEFENDERS, PETS, CLOTHES, PACKS, SELLER, SUPPORT_EMAIL, STARTER_COINS, centsForSku, formatCoins, formatPrice, isSku, petName, priceForCountry, type Sku } from './game/catalog'
 import { throneAt, throneForBoards, winMap } from './game/thrones'
 import type { Copy, Lang } from './i18n'
 import { legalSections } from './i18n'
@@ -1040,14 +1040,14 @@ export function ThroneScreen({ t, lang, me }: Bag) {
 export function StableScreen({ t, me, onMe }: Bag) {
   const pets = me?.pets ?? []
   const clothes = me?.clothes ?? []
-  const host = PETS.find((pet) => pet.id === me?.hostPet)?.name
+  const host = petName(me?.hostPet)
   return (
     <div className="body stack">
       <h1>{t.stable}</h1>
       <p className="muted">{t.host}: {host ?? t.noHost}</p>
       {pets.length === 0 ? <p className="muted">{t.priceUnset}</p> : pets.map((id) => (
         <div key={id} className="card stack">
-          <span>{PETS.find((pet) => pet.id === id)?.name ?? id}</span>
+          <span>{petName(id)}</span>
           <button className="btn" type="button" onClick={() => void api<{ me: Me }>('/api/host', { pet: id }).then((res) => onMe(res.me))}>{t.pickHost}</button>
         </div>
       ))}

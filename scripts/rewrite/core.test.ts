@@ -4,7 +4,7 @@ import { conflicts, emptyBoard, isSolved, puzzlePlayable, regionConnected, type 
 import { dailyPuzzle, makePuzzle, puzzleFromId, torontoDate } from '../../src/game/generate.ts'
 import { THRONES, boardFromPuzzleId, boardSteps, throneAt, throneForBoards, throneForWins, throneIdForBoard, throneProgress, winsNeeded } from '../../src/game/thrones.ts'
 import { formatTeamName, parseTeamName } from '../../src/game/teamNames.ts'
-import { PACKS, STARTER_CLOTH, STARTER_COINS, STARTER_PET, centsForSku, creditCoins, creditStarter, formatCoins, formatPrice, isSku, priceForCountry } from '../../src/game/catalog.ts'
+import { CLOTHES, DEFENDERS, PACKS, PETS, STARTER_CLOTH, STARTER_COINS, STARTER_PET, centsForSku, creditCoins, creditStarter, formatCoins, formatPrice, isSku, petName, priceForCountry } from '../../src/game/catalog.ts'
 import { openStore } from '../../netlify/lib/rewrite/db.ts'
 import { EMAIL_HOLD_MS, emailHeldBy, emailHoldKey } from '../../netlify/lib/rewrite/emailHold.ts'
 import { en, fr } from '../../src/i18n.ts'
@@ -164,6 +164,16 @@ test('prices are per country and the small pack matches the starter', () => {
   assert.equal(isSku('pack-small'), true)
   assert.equal(isSku('starter'), true)
   assert.equal(isSku('pack-other'), false)
+})
+
+test('Leo is listed once, as a defender', () => {
+  assert.equal(DEFENDERS.filter((pet) => pet.id === 'leo').length, 1)
+  assert.equal(PETS.some((pet) => pet.id === 'leo'), false)
+  assert.deepEqual(PETS.map((pet) => pet.id), ['war-horse', 'night-owl', 'eagle'])
+  assert.equal(CLOTHES.find((piece) => piece.id === 'for-leo')?.pet, 'leo')
+  assert.equal(petName('leo'), 'Leo')
+  assert.equal(petName('night-owl'), 'Night Owl')
+  assert.equal(petName(null), null)
 })
 
 test('the starter pack credits 8000 coins, the owl, and the top hat once', async () => {
