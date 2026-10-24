@@ -147,14 +147,17 @@ button.card { display: block; width: 100%; text-align: left; position: relative;
 .unseen img { width: 120px; height: auto; }
 .unseen-pop {
   position: relative; z-index: 6; pointer-events: none;
-  display: flex; align-items: flex-end; gap: 8px; max-width: 100%;
+  display: flex; align-items: flex-end; justify-content: flex-end; gap: 8px; max-width: 100%;
 }
+.unseen-pop .bubble { min-width: 0; }
 .unseen-pop img {
   width: 72px; height: auto; flex: none; background: transparent;
   filter: drop-shadow(0 10px 14px rgba(0,0,0,.5));
 }
-.pc-side .unseen-pop { flex-direction: column; align-items: flex-start; }
-.pc-side .unseen-pop img { width: 140px; }
+.pc-side .unseen-pop { width: 100%; }
+.pc-side .unseen-pop .bubble { flex: 1; }
+.pc-side .unseen-pop img { width: 120px; }
+.phone-stage .unseen-pop .bubble { max-width: 210px; }
 .phone-stage .with-unseen .board-slot { width: min(100%, 268px); }
 .play-main { display: flex; flex-direction: column; align-items: center; position: relative; }
 .play-main > .stack { width: min(100%, 560px); }

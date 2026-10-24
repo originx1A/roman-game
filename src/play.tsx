@@ -466,7 +466,6 @@ export function PlayScreen({
           <p className="muted">{modeName} · {diffLabel}</p>
           <p className="muted">{progress.left} → {nextThrone}</p>
         </div>
-        {line ? <UnseenCutout line={line} /> : null}
         <div className="card stack">
           <b>{t.myTeam}</b>
           <button className="btn" type="button" onClick={() => go('/teams')}>{t.teams}</button>
@@ -475,7 +474,7 @@ export function PlayScreen({
         </div>
       </div>
       <div className="pc-main play-main">{boardBlock}{result}</div>
-      <MiniBoard t={t} />
+      <MiniBoard t={t} line={line} />
     </div>
   )
 }
@@ -494,7 +493,7 @@ function UnseenCutout({ line }: { line: UnseenLine }) {
   )
 }
 
-function MiniBoard({ t }: { t: Copy }) {
+function MiniBoard({ t, line }: { t: Copy; line: UnseenLine | null }) {
   const [rows, setRows] = useState<{ name: string; score: number; hostPet?: string | null }[]>([])
   const [note, setNote] = useState('')
   useEffect(() => {
@@ -504,6 +503,7 @@ function MiniBoard({ t }: { t: Copy }) {
   }, [t])
   return (
     <aside className="pc-side">
+      {line ? <UnseenCutout line={line} /> : null}
       <div className="card scroll stack">
         <b>{t.leaderboard}</b>
         <span className="chip">{t.week}</span>
