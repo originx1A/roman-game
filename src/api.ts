@@ -28,6 +28,10 @@ export interface Me {
   ageGate: 'over' | 'under' | null
   wins: number
   winsByBoard: Record<string, number>
+  points?: number
+  pointsByBoard?: Record<string, number>
+  pointsToday?: number
+  pointsWeek?: number
   perfects: number
   coins: number
   starterOwned: boolean

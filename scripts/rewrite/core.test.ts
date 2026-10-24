@@ -5,6 +5,7 @@ import { dailyPuzzle, makePuzzle, puzzleFromId, torontoDate } from '../../src/ga
 import { THRONES, boardFromPuzzleId, boardSteps, throneAt, throneForBoards, throneForWins, throneIdForBoard, throneProgress, winsNeeded } from '../../src/game/thrones.ts'
 import { formatTeamName, parseTeamName } from '../../src/game/teamNames.ts'
 import { CHARGE_COST, CLOTHES, DEFENDER_PRICE, PACKS, STARTER_CLOTH, STARTER_COINS, STARTER_PET, applyCoinDelta, centsForSku, coinsForWin, creditCoins, creditStarter, formatCoins, formatPrice, isSku, leaderboardPrize, priceForCountry, sameSiteNext } from '../../src/game/catalog.ts'
+import { pointsForWin } from '../../src/game/points.ts'
 import { openStore } from '../../netlify/lib/rewrite/db.ts'
 import { EMAIL_HOLD_MS, emailHeldBy, emailHoldKey } from '../../netlify/lib/rewrite/emailHold.ts'
 import { en, fr } from '../../src/i18n.ts'
@@ -170,6 +171,13 @@ test('prices are per country and the small pack matches the starter', () => {
   assert.equal(isSku('pack-small'), true)
   assert.equal(isSku('starter'), true)
   assert.equal(isSku('pack-other'), false)
+})
+
+test('a win scores points from the board, a perfect clear, and the streak', () => {
+  assert.equal(pointsForWin(5, 0, false, 1), 110)
+  assert.equal(pointsForWin(6, 1, true, 7), 270)
+  assert.equal(pointsForWin(8, 3, false, 0), 250)
+  assert.equal(pointsForWin(5, 0, true, 9), 220)
 })
 
 test('approved coin prices and win payouts', () => {

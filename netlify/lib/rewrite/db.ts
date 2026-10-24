@@ -4,6 +4,7 @@ import { dirname } from 'node:path'
 import { RESET_MINUTES, TERMS_VERSION, applyCoinDelta, isSku, leaderboardPrize } from '../../../src/game/catalog.ts'
 import { throneForBoards, winMap } from '../../../src/game/thrones.ts'
 import { torontoDate } from '../../../src/game/generate.ts'
+import { pointsWeekKey } from '../../../src/game/points.ts'
 import { emailHeldBy, emailHoldKey, type EmailHold } from './emailHold.ts'
 import type { Mail } from './mail.ts'
 import type { Account, Approval, Challenge, Order, Team } from './server.ts'
@@ -61,6 +62,12 @@ interface State {
   authEmail?: string
   wins?: number
   winsByBoard?: Record<string, number>
+  points?: number
+  pointsByBoard?: Record<string, number>
+  pointsToday?: number
+  pointsDay?: string | null
+  pointsWeek?: number
+  pointsWeekKey?: string
   perfects?: number
   starterOwned?: boolean
   pets?: string[]
@@ -495,7 +502,7 @@ export class Store {
       'scores?select=player_id,time_seconds,mode,level,score,daily_date,created_at&order=created_at.desc&limit=800',
     )
     const ids = [...new Set(scores.map((row) => row.player_id))]
-    return { rows: await this.decorate(ids, scores, scope, size) }
+    return { rows: await this.decorate(ids, scope, size) }
   }
 
   async social(meId: string): Promise<Social> {
@@ -623,6 +630,12 @@ export class Store {
       ageGate: age?.choice === '13_plus' ? 'over' : age?.choice === 'under_13' ? 'under' : null,
       wins: state.wins ?? 0,
       winsByBoard: winMap(state),
+      points: state.points ?? 0,
+      pointsByBoard: state.pointsByBoard ?? {},
+      pointsToday: state.pointsToday ?? 0,
+      pointsDay: state.pointsDay ?? null,
+      pointsWeek: state.pointsWeek ?? 0,
+      pointsWeekKey: state.pointsWeekKey ?? '',
       perfects: state.perfects ?? 0,
       coins: balance?.balance ?? 0,
       starterOwned: state.starterOwned ?? false,
@@ -670,6 +683,12 @@ export class Store {
       authEmail: account.authEmail,
       wins: account.wins,
       winsByBoard: account.winsByBoard,
+      points: account.points,
+      pointsByBoard: account.pointsByBoard,
+      pointsToday: account.pointsToday,
+      pointsDay: account.pointsDay,
+      pointsWeek: account.pointsWeek,
+      pointsWeekKey: account.pointsWeekKey,
       perfects: account.perfects,
       starterOwned: account.starterOwned,
       pets: account.pets,
@@ -1121,44 +1140,39 @@ export class Store {
 
   private async rank(ids: string[], scope: string, size: number): Promise<BoardResult['rows']> {
     if (!ids.length) return []
-    const scores = await this.many<{ player_id: string; time_seconds: number; mode: string; level: number; score: number; daily_date: string | null; created_at: string }>(
-      `scores?player_id=in.(${ids.join(',')})&select=player_id,time_seconds,mode,level,score,daily_date,created_at&limit=800`,
-    )
-    return this.decorate(ids, scores, scope, size)
+    return this.decorate(ids, scope, size)
   }
 
-  private async decorate(
-    ids: string[],
-    scores: { player_id: string; time_seconds: number; mode: string; level: number; score: number; daily_date: string | null; created_at: string }[],
-    scope: string,
-    size: number,
-  ): Promise<BoardResult['rows']> {
+  private async decorate(ids: string[], scope: string, size: number): Promise<BoardResult['rows']> {
     const today = torontoDate()
-    const start = weekStart()
-    const totals = new Map<string, number>()
-    for (const id of ids) totals.set(id, 0)
-    for (const row of scores) {
-      if (scope === 'today') {
-        if (row.mode === 'daily' && row.daily_date === today) {
-          const prev = totals.get(row.player_id)
-          if (prev == null || prev === 0 || row.time_seconds < prev) totals.set(row.player_id, row.time_seconds)
-        }
-      } else if (scope === 'survival') {
-        if (row.mode === 'endless' && row.level === size) totals.set(row.player_id, Math.max(totals.get(row.player_id) ?? 0, row.score))
-      } else if (Date.parse(row.created_at) >= start) {
-        totals.set(row.player_id, (totals.get(row.player_id) ?? 0) + 1)
-      }
-    }
+    const week = pointsWeekKey()
     const names = await this.names(ids)
     const hidden = await this.hiddenNames(ids)
     const saves = ids.length
       ? await this.many<{ player_id: string; state: State }>(`game_saves?player_id=in.(${ids.join(',')})&slot=eq.rewrite&select=player_id,state`)
       : []
+    const stateOf = new Map(saves.map((save) => [save.player_id, save.state ?? {}]))
+    const totals = new Map<string, number>()
+    for (const id of ids) {
+      const state = stateOf.get(id) ?? {}
+      let score = 0
+      if (scope === 'today') {
+        score = state.pointsDay === today ? state.pointsToday ?? 0 : 0
+      } else if (scope === 'survival') {
+        const prefix = `${size}:`
+        for (const [key, value] of Object.entries(state.pointsByBoard ?? {})) {
+          if (key.startsWith(prefix) && value > score) score = value
+        }
+      } else {
+        score = state.pointsWeekKey === week ? state.pointsWeek ?? 0 : 0
+      }
+      totals.set(id, score)
+    }
     const winsOf = new Map(saves.map((save) => [save.player_id, winMap(save.state ?? {})]))
     const hostOf = new Map(saves.map((save) => [save.player_id, save.state?.hostPet ?? null]))
     return [...totals.entries()]
       .filter(([, score]) => score > 0)
-      .sort((a, b) => (scope === 'today' ? a[1] - b[1] : b[1] - a[1]))
+      .sort((a, b) => b[1] - a[1])
       .slice(0, 50)
       .map(([id, score]) => ({
         name: hidden.has(id) ? 'Player' : names.get(id) ?? 'Player',

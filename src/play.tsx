@@ -3,9 +3,10 @@ import { ApiError, api, type Me } from './api'
 import { BoardView } from './ui/BoardView'
 import { DefenderArt } from './ui/DefenderArt'
 import { CHARGE_LABEL, DEFENDERS, MAX_HEARTS, WEEK_WIN_BONUS_AT, type Ability } from './game/catalog'
-import { dailyPuzzle, makePuzzle, type Difficulty } from './game/generate'
+import { dailyPuzzle, makePuzzle, torontoDate, type Difficulty } from './game/generate'
 import { buddyIndexes, conflicts, cycleCell, emptyBoard, isSolved, ruledOut, type Cell, type Puzzle } from './game/logic'
 import { playVoice, sfxError, sfxGiggle, sfxMark, sfxPlace, sfxWin, unlockAudio } from './game/sound'
+import { pointsForWin, pointsWeekKey } from './game/points'
 import { boardFromPuzzleId, boardSteps, throneForBoards, throneProgress, winMap } from './game/thrones'
 import { pickUnseen, type UnseenLine } from './game/unseen'
 import type { Copy, Lang } from './i18n'
@@ -17,6 +18,12 @@ type Phase = 'play' | 'unseen' | 'victory' | 'loss' | 'over' | 'hunt' | 'hunt-en
 interface Guest {
   wins: number
   winsByBoard: Record<string, number>
+  points: number
+  pointsByBoard: Record<string, number>
+  pointsToday: number
+  pointsDay: string
+  pointsWeek: number
+  pointsWeekKey: string
   perfects: number
   charges: Record<string, number>
   bestRun: Record<string, number>
@@ -28,12 +35,21 @@ function loadGuest(): Guest {
   try {
     const raw = JSON.parse(localStorage.getItem('rg.guest') || '') as Guest
     if (raw && typeof raw.wins === 'number') {
-      return { ...raw, winsByBoard: winMap(raw) }
+      return {
+        ...raw,
+        winsByBoard: winMap(raw),
+        points: raw.points ?? 0,
+        pointsByBoard: raw.pointsByBoard ?? {},
+        pointsToday: raw.pointsToday ?? 0,
+        pointsDay: raw.pointsDay ?? '',
+        pointsWeek: raw.pointsWeek ?? 0,
+        pointsWeekKey: raw.pointsWeekKey ?? '',
+      }
     }
   } catch {
     /* ignore */
   }
-  return { wins: 0, winsByBoard: {}, perfects: 0, charges: {}, bestRun: {}, streak: 0, streakDay: '' }
+  return { wins: 0, winsByBoard: {}, points: 0, pointsByBoard: {}, pointsToday: 0, pointsDay: '', pointsWeek: 0, pointsWeekKey: '', perfects: 0, charges: {}, bestRun: {}, streak: 0, streakDay: '' }
 }
 
 function saveGuest(guest: Guest) {
@@ -152,7 +168,33 @@ export function PlayScreen({
     } else {
       const wonOn = boardFromPuzzleId(puzzle.id, puzzle.size)
       const winsByBoard = { ...guest.winsByBoard, [wonOn.key]: (guest.winsByBoard[wonOn.key] ?? 0) + 1 }
-      const next = { ...guest, wins: guest.wins + 1, winsByBoard, perfects: guest.perfects + (perfect ? 1 : 0) }
+      const today = torontoDate()
+      const week = pointsWeekKey()
+      let streak = guest.streak
+      let streakDay = guest.streakDay
+      if (streakDay !== today) {
+        const yesterday = torontoDate(new Date(Date.now() - 86400000))
+        streak = streakDay === yesterday ? streak + 1 : 1
+        streakDay = today
+      }
+      const gained = pointsForWin(puzzle.size, wonOn.difficulty, perfect, streak)
+      const pointsByBoard = { ...guest.pointsByBoard, [wonOn.key]: Math.max(guest.pointsByBoard[wonOn.key] ?? 0, gained) }
+      const pointsToday = guest.pointsDay === today ? (guest.pointsToday ?? 0) + gained : gained
+      const pointsWeek = guest.pointsWeekKey === week ? (guest.pointsWeek ?? 0) + gained : gained
+      const next = {
+        ...guest,
+        wins: guest.wins + 1,
+        winsByBoard,
+        perfects: guest.perfects + (perfect ? 1 : 0),
+        streak,
+        streakDay,
+        points: (guest.points ?? 0) + gained,
+        pointsByBoard,
+        pointsToday,
+        pointsDay: today,
+        pointsWeek,
+        pointsWeekKey: week,
+      }
       if (mode === 'survival') next.bestRun = { ...guest.bestRun, [puzzle.size]: Math.max(guest.bestRun[puzzle.size] ?? 0, run + 1) }
       setGuest(next)
       saveGuest(next)

@@ -33,6 +33,7 @@ import { formatTeamName, parseTeamName, type TeamNamePick } from '../../../src/g
 import { puzzleFromId, torontoDate } from '../../../src/game/generate.ts'
 import { isCellBoard, isSolved, puzzlePlayable, type Puzzle } from '../../../src/game/logic.ts'
 import { boardFromPuzzleId, throneForBoards, winMap } from '../../../src/game/thrones.ts'
+import { pointsForWin } from '../../../src/game/points.ts'
 import { approvalMail, receiptMail, reminderMail, resetMail, sendMail, verificationMail, type Mail } from './mail.ts'
 
 export type { Env }
@@ -53,6 +54,12 @@ export interface Account {
   ageGate: 'over' | 'under' | null
   wins: number
   winsByBoard: Record<string, number>
+  points: number
+  pointsByBoard: Record<string, number>
+  pointsToday: number
+  pointsDay: string | null
+  pointsWeek: number
+  pointsWeekKey: string
   perfects: number
   coins: number
   starterOwned: boolean
@@ -224,6 +231,10 @@ function publicMe(account: Account) {
     ageGate: account.ageGate,
     wins: account.wins,
     winsByBoard: boards,
+    points: account.points,
+    pointsByBoard: account.pointsByBoard,
+    pointsToday: account.pointsDay === torontoDate() ? account.pointsToday : 0,
+    pointsWeek: account.pointsWeekKey === weekKey() ? account.pointsWeek : 0,
     perfects: account.perfects,
     coins: account.coins,
     starterOwned: account.starterOwned,
@@ -313,6 +324,12 @@ function blankAccount(input: { loginKey: string; playerName: string; email: stri
     ageGate: null,
     wins: 0,
     winsByBoard: {},
+    points: 0,
+    pointsByBoard: {},
+    pointsToday: 0,
+    pointsDay: null,
+    pointsWeek: 0,
+    pointsWeekKey: weekKey(),
     perfects: 0,
     coins: 0,
     starterOwned: false,
@@ -1294,6 +1311,20 @@ async function recordWin(kv: Store, me: Account | null, body: Record<string, unk
       me.streakDay = today
       if (me.streak === 3 || me.streak === 5 || me.streak === 7) me.charges.place = (me.charges.place ?? 0) + 1
     }
+    const gained = pointsForWin(size, board.difficulty, body.perfect === true, me.streak)
+    me.points = (me.points ?? 0) + gained
+    me.pointsByBoard = me.pointsByBoard ?? {}
+    me.pointsByBoard[board.key] = Math.max(me.pointsByBoard[board.key] ?? 0, gained)
+    if (me.pointsDay !== today) {
+      me.pointsDay = today
+      me.pointsToday = 0
+    }
+    me.pointsToday += gained
+    if (me.pointsWeekKey !== wk) {
+      me.pointsWeekKey = wk
+      me.pointsWeek = 0
+    }
+    me.pointsWeek += gained
     if (mode === 'daily' && me.dailyWin !== today) {
       me.dailyWin = today
       me.dailySeconds = seconds

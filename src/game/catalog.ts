@@ -1,7 +1,7 @@
 /** Shared numbers. Pet and clothing coin prices stay unset. */
 
 export const TERMS_VERSION = '2026-10-24'
-export const BUILD_NUMBER = '2026.10.24.21'
+export const BUILD_NUMBER = '2026.10.24.22'
 
 /** Working cash-buying age. Quebec's 14 is not applied. Asked once, then only over/under is kept. */
 export const CASH_AGE = 13
