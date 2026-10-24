@@ -311,6 +311,85 @@ function Pieces({ id, pieces }: { id: DefenderId; pieces: ClothPiece[] }) {
   )
 }
 
+/** One clothing item, drawn on its own. Not a defender wearing it. */
+export function ClothArt({ id, size = 72, title }: { id: string; size?: number; title?: string }) {
+  const key = id.toLowerCase()
+  return (
+    <svg className="defender-art" width={size} height={size} viewBox="0 0 100 100" role="img" aria-label={title ?? key}>
+      {key === 'top-hat' ? <ItemHat /> : null}
+      {key === 'sunglasses' ? <ItemGlasses /> : null}
+      {key === 'scarf' ? <ItemScarf /> : null}
+      {key === 'badge' ? <ItemBadge /> : null}
+      {key === 'laurel' ? <ItemLaurel /> : null}
+      {key === 'crown' ? <ItemCrown /> : null}
+    </svg>
+  )
+}
+
+function ItemHat() {
+  return (
+    <g transform="translate(50 62)">
+      <rect x={-18} y={-46} width={36} height={34} rx={3} fill="#1b1b2b" stroke={INK} strokeWidth={3} />
+      <rect x={-18} y={-16} width={36} height={8} fill="#e63946" stroke={INK} strokeWidth={2} />
+      <rect x={-3} y={-16} width={6} height={8} fill="#ffd166" />
+      <ellipse cx={0} cy={0} rx={34} ry={8} fill="#1b1b2b" stroke={INK} strokeWidth={3} />
+    </g>
+  )
+}
+
+function ItemGlasses() {
+  return (
+    <g transform="translate(50 50)">
+      <path d="M-16 2 L-28 -2 M16 2 L28 -2" stroke={INK} strokeWidth={3} strokeLinecap="round" />
+      <path d="M-4 4 Q0 0 4 4" fill="none" stroke={INK} strokeWidth={3} />
+      <rect x={-22} y={-8} width={20} height={16} rx={6} fill="#10131f" stroke={INK} strokeWidth={2.4} />
+      <rect x={2} y={-8} width={20} height={16} rx={6} fill="#10131f" stroke={INK} strokeWidth={2.4} />
+      <path d="M-16 -4 l6 0 M8 -4 l6 0" stroke="#7fd0ff" strokeWidth={2} strokeLinecap="round" />
+    </g>
+  )
+}
+
+function ItemScarf() {
+  return (
+    <g transform="translate(50 46)">
+      <path d="M-30 0 Q0 16 30 0 L30 12 Q0 28 -30 12 Z" fill="#e63946" stroke={INK} strokeWidth={3} strokeLinejoin="round" />
+      <path d="M-24 6 Q0 20 24 6" fill="none" stroke="#ffd166" strokeWidth={2.4} />
+      <path d="M10 14 l10 22 l-10 4 l-8 -18 Z" fill="#e63946" stroke={INK} strokeWidth={2.4} strokeLinejoin="round" />
+      <path d="M14 32 l-3 8" stroke="#ffd166" strokeWidth={2.2} />
+    </g>
+  )
+}
+
+function ItemBadge() {
+  return (
+    <g transform="translate(50 50)">
+      <circle r={22} fill="#ffd166" stroke={INK} strokeWidth={3} />
+      <path d="M0 -12 L3.6 -3.6 L12 -2.8 L5.4 2.8 L7.2 11.2 L0 6.8 L-7.2 11.2 L-5.4 2.8 L-12 -2.8 L-3.6 -3.6 Z" fill="#e63946" stroke={INK} strokeWidth={1.6} />
+    </g>
+  )
+}
+
+function ItemLaurel() {
+  const leaves = [-28, -18, -8, 8, 18, 28].map((x) => (
+    <ellipse key={x} cx={x} cy={Math.abs(x) * 0.22} rx={8} ry={4} fill="#3fbf6f" stroke={INK} strokeWidth={2} transform={`rotate(${x * 1.4} ${x} ${Math.abs(x) * 0.22})`} />
+  ))
+  return (
+    <g transform="translate(50 52)">
+      {leaves}
+      <circle cx={0} cy={-2} r={5} fill="#e63946" stroke={INK} strokeWidth={2} />
+    </g>
+  )
+}
+
+function ItemCrown() {
+  return (
+    <g transform="translate(50 58)">
+      <path d="M-28 6 L-32 -22 L-16 -8 L0 -30 L16 -8 L32 -22 L28 6 Z" fill="#ffd166" stroke={INK} strokeWidth={3} strokeLinejoin="round" />
+      <circle cx={0} cy={-6} r={4} fill="#e63946" stroke={INK} strokeWidth={1.6} />
+    </g>
+  )
+}
+
 export function DefenderArt({
   id,
   size = 64,

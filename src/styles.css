@@ -465,6 +465,26 @@ button.spread {
 .legal p { margin: 0 0 8px; }
 .hidden-file { position: absolute; left: -999px; }
 .pop { position: absolute; z-index: 6; top: 48px; left: 10px; width: 230px; }
+.progress-door { cursor: pointer; }
+.progress-page {
+  flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 8px;
+  padding: 8px 22px 12px;
+}
+.progress-points { display: grid; grid-template-columns: 1.3fr repeat(3, minmax(0, 1fr)); gap: 8px; align-items: end; }
+.progress-points > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.progress-points b { font-size: 22px; line-height: 1.1; }
+.progress-boards { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.progress-boards .throne-card { min-height: 0; }
+.progress-row { display: grid; gap: 8px; flex: none; }
+.progress-defenders { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.progress-clothes { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.progress-row .card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; padding: 6px 4px; min-width: 0; }
+.progress-row b, .progress-row span { font-size: 12px; }
+.phone-stage .progress-page { overflow: auto; padding: 0 14px 12px; }
+.phone-stage .progress-points { grid-template-columns: 1fr 1fr; }
+.phone-stage .progress-boards { flex: none; grid-template-columns: 1fr; }
+.phone-stage .progress-boards .throne-card { min-height: 108px; }
+.phone-stage .progress-clothes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (min-width: 960px) {
   .phone-only { display: none !important; }
 }

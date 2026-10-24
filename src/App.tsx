@@ -11,6 +11,7 @@ import {
   HomeScreen,
   LaterScreen,
   LegalLinks,
+  ProgressScreen,
   LegalScreen,
   NudgeScreen,
   SettingsScreen,
@@ -82,6 +83,7 @@ export function App() {
   else if (path.startsWith('/teams') || path.startsWith('/t/')) page = <TeamScreen {...bag} />
   else if (path === '/leaderboard') page = <BoardScreen {...bag} />
   else if (path === '/thrones') page = <ThroneScreen {...bag} />
+  else if (path === '/progress') page = <ProgressScreen {...bag} />
   else if (path === '/stable') page = <StableScreen {...bag} />
   else if (path.startsWith('/later/')) page = <LaterScreen {...bag} />
   else if (path.startsWith('/c/')) page = <ChallengeScreen {...bag} />

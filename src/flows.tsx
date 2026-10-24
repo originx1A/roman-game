@@ -1,12 +1,14 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { ApiError, api, type Me } from './api'
 import { BoardView } from './ui/BoardView'
-import { DefenderArt } from './ui/DefenderArt'
+import { ClothArt, DefenderArt } from './ui/DefenderArt'
 import { isSolved } from './game/logic'
 import { sfxGiggle, sfxMark, sfxPlace } from './game/sound'
 import { ADJECTIVES, NOUNS, formatTeamName } from './game/teamNames'
 import { CHARGE_COST, CHARGE_LABEL, DEFENDERS, DEFENDER_PRICE, PETS, CLOTHES, PACKS, SELLER, SUPPORT_EMAIL, STARTER_COINS, WEEK_WIN_BONUS_AT, centsForSku, formatCoins, formatPrice, isSku, priceForCountry, sameSiteNext, type Sku } from './game/catalog'
-import { throneAt, throneForBoards, winMap } from './game/thrones'
+import { torontoDate } from './game/generate'
+import { pointsWeekKey } from './game/points'
+import { boardKey, boardSteps, parseBoardKey, throneAt, throneForBoards, throneIdForBoard, winMap } from './game/thrones'
 import type { Copy, Lang } from './i18n'
 import { legalSections } from './i18n'
 import { go } from './nav'
@@ -128,7 +130,7 @@ function StreakPips({ streak }: { streak: number }) {
 
 function AccountMenu({ t, me }: { t: Copy; me: Me }) {
   return (
-    <div className="card stack pop">
+    <div className="card stack pop" onClick={(event) => event.stopPropagation()}>
       <button className="btn" type="button" onClick={() => go('/settings')}>{t.settings}</button>
       {me.holder ? <button className="btn" type="button" onClick={() => go('/family')}>{t.family}</button> : null}
       <button className="btn" type="button" onClick={() => go('/leaderboard')}>{t.openLeaderboard}</button>
@@ -189,8 +191,7 @@ export function HomeScreen({ t, me, pc }: Bag) {
         {tabs}
         {me ? (
           <div className="home-name">
-            <button className="name-chip" type="button" onClick={() => setOpen((v) => !v)}>{me.playerName}</button>
-            {open ? <AccountMenu t={t} me={me} /> : null}
+            <button className="name-chip" type="button" onClick={() => go('/progress')}>{me.playerName}</button>
           </div>
         ) : null}
         {hero}
@@ -208,10 +209,10 @@ export function HomeScreen({ t, me, pc }: Bag) {
             </button>
           </>
         ) : (
-          <div className="card stack">
+          <div className="card stack progress-door" onClick={() => go('/progress')}>
             <p className="guest-prompt">{t.guestLine}</p>
-            <button className="btn gold" type="button" onClick={() => go('/settings')}>{t.guestSave}</button>
-            <p className="home-signin"><span className="muted">{t.already}</span> <button className="legal-link" type="button" onClick={() => go('/signin')}>{t.signIn}</button></p>
+            <button className="btn gold" type="button" onClick={(event) => { event.stopPropagation(); go('/settings') }}>{t.guestSave}</button>
+            <p className="home-signin"><span className="muted">{t.already}</span> <button className="legal-link" type="button" onClick={(event) => { event.stopPropagation(); go('/signin') }}>{t.signIn}</button></p>
           </div>
         )}
         {legal}
@@ -229,15 +230,15 @@ export function HomeScreen({ t, me, pc }: Bag) {
           <button className="card stack" type="button" onClick={() => go('/play')}><b>{t.freePlay}</b><span className="muted">6×6 · {t.medium}</span></button>
           <button className="card stack" type="button" onClick={() => go('/play')}><b>{t.survival}</b><span className="muted">{t.bestRun} {bestRun}</span></button>
         </div>
-        <div className="card stack home-you">
+        <div className="card stack home-you progress-door" onClick={() => go('/progress')}>
           <div className="home-name">
-            {me ? <button className="name-chip" type="button" onClick={() => setOpen((v) => !v)}>{me.playerName}</button> : <b>{t.solo}</b>}
+            {me ? <button className="name-chip" type="button" onClick={(event) => { event.stopPropagation(); setOpen((v) => !v) }}>{me.playerName}</button> : <b>{t.solo}</b>}
             {open && me ? <AccountMenu t={t} me={me} /> : null}
           </div>
           <span className="row">{me?.hostPet ? <DefenderArt id={me.hostPet} size={48} /> : null}<span>{t.host} · {hostName}</span></span>
           <div className="row">
-            <button className="btn" type="button" onClick={() => go('/stable')}>{t.stable}</button>
-            <button className="btn gold" type="button" onClick={() => go('/shop')}>{t.shop}</button>
+            <button className="btn" type="button" onClick={(event) => { event.stopPropagation(); go('/stable') }}>{t.stable}</button>
+            <button className="btn gold" type="button" onClick={(event) => { event.stopPropagation(); go('/shop') }}>{t.shop}</button>
           </div>
           {!me ? <p className="guest-prompt">{t.guestLine}</p> : null}
         </div>
@@ -1436,6 +1437,128 @@ export function ThroneScreen({ t, lang, me, pc }: Bag) {
       <div className="spread"><h1>{t.thrones}</h1><button className="btn" type="button" onClick={() => go('/')}>{t.home}</button></div>
       <p className="muted">{t.statusOnly}{held ? ` · ${lang === 'fr' ? held.nameFr : held.name}` : ''}</p>
       <div className="throne-grid">{cards}</div>
+    </div>
+  )
+}
+
+const PROGRESS_BOARDS = [
+  { size: 5, difficulty: 0 },
+  { size: 6, difficulty: 1 },
+  { size: 7, difficulty: 2 },
+] as const
+
+const PROGRESS_DEFENDERS = ['invictus', 'nox', 'aquila', 'lupa', 'leo'] as const
+
+function guestProgress(): { points: number; pointsByBoard: Record<string, number>; pointsToday: number; pointsWeek: number; winsByBoard: Record<string, number> } {
+  const empty = { points: 0, pointsByBoard: {}, pointsToday: 0, pointsWeek: 0, winsByBoard: {} }
+  try {
+    const raw = JSON.parse(localStorage.getItem('rg.guest') || '') as {
+      wins?: number
+      winsByBoard?: Record<string, number>
+      points?: number
+      pointsByBoard?: Record<string, number>
+      pointsToday?: number
+      pointsDay?: string
+      pointsWeek?: number
+      pointsWeekKey?: string
+    }
+    if (!raw || typeof raw.wins !== 'number') return empty
+    return {
+      points: raw.points ?? 0,
+      pointsByBoard: raw.pointsByBoard ?? {},
+      pointsToday: raw.pointsDay === torontoDate() ? raw.pointsToday ?? 0 : 0,
+      pointsWeek: raw.pointsWeekKey === pointsWeekKey() ? raw.pointsWeek ?? 0 : 0,
+      winsByBoard: winMap(raw),
+    }
+  } catch {
+    return empty
+  }
+}
+
+function bestBoardLine(t: Copy, pointsByBoard: Record<string, number>, lang: Lang): string {
+  let best = 0
+  let key = ''
+  for (const [board, value] of Object.entries(pointsByBoard)) {
+    if (value > best) {
+      best = value
+      key = board
+    }
+  }
+  if (best <= 0) return '0'
+  const parsed = parseBoardKey(key)
+  if (!parsed) return formatCoins(best, lang)
+  const name = [t.easy, t.medium, t.hard, t.expert][parsed.difficulty] ?? ''
+  return `${formatCoins(best, lang)} · ${parsed.size}×${parsed.size} ${name}`
+}
+
+export function ProgressScreen({ t, lang, me, pc }: Bag) {
+  const [open, setOpen] = useState(false)
+  const guest = me ? null : guestProgress()
+  const points = me?.points ?? guest?.points ?? 0
+  const today = me?.pointsToday ?? guest?.pointsToday ?? 0
+  const week = me?.pointsWeek ?? guest?.pointsWeek ?? 0
+  const byBoard = me?.pointsByBoard ?? guest?.pointsByBoard ?? {}
+  const winsByBoard = winMap({ wins: me?.wins, winsByBoard: me?.winsByBoard ?? guest?.winsByBoard })
+  const names = [t.easy, t.medium, t.hard, t.expert]
+  const ownedPets = new Set(me?.pets ?? [])
+  const ownedClothes = new Set(me?.clothes ?? [])
+  return (
+    <div className={pc ? 'progress-page' : 'body stack progress-page'}>
+      <div className="spread">
+        <h1>{t.myProgress}</h1>
+        <div className="home-name">
+          {me ? <button className="name-chip" type="button" onClick={() => setOpen((v) => !v)}>{me.playerName}</button> : <b>{t.solo}</b>}
+          {open && me ? <AccountMenu t={t} me={me} /> : null}
+        </div>
+        <button className="btn" type="button" onClick={() => go('/')}>{t.home}</button>
+      </div>
+      {me ? null : <p className="guest-prompt">{t.signInToSave}</p>}
+      <div className="card progress-points">
+        <span><b>{formatCoins(points, lang)}</b><small className="muted">{t.points}</small></span>
+        <span><b>{formatCoins(today, lang)}</b><small className="muted">{t.today}</small></span>
+        <span><b>{formatCoins(week, lang)}</b><small className="muted">{t.week}</small></span>
+        <span><b>{bestBoardLine(t, byBoard, lang)}</b><small className="muted">{t.bestPerBoard}</small></span>
+      </div>
+      <div className="progress-boards">
+        {PROGRESS_BOARDS.map((board) => {
+          const key = boardKey(board.size, board.difficulty)
+          const wins = winsByBoard[key] ?? 0
+          const held = throneIdForBoard(wins, boardSteps(board.size, board.difficulty))
+          return (
+            <div key={key} className="card throne-card">
+              <img src={THRONE_ART[held > 0 ? held - 1 : 0]} alt="" />
+              <b>{names[board.difficulty]} {board.size}×{board.size}</b>
+              <span>{t.boardsCleared} {wins}</span>
+              <span>{t.points} {formatCoins(byBoard[key] ?? 0, lang)}</span>
+            </div>
+          )
+        })}
+      </div>
+      <div className="progress-row progress-defenders">
+        {PROGRESS_DEFENDERS.map((id) => {
+          const owned = ownedPets.has(id)
+          const name = DEFENDERS.find((defender) => defender.id === id)?.name ?? id
+          return (
+            <div key={id} className="card">
+              <DefenderArt id={id} size={pc ? 64 : 44} pieces={[]} title={name} />
+              <b>{name}</b>
+              <span className={owned ? '' : 'muted'}>{owned ? t.owned : t.locked}</span>
+            </div>
+          )
+        })}
+      </div>
+      <div className="progress-row progress-clothes">
+        {CLOTHES.map((piece) => {
+          const owned = ownedClothes.has(piece.id)
+          return (
+            <div key={piece.id} className="card">
+              <ClothArt id={piece.id} size={pc ? 52 : 40} title={piece.name} />
+              <b>{piece.name}</b>
+              <span className={owned ? '' : 'muted'}>{owned ? t.owned : t.locked}</span>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
