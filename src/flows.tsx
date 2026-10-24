@@ -745,9 +745,25 @@ export function TeamScreen({ t, me, path, pc }: Bag) {
         <div className="card stack">
           <b>{team.name}</b>
           <p className="muted">{team.memberCount} · {team.code}</p>
-          {(team.members ?? []).map((member) => (
-            <div key={member.id} className="spread"><span>{member.name}</span><span>{member.rank}</span></div>
-          ))}
+          {(team.members ?? []).map((member) => {
+            const iAmLeader = (team.members ?? []).some((row) => row.id === me?.id && row.rank === 'leader')
+            return (
+              <div key={member.id} className="stack">
+                <div className="spread"><span>{member.name}</span><span>{member.rank === 'leader' ? t.leader : member.rank === 'captain' ? t.captain : t.member}</span></div>
+                {iAmLeader && member.id !== me?.id ? (
+                  <div className="grid2">
+                    <button className="btn" type="button" onClick={() => void api('/api/team/rank', { id: member.id, rank: member.rank === 'captain' ? 'member' : 'captain' }).then(() => location.reload())}>{member.rank === 'captain' ? t.member : t.captain}</button>
+                    <button className="btn" type="button" onClick={() => void api('/api/team/rank', { id: member.id, remove: true }).then(() => location.reload()).catch(() => setError(t.errorGeneric))}>{t.remove}</button>
+                  </div>
+                ) : null}
+              </div>
+            )
+          })}
+          <p className="muted">{t.nextInLine}: {(() => {
+            const rest = (team.members ?? []).filter((row) => row.rank !== 'leader')
+            const captain = rest.find((row) => row.rank === 'captain')
+            return (captain ?? rest[0])?.name ?? '—'
+          })()}</p>
           {(team.asks ?? []).map((ask) => (
             <div key={ask.id} className="spread">
               <span>{ask.name}</span>

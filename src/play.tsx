@@ -247,6 +247,7 @@ export function PlayScreen({
         <span className="chip">{modeName}</span>
         <span className="chip">{'♥'.repeat(Math.max(0, hearts))}</span>
         <button className="chip" type="button" onClick={() => go('/thrones')}>{throne ? (lang === 'fr' ? throne.nameFr : throne.name) : t.throne}</button>
+        {pc ? null : <button className="chip" type="button" onClick={() => go('/leaderboard')}>{t.solo}</button>}
       </div>
       {mode === 'survival' ? (
         <div className="spread muted">
