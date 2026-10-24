@@ -505,7 +505,6 @@ function MiniBoard({ t, line }: { t: Copy; line: UnseenLine | null }) {
   }, [t])
   return (
     <aside className="pc-side">
-      {line ? <UnseenCutout line={line} /> : null}
       <div className="card scroll stack">
         <b>{t.leaderboard}</b>
         <span className="chip">{t.week}</span>
@@ -514,6 +513,7 @@ function MiniBoard({ t, line }: { t: Copy; line: UnseenLine | null }) {
         ))}
         <button className="btn" type="button" onClick={() => go('/leaderboard')}>{t.seeAll}</button>
       </div>
+      {line ? <UnseenCutout line={line} /> : null}
     </aside>
   )
 }

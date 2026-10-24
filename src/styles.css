@@ -219,9 +219,16 @@ button.card { display: block; width: 100%; text-align: left; position: relative;
   width: 72px; height: auto; flex: none; background: transparent;
   filter: drop-shadow(0 10px 14px rgba(0,0,0,.5));
 }
-.pc-side .unseen-pop { width: 100%; }
+.pc-side .unseen-pop {
+  width: 100%; margin-top: auto; flex: none;
+  animation: unseenRise 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
 .pc-side .unseen-pop .bubble { flex: 1; }
 .pc-side .unseen-pop img { width: 120px; }
+@keyframes unseenRise {
+  from { transform: translateY(120%); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
 .phone-stage .unseen-pop .bubble { max-width: 210px; }
 .phone-stage .with-unseen .board-slot { width: min(100%, 268px); }
 .play-main { display: flex; flex-direction: column; align-items: center; position: relative; }
