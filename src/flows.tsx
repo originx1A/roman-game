@@ -22,6 +22,16 @@ export interface Bag {
   path: string
 }
 
+function LegalLinks({ t }: { t: Copy }) {
+  return (
+    <nav className="legal-row" aria-label={t.helpLegal}>
+      <button className="legal-link" type="button" onClick={() => go('/legal/privacy')}>{t.privacy}</button>
+      <button className="legal-link" type="button" onClick={() => go('/legal/terms')}>{t.terms}</button>
+      <button className="legal-link" type="button" onClick={() => go('/legal/disclosures')}>{t.disclosures}</button>
+    </nav>
+  )
+}
+
 function errText(t: Copy, error: unknown): string {
   const code = error instanceof ApiError ? error.code : ''
   if (code === 'name' || code === 'taken') return t.errorName
@@ -126,7 +136,7 @@ export function HomeScreen({ t, lang, me, pc }: Bag) {
         {!pc ? (
           <div className="spread">
             <button className="chip" type="button" onClick={() => go('/leaderboard')}>{t.solo}</button>
-            {!me ? <button className="btn" type="button" onClick={() => go('/signin')}>{t.signIn}</button> : null}
+            <button className="chip" type="button" onClick={() => go('/settings')}>{t.settings}</button>
           </div>
         ) : null}
         <div className="tabs">
@@ -134,15 +144,11 @@ export function HomeScreen({ t, lang, me, pc }: Bag) {
           <button className="tab" type="button" onClick={() => go('/stable')}>{t.stable}</button>
           <button className="tab" type="button" onClick={() => void shareHome(t.brand)}>{t.share}</button>
           <button className="tab" type="button" onClick={() => go('/thrones')}>{t.throne}</button>
-          {!me ? <button className="tab" type="button" onClick={() => go('/join')}>{t.save}</button> : null}
+          {!me ? <button className="tab" type="button" onClick={() => go('/settings')}>{t.save}</button> : null}
         </div>
-        {!me ? <p className="muted">{t.guestLine}</p> : null}
+        {!me ? <p className="guest-prompt">{t.guestLine}</p> : null}
         <div className="foot">
-          <span className="links">
-            <button className="btn" type="button" onClick={() => go('/help')}>{t.helpLegal}</button>
-            <button className="btn" type="button" onClick={() => go('/legal/privacy')}>{t.privacy}</button>
-            <button className="btn" type="button" onClick={() => go('/legal/terms')}>{t.terms}</button>
-          </span>
+          <LegalLinks t={t} />
           <span className="build">{t.build} {BUILD_NUMBER}</span>
         </div>
       </div>
@@ -323,7 +329,10 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
   }, [])
 
   async function buyCoins(kind: 'charge' | 'defender' | 'cloth', id: string) {
-    if (!me) return go('/signin?next=/shop')
+    if (!me) {
+      setError(t.guestLine)
+      return
+    }
     setError('')
     try {
       const res = await api<{ me: Me }>('/api/shop/buy', { kind, id })
@@ -334,7 +343,10 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
   }
 
   async function begin(next: Sku) {
-    if (!me) return go('/signin?next=/shop')
+    if (!me) {
+      setError(t.guestLine)
+      return
+    }
     setSku(next)
     sessionStorage.setItem('rg.sku', next)
     if (me.buyingStopped) return go('/shop/setup')
@@ -481,7 +493,7 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
     return wrap(
       <div className="stack shop-fit">
         <div className="spread"><button className="logo" type="button" onClick={() => go('/')}>{t.brand}</button><span className="coin">{formatCoins(me?.coins ?? 0, lang)} ¢</span></div>
-        {error ? <p className="err">{error}</p> : null}
+        {error ? <p className={error === t.guestLine ? 'guest-prompt' : 'err'}>{error}</p> : null}
         <div className="tabs">
           {(['charges', 'defenders', 'clothing', 'packs'] as const).map((item) => (
             <button key={item} className={`tab ${shopTab === item ? 'on' : ''}`} type="button" onClick={() => setTab(item)}>{item === 'packs' ? t.coinPacks : t[item]}</button>
@@ -588,6 +600,7 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
           ))}
         </div>
       )}
+      {error ? <p className={error === t.guestLine ? 'guest-prompt' : 'err'}>{error}</p> : null}
       {showStarter ? (
         <button className="starter" type="button" onClick={() => void begin('starter')}>
           <span className="tag">{t.bonus}</span>
@@ -646,7 +659,6 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
       })}
       <div className="card"><button className="btn" type="button" disabled>{t.buyFree}</button> <button className="btn" type="button" onClick={() => go('/shop')}>{t.notNow}</button></div>
       <p className="muted">{t.shopTabsNote}</p>
-      {error ? <p className="err">{error}</p> : null}
     </div>,
   )
 }
@@ -780,7 +792,7 @@ export function FamilyScreen({ t, path, pc }: Bag) {
   )
 }
 
-export function SettingsScreen({ t, me, onMe, setLang, lang, path }: Bag) {
+export function SettingsScreen({ t, me, onMe, setLang, lang, path, pc }: Bag) {
   const [email, setEmail] = useState('')
   const [nextName, setNextName] = useState(me?.playerName ?? '')
   const [password, setPassword] = useState('')
@@ -788,21 +800,37 @@ export function SettingsScreen({ t, me, onMe, setLang, lang, path }: Bag) {
   const [current, setCurrent] = useState('')
   const [note, setNote] = useState('')
   const page = path.split('/')[2] || ''
-  if (!me) return <div className="body"><button className="btn gold" type="button" onClick={() => go('/signin')}>{t.signIn}</button></div>
+  const shell = pc ? 'pc-sheet settings-sheet stack' : 'body stack scroll'
+  function chooseLang(next: 'en' | 'fr') {
+    setLang(next)
+    if (me) void api('/api/language', { language: next })
+  }
   if (page === 'language') {
     return (
-      <div className="body stack">
+      <div className={shell}>
         <h1>{t.language}</h1>
         <p className="muted">{t.languageNote}</p>
-        <button className={`btn ${lang === 'en' ? 'gold' : ''}`} type="button" onClick={() => { setLang('en'); void api('/api/language', { language: 'en' }) }}>{t.english}</button>
-        <button className={`btn ${lang === 'fr' ? 'gold' : ''}`} type="button" onClick={() => { setLang('fr'); void api('/api/language', { language: 'fr' }) }}>{t.francais}</button>
+        {!me ? <p className="guest-prompt">{t.guestLine}</p> : null}
+        <button className={`btn ${lang === 'en' ? 'gold' : ''}`} type="button" onClick={() => chooseLang('en')}>{t.english}</button>
+        <button className={`btn ${lang === 'fr' ? 'gold' : ''}`} type="button" onClick={() => chooseLang('fr')}>{t.francais}</button>
         <button className="btn" type="button" onClick={() => go('/settings')}>{t.done}</button>
+        <LegalLinks t={t} />
       </div>
     )
   }
-  if (page === 'data') {
+  if (page === 'data' && !me) {
     return (
-      <div className="body stack">
+      <div className={shell}>
+        <h1>{t.yourData}</h1>
+        <p className="guest-prompt">{t.guestLine}</p>
+        <button className="btn" type="button" onClick={() => go('/settings')}>{t.settings}</button>
+        <LegalLinks t={t} />
+      </div>
+    )
+  }
+  if (page === 'data' && me) {
+    return (
+      <div className={shell}>
         <h1>{t.yourData}</h1>
         <Field label={t.password} value={password} set={setPassword} type="password" />
         <button className="btn" type="button" onClick={() => void api<{ file: Me }>('/api/data/download', { password }).then((res) => {
@@ -816,14 +844,16 @@ export function SettingsScreen({ t, me, onMe, setLang, lang, path }: Bag) {
         }).catch(() => setNote(t.errorPassword))}>{t.downloadData}</button>
         <button className="btn danger" type="button" onClick={() => void api('/api/data/delete', { password }).then(() => { onMe(null); setNote(t.deleted) }).catch(() => setNote(t.errorPassword))}>{t.confirmDelete}</button>
         {note ? <p className="muted">{note}</p> : null}
+        <LegalLinks t={t} />
       </div>
     )
   }
   return (
-    <div className="body stack scroll">
+    <div className={shell}>
       <h1>{t.settings}</h1>
-      <p className="muted">{me.playerName} · {me.email ?? t.addEmail}</p>
+      {me ? <p className="muted">{me.playerName} · {me.email ?? t.addEmail}</p> : <p className="guest-prompt">{t.guestLine}</p>}
       <button className="btn" type="button" onClick={() => go('/settings/language')}>{t.language} · {lang === 'fr' ? t.francais : t.english}</button>
+      {me ? <>
       <form className="card stack" onSubmit={(event) => {
         event.preventDefault()
         void api<{ me: Me }>('/api/name', { name: nextName, password: current }).then((res) => { onMe(res.me); setNote(t.saveName) }).catch((err) => setNote(errText(t, err)))
@@ -853,11 +883,10 @@ export function SettingsScreen({ t, me, onMe, setLang, lang, path }: Bag) {
       <button className="btn" type="button" onClick={() => go('/settings/data')}>{t.yourData}</button>
       <button className="btn" type="button" onClick={() => void api('/api/signout', {}).then(() => location.assign('/'))}>{t.signOutDevice}</button>
       <button className="btn" type="button" onClick={() => void api('/api/signout-all', {}).then(() => location.assign('/'))}>{t.signOutAll}</button>
-      <button className="btn" type="button" onClick={() => go('/help')}>{t.helpLegal}</button>
-      <button className="btn" type="button" onClick={() => go('/legal/terms')}>{t.terms}</button>
-      <button className="btn" type="button" onClick={() => go('/legal/privacy')}>{t.privacy}</button>
+      </> : null}
       <label className="spread">{t.sound}<input type="checkbox" defaultChecked={!isMuted()} onChange={(event) => setMuted(!event.target.checked)} /></label>
       {note ? <p className="muted">{note}</p> : null}
+      <LegalLinks t={t} />
       <span className="build">{t.build} {BUILD_NUMBER}</span>
     </div>
   )
@@ -985,6 +1014,7 @@ export function TeamScreen({ t, me, path, pc }: Bag) {
   const createForm = (
     <form className="card stack" onSubmit={(event) => {
       event.preventDefault()
+      if (!me) { setError(t.guestLine); return }
       void api('/api/team', { pick: { adjective: adj, noun, number: Number(number) }, mascot, openJoin }).then(() => location.reload()).catch((err) => setError(errText(t, err)))
     }}>
       <b>{t.makeTeam}</b>
@@ -1057,10 +1087,11 @@ export function TeamScreen({ t, me, path, pc }: Bag) {
         </div>
       ) : pc ? (
         <>
-          {!me ? <p>{t.signInFriends}</p> : null}
+          {!me ? <p className="guest-prompt">{t.guestLine}</p> : null}
           <div className="team-balance">
             <form className="card pic-card stack" onSubmit={(event) => {
               event.preventDefault()
+              if (!me) { setError(t.guestLine); return }
               void api('/api/team', { pick: { adjective: adj, noun, number: Number(number) }, mascot, openJoin }).then(() => location.reload()).catch((err) => setError(errText(t, err)))
             }}>
               <DefenderArt id={mascot} size={120} />
@@ -1093,7 +1124,7 @@ export function TeamScreen({ t, me, path, pc }: Bag) {
         </>
       ) : (
         <>
-          {!me ? <p>{t.signInFriends}</p> : null}
+          {!me ? <p className="guest-prompt">{t.guestLine}</p> : null}
           {createForm}
           <form className="stack" onSubmit={(event) => { event.preventDefault(); go(`/t/${joinCode}`) }}>
             <Field label={t.code} value={joinCode} set={setJoinCode} />
@@ -1115,7 +1146,7 @@ export function TeamScreen({ t, me, path, pc }: Bag) {
       )}
       {code && team && !team.members ? (
         <button className="btn gold" type="button" onClick={() => {
-          if (!me) return go('/signin')
+          if (!me) { setError(t.guestLine); return }
           void api('/api/team/join', { code }).then(() => location.reload()).catch((err) => setError(errText(t, err)))
         }}>{t.joinTeam}</button>
       ) : null}
@@ -1145,7 +1176,7 @@ export function BoardScreen({ t, me, pc }: Bag) {
   }
   useEffect(() => { load(scope) }, [scope])
   function act(action: string, id: string) {
-    if (!me) return go('/signin')
+    if (!me) { setNote(t.guestLine); return }
     void api('/api/friends', { action, id }).then(() => { setPicked(null); load() }).catch((err) => setNote(errText(t, err)))
   }
   const tabs = (
@@ -1158,14 +1189,14 @@ export function BoardScreen({ t, me, pc }: Bag) {
   const pickedCard = picked ? (
     <div className="card stack">
       <b>{picked.name}</b>
-      {!me ? <button className="btn gold" type="button" onClick={() => go('/signin')}>{t.signInFriends}</button> : (
+      {!me ? <p className="guest-prompt">{t.guestLine}</p> : (
         <>
           <button className="btn" type="button" onClick={() => {
             if (picked.id) act('ask', picked.id)
             else void api('/api/friends', { action: 'ask', name: picked.name }).then(() => { setPicked(null); load() }).catch((err) => setNote(errText(t, err)))
           }}>{t.addFriend}</button>
           <button className="btn" type="button" onClick={() => {
-            if (!me) return go('/signin')
+            if (!me) { setNote(t.guestLine); return }
             const body = picked.id ? { id: picked.id } : { name: picked.name }
             void api('/api/team/ask', body).then(() => setNote(t.requestSent)).catch((err) => setNote(errText(t, err)))
           }}>{t.askJoin}</button>
@@ -1200,7 +1231,7 @@ export function BoardScreen({ t, me, pc }: Bag) {
           {pickedCard}
           {scope === 'friends' ? (
             <div className="card stack">
-              {!me ? <button className="btn gold" type="button" onClick={() => go('/signin')}>{t.signInFriends}</button> : null}
+              {!me ? <p className="guest-prompt">{t.guestLine}</p> : null}
               <b>{t.inbox}</b>
               {inbox.length === 0 ? <p className="muted">{t.inboxEmpty}</p> : inbox.map((item) => (
                 <div key={item.id} className="stack">
@@ -1246,7 +1277,7 @@ export function BoardScreen({ t, me, pc }: Bag) {
       {tabs}
       {scope === 'friends' ? (
         <div className="scroll stack">
-          {!me ? <button className="btn gold" type="button" onClick={() => go('/signin')}>{t.signInFriends}</button> : null}
+          {!me ? <p className="guest-prompt">{t.guestLine}</p> : null}
           <h2>{t.inbox}</h2>
           {inbox.length === 0 ? <p className="muted">{t.inboxEmpty}</p> : inbox.map((item) => (
             <div key={item.id} className="card stack">

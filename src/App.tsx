@@ -99,6 +99,7 @@ export function App() {
           <button className="tab" type="button" onClick={() => go('/teams')}>{t.teams}</button>
           <button className="tab" type="button" onClick={() => go('/stable')}>{t.stable}</button>
           <button className="tab" type="button" onClick={() => go('/thrones')}>{t.throne}</button>
+          <button className="tab" type="button" onClick={() => go('/settings')}>{t.settings}</button>
         </nav>
       ) : <span style={{ flex: 1 }} />}
       {me?.hostPet ? <DefenderArt id={me.hostPet} size={36} /> : null}
