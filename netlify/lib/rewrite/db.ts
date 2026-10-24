@@ -4,6 +4,7 @@ import { dirname } from 'node:path'
 import { RESET_MINUTES, TERMS_VERSION } from '../../../src/game/catalog.ts'
 import { throneForBoards, winMap } from '../../../src/game/thrones.ts'
 import { torontoDate } from '../../../src/game/generate.ts'
+import { emailHeldBy, emailHoldKey, type EmailHold } from './emailHold.ts'
 import type { Mail } from './mail.ts'
 import type { Account, Approval, Challenge, Order, Team } from './server.ts'
 
@@ -207,6 +208,12 @@ export class Store {
   }
 
   async del(key: string): Promise<void> {
+    if (key.startsWith('rate:') || key.startsWith('mail-day:')) {
+      memoryPayload.delete(key)
+      if (!this.key) return
+      await this.rest(`rg_rate?key=eq.${encodeURIComponent(key)}`, { method: 'DELETE' })
+      return
+    }
     if (!this.key) return
     if (key.startsWith('session:')) {
       await this.rest(`auth_devices?session_id=eq.${encodeURIComponent(key.slice(8))}`, { method: 'DELETE' })
@@ -259,6 +266,65 @@ export class Store {
   async authId(email: string): Promise<string | null> {
     const id = await this.rpc('rg_auth_id_by_email', { target: email.trim().toLowerCase() })
     return typeof id === 'string' ? id : null
+  }
+
+  /**
+   * Another account that currently has this email. Null if it is free, or if only exceptId has it.
+   * includeLegacy is false at confirm time so one of several older pending rows can take the address.
+   */
+  async emailOccupant(email: string, exceptId: string | null, now = Date.now(), includeLegacy = true): Promise<string | null> {
+    const normalized = email.trim().toLowerCase()
+    const [auth, rows, rate] = await Promise.all([
+      this.authId(normalized),
+      this.recoveryForEmail(normalized),
+      this.get<EmailHold>(emailHoldKey(normalized)),
+    ])
+    let verifiedId: string | null = null
+    let pendingId: string | null = null
+    let pendingUntil: number | null = null
+    for (const row of rows) {
+      if (row.recovery_email?.trim().toLowerCase() === normalized && row.email_verified_at && row.player_id !== exceptId) {
+        verifiedId = row.player_id
+      }
+      const until = row.code_expires_at ? Date.parse(row.code_expires_at) : NaN
+      if (
+        row.pending_email?.trim().toLowerCase() === normalized &&
+        row.code_purpose === 'verify' &&
+        row.player_id !== exceptId &&
+        Number.isFinite(until) &&
+        until > now
+      ) {
+        pendingId = row.player_id
+        pendingUntil = until
+      }
+    }
+    return emailHeldBy({
+      exceptId,
+      authId: auth,
+      verifiedId,
+      pendingId: includeLegacy ? pendingId : null,
+      pendingUntil: includeLegacy ? pendingUntil : null,
+      rateId: rate?.playerId ?? null,
+      rateUntil: typeof rate?.until === 'number' ? rate.until : null,
+      now,
+    })
+  }
+
+  /**
+   * True when this account's confirm link is still the one that reserved the address.
+   * A rate row that names someone else, or our own row past `until`, is not ours.
+   * Rows written before rate holds still count until their verify code expires.
+   */
+  async pendingStillMine(email: string, playerId: string, now = Date.now()): Promise<boolean> {
+    const normalized = email.trim().toLowerCase()
+    const hold = await this.get<EmailHold>(emailHoldKey(normalized))
+    if (hold?.playerId === playerId && typeof hold.until === 'number' && hold.until > now) return true
+    if (hold) return false
+    const row = await this.one<{ pending_email: string | null; code_purpose: string | null; code_expires_at: string | null }>(
+      `account_recovery?player_id=eq.${playerId}&select=pending_email,code_purpose,code_expires_at`,
+    )
+    const until = row?.code_expires_at ? Date.parse(row.code_expires_at) : NaN
+    return row?.pending_email?.trim().toLowerCase() === normalized && row.code_purpose === 'verify' && Number.isFinite(until) && until > now
   }
 
   async ensurePlayer(id: string, email: string): Promise<Account> {
@@ -568,6 +634,16 @@ export class Store {
     })
     const purpose = account.resetToken ? 'reset' : account.verifyToken ? 'verify' : null
     const token = account.resetToken || account.verifyToken
+    const codeHash = token ? sha256(token) : null
+    const existingCode = await this.one<{ code_hash: string | null; code_purpose: string | null; code_expires_at: string | null }>(
+      `account_recovery?player_id=eq.${account.id}&select=code_hash,code_purpose,code_expires_at`,
+    )
+    const sameCode = !!codeHash && existingCode?.code_hash === codeHash && existingCode.code_purpose === purpose && !!existingCode.code_expires_at
+    const codeExpiresAt = sameCode
+      ? existingCode.code_expires_at
+      : token
+        ? new Date(Date.now() + (account.resetToken ? RESET_MINUTES : 24 * 60) * 60_000).toISOString()
+        : null
     await this.rest('account_recovery?on_conflict=player_id', {
       method: 'POST',
       prefer: 'resolution=merge-duplicates',
@@ -576,9 +652,9 @@ export class Store {
         recovery_email: account.email,
         email_verified_at: account.emailVerified ? new Date().toISOString() : null,
         pending_email: account.pendingEmail,
-        code_hash: token ? sha256(token) : null,
+        code_hash: codeHash,
         code_purpose: purpose,
-        code_expires_at: token ? new Date(Date.now() + (account.resetToken ? RESET_MINUTES : 24 * 60) * 60_000).toISOString() : null,
+        code_expires_at: codeExpiresAt,
         code_attempts: 0,
       },
     })
@@ -624,6 +700,15 @@ export class Store {
     const want = new Set(account.sessions)
     for (const token of want) if (!have.has(token)) await this.insertDevice(account.id, token)
     for (const token of have) if (!want.has(token)) await this.rest(`auth_devices?session_id=eq.${encodeURIComponent(token)}`, { method: 'DELETE' })
+  }
+
+  private async recoveryForEmail(email: string): Promise<
+    { player_id: string; pending_email: string | null; recovery_email: string | null; email_verified_at: string | null; code_expires_at: string | null; code_purpose: string | null }[]
+  > {
+    const value = encodeURIComponent(email)
+    return this.many(
+      `account_recovery?or=(pending_email.eq.${value},recovery_email.eq.${value})&select=player_id,pending_email,recovery_email,email_verified_at,code_expires_at,code_purpose`,
+    )
   }
 
   private async idForLogin(login: string): Promise<string | null> {

@@ -5,6 +5,7 @@ import { dailyPuzzle, makePuzzle, puzzleFromId, torontoDate } from '../../src/ga
 import { THRONES, boardFromPuzzleId, boardSteps, throneAt, throneForBoards, throneForWins, throneIdForBoard, throneProgress, winsNeeded } from '../../src/game/thrones.ts'
 import { formatTeamName, parseTeamName } from '../../src/game/teamNames.ts'
 import { formatPrice, priceForCountry } from '../../src/game/catalog.ts'
+import { EMAIL_HOLD_MS, emailHeldBy, emailHoldKey } from '../../netlify/lib/rewrite/emailHold.ts'
 import { en, fr } from '../../src/i18n.ts'
 
 test('boards are solvable and regions stay connected', () => {
@@ -116,6 +117,36 @@ test('prices are per country and the small pack matches the starter', () => {
   assert.equal(ca.smallCents, 299)
   assert.equal(us.smallCents, 199)
   assert.equal(formatPrice(priceForCountry('FR').starterCents, 'CA$'), 'CA$2.99')
+})
+
+test('one account holds an email, and a pending hold expires', () => {
+  const now = 1_700_000_000_000
+  const base = {
+    exceptId: 'me',
+    authId: null,
+    verifiedId: null,
+    pendingId: null,
+    pendingUntil: null,
+    rateId: null,
+    rateUntil: null,
+    now,
+  }
+  assert.equal(emailHeldBy(base), null)
+  assert.equal(emailHeldBy({ ...base, exceptId: null, authId: 'other' }), 'other')
+  assert.equal(emailHeldBy({ ...base, authId: 'me' }), null)
+  assert.equal(emailHeldBy({ ...base, verifiedId: 'other' }), 'other')
+  assert.equal(emailHeldBy({ ...base, rateId: 'other', rateUntil: now + EMAIL_HOLD_MS }), 'other')
+  assert.equal(emailHeldBy({ ...base, rateId: 'me', rateUntil: now + EMAIL_HOLD_MS }), null)
+  assert.equal(emailHeldBy({ ...base, rateId: 'other', rateUntil: now }), null)
+  assert.equal(emailHeldBy({ ...base, pendingId: 'other', pendingUntil: now + 1000 }), 'other')
+  assert.equal(emailHeldBy({ ...base, pendingId: 'other', pendingUntil: now - 1 }), null)
+  assert.equal(
+    emailHeldBy({ ...base, pendingId: 'legacy', pendingUntil: now + 1000, rateId: 'holder', rateUntil: now + 1000 }),
+    'holder',
+  )
+  assert.equal(emailHoldKey('  Person@Example.com '), 'rate:email-hold:person@example.com')
+  assert.equal(en.emailUsed, 'That email is already used.')
+  assert.equal(fr.emailUsed, 'Ce courriel est déjà utilisé.')
 })
 
 test('French has every English string and neither language uses the banned words', () => {

@@ -1,7 +1,7 @@
 /** Shared numbers. Coin amounts and item prices stay placeholders until the coin chart. */
 
 export const TERMS_VERSION = '2026-10-24'
-export const BUILD_NUMBER = '2026.10.24.4'
+export const BUILD_NUMBER = '2026.10.24.5'
 
 /** Working cash-buying age. Quebec's 14 is not applied. Asked once, then only over/under is kept. */
 export const CASH_AGE = 13

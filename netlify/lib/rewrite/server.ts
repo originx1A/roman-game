@@ -13,6 +13,7 @@ import {
   type Sku,
 } from '../../../src/game/catalog.ts'
 import { EmailUsedError, MissingKey, SchemaError, Store, TakenError, openStore, type Env } from './db.ts'
+import { EMAIL_HOLD_MS, emailHoldKey, type EmailHold } from './emailHold.ts'
 import { formatTeamName, parseTeamName, type TeamNamePick } from '../../../src/game/teamNames.ts'
 import { puzzleFromId, torontoDate } from '../../../src/game/generate.ts'
 import { isCellBoard, isSolved, puzzlePlayable, type Puzzle } from '../../../src/game/logic.ts'
@@ -481,15 +482,15 @@ async function join(kv: Store, env: Env, body: Record<string, unknown>, origin: 
   if (profane(login)) return json({ error: 'name' }, 400)
   const isEmail = emailOf(login)
   if (!isEmail && (login.length < 1 || login.length > 24)) return json({ error: 'name' }, 400)
-  if (await byLogin(kv, login)) return json({ error: 'taken' }, 409)
-  if (isEmail && (await byEmail(kv, login))) return json({ error: 'taken' }, 409)
+  if (isEmail && (await kv.emailOccupant(login, null))) return json({ error: 'email-used' }, 409)
+  if (!isEmail && (await byLogin(kv, login))) return json({ error: 'taken' }, 409)
   const playerName = isEmail ? await uniqueName(kv, 'Bright Owl') : await uniqueName(kv, login)
   const authEmail = isEmail ? login.toLowerCase() : `p.${randomToken(6)}@name.romansgame.invalid`
   let id: string
   try {
     id = await kv.provision(authEmail, password)
   } catch (err) {
-    if (err instanceof TakenError) return json({ error: 'taken' }, 409)
+    if (err instanceof TakenError) return json({ error: isEmail ? 'email-used' : 'taken' }, 409)
     throw err
   }
   const publicName = await kv.insertPlayer(id, playerName)
@@ -667,6 +668,34 @@ function emailBlocked(account: Account): boolean {
   return account.ageGate === 'under' && !account.holderId
 }
 
+async function claimEmailHold(kv: Store, email: string, playerId: string, ignoreLegacy = false): Promise<boolean> {
+  const now = Date.now()
+  if (await kv.emailOccupant(email, playerId, now, !ignoreLegacy)) return false
+  const until = now + EMAIL_HOLD_MS
+  await kv.set(emailHoldKey(email), { playerId, until } satisfies EmailHold)
+  const written = await kv.get<EmailHold>(emailHoldKey(email))
+  if (!written || written.playerId !== playerId || written.until <= Date.now()) return false
+  if (await kv.emailOccupant(email, playerId, Date.now(), !ignoreLegacy)) {
+    await releaseEmailHold(kv, email, playerId)
+    return false
+  }
+  return true
+}
+
+async function releaseEmailHold(kv: Store, email: string, playerId: string): Promise<void> {
+  const key = emailHoldKey(email)
+  const hold = await kv.get<EmailHold>(key)
+  if (hold?.playerId === playerId) await kv.del(key)
+}
+
+async function giveUpPending(kv: Store, account: Account): Promise<void> {
+  const pending = account.pendingEmail?.trim().toLowerCase() || null
+  account.pendingEmail = null
+  account.verifyToken = null
+  await saveAccount(kv, account)
+  if (pending) await releaseEmailHold(kv, pending, account.id)
+}
+
 async function addEmail(kv: Store, env: Env, me: Account | null, body: Record<string, unknown>, origin: string): Promise<Response> {
   if (!me) return json({ error: 'auth' }, 401)
   if (emailBlocked(me)) return json({ error: 'email-holder' }, 403)
@@ -674,11 +703,13 @@ async function addEmail(kv: Store, env: Env, me: Account | null, body: Record<st
   const password = String(body.password ?? '')
   if (!emailOf(email)) return json({ error: 'email' }, 400)
   if (password && !(await passwordMatches(kv, me, password))) return json({ error: 'password' }, 401)
-  const existing = await byEmail(kv, email)
-  if (existing && existing.id !== me.id) return json({ error: 'email-used' }, 409)
+  const previous = me.pendingEmail?.trim().toLowerCase() || null
+  if (await kv.emailOccupant(email, me.id)) return json({ error: 'email-used' }, 409)
+  if (!(await claimEmailHold(kv, email, me.id))) return json({ error: 'email-used' }, 409)
   me.pendingEmail = email
   me.verifyToken = randomToken()
   await saveAccount(kv, me)
+  if (previous && previous !== email) await releaseEmailHold(kv, previous, me.id)
   await kv.set(`verify:${me.verifyToken}`, me.id)
   const sent = await mail(env, kv, verificationMail(origin, email, me.verifyToken))
   if (!sent.ok) return json({ error: 'mail' }, 502)
@@ -697,12 +728,31 @@ async function verifyEmail(kv: Store, body: Record<string, unknown>): Promise<Re
   if (account.emailVerified && account.verifyToken !== token) return json({ ok: true, email: account.email })
   if (account.verifyToken !== token && !account.emailVerified) return json({ error: 'expired' }, 400)
   if (account.pendingEmail) {
-    const existing = await byEmail(kv, account.pendingEmail)
-    if (existing && existing.id !== account.id) return json({ error: 'email-used' }, 409)
-    await kv.updateAuthEmail(account.id, account.pendingEmail)
-    account.email = account.pendingEmail
-    account.authEmail = account.pendingEmail
+    const pending = account.pendingEmail.trim().toLowerCase()
+    if (await kv.emailOccupant(pending, account.id, Date.now(), false)) {
+      await giveUpPending(kv, account)
+      return json({ error: 'email-used' }, 409)
+    }
+    if (!(await kv.pendingStillMine(pending, account.id))) {
+      await giveUpPending(kv, account)
+      return json({ error: 'expired' }, 400)
+    }
+    const held = await kv.get<EmailHold>(emailHoldKey(pending))
+    const mineLive = held?.playerId === account.id && typeof held.until === 'number' && held.until > Date.now()
+    if (!mineLive && !(await claimEmailHold(kv, pending, account.id, true))) {
+      await giveUpPending(kv, account)
+      return json({ error: 'email-used' }, 409)
+    }
+    try {
+      await kv.updateAuthEmail(account.id, pending)
+    } catch (err) {
+      if (err instanceof EmailUsedError) await giveUpPending(kv, account)
+      throw err
+    }
+    account.email = pending
+    account.authEmail = pending
     account.pendingEmail = null
+    await releaseEmailHold(kv, pending, account.id)
   }
   account.emailVerified = true
   account.verifyToken = null
