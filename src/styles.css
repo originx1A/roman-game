@@ -73,19 +73,6 @@ h1, h2, .display { font-family: 'Titan One', Nunito, sans-serif; font-weight: 40
   border: 1px solid rgba(255,255,255,.16); background: rgba(18,32,80,.72); border-radius: 14px; padding: 10px 12px;
 }
 button.card { display: block; width: 100%; text-align: left; position: relative; }
-.item-art {
-  width: 64px; height: 64px; object-fit: contain; object-position: center; flex: none; display: block;
-  border: 0; padding: 0; border-radius: 12px; background: #07122a;
-}
-.item-art.lg { width: 80px; height: 80px; }
-.item-art.sm { width: 36px; height: 36px; border-radius: 8px; }
-.item-id, .item-arts { display: flex; align-items: center; gap: 8px; min-width: 0; margin: 0; }
-.item-picks { display: flex; gap: 4px; }
-.item-pick {
-  flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px;
-  border: 1px solid transparent; background: transparent; color: inherit; padding: 2px; font-size: 10px; font-weight: 800;
-}
-.item-pick.on { border-color: #ffd166; border-radius: 10px; }
 .field { display: flex; flex-direction: column; gap: 3px; font-size: 12px; font-weight: 800; color: #b9c7e8; }
 .field input, .field select, .field textarea {
   border: 1px solid rgba(255,255,255,.3); background: rgba(8,18,52,.7); border-radius: 10px;
@@ -133,7 +120,7 @@ button.card { display: block; width: 100%; text-align: left; position: relative;
   70% { transform: translateX(-2px); }
 }
 .defs { display: flex; gap: 4px; justify-content: space-between; }
-.defs button { flex: 1; min-width: 0; font-size: 11px; padding: 6px 2px; line-height: 1.15; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.defs button { flex: 1; font-size: 11px; padding: 6px 2px; line-height: 1.15; }
 .modal-back { position: absolute; inset: 0; background: rgba(2,6,22,.72); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 5; }
 .modal {
   width: min(360px, 100%); max-height: 100%; overflow: auto; background: linear-gradient(180deg, #14275f, #0c1a45);

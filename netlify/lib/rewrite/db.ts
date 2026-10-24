@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { RESET_MINUTES, TERMS_VERSION, isSku, normalizePetId, normalizePetIds } from '../../../src/game/catalog.ts'
+import { RESET_MINUTES, TERMS_VERSION, isSku } from '../../../src/game/catalog.ts'
 import { throneForBoards, winMap } from '../../../src/game/thrones.ts'
 import { torontoDate } from '../../../src/game/generate.ts'
 import { emailHeldBy, emailHoldKey, type EmailHold } from './emailHold.ts'
@@ -563,9 +563,9 @@ export class Store {
       holder: flags?.owner_role === 'adult',
       holderId,
       memberIds,
-      pets: normalizePetIds(state.pets ?? []),
+      pets: state.pets ?? [],
       clothes: state.clothes ?? [],
-      hostPet: state.hostPet ? normalizePetId(state.hostPet) : null,
+      hostPet: state.hostPet ?? null,
       charges: state.charges ?? {},
       hearts: state.hearts ?? 3,
       bestRun: state.bestRun ?? {},

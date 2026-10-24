@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { ApiError, api, type Me } from './api'
 import { BoardView } from './ui/BoardView'
 import { CHARGE_LABEL, DEFENDERS, MAX_HEARTS, type Ability } from './game/catalog'
-import { ItemPic } from './ui/ItemPic'
 import { dailyPuzzle, makePuzzle, type Difficulty } from './game/generate'
 import { buddyIndexes, conflicts, cycleCell, emptyBoard, isSolved, ruledOut, type Cell, type Puzzle } from './game/logic'
 import { playVoice, sfxError, sfxMark, sfxPlace, sfxWin } from './game/sound'
@@ -273,7 +272,6 @@ export function PlayScreen({
       <div className="defs">
         {DEFENDERS.map((defender) => (
           <button key={defender.id} className="btn" type="button" onClick={() => spend(defender.ability)}>
-            <ItemPic id={defender.id} small />
             {defender.name}
             <br />
             {CHARGE_LABEL[defender.ability][lang]} · {charges[defender.ability] ?? 0}
