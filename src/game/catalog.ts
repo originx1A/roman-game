@@ -1,7 +1,7 @@
 /** Shared numbers. Pet and clothing coin prices stay unset. */
 
 export const TERMS_VERSION = '2026-10-24'
-export const BUILD_NUMBER = '2026.10.24.10'
+export const BUILD_NUMBER = '2026.10.24.11'
 
 /** Working cash-buying age. Quebec's 14 is not applied. Asked once, then only over/under is kept. */
 export const CASH_AGE = 13
@@ -107,25 +107,26 @@ export const CHARGE_LABEL: Record<Ability, { en: string; fr: string }> = {
 }
 
 /**
- * Starter Pack contents. 8,000 coins is Tony's master-spec amount.
- * The approved shop card draws an owl and a top hat: Night Owl, and For Lupa (the top hat).
+ * Starter Pack contents. 8,000 coins, Nox, and For Lupa.
  * Granted only after the pack is paid, and not set as the host pet.
  */
 export const STARTER_COINS = 8000
-export const STARTER_PET = 'night-owl'
+export const STARTER_PET = 'nox'
 export const STARTER_CLOTH = 'for-lupa'
 
 export function formatCoins(amount: number, lang: 'en' | 'fr'): string {
   return amount.toLocaleString(lang === 'fr' ? 'fr-CA' : 'en-CA')
 }
 
-export function creditStarter<T extends { coins: number; pets: string[]; clothes: string[]; starterOwned: boolean }>(account: T): T {
+export function creditStarter<T extends { coins: number; pets: string[]; clothes: string[]; starterOwned: boolean; hostPet?: string | null }>(account: T): T {
+  const pets = normalizePetIds(account.pets)
   return {
     ...account,
     coins: account.coins + STARTER_COINS,
-    pets: account.pets.includes(STARTER_PET) ? account.pets : [...account.pets, STARTER_PET],
+    pets: pets.includes(STARTER_PET) ? pets : [...pets, STARTER_PET],
     clothes: account.clothes.includes(STARTER_CLOTH) ? account.clothes : [...account.clothes, STARTER_CLOTH],
     starterOwned: true,
+    hostPet: account.hostPet ? normalizePetId(account.hostPet) : account.hostPet,
   }
 }
 
@@ -136,16 +137,37 @@ export function creditCoins<T extends { coins: number }>(account: T, sku: string
   return { ...account, coins: account.coins + pack.coins }
 }
 
-/** Shop pets besides the defenders. Leo is the defender, not a second pet. Coin prices stay unset. */
-export const PETS = [
-  { id: 'war-horse', name: 'War Horse', free: false },
-  { id: 'night-owl', name: 'Night Owl', free: false },
-  { id: 'eagle', name: 'Eagle', free: false },
-] as const
+/** Saved shop ids from before the defenders were the only characters. */
+export function normalizePetId(id: string): string {
+  if (id === 'night-owl' || id === 'night_owl') return 'nox'
+  if (id === 'war-horse' || id === 'war_horse') return 'invictus'
+  if (id === 'eagle') return 'aquila'
+  return id
+}
+
+export function normalizePetIds(ids: string[]): string[] {
+  return [...new Set(ids.map(normalizePetId))]
+}
+
+function defenderId(id: string): string {
+  const key = normalizePetId(id)
+  const found = DEFENDERS.find((pet) => pet.id === key || pet.name.toLowerCase() === id.toLowerCase())
+  return found?.id ?? key
+}
 
 export function petName(id: string | null | undefined): string | null {
   if (!id) return null
-  return PETS.find((pet) => pet.id === id)?.name ?? DEFENDERS.find((pet) => pet.id === id)?.name ?? id
+  const key = defenderId(id)
+  return DEFENDERS.find((pet) => pet.id === key)?.name ?? key
+}
+
+/** Defender art in public/items, longest side 256 and 512. Eagle art is not used. */
+export function itemArt(id: string): { src: string; srcSet: string } | null {
+  const key = defenderId(id)
+  if (!DEFENDERS.some((pet) => pet.id === key)) return null
+  const small = `/items/${key}-256.webp`
+  const large = `/items/${key}-512.webp`
+  return { src: small, srcSet: `${small} 256w, ${large} 512w` }
 }
 
 export const CLOTHES = [

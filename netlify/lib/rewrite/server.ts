@@ -8,7 +8,6 @@ import {
   RESET_MINUTES,
   SUPPORT_EMAIL,
   CLOTHES,
-  PETS,
   PACKS,
   STARTER_CLOTH,
   STARTER_COINS,
@@ -20,6 +19,7 @@ import {
   formatCoins,
   formatPrice,
   isSku,
+  petName,
   priceForCountry,
   type Sku,
 } from '../../../src/game/catalog.ts'
@@ -1074,7 +1074,7 @@ async function grant(kv: Store, order: Order, origin: string, env: Env): Promise
   await kv.set(`order:${order.id}`, order)
   if (firstPaid && order.wasntToken) await kv.set(`wasnt:${order.wasntToken}`, order.id)
   if (firstPaid && account.email && order.paidAt && order.wasntToken) {
-    const pet = PETS.find((item) => item.id === STARTER_PET)?.name ?? STARTER_PET
+    const pet = petName(STARTER_PET) ?? STARTER_PET
     const cloth = CLOTHES.find((item) => item.id === STARTER_CLOTH)?.name ?? STARTER_CLOTH
     await mail(env, kv, receiptMail({
       origin,
