@@ -1,13 +1,10 @@
 [build]
-  # typescript and vite are devDependencies. NODE_ENV=production makes npm skip
-  # them, and the build then stops at "tsc: not found" before anything is published.
-  command = "npm ci --include=dev && npm run build"
+  command = "npm run build"
   publish = "dist"
 
 [build.environment]
   NODE_VERSION = "22.23.4"
-  # The project URL is in the repo. It is not a credential. Scanning it as a
-  # secret fails deploy previews, which are the only context that sets it.
+  # Public project URL, already in the repo. Not a credential.
   SECRETS_SCAN_OMIT_KEYS = "SUPABASE_URL"
 
 [functions]
