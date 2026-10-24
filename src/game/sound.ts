@@ -4,7 +4,6 @@ let ctx: AudioContext | null = null
 let muted = false
 let volume = 0.8
 let musicOn = false
-let musicTimer: number | null = null
 
 const GIGGLES = ['/voices/buddy_giggle_1.mp3', '/voices/buddy_giggle_2.mp3', '/voices/buddy_giggle_3.mp3']
 let giggleEl: HTMLAudioElement | null = null
@@ -17,7 +16,6 @@ export function isMuted(): boolean {
 
 export function setMuted(next: boolean): void {
   muted = next
-  if (muted) stopMusic()
   try {
     localStorage.setItem('rg.muted', muted ? '1' : '0')
   } catch {
@@ -153,7 +151,10 @@ export function playVoice(id: string): void {
   }
 }
 
-/** A small original loop. No outside audio file and no tracker. */
+/**
+ * Music control is on the sheet. No music file shipped with the design,
+ * so this only remembers the switch. It does not play a generated loop.
+ */
 export function setMusic(on: boolean): void {
   musicOn = on
   try {
@@ -161,28 +162,8 @@ export function setMusic(on: boolean): void {
   } catch {
     /* ignore */
   }
-  if (!on || muted) stopMusic()
-  else startMusic()
 }
 
 export function musicEnabled(): boolean {
   return musicOn
-}
-
-function stopMusic(): void {
-  if (musicTimer != null) window.clearInterval(musicTimer)
-  musicTimer = null
-}
-
-function startMusic(): void {
-  if (musicTimer != null || muted || !musicOn) return
-  const notes = [196, 247, 294, 247, 220, 196, 165, 196]
-  let step = 0
-  const tick = () => {
-    if (!musicOn || muted) return stopMusic()
-    tone(notes[step % notes.length], 0.35, 'sine', 0.03)
-    step++
-  }
-  tick()
-  musicTimer = window.setInterval(tick, 700)
 }

@@ -17,6 +17,8 @@ export default async function rg(req: Request, context: Context = {}): Promise<R
     DEPLOY_PRIME_URL: process.env.DEPLOY_PRIME_URL,
     NETLIFY: process.env.NETLIFY,
     country: context.geo?.country?.code ?? null,
+    SUPABASE_URL: process.env.SUPABASE_URL,
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
   }
   return handle(req, env)
 }

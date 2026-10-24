@@ -1,13 +1,12 @@
 /** Shared numbers. Coin amounts and item prices stay placeholders until the coin chart. */
 
 export const TERMS_VERSION = '2026-10-24'
-export const BUILD_NUMBER = '2026.10.24.1'
+export const BUILD_NUMBER = '2026.10.24.2'
 
 /** Working cash-buying age. Quebec's 14 is not applied. Asked once, then only over/under is kept. */
 export const CASH_AGE = 13
 
 export const MAX_HEARTS = 3
-export const DAILY_FREE_COINS = 25
 export const RESET_MINUTES = 20
 export const APPROVAL_DAYS = 7
 export const REMINDER_DAYS = 3
@@ -33,12 +32,13 @@ export function formatPrice(cents: number, symbol: 'CA$' | 'US$'): string {
   return `${symbol}${ (cents / 100).toFixed(2) }`
 }
 
+/** Sheet 11: Lupa places one, Aquila is the big light, Leo keeps going, Invictus rules out, Nox lights 6. */
 export const DEFENDERS = [
-  { id: 'leo', name: 'Leo', ability: 'place' },
-  { id: 'lupa', name: 'Lupa', ability: 'heart' },
+  { id: 'lupa', name: 'Lupa', ability: 'place' },
   { id: 'aquila', name: 'Aquila', ability: 'light' },
-  { id: 'nox', name: 'Nox', ability: 'rule' },
-  { id: 'invictus', name: 'Invictus', ability: 'light6' },
+  { id: 'leo', name: 'Leo', ability: 'heart' },
+  { id: 'invictus', name: 'Invictus', ability: 'rule' },
+  { id: 'nox', name: 'Nox', ability: 'light6' },
 ] as const
 
 export type Ability = (typeof DEFENDERS)[number]['ability']
@@ -53,7 +53,7 @@ export const CHARGE_LABEL: Record<Ability, { en: string; fr: string }> = {
 
 /** Shop pets and clothing. Coin prices are intentionally unset. */
 export const PETS = [
-  { id: 'leo', name: 'Leo', free: true },
+  { id: 'leo', name: 'Leo', free: false },
   { id: 'war-horse', name: 'War Horse', free: false },
   { id: 'night-owl', name: 'Night Owl', free: false },
   { id: 'eagle', name: 'Eagle', free: false },
@@ -65,5 +65,3 @@ export const CLOTHES = [
   { id: 'for-leo', name: 'For Leo', pet: 'leo' },
 ] as const
 
-export const STARTER_PET = 'night-owl'
-export const STARTER_CLOTH = 'for-lupa'

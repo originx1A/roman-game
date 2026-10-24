@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, type Me } from './api'
+import { ApiError, api, type Me } from './api'
 import { BoardView } from './ui/BoardView'
 import { CHARGE_LABEL, DEFENDERS, MAX_HEARTS, type Ability } from './game/catalog'
 import { dailyPuzzle, makePuzzle, type Difficulty } from './game/generate'
@@ -67,12 +67,14 @@ export function PlayScreen({
   const [seconds, setSeconds] = useState(0)
   const [huntTiles, setHuntTiles] = useState<boolean[]>([])
   const [huntOpen, setHuntOpen] = useState<boolean[]>([])
+  const [huntTaps, setHuntTaps] = useState(0)
+  const [shareNote, setShareNote] = useState('')
   const [guest, setGuest] = useState<Guest>(loadGuest)
   const wins = me?.wins ?? guest.wins
   const charges = me?.charges ?? guest.charges
   const throne = throneForWins(wins)
   const progress = throneProgress(wins)
-  const diffLabel = [t.easy, t.medium, t.hard][difficulty]
+  const diffLabel = [t.easy, t.medium, t.hard, t.expert][difficulty]
 
   useEffect(() => {
     const id = window.setInterval(() => setTick((n) => n + 1), 1000)
@@ -184,7 +186,7 @@ export function PlayScreen({
         finish(true)
       }
     } else if (ability === 'heart') {
-      setHearts((n) => Math.min(MAX_HEARTS, n + 1))
+      setHearts((n) => (n < 2 ? 2 : n))
     } else if (ability === 'rule') {
       const marks = ruledOut(puzzle, cells).slice(0, 12)
       const next = cells.slice()
@@ -222,21 +224,27 @@ export function PlayScreen({
   }
 
   async function shareBoard(copyOnly = false) {
-    const res = await api<{ code: string; path: string }>('/api/challenge', { puzzle, seconds })
-    const url = `${location.origin}${res.path}`
-    if (copyOnly) {
-      await navigator.clipboard.writeText(url)
-      return
-    }
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: t.brand, url })
+    try {
+      const res = await api<{ code: string; path: string }>('/api/challenge', { puzzle, seconds })
+      const url = `${location.origin}${res.path}`
+      setShareNote('')
+      if (copyOnly) {
+        await navigator.clipboard.writeText(url)
         return
-      } catch {
-        /* dismissed */
       }
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: t.brand, url })
+          return
+        } catch {
+          /* dismissed */
+        }
+      }
+      await navigator.clipboard.writeText(url)
+    } catch (err) {
+      const code = err instanceof ApiError ? err.code : ''
+      setShareNote(code === 'schema' ? t.errorSchema : t.errorSupabase)
     }
-    await navigator.clipboard.writeText(url)
   }
 
   const modeName = mode === 'daily' ? t.daily : mode === 'free' ? t.freePlay : t.survival
@@ -293,7 +301,7 @@ export function PlayScreen({
               boot(mode, next, difficulty, mode === 'survival' ? hearts : MAX_HEARTS, run)
             }}>{size}×{size}</button>
             <button className="tab" type="button" onClick={() => {
-              const next = ((difficulty + 1) % 3) as Difficulty
+              const next = ((difficulty + 1) % 4) as Difficulty
               setDifficulty(next)
               boot(mode, size, next, mode === 'survival' ? hearts : MAX_HEARTS, run)
             }}>{diffLabel}</button>
@@ -317,6 +325,7 @@ export function PlayScreen({
             <h2>{t.victory}</h2>
             <p className="muted">{formatTime(seconds)} · {moves}</p>
             <button className="btn gold full" type="button" onClick={() => void shareBoard()}>{t.share}</button>
+            {shareNote ? <p className="muted">{shareNote}</p> : null}
             {pc ? <button className="btn full" type="button" onClick={() => void shareBoard(true)}>{t.copyLink}</button> : null}
             <div className="grid2">
               <button className="btn" type="button" onClick={nextBoard}>{t.nextBoard}</button>
@@ -326,9 +335,16 @@ export function PlayScreen({
             </div>
             {(me?.perfects ?? guest.perfects) >= 3 ? (
               <button className="btn" type="button" onClick={() => {
-                const flags = [true, true, true, false, false, false, false, false, false].sort(() => Math.random() - 0.5)
+                const flags = [true, true, true, false, false, false, false, false]
+                for (let i = flags.length - 1; i > 0; i--) {
+                  const j = Math.floor(Math.random() * (i + 1))
+                  const swap = flags[i]
+                  flags[i] = flags[j]
+                  flags[j] = swap
+                }
                 setHuntTiles(flags)
                 setHuntOpen(flags.map(() => false))
+                setHuntTaps(0)
                 setPhase('hunt')
               }}>{t.hunt}</button>
             ) : null}
@@ -338,6 +354,21 @@ export function PlayScreen({
           <>
             <h2>{t.outOfHearts}</h2>
             <div className="grid2">
+              {(charges.heart ?? 0) > 0 ? (
+                <button className="btn gold" type="button" onClick={() => {
+                  const nextCharges = { ...charges, heart: (charges.heart ?? 1) - 1 }
+                  if (me) {
+                    onMe({ ...me, charges: nextCharges })
+                    void api<{ me: Me }>('/api/charge', { ability: 'heart' }).then((res) => onMe(res.me)).catch(() => undefined)
+                  } else {
+                    const next = { ...guest, charges: nextCharges }
+                    setGuest(next)
+                    saveGuest(next)
+                  }
+                  setHearts(2)
+                  setPhase('play')
+                }}>{t.keepGoing}</button>
+              ) : null}
               <button className="btn gold" type="button" onClick={() => boot(mode, size, difficulty, MAX_HEARTS, 0)}>{t.tryAgain}</button>
               <button className="btn" type="button" onClick={() => void shareBoard()}>{t.challenge}</button>
               <button className="btn" type="button" onClick={() => go('/')}>{t.home}</button>
@@ -357,15 +388,20 @@ export function PlayScreen({
         {phase === 'hunt' ? (
           <>
             <h2>{t.hunt}</h2>
+            <p className="muted">{t.huntRule}</p>
             <div className="grid2">
               {huntTiles.map((buddy, index) => (
                 <button key={index} className="btn" type="button" onClick={() => {
+                  if (huntOpen[index] || huntTaps >= 5) return
                   const next = huntOpen.slice()
                   next[index] = true
+                  const taps = huntTaps + 1
                   setHuntOpen(next)
+                  setHuntTaps(taps)
                   if (buddy) sfxPlace()
                   else sfxMark()
-                  if (next.every(Boolean)) {
+                  const found = huntTiles.filter((flag, tile) => flag && next[tile]).length
+                  if (taps >= 5 || found >= 3) {
                     const picked = pickUnseen('hunt', false)
                     setLine(picked)
                     playVoice(picked.id)
@@ -414,14 +450,17 @@ export function PlayScreen({
 
 function MiniBoard({ t }: { t: Copy }) {
   const [rows, setRows] = useState<{ name: string; score: number }[]>([])
+  const [note, setNote] = useState('')
   useEffect(() => {
-    void api<{ rows: { name: string; score: number }[] }>('/api/leaderboard?scope=week').then((res) => setRows(res.rows.slice(0, 8))).catch(() => undefined)
-  }, [])
+    void api<{ rows: { name: string; score: number }[] }>('/api/leaderboard?scope=week').then((res) => setRows(res.rows.slice(0, 8))).catch((err) => {
+      setNote(err instanceof ApiError && err.code === 'schema' ? t.errorSchema : t.errorSupabase)
+    })
+  }, [t])
   return (
     <aside className="pc-side">
       <div className="card scroll">
         <b>{t.week}</b>
-        {rows.length === 0 ? <p className="muted">{t.noRank}</p> : rows.map((row, index) => (
+        {note ? <p className="muted">{note}</p> : rows.length === 0 ? <p className="muted">{t.noRank}</p> : rows.map((row, index) => (
           <div key={row.name} className="spread"><span>{index + 1}. {row.name}</span><span>{row.score}</span></div>
         ))}
         <button className="btn" type="button" onClick={() => go('/leaderboard')}>{t.seeAll}</button>

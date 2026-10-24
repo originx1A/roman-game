@@ -1,6 +1,6 @@
 import { idx, regionConnected, type Puzzle } from './logic.ts'
 
-export type Difficulty = 0 | 1 | 2
+export type Difficulty = 0 | 1 | 2 | 3
 
 export function hashSeed(text: string): number {
   let h = 2166136261
@@ -19,7 +19,10 @@ export function mulberry32(seed: number): () => number {
   }
 }
 
-/** America/Toronto calendar day, so the daily board is shared. */
+/**
+ * America/Toronto calendar day, so the daily board is shared.
+ * Sheet 05 draws that board as 6×6. That is the size on the frame, not a separate rule.
+ */
 export function torontoDate(now = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Toronto',
@@ -92,7 +95,7 @@ function growRegions(size: number, columns: number[], rng: () => number, difficu
       const pick =
         difficulty === 0
           ? neighbors.sort((a, b) => count(regions, a) - count(regions, b))[0]
-          : difficulty === 2
+          : difficulty >= 2
             ? neighbors[Math.floor(rng() * neighbors.length)]
             : neighbors.sort((a, b) => count(regions, b) - count(regions, a))[0]
       regions[i] = pick

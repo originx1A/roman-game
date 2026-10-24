@@ -30,6 +30,9 @@ function errText(t: Copy, error: unknown): string {
   if (code === 'code-dead' || code === 'expired') return t.errorCode
   if (code === 'stripe-test-only') return t.errorStripe
   if (code === 'mail') return t.errorMail
+  if (code === 'schema') return t.errorSchema
+  if (code === 'supabase-key') return t.errorSupabase
+  if (code === 'deleted') return t.deleted
   return t.errorGeneric
 }
 
@@ -108,6 +111,7 @@ export function AuthScreen({ t, pc, onMe, path }: Bag) {
   const [error, setError] = useState('')
   const [note, setNote] = useState('')
   const [recovery, setRecovery] = useState<string | null>(null)
+  const [publicName, setPublicName] = useState('')
   const [names, setNames] = useState<string[]>([])
   const mode = path.startsWith('/reset/') ? 'reset' : path.replace('/', '') || 'join'
   const token = path.startsWith('/reset/') ? decodeURIComponent(path.split('/')[2] || '') : ''
@@ -119,6 +123,7 @@ export function AuthScreen({ t, pc, onMe, path }: Bag) {
       if (mode === 'join') {
         const res = await api<{ me: Me; recoveryCode: string | null; mailSent?: boolean }>('/api/join', { login, password, agree: true })
         onMe(res.me)
+        setPublicName(res.me.playerName)
         if (res.recoveryCode) setRecovery(res.recoveryCode)
         else if (res.mailSent === false) setError(t.errorMail)
         else go('/')
@@ -169,7 +174,7 @@ export function AuthScreen({ t, pc, onMe, path }: Bag) {
       <form className={pc ? 'pc-body' : 'body'} onSubmit={(event) => { event.preventDefault(); go('/nudge') }}>
         <div className={pc ? 'pc-main stack' : 'stack'}>
           <h1>{t.recoveryTitle}</h1>
-          <div className="card"><b>{recovery}</b><p className="muted">{t.recoveryOnce}</p></div>
+          <div className="card"><b>{recovery}</b><p className="muted">{t.publicName}: {publicName}</p><p className="muted">{t.recoveryOnce}</p></div>
           <button className="btn" type="button" onClick={() => void navigator.clipboard.writeText(recovery)}>{t.copyCode}</button>
           <button className="btn" type="button" onClick={() => void shareCode()}>{t.shareSave}</button>
           {pc ? <button className="btn" type="button" onClick={downloadCode}>{t.downloadCode}</button> : null}
@@ -554,6 +559,7 @@ export function FamilyScreen({ t, path, pc }: Bag) {
 
 export function SettingsScreen({ t, me, onMe, setLang, lang, path }: Bag) {
   const [email, setEmail] = useState('')
+  const [nextName, setNextName] = useState(me?.playerName ?? '')
   const [password, setPassword] = useState('')
   const [again, setAgain] = useState('')
   const [current, setCurrent] = useState('')
@@ -595,6 +601,15 @@ export function SettingsScreen({ t, me, onMe, setLang, lang, path }: Bag) {
       <h1>{t.settings}</h1>
       <p className="muted">{me.playerName} · {me.email ?? t.addEmail}</p>
       <button className="btn" type="button" onClick={() => go('/settings/language')}>{t.language} · {lang === 'fr' ? t.francais : t.english}</button>
+      <form className="card stack" onSubmit={(event) => {
+        event.preventDefault()
+        void api<{ me: Me }>('/api/name', { name: nextName, password: current }).then((res) => { onMe(res.me); setNote(t.saveName) }).catch((err) => setNote(errText(t, err)))
+      }}>
+        <b>{t.publicName}</b>
+        <Field label={t.publicName} value={nextName} set={setNextName} />
+        <Field label={t.currentPassword} value={current} set={setCurrent} type="password" />
+        <button className="btn" type="submit">{t.saveName}</button>
+      </form>
       <form className="card stack" onSubmit={(event) => { event.preventDefault(); void api('/api/email/add', { email, password: current }).then(() => setNote(t.verifySent)).catch(() => setNote(t.errorGeneric)) }}>
         <b>{t.changeEmail}</b>
         <Field label={t.yourEmail} value={email} set={setEmail} />
@@ -761,6 +776,19 @@ export function TeamScreen({ t, me, path, pc }: Bag) {
               </div>
             )
           })}
+          {(team.members ?? []).some((row) => row.id === me?.id && row.rank === 'leader') ? (
+            <form className="stack" onSubmit={(event) => {
+              event.preventDefault()
+              void api('/api/team/rename', { pick: { adjective: adj, noun, number: Number(number) } }).then(() => location.reload()).catch((err) => setError(errText(t, err)))
+            }}>
+              <b>{t.renameTeam}</b>
+              <p>{formatTeamName({ adjective: adj, noun, number: Number(number) })}</p>
+              <label className="field"><select value={adj} onChange={(event) => setAdj(event.target.value as typeof adj)}>{ADJECTIVES.map((word) => <option key={word}>{word}</option>)}</select></label>
+              <label className="field"><select value={noun} onChange={(event) => setNoun(event.target.value as typeof noun)}>{NOUNS.map((word) => <option key={word}>{word}</option>)}</select></label>
+              <Field label="#" value={String(number)} set={(value) => setNumber(Number(value) || 1)} />
+              <button className="btn" type="submit">{t.renameTeam}</button>
+            </form>
+          ) : null}
           <p className="muted">{t.nextInLine}: {(() => {
             const rest = (team.members ?? []).filter((row) => row.rank !== 'leader')
             const captain = rest.find((row) => row.rank === 'captain')
@@ -813,12 +841,29 @@ export function TeamScreen({ t, me, path, pc }: Bag) {
   )
 }
 
-export function BoardScreen({ t }: Bag) {
+export function BoardScreen({ t, me }: Bag) {
   const [scope, setScope] = useState('week')
-  const [rows, setRows] = useState<{ name: string; score: number; throne: number }[]>([])
-  useEffect(() => {
-    void api<{ rows: { name: string; score: number; throne: number }[] }>(`/api/leaderboard?scope=${scope}`).then((res) => setRows(res.rows)).catch(() => undefined)
-  }, [scope])
+  const [rows, setRows] = useState<{ id?: string; name: string; score: number; throne: number }[]>([])
+  const [incoming, setIncoming] = useState<{ id: string; name: string }[]>([])
+  const [outgoing, setOutgoing] = useState<{ id: string; name: string }[]>([])
+  const [friends, setFriends] = useState<{ id: string; name: string }[]>([])
+  const [inbox, setInbox] = useState<{ id: number; from_name: string; body: string; from_id: string | null }[]>([])
+  const [picked, setPicked] = useState<{ id?: string; name: string } | null>(null)
+  const [note, setNote] = useState('')
+  function load(next = scope) {
+    void api<{ rows: typeof rows; incoming?: typeof incoming; outgoing?: typeof outgoing; friends?: typeof friends; inbox?: typeof inbox }>(`/api/leaderboard?scope=${next}`).then((res) => {
+      setRows(res.rows ?? [])
+      setIncoming(res.incoming ?? [])
+      setOutgoing(res.outgoing ?? [])
+      setFriends(res.friends ?? [])
+      setInbox(res.inbox ?? [])
+    }).catch((err) => setNote(errText(t, err)))
+  }
+  useEffect(() => { load(scope) }, [scope])
+  function act(action: string, id: string) {
+    if (!me) return go('/signin')
+    void api('/api/friends', { action, id }).then(() => { setPicked(null); load() }).catch((err) => setNote(errText(t, err)))
+  }
   return (
     <div className="body stack">
       <div className="spread"><h1>{t.solo}</h1><button type="button" onClick={() => go('/')}>{t.close}</button></div>
@@ -827,13 +872,70 @@ export function BoardScreen({ t }: Bag) {
           <button key={item} className={`tab ${scope === item ? 'on' : ''}`} type="button" onClick={() => setScope(item)}>{t[item === 'survival' ? 'survival' : item === 'friends' ? 'friends' : item]}</button>
         ))}
       </div>
-      {scope === 'friends' ? <p>{t.friendsSoon}</p> : (
+      {scope === 'friends' ? (
+        <div className="scroll stack">
+          {!me ? <button className="btn gold" type="button" onClick={() => go('/signin')}>{t.signInFriends}</button> : null}
+          <h2>{t.inbox}</h2>
+          {inbox.length === 0 ? <p className="muted">{t.inboxEmpty}</p> : inbox.map((item) => (
+            <div key={item.id} className="card stack">
+              <b>{item.from_name}</b>
+              <span>{item.body}</span>
+              {item.from_id ? (
+                <div className="grid2">
+                  <button className="btn" type="button" onClick={() => act('accept', item.from_id!)}>{t.accept}</button>
+                  <button className="btn" type="button" onClick={() => { act('decline', item.from_id!); void api('/api/inbox/read', { id: item.id }) }}>{t.decline}</button>
+                </div>
+              ) : null}
+            </div>
+          ))}
+          <h2>{t.pendingFriend}</h2>
+          {incoming.map((person) => (
+            <div key={person.id} className="spread">
+              <span>{person.name}</span>
+              <button className="btn" type="button" onClick={() => act('accept', person.id)}>{t.accept}</button>
+              <button className="btn" type="button" onClick={() => act('decline', person.id)}>{t.decline}</button>
+            </div>
+          ))}
+          {outgoing.map((person) => (
+            <div key={person.id} className="spread">
+              <span>{person.name}</span>
+              <button className="btn" type="button" onClick={() => act('cancel', person.id)}>{t.cancelRequest}</button>
+            </div>
+          ))}
+          <h2>{t.friends}</h2>
+          {friends.length === 0 ? <p className="muted">{t.noRank}</p> : friends.map((person) => (
+            <div key={person.id} className="spread">
+              <span>{person.name}</span>
+              <button className="btn" type="button" onClick={() => act('unfriend', person.id)}>{t.unfriend}</button>
+            </div>
+          ))}
+        </div>
+      ) : (
         <div className="scroll">
           {rows.length === 0 ? <p className="muted">{t.noRank}</p> : rows.map((row, index) => (
-            <div key={`${row.name}${index}`} className="spread"><span>{index + 1}. {row.name}</span><span>{row.throne ? `#${row.throne}` : ''} {row.score}</span></div>
+            <button key={`${row.id ?? row.name}${index}`} className="spread" type="button" onClick={() => setPicked(row)}>
+              <span>{index + 1}. {row.name}</span><span>{row.throne ? `#${row.throne}` : ''} {row.score}</span>
+            </button>
           ))}
         </div>
       )}
+      {picked ? (
+        <div className="card stack">
+          <b>{picked.name}</b>
+          {!me ? <button className="btn gold" type="button" onClick={() => go('/signin')}>{t.signInFriends}</button> : (
+            <>
+              <button className="btn" type="button" onClick={() => picked.id && act('ask', picked.id)}>{t.addFriend}</button>
+              <button className="btn" type="button" onClick={() => {
+                if (!picked.id) return
+                if (!me) return go('/signin')
+                void api('/api/team/ask', { id: picked.id }).then(() => setNote(t.requestSent)).catch((err) => setNote(errText(t, err)))
+              }}>{t.askJoin}</button>
+            </>
+          )}
+          <button className="btn" type="button" onClick={() => setPicked(null)}>{t.close}</button>
+        </div>
+      ) : null}
+      {note ? <p className="muted">{note}</p> : null}
     </div>
   )
 }
@@ -857,14 +959,20 @@ export function ThroneScreen({ t, lang, me }: Bag) {
   )
 }
 
-export function StableScreen({ t, me }: Bag) {
-  const pets = me?.pets ?? ['leo']
+export function StableScreen({ t, me, onMe }: Bag) {
+  const pets = me?.pets ?? []
   const clothes = me?.clothes ?? []
+  const host = PETS.find((pet) => pet.id === me?.hostPet)?.name
   return (
     <div className="body stack">
       <h1>{t.stable}</h1>
-      <p className="muted">{t.host}: {me?.hostPet ?? 'leo'}</p>
-      {pets.map((id) => <div key={id} className="card">{PETS.find((pet) => pet.id === id)?.name ?? id}</div>)}
+      <p className="muted">{t.host}: {host ?? t.noHost}</p>
+      {pets.length === 0 ? <p className="muted">{t.priceUnset}</p> : pets.map((id) => (
+        <div key={id} className="card stack">
+          <span>{PETS.find((pet) => pet.id === id)?.name ?? id}</span>
+          <button className="btn" type="button" onClick={() => void api<{ me: Me }>('/api/host', { pet: id }).then((res) => onMe(res.me))}>{t.pickHost}</button>
+        </div>
+      ))}
       <h2>{t.dress}</h2>
       <p className="muted">{t.oneWearer}</p>
       {clothes.length === 0 ? <p className="muted">{t.priceUnset}</p> : clothes.map((id) => <div key={id} className="card">{CLOTHES.find((piece) => piece.id === id)?.name ?? id}</div>)}

@@ -35,7 +35,7 @@ export interface Me {
   holderId: string | null
   pets: string[]
   clothes: string[]
-  hostPet: string
+  hostPet: string | null
   charges: Record<string, number>
   hearts: number
   bestRun: Record<string, number>

@@ -1,46 +1,25 @@
-import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname } from 'node:path'
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import {
   APPROVAL_DAYS,
   BUILD_NUMBER,
   CASH_AGE,
-  DAILY_FREE_COINS,
   MAX_HEARTS,
   REMINDER_DAYS,
   RESET_MINUTES,
-  STARTER_CLOTH,
-  STARTER_PET,
   SUPPORT_EMAIL,
   TERMS_VERSION,
   formatPrice,
   priceForCountry,
   type Sku,
 } from '../../../src/game/catalog.ts'
+import { MissingKey, SchemaError, Store, TakenError, openStore, type Env } from './db.ts'
 import { formatTeamName, parseTeamName, type TeamNamePick } from '../../../src/game/teamNames.ts'
 import { torontoDate } from '../../../src/game/generate.ts'
 import type { Puzzle } from '../../../src/game/logic.ts'
 import { throneForWins } from '../../../src/game/thrones.ts'
 import { approvalMail, receiptMail, reminderMail, resetMail, sendMail, verificationMail, type Mail } from './mail.ts'
 
-export interface Env {
-  RESEND_API_KEY?: string
-  STRIPE_SECRET_KEY?: string
-  STRIPE_WEBHOOK_SECRET?: string
-  RG_DEV_MAILBOX?: string
-  RG_STORE_FILE?: string
-  CONTEXT?: string
-  URL?: string
-  DEPLOY_PRIME_URL?: string
-  NETLIFY?: string
-  country?: string | null
-}
-
-interface Kv {
-  get<T>(key: string): Promise<T | null>
-  set(key: string, value: unknown): Promise<void>
-  del(key: string): Promise<void>
-}
+export type { Env }
 
 export interface Account {
   id: string
@@ -49,10 +28,12 @@ export interface Account {
   email: string | null
   emailVerified: boolean
   pendingEmail: string | null
+  authEmail: string
   passHash: string
   passSalt: string
   recoveryHash: string | null
   recoverySalt: string | null
+  resetFresh?: boolean
   ageGate: 'over' | 'under' | null
   wins: number
   perfects: number
@@ -64,7 +45,7 @@ export interface Account {
   memberIds: string[]
   pets: string[]
   clothes: string[]
-  hostPet: string
+  hostPet: string | null
   charges: Record<string, number>
   hearts: number
   bestRun: Record<string, number>
@@ -90,7 +71,7 @@ export interface Account {
   purchaseAccepts: { sku: string; at: string; version: string }[]
 }
 
-interface Team {
+export interface Team {
   id: string
   code: string
   name: string
@@ -103,7 +84,7 @@ interface Team {
   closed: boolean
 }
 
-interface Challenge {
+export interface Challenge {
   code: string
   puzzle: Puzzle
   senderName: string
@@ -112,7 +93,7 @@ interface Challenge {
   results: { name: string; seconds: number; won: boolean }[]
 }
 
-interface Order {
+export interface Order {
   id: string
   accountId: string
   sku: Sku
@@ -127,7 +108,7 @@ interface Order {
   wasntUsed: boolean
 }
 
-interface Approval {
+export interface Approval {
   token: string
   playerId: string
   playerName: string
@@ -145,14 +126,18 @@ function profane(name: string): boolean {
   return BANNED.some((word) => squash.includes(word))
 }
 
-function hashSecret(secret: string, salt: string): string {
-  return scryptSync(secret, salt, 32).toString('hex')
+function digest(value: string): string {
+  return createHash('sha256').update(value).digest('hex')
 }
 
-function checkSecret(secret: string, salt: string, hash: string): boolean {
-  const a = Buffer.from(hashSecret(secret, salt), 'hex')
-  const b = Buffer.from(hash, 'hex')
-  return a.length === b.length && timingSafeEqual(a, b)
+function sameHash(a: string, b: string): boolean {
+  const left = Buffer.from(a)
+  const right = Buffer.from(b)
+  return left.length === right.length && timingSafeEqual(left, right)
+}
+
+async function passwordMatches(kv: Store, account: Account, password: string): Promise<boolean> {
+  return kv.passwordOk(account.authEmail, password)
 }
 
 function randomToken(bytes = 24): string {
@@ -207,53 +192,6 @@ function clientIp(req: Request): string {
   return req.headers.get('x-nf-client-connection-ip') || req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'local'
 }
 
-let memory: Record<string, unknown> | null = null
-let memoryQueue: Promise<void> = Promise.resolve()
-
-function fileKv(path: string): Kv {
-  if (!memory) {
-    try {
-      memory = JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>
-    } catch {
-      memory = {}
-    }
-  }
-  const data = memory
-  const save = () => {
-    memoryQueue = memoryQueue.then(() => {
-      mkdirSync(dirname(path), { recursive: true })
-      writeFileSync(path, JSON.stringify(data))
-    })
-    return memoryQueue
-  }
-  return {
-    async get<T>(key: string) {
-      return (data[key] as T) ?? null
-    },
-    async set(key, value) {
-      data[key] = value
-      await save()
-    },
-    async del(key) {
-      delete data[key]
-      await save()
-    },
-  }
-}
-
-async function openKv(env: Env): Promise<Kv> {
-  if (env.RG_STORE_FILE || env.NETLIFY !== 'true') return fileKv(env.RG_STORE_FILE || '/tmp/rg-rewrite-store.json')
-  const { getStore } = await import('@netlify/blobs')
-  const store = getStore('rg-rewrite')
-  return {
-    get: (key) => store.get(key, { type: 'json' }) as Promise<never>,
-    set: async (key, value) => {
-      await store.setJSON(key, value)
-    },
-    del: (key) => store.delete(key),
-  }
-}
-
 function publicMe(account: Account) {
   const throne = throneForWins(account.wins)
   return {
@@ -284,7 +222,7 @@ function publicMe(account: Account) {
   }
 }
 
-async function rate(kv: Kv, key: string, limit: number, windowMs: number): Promise<boolean> {
+async function rate(kv: Store, key: string, limit: number, windowMs: number): Promise<boolean> {
   const now = Date.now()
   const hit = (await kv.get<{ at: number[] }>(key)) ?? { at: [] }
   hit.at = hit.at.filter((t) => now - t < windowMs)
@@ -294,26 +232,26 @@ async function rate(kv: Kv, key: string, limit: number, windowMs: number): Promi
   return true
 }
 
-async function saveAccount(kv: Kv, account: Account): Promise<void> {
+async function saveAccount(kv: Store, account: Account): Promise<void> {
   await kv.set(`account:${account.id}`, account)
   await kv.set(`login:${account.loginKey}`, account.id)
   await kv.set(`login:${account.playerName.toLowerCase()}`, account.id)
   if (account.email) await kv.set(`email:${account.email.toLowerCase()}`, account.id)
 }
 
-async function byLogin(kv: Kv, login: string): Promise<Account | null> {
+async function byLogin(kv: Store, login: string): Promise<Account | null> {
   const id = await kv.get<string>(`login:${login.trim().toLowerCase()}`)
   if (!id) return null
   return kv.get<Account>(`account:${id}`)
 }
 
-async function byEmail(kv: Kv, email: string): Promise<Account | null> {
+async function byEmail(kv: Store, email: string): Promise<Account | null> {
   const id = await kv.get<string>(`email:${email.trim().toLowerCase()}`)
   if (!id) return null
   return kv.get<Account>(`account:${id}`)
 }
 
-async function bySession(kv: Kv, req: Request): Promise<Account | null> {
+async function bySession(kv: Store, req: Request): Promise<Account | null> {
   const token = readCookie(req)
   if (!token) return null
   const row = await kv.get<{ accountId: string }>(`session:${token}`)
@@ -324,7 +262,7 @@ async function bySession(kv: Kv, req: Request): Promise<Account | null> {
   return account
 }
 
-async function startSession(kv: Kv, account: Account, secure: boolean): Promise<{ account: Account; cookie: string }> {
+async function startSession(kv: Store, account: Account, secure: boolean): Promise<{ account: Account; cookie: string }> {
   const token = randomToken()
   account.sessions = [...account.sessions, token].slice(-12)
   account.failedSignins = 0
@@ -335,8 +273,7 @@ async function startSession(kv: Kv, account: Account, secure: boolean): Promise<
   return { account, cookie: cookie(token, secure) }
 }
 
-function blankAccount(input: { loginKey: string; playerName: string; email: string | null; password: string }): Account {
-  const salt = randomBytes(16).toString('hex')
+function blankAccount(input: { loginKey: string; playerName: string; email: string | null; authEmail: string }): Account {
   return {
     id: crypto.randomUUID(),
     loginKey: input.loginKey,
@@ -344,8 +281,9 @@ function blankAccount(input: { loginKey: string; playerName: string; email: stri
     email: input.email,
     emailVerified: false,
     pendingEmail: null,
-    passHash: hashSecret(input.password, salt),
-    passSalt: salt,
+    authEmail: input.authEmail,
+    passHash: 'supabase',
+    passSalt: 'supabase',
     recoveryHash: null,
     recoverySalt: null,
     ageGate: null,
@@ -357,9 +295,9 @@ function blankAccount(input: { loginKey: string; playerName: string; email: stri
     holder: false,
     holderId: null,
     memberIds: [],
-    pets: ['leo'],
+    pets: [],
     clothes: [],
-    hostPet: 'leo',
+    hostPet: null,
     charges: {},
     hearts: MAX_HEARTS,
     bestRun: {},
@@ -386,7 +324,7 @@ function blankAccount(input: { loginKey: string; playerName: string; email: stri
   }
 }
 
-async function uniqueName(kv: Kv, base: string): Promise<string> {
+async function uniqueName(kv: Store, base: string): Promise<string> {
   let name = base.slice(0, 24)
   let n = 1
   while (await kv.get(`login:${name.toLowerCase()}`)) {
@@ -396,13 +334,13 @@ async function uniqueName(kv: Kv, base: string): Promise<string> {
   return name
 }
 
-async function devSave(kv: Kv, mail: Mail): Promise<void> {
+async function devSave(kv: Store, mail: Mail): Promise<void> {
   const box = (await kv.get<Mail[]>('mailbox')) ?? []
   box.unshift({ ...mail })
   await kv.set('mailbox', box.slice(0, 40))
 }
 
-async function mail(env: Env, kv: Kv, message: Mail): Promise<{ ok: boolean; dev?: boolean }> {
+async function mail(env: Env, kv: Store, message: Mail): Promise<{ ok: boolean; dev?: boolean }> {
   if (!env.RESEND_API_KEY) {
     if (env.RG_DEV_MAILBOX === '1' && env.CONTEXT !== 'production') {
       await devSave(kv, message)
@@ -433,17 +371,23 @@ export async function handle(req: Request, env: Env): Promise<Response> {
   const url = new URL(req.url)
   const path = url.pathname.replace(/\/$/, '') || '/'
   const secure = (req.headers.get('x-forwarded-proto') || url.protocol).includes('https')
-  const kv = await openKv(env)
+  const kv = openStore(env)
   const origin = originOf(req, env)
 
-  if (path === '/api/health') return json({ ok: true, build: BUILD_NUMBER })
+  if (path === '/api/health') return json({ ok: true, build: BUILD_NUMBER, ...(await kv.status()) })
 
   if (path === '/api/dev/mailbox' && req.method === 'GET') {
     if (env.RG_DEV_MAILBOX !== '1' || env.CONTEXT === 'production') return json({ error: 'not-found' }, 404)
     return json({ mailbox: (await kv.get<Mail[]>('mailbox')) ?? [] })
   }
 
-  if (path === '/api/stripe-webhook' && req.method === 'POST') return stripeWebhook(req, env, kv)
+  if (path === '/api/stripe-webhook' && req.method === 'POST') {
+    try {
+      return await stripeWebhook(req, env, kv)
+    } catch (err) {
+      return failure(err)
+    }
+  }
 
   let body: Record<string, unknown> = {}
   if (req.method === 'POST') {
@@ -458,56 +402,71 @@ export async function handle(req: Request, env: Env): Promise<Response> {
     }
   }
 
-  const me = await bySession(kv, req)
-  const ip = clientIp(req)
-
   try {
-    if (path === '/api/join' && req.method === 'POST') return join(kv, env, body, origin, secure, ip)
-    if (path === '/api/signin' && req.method === 'POST') return signin(kv, body, secure, ip)
-    if (path === '/api/signout' && req.method === 'POST') return signout(kv, req, secure)
-    if (path === '/api/signout-all' && req.method === 'POST') return signoutAll(kv, me, secure)
-    if (path === '/api/me' && req.method === 'GET') return meRoute(kv, env, me, origin)
-    if (path === '/api/recover/email' && req.method === 'POST') return recoverEmail(kv, env, body, origin, ip)
-    if (path === '/api/recover/code' && req.method === 'POST') return recoverCode(kv, body, ip)
-    if (path === '/api/reset' && req.method === 'POST') return resetPassword(kv, body, secure)
-    if (path === '/api/email/add' && req.method === 'POST') return addEmail(kv, env, me, body, origin)
-    if (path === '/api/email/verify' && req.method === 'POST') return verifyEmail(kv, body)
-    if (path === '/api/password' && req.method === 'POST') return changePassword(kv, me, body)
-    if (path === '/api/language' && req.method === 'POST') return setLanguage(kv, me, body)
-    if (path === '/api/data/download' && req.method === 'POST') return downloadData(kv, env, me, body, origin)
-    if (path === '/api/data/delete' && req.method === 'POST') return deleteData(kv, me, body, secure)
-    if (path === '/api/family/ask' && req.method === 'POST') return familyAsk(kv, env, me, body, origin)
-    if (path === '/api/family' && req.method === 'GET') return familyGet(kv, me, url)
-    if (path === '/api/family/answer' && req.method === 'POST') return familyAnswer(kv, body, secure)
-    if (path === '/api/family/add' && req.method === 'POST') return familyAdd(kv, me, body)
-    if (path === '/api/family/member' && req.method === 'POST') return familyMember(kv, me, body)
-    if (path === '/api/shop/birthday' && req.method === 'POST') return birthday(kv, me, body)
-    if (path === '/api/shop/accept' && req.method === 'POST') return acceptOrder(kv, me, body, env)
-    if (path === '/api/shop/checkout' && req.method === 'POST') return checkout(kv, env, me, body, origin)
-    if (path === '/api/shop/confirm' && req.method === 'POST') return confirmCheckout(kv, env, me, body, origin)
-    if (path === '/api/wasnt-me' && req.method === 'POST') return wasntMe(kv, body)
-    if (path === '/api/win' && req.method === 'POST') return recordWin(kv, me, body)
-    if (path === '/api/charge' && req.method === 'POST') return spendCharge(kv, me, body)
-    if (path === '/api/leaderboard' && req.method === 'GET') return leaderboard(kv, url)
-    if (path === '/api/challenge' && req.method === 'POST') return makeChallenge(kv, me, body)
-    if (path.startsWith('/api/challenge/') && req.method === 'GET') return getChallenge(kv, path.split('/').pop()!)
-    if (path.startsWith('/api/challenge/') && req.method === 'POST') return challengeResult(kv, path.split('/').pop()!, body)
-    if (path === '/api/team' && req.method === 'POST') return makeTeam(kv, me, body)
-    if (path === '/api/team' && req.method === 'GET') return getTeam(kv, me, url)
-    if (path === '/api/team/join' && req.method === 'POST') return joinTeam(kv, me, body)
-    if (path === '/api/team/answer' && req.method === 'POST') return answerAsk(kv, me, body)
-    if (path === '/api/team/leave' && req.method === 'POST') return leaveTeam(kv, me)
-    if (path === '/api/team/rank' && req.method === 'POST') return setRank(kv, me, body)
-    if (path === '/api/contact' && req.method === 'POST') return contact(kv, env, body, origin, ip)
+    const me = await bySession(kv, req)
+    const ip = clientIp(req)
+    if (path === '/api/join' && req.method === 'POST') return await join(kv, env, body, origin, secure, ip)
+    if (path === '/api/signin' && req.method === 'POST') return await signin(kv, body, secure, ip)
+    if (path === '/api/signout' && req.method === 'POST') return await signout(kv, req, secure)
+    if (path === '/api/signout-all' && req.method === 'POST') return await signoutAll(kv, me, secure)
+    if (path === '/api/me' && req.method === 'GET') return await meRoute(kv, env, me, origin)
+    if (path === '/api/recover/email' && req.method === 'POST') return await recoverEmail(kv, env, body, origin, ip)
+    if (path === '/api/recover/code' && req.method === 'POST') return await recoverCode(kv, body, ip)
+    if (path === '/api/reset' && req.method === 'POST') return await resetPassword(kv, body, secure)
+    if (path === '/api/email/add' && req.method === 'POST') return await addEmail(kv, env, me, body, origin)
+    if (path === '/api/email/verify' && req.method === 'POST') return await verifyEmail(kv, body)
+    if (path === '/api/password' && req.method === 'POST') return await changePassword(kv, me, body)
+    if (path === '/api/language' && req.method === 'POST') return await setLanguage(kv, me, body)
+    if (path === '/api/data/download' && req.method === 'POST') return await downloadData(kv, env, me, body, origin)
+    if (path === '/api/data/delete' && req.method === 'POST') return await deleteData(kv, me, body, secure)
+    if (path === '/api/family/ask' && req.method === 'POST') return await familyAsk(kv, env, me, body, origin)
+    if (path === '/api/family' && req.method === 'GET') return await familyGet(kv, me, url)
+    if (path === '/api/family/answer' && req.method === 'POST') return await familyAnswer(kv, body, secure)
+    if (path === '/api/family/add' && req.method === 'POST') return await familyAdd(kv, me, body)
+    if (path === '/api/family/member' && req.method === 'POST') return await familyMember(kv, me, body)
+    if (path === '/api/shop/birthday' && req.method === 'POST') return await birthday(kv, me, body)
+    if (path === '/api/shop/accept' && req.method === 'POST') return await acceptOrder(kv, me, body, env)
+    if (path === '/api/shop/checkout' && req.method === 'POST') return await checkout(kv, env, me, body, origin)
+    if (path === '/api/shop/confirm' && req.method === 'POST') return await confirmCheckout(kv, env, me, body, origin)
+    if (path === '/api/wasnt-me' && req.method === 'POST') return await wasntMe(kv, body)
+    if (path === '/api/win' && req.method === 'POST') return await recordWin(kv, me, body)
+    if (path === '/api/charge' && req.method === 'POST') return await spendCharge(kv, me, body)
+    if (path === '/api/leaderboard' && req.method === 'GET') return await leaderboard(kv, url, me)
+    if (path === '/api/challenge' && req.method === 'POST') return await makeChallenge(kv, me, body)
+    if (path.startsWith('/api/challenge/') && req.method === 'GET') return await getChallenge(kv, path.split('/').pop()!)
+    if (path.startsWith('/api/challenge/') && req.method === 'POST') return await challengeResult(kv, path.split('/').pop()!, body)
+    if (path === '/api/team' && req.method === 'POST') return await makeTeam(kv, me, body)
+    if (path === '/api/team' && req.method === 'GET') return await getTeam(kv, me, url)
+    if (path === '/api/team/join' && req.method === 'POST') return await joinTeam(kv, me, body)
+    if (path === '/api/team/answer' && req.method === 'POST') return await answerAsk(kv, me, body)
+    if (path === '/api/team/leave' && req.method === 'POST') return await leaveTeam(kv, me)
+    if (path === '/api/team/rank' && req.method === 'POST') return await setRank(kv, me, body)
+    if (path === '/api/team/rename' && req.method === 'POST') return await renameTeam(kv, me, body)
+    if (path === '/api/team/ask' && req.method === 'POST') return await askTeam(kv, me, body)
+    if (path === '/api/name' && req.method === 'POST') return await renameMe(kv, me, body)
+    if (path === '/api/host' && req.method === 'POST') return await setHost(kv, me, body)
+    if (path === '/api/friends' && req.method === 'GET') return await friends(kv, me)
+    if (path === '/api/friends' && req.method === 'POST') return await friendAct(kv, me, body)
+    if (path === '/api/inbox' && req.method === 'GET') return await inbox(kv, me)
+    if (path === '/api/inbox/read' && req.method === 'POST') return await readInbox(kv, me, body)
+    if (path === '/api/contact' && req.method === 'POST') return await contact(kv, env, body, origin, ip)
     if (path === '/api/prices' && req.method === 'GET') return json(priceForCountry(env.country))
     return json({ error: 'not-found' }, 404)
   } catch (err) {
-    console.error('rg', err instanceof Error ? err.message : 'error')
-    return json({ error: 'server' }, 500)
+    return failure(err)
   }
 }
 
-async function join(kv: Kv, env: Env, body: Record<string, unknown>, origin: string, secure: boolean, ip: string): Promise<Response> {
+function failure(err: unknown): Response {
+  const name = err instanceof Error ? err.name : ''
+  if (err instanceof MissingKey || name === 'MissingKey') return json({ error: 'supabase-key' }, 503)
+  if (err instanceof SchemaError || name === 'SchemaError') return json({ error: 'schema', detail: err instanceof Error ? err.message : '' }, 503)
+  if (err instanceof TakenError || name === 'TakenError') return json({ error: 'taken' }, 409)
+  console.error('rg', err instanceof Error ? err.message : 'error')
+  return json({ error: 'server' }, 500)
+}
+
+async function join(kv: Store, env: Env, body: Record<string, unknown>, origin: string, secure: boolean, ip: string): Promise<Response> {
   if (!(await rate(kv, `rate:join:${ip}`, 8, 3600_000))) return json({ error: 'slow-down' }, 429)
   const login = String(body.login ?? '').trim()
   const password = String(body.password ?? '')
@@ -520,21 +479,28 @@ async function join(kv: Kv, env: Env, body: Record<string, unknown>, origin: str
   if (await byLogin(kv, login)) return json({ error: 'taken' }, 409)
   if (isEmail && (await byEmail(kv, login))) return json({ error: 'taken' }, 409)
   const playerName = isEmail ? await uniqueName(kv, 'Bright Owl') : await uniqueName(kv, login)
+  const authEmail = isEmail ? login.toLowerCase() : `p.${randomToken(6)}@name.romansgame.invalid`
+  let id: string
+  try {
+    id = await kv.provision(authEmail, password)
+  } catch (err) {
+    if (err instanceof TakenError) return json({ error: 'taken' }, 409)
+    throw err
+  }
+  const publicName = await kv.insertPlayer(id, playerName)
   const account = blankAccount({
-    loginKey: isEmail ? playerName.toLowerCase() : login.toLowerCase(),
-    playerName,
-    email: isEmail ? login.toLowerCase() : null,
-    password,
+    loginKey: isEmail ? authEmail : publicName.toLowerCase(),
+    playerName: publicName,
+    email: isEmail ? authEmail : null,
+    authEmail,
   })
-  if (isEmail) account.loginKey = login.toLowerCase()
+  account.id = id
   let recovery: string | null = null
   if (!isEmail) {
     recovery = recoveryCode()
-    account.recoverySalt = randomBytes(16).toString('hex')
-    account.recoveryHash = hashSecret(recovery, account.recoverySalt)
+    account.recoveryHash = digest(recovery)
   } else {
     account.verifyToken = randomToken()
-    await kv.set(`verify:${account.verifyToken}`, account.id)
   }
   const session = await startSession(kv, account, secure)
   let mailSent = true
@@ -545,24 +511,32 @@ async function join(kv: Kv, env: Env, body: Record<string, unknown>, origin: str
   return json({ me: publicMe(session.account), recoveryCode: recovery, mailSent }, 200, { 'set-cookie': session.cookie })
 }
 
-async function signin(kv: Kv, body: Record<string, unknown>, secure: boolean, ip: string): Promise<Response> {
+async function signin(kv: Store, body: Record<string, unknown>, secure: boolean, ip: string): Promise<Response> {
   if (!(await rate(kv, `rate:in:${ip}`, 20, 900_000))) return json({ error: 'slow-down' }, 429)
   const login = String(body.login ?? '').trim()
   const password = String(body.password ?? '')
-  const account = (await byLogin(kv, login)) ?? (emailOf(login) ? await byEmail(kv, login) : null)
+  let account = (await byLogin(kv, login)) ?? (emailOf(login) ? await byEmail(kv, login) : null)
+  if (!account && emailOf(login)) {
+    const id = await kv.authId(login)
+    if (id && (await kv.passwordOk(login, password))) account = await kv.ensurePlayer(id, login.toLowerCase())
+  }
   if (!account) return json({ error: 'credentials' }, 401)
   if (account.lockedUntil && Date.parse(account.lockedUntil) > Date.now()) return json({ error: 'locked' }, 429)
-  if (!checkSecret(password, account.passSalt, account.passHash)) {
+  if (!(await passwordMatches(kv, account, password))) {
     account.failedSignins += 1
     if (account.failedSignins >= 8) account.lockedUntil = new Date(Date.now() + 15 * 60_000).toISOString()
     await saveAccount(kv, account)
     return json({ error: 'credentials' }, 401)
   }
+  if (account.deleteAfter && Date.parse(account.deleteAfter) < Date.now()) {
+    await kv.deleteUser(account.id)
+    return json({ error: 'deleted' }, 401)
+  }
   const session = await startSession(kv, account, secure)
   return json({ me: publicMe(session.account) }, 200, { 'set-cookie': session.cookie })
 }
 
-async function signout(kv: Kv, req: Request, secure: boolean): Promise<Response> {
+async function signout(kv: Store, req: Request, secure: boolean): Promise<Response> {
   const token = readCookie(req)
   if (token) {
     const row = await kv.get<{ accountId: string }>(`session:${token}`)
@@ -578,7 +552,7 @@ async function signout(kv: Kv, req: Request, secure: boolean): Promise<Response>
   return json({ ok: true }, 200, { 'set-cookie': cookie(null, secure) })
 }
 
-async function signoutAll(kv: Kv, me: Account | null, secure: boolean): Promise<Response> {
+async function signoutAll(kv: Store, me: Account | null, secure: boolean): Promise<Response> {
   if (!me) return json({ error: 'auth' }, 401)
   for (const token of me.sessions) await kv.del(`session:${token}`)
   me.sessions = []
@@ -586,13 +560,13 @@ async function signoutAll(kv: Kv, me: Account | null, secure: boolean): Promise<
   return json({ ok: true }, 200, { 'set-cookie': cookie(null, secure) })
 }
 
-async function meRoute(kv: Kv, env: Env, me: Account | null, origin: string): Promise<Response> {
+async function meRoute(kv: Store, env: Env, me: Account | null, origin: string): Promise<Response> {
   if (!me) return json({ me: null })
   await maybeRemind(kv, env, me, origin)
   return json({ me: publicMe(me) })
 }
 
-async function maybeRemind(kv: Kv, env: Env, me: Account, origin: string): Promise<void> {
+async function maybeRemind(kv: Store, env: Env, me: Account, origin: string): Promise<void> {
   const pending = await kv.get<string>(`player-approval:${me.id}`)
   if (!pending) return
   const approval = await kv.get<Approval>(`approval:${pending}`)
@@ -611,11 +585,15 @@ async function maybeRemind(kv: Kv, env: Env, me: Account, origin: string): Promi
   }
 }
 
-async function recoverEmail(kv: Kv, env: Env, body: Record<string, unknown>, origin: string, ip: string): Promise<Response> {
+async function recoverEmail(kv: Store, env: Env, body: Record<string, unknown>, origin: string, ip: string): Promise<Response> {
   if (!(await rate(kv, `rate:recover:${ip}`, 6, 3600_000))) return json({ error: 'slow-down' }, 429)
   const login = String(body.login ?? '').trim()
-  const account = (emailOf(login) ? await byEmail(kv, login) : await byLogin(kv, login)) ?? null
+  let account = (emailOf(login) ? await byEmail(kv, login) : await byLogin(kv, login)) ?? null
   const same = { ok: true, sent: true }
+  if (!account && emailOf(login)) {
+    const id = await kv.authId(login)
+    if (id) account = await kv.ensurePlayer(id, login.toLowerCase())
+  }
   if (!account) return json(same)
   const target = account.email ?? (account.holderId ? (await kv.get<Account>(`account:${account.holderId}`))?.email : null)
   if (!target) return json({ ok: true, sent: false, reason: 'no-email' })
@@ -628,13 +606,13 @@ async function recoverEmail(kv: Kv, env: Env, body: Record<string, unknown>, ori
   return json(same)
 }
 
-async function recoverCode(kv: Kv, body: Record<string, unknown>, ip: string): Promise<Response> {
+async function recoverCode(kv: Store, body: Record<string, unknown>, ip: string): Promise<Response> {
   if (!(await rate(kv, `rate:code:${ip}`, 8, 3600_000))) return json({ error: 'slow-down' }, 429)
   const login = String(body.login ?? '').trim()
   const code = String(body.code ?? '').trim().toUpperCase()
   const account = await byLogin(kv, login)
-  if (!account || !account.recoveryHash || !account.recoverySalt) return json({ error: 'code-dead' }, 400)
-  if (!checkSecret(code, account.recoverySalt, account.recoveryHash)) {
+  if (!account || !account.recoveryHash) return json({ error: 'code-dead' }, 400)
+  if (!sameHash(digest(code), account.recoveryHash)) {
     account.recoveryHash = null
     account.recoverySalt = null
     await saveAccount(kv, account)
@@ -642,6 +620,7 @@ async function recoverCode(kv: Kv, body: Record<string, unknown>, ip: string): P
   }
   const token = randomToken()
   account.resetToken = token
+  account.resetFresh = true
   account.recoveryHash = null
   account.recoverySalt = null
   await saveAccount(kv, account)
@@ -649,7 +628,7 @@ async function recoverCode(kv: Kv, body: Record<string, unknown>, ip: string): P
   return json({ token })
 }
 
-async function resetPassword(kv: Kv, body: Record<string, unknown>, secure: boolean): Promise<Response> {
+async function resetPassword(kv: Store, body: Record<string, unknown>, secure: boolean): Promise<Response> {
   const token = String(body.token ?? '')
   const password = String(body.password ?? '')
   if (password.length < 8) return json({ error: 'password' }, 400)
@@ -657,17 +636,16 @@ async function resetPassword(kv: Kv, body: Record<string, unknown>, secure: bool
   if (!row || row.exp < Date.now()) return json({ error: 'expired' }, 400)
   const account = await kv.get<Account>(`account:${row.accountId}`)
   if (!account || account.resetToken !== token) return json({ error: 'expired' }, 400)
-  account.passSalt = randomBytes(16).toString('hex')
-  account.passHash = hashSecret(password, account.passSalt)
+  await kv.setPassword(account.id, password)
   account.resetToken = null
+  account.resetFresh = false
   for (const old of account.sessions) await kv.del(`session:${old}`)
   account.sessions = []
   await kv.del(`reset:${token}`)
   let recoveryCodeShown: string | null = null
   if (row.freshCode || !account.email) {
     recoveryCodeShown = recoveryCode()
-    account.recoverySalt = randomBytes(16).toString('hex')
-    account.recoveryHash = hashSecret(recoveryCodeShown, account.recoverySalt)
+    account.recoveryHash = digest(recoveryCodeShown)
   }
   const session = await startSession(kv, account, secure)
   const names = [account.playerName]
@@ -680,12 +658,12 @@ async function resetPassword(kv: Kv, body: Record<string, unknown>, secure: bool
   return json({ me: publicMe(session.account), names, recoveryCode: recoveryCodeShown }, 200, { 'set-cookie': session.cookie })
 }
 
-async function addEmail(kv: Kv, env: Env, me: Account | null, body: Record<string, unknown>, origin: string): Promise<Response> {
+async function addEmail(kv: Store, env: Env, me: Account | null, body: Record<string, unknown>, origin: string): Promise<Response> {
   if (!me) return json({ error: 'auth' }, 401)
   const email = String(body.email ?? '').trim().toLowerCase()
   const password = String(body.password ?? '')
   if (!emailOf(email)) return json({ error: 'email' }, 400)
-  if (password && !checkSecret(password, me.passSalt, me.passHash)) return json({ error: 'password' }, 401)
+  if (password && !(await passwordMatches(kv, me, password))) return json({ error: 'password' }, 401)
   if (await byEmail(kv, email)) return json({ error: 'taken' }, 409)
   me.pendingEmail = email
   me.verifyToken = randomToken()
@@ -696,7 +674,7 @@ async function addEmail(kv: Kv, env: Env, me: Account | null, body: Record<strin
   return json({ ok: true })
 }
 
-async function verifyEmail(kv: Kv, body: Record<string, unknown>): Promise<Response> {
+async function verifyEmail(kv: Store, body: Record<string, unknown>): Promise<Response> {
   const token = String(body.token ?? '')
   const fresh = await kv.get<string>(`verify:${token}`)
   if (fresh) await kv.set(`verify-used:${token}`, fresh)
@@ -713,24 +691,27 @@ async function verifyEmail(kv: Kv, body: Record<string, unknown>): Promise<Respo
   }
   account.emailVerified = true
   account.verifyToken = null
+  if (account.email) {
+    await kv.updateAuthEmail(account.id, account.email)
+    account.authEmail = account.email
+  }
   await kv.set(`verify-used:${token}`, account.id)
   await kv.del(`verify:${token}`)
   await saveAccount(kv, account)
   return json({ ok: true, email: account.email })
 }
 
-async function changePassword(kv: Kv, me: Account | null, body: Record<string, unknown>): Promise<Response> {
+async function changePassword(kv: Store, me: Account | null, body: Record<string, unknown>): Promise<Response> {
   if (!me) return json({ error: 'auth' }, 401)
-  if (!checkSecret(String(body.current ?? ''), me.passSalt, me.passHash)) return json({ error: 'password' }, 401)
+  if (!(await passwordMatches(kv, me, String(body.current ?? '')))) return json({ error: 'password' }, 401)
   const password = String(body.password ?? '')
   if (password.length < 8 || password !== String(body.again ?? '')) return json({ error: 'password' }, 400)
-  me.passSalt = randomBytes(16).toString('hex')
-  me.passHash = hashSecret(password, me.passSalt)
+  await kv.setPassword(me.id, password)
   await saveAccount(kv, me)
   return json({ ok: true })
 }
 
-async function setLanguage(kv: Kv, me: Account | null, body: Record<string, unknown>): Promise<Response> {
+async function setLanguage(kv: Store, me: Account | null, body: Record<string, unknown>): Promise<Response> {
   if (!me) return json({ error: 'auth' }, 401)
   const language = body.language === 'fr' ? 'fr' : 'en'
   me.language = language
@@ -738,9 +719,9 @@ async function setLanguage(kv: Kv, me: Account | null, body: Record<string, unkn
   return json({ ok: true, language })
 }
 
-async function downloadData(kv: Kv, env: Env, me: Account | null, body: Record<string, unknown>, origin: string): Promise<Response> {
+async function downloadData(kv: Store, env: Env, me: Account | null, body: Record<string, unknown>, origin: string): Promise<Response> {
   if (!me) return json({ error: 'auth' }, 401)
-  if (!checkSecret(String(body.password ?? ''), me.passSalt, me.passHash)) return json({ error: 'password' }, 401)
+  if (!(await passwordMatches(kv, me, String(body.password ?? '')))) return json({ error: 'password' }, 401)
   const file = publicMe(me)
   if (me.email) {
     await mail(env, kv, {
@@ -753,9 +734,9 @@ async function downloadData(kv: Kv, env: Env, me: Account | null, body: Record<s
   return json({ file })
 }
 
-async function deleteData(kv: Kv, me: Account | null, body: Record<string, unknown>, secure: boolean): Promise<Response> {
+async function deleteData(kv: Store, me: Account | null, body: Record<string, unknown>, secure: boolean): Promise<Response> {
   if (!me) return json({ error: 'auth' }, 401)
-  if (!checkSecret(String(body.password ?? ''), me.passSalt, me.passHash)) return json({ error: 'password' }, 401)
+  if (!(await passwordMatches(kv, me, String(body.password ?? '')))) return json({ error: 'password' }, 401)
   me.deleteAfter = new Date(Date.now() + 7 * 86400000).toISOString()
   for (const token of me.sessions) await kv.del(`session:${token}`)
   me.sessions = []
@@ -763,7 +744,7 @@ async function deleteData(kv: Kv, me: Account | null, body: Record<string, unkno
   return json({ ok: true, until: me.deleteAfter }, 200, { 'set-cookie': cookie(null, secure) })
 }
 
-async function familyAsk(kv: Kv, env: Env, me: Account | null, body: Record<string, unknown>, origin: string): Promise<Response> {
+async function familyAsk(kv: Store, env: Env, me: Account | null, body: Record<string, unknown>, origin: string): Promise<Response> {
   if (!me) return json({ error: 'auth' }, 401)
   const email = String(body.email ?? '').trim().toLowerCase()
   if (!emailOf(email)) return json({ error: 'email' }, 400)
@@ -788,7 +769,7 @@ async function familyAsk(kv: Kv, env: Env, me: Account | null, body: Record<stri
   return json({ ok: true })
 }
 
-async function familyGet(kv: Kv, me: Account | null, url: URL): Promise<Response> {
+async function familyGet(kv: Store, me: Account | null, url: URL): Promise<Response> {
   const token = url.searchParams.get('token')
   if (token) {
     const approval = await kv.get<Approval>(`approval:${token}`)
@@ -824,7 +805,7 @@ async function familyGet(kv: Kv, me: Account | null, url: URL): Promise<Response
   return json({ holder: me.holder, members, pending: pending ? { status: pending.status, at: pending.createdAt } : null })
 }
 
-async function familyAnswer(kv: Kv, body: Record<string, unknown>, secure: boolean): Promise<Response> {
+async function familyAnswer(kv: Store, body: Record<string, unknown>, secure: boolean): Promise<Response> {
   const token = String(body.token ?? '')
   const approval = await kv.get<Approval>(`approval:${token}`)
   if (!approval || approval.status === 'expired') return json({ error: 'expired' }, 400)
@@ -841,7 +822,11 @@ async function familyAnswer(kv: Kv, body: Record<string, unknown>, secure: boole
     if (password.length < 8) return json({ error: 'password' }, 400)
     const name = playerName ? await uniqueName(kv, playerName) : await uniqueName(kv, 'Bright Owl')
     if (playerName && (profane(playerName) || playerName.length > 24)) return json({ error: 'name' }, 400)
-    holder = blankAccount({ loginKey: approval.email.toLowerCase(), playerName: name, email: approval.email.toLowerCase(), password })
+    const authEmail = approval.email.toLowerCase()
+    const id = await kv.provision(authEmail, password)
+    const publicName = await kv.insertPlayer(id, name)
+    holder = blankAccount({ loginKey: authEmail, playerName: publicName, email: authEmail, authEmail })
+    holder.id = id
     holder.emailVerified = true
     holder.ageGate = 'over'
     holder.holder = true
@@ -860,7 +845,7 @@ async function familyAnswer(kv: Kv, body: Record<string, unknown>, secure: boole
   return json({ ok: true, status: 'approved', me: publicMe(session.account) }, 200, { 'set-cookie': session.cookie })
 }
 
-async function familyAdd(kv: Kv, me: Account | null, body: Record<string, unknown>): Promise<Response> {
+async function familyAdd(kv: Store, me: Account | null, body: Record<string, unknown>): Promise<Response> {
   if (!me?.holder) return json({ error: 'auth' }, 401)
   if (me.memberIds.length >= 10) return json({ error: 'full' }, 400)
   const playerName = String(body.playerName ?? '').trim()
@@ -868,19 +853,22 @@ async function familyAdd(kv: Kv, me: Account | null, body: Record<string, unknow
   if (!playerName || playerName.length > 24 || profane(playerName)) return json({ error: 'name' }, 400)
   if (password.length < 8) return json({ error: 'password' }, 400)
   if (await byLogin(kv, playerName)) return json({ error: 'taken' }, 409)
-  const member = blankAccount({ loginKey: playerName.toLowerCase(), playerName, email: null, password })
+  const authEmail = `p.${randomToken(6)}@name.romansgame.invalid`
+  const id = await kv.provision(authEmail, password)
+  const publicName = await kv.insertPlayer(id, playerName)
+  const member = blankAccount({ loginKey: publicName.toLowerCase(), playerName: publicName, email: null, authEmail })
+  member.id = id
   member.holderId = me.id
   member.ageGate = 'under'
   const code = recoveryCode()
-  member.recoverySalt = randomBytes(16).toString('hex')
-  member.recoveryHash = hashSecret(code, member.recoverySalt)
+  member.recoveryHash = digest(code)
   await saveAccount(kv, member)
   me.memberIds.push(member.id)
   await saveAccount(kv, me)
   return json({ ok: true, playerName: member.playerName, recoveryCode: code })
 }
 
-async function familyMember(kv: Kv, me: Account | null, body: Record<string, unknown>): Promise<Response> {
+async function familyMember(kv: Store, me: Account | null, body: Record<string, unknown>): Promise<Response> {
   if (!me?.holder) return json({ error: 'auth' }, 401)
   const member = await kv.get<Account>(`account:${String(body.id ?? '')}`)
   if (!member || member.holderId !== me.id) return json({ error: 'auth' }, 404)
@@ -888,15 +876,14 @@ async function familyMember(kv: Kv, me: Account | null, body: Record<string, unk
   if (action === 'reset') {
     const password = String(body.password ?? '')
     if (password.length < 8) return json({ error: 'password' }, 400)
-    member.passSalt = randomBytes(16).toString('hex')
-    member.passHash = hashSecret(password, member.passSalt)
+    await kv.setPassword(member.id, password)
     for (const token of member.sessions) await kv.del(`session:${token}`)
     member.sessions = []
   } else if (action === 'remove') {
     member.holderId = null
     me.memberIds = me.memberIds.filter((id) => id !== member.id)
   } else if (action === 'delete') {
-    if (!checkSecret(String(body.password ?? ''), me.passSalt, me.passHash)) return json({ error: 'password' }, 401)
+    if (!(await passwordMatches(kv, me, String(body.password ?? '')))) return json({ error: 'password' }, 401)
     member.deleteAfter = new Date(Date.now() + 7 * 86400000).toISOString()
     me.memberIds = me.memberIds.filter((id) => id !== member.id)
   } else if (action === 'stop') {
@@ -910,7 +897,7 @@ async function familyMember(kv: Kv, me: Account | null, body: Record<string, unk
   return json({ ok: true })
 }
 
-async function birthday(kv: Kv, me: Account | null, body: Record<string, unknown>): Promise<Response> {
+async function birthday(kv: Store, me: Account | null, body: Record<string, unknown>): Promise<Response> {
   if (!me) return json({ error: 'auth' }, 401)
   if (me.ageGate) return json({ ageGate: me.ageGate, saved: true })
   const age = ageFrom(Number(body.year), Number(body.month), Number(body.day))
@@ -920,7 +907,7 @@ async function birthday(kv: Kv, me: Account | null, body: Record<string, unknown
   return json({ ageGate: me.ageGate })
 }
 
-async function acceptOrder(kv: Kv, me: Account | null, body: Record<string, unknown>, env: Env): Promise<Response> {
+async function acceptOrder(kv: Store, me: Account | null, body: Record<string, unknown>, env: Env): Promise<Response> {
   if (!me) return json({ error: 'auth' }, 401)
   if (me.holderId && me.ageGate === 'under') return json({ error: 'holder-only' }, 403)
   if (me.ageGate === 'under') return json({ error: 'ask-holder' }, 403)
@@ -952,9 +939,9 @@ async function acceptOrder(kv: Kv, me: Account | null, body: Record<string, unkn
   return json({ orderId: order.id, price: order.price, sku, seller: 'Funderwood', support: SUPPORT_EMAIL, version: TERMS_VERSION })
 }
 
-async function checkout(kv: Kv, env: Env, me: Account | null, body: Record<string, unknown>, origin: string): Promise<Response> {
+async function checkout(kv: Store, env: Env, me: Account | null, body: Record<string, unknown>, origin: string): Promise<Response> {
   if (!me) return json({ error: 'auth' }, 401)
-  if (!checkSecret(String(body.password ?? ''), me.passSalt, me.passHash)) return json({ error: 'password' }, 401)
+  if (!(await passwordMatches(kv, me, String(body.password ?? '')))) return json({ error: 'password' }, 401)
   const order = await kv.get<Order>(`order:${String(body.orderId ?? '')}`)
   if (!order || order.accountId !== me.id || order.status !== 'review') return json({ error: 'order' }, 400)
   const key = env.STRIPE_SECRET_KEY?.trim() ?? ''
@@ -985,18 +972,14 @@ async function checkout(kv: Kv, env: Env, me: Account | null, body: Record<strin
   return json({ url: session.url })
 }
 
-async function grant(kv: Kv, order: Order, origin: string, env: Env): Promise<void> {
+async function grant(kv: Store, order: Order, origin: string, env: Env): Promise<void> {
   if (order.status === 'paid') return
   const account = await kv.get<Account>(`account:${order.accountId}`)
   if (!account) return
   order.status = 'paid'
   order.paidAt = new Date().toISOString()
   order.wasntToken = randomToken(12)
-  if (order.sku === 'starter') {
-    account.starterOwned = true
-    if (!account.pets.includes(STARTER_PET)) account.pets.push(STARTER_PET)
-    if (!account.clothes.includes(STARTER_CLOTH)) account.clothes.push(STARTER_CLOTH)
-  }
+  if (order.sku === 'starter') account.starterOwned = true
   await saveAccount(kv, account)
   await kv.set(`order:${order.id}`, order)
   await kv.set(`wasnt:${order.wasntToken}`, order.id)
@@ -1004,7 +987,7 @@ async function grant(kv: Kv, order: Order, origin: string, env: Env): Promise<vo
     await mail(env, kv, receiptMail({
       origin,
       to: account.email,
-      item: order.sku === 'starter' ? 'Starter Pack (coins, pet and clothing — amounts set in the coin chart)' : 'Coin pack (▢ coins)',
+      item: order.sku === 'starter' ? 'Starter Pack (one time). Coin amounts are not set yet.' : 'Coin pack (▢ coins)',
       price: order.price,
       when: order.paidAt,
       wasnt: order.wasntToken,
@@ -1012,7 +995,7 @@ async function grant(kv: Kv, order: Order, origin: string, env: Env): Promise<vo
   }
 }
 
-async function confirmCheckout(kv: Kv, env: Env, me: Account | null, body: Record<string, unknown>, origin: string): Promise<Response> {
+async function confirmCheckout(kv: Store, env: Env, me: Account | null, body: Record<string, unknown>, origin: string): Promise<Response> {
   if (!me) return json({ error: 'auth' }, 401)
   const sessionId = String(body.sessionId ?? '')
   const orderId = await kv.get<string>(`stripe:${sessionId}`)
@@ -1029,7 +1012,7 @@ async function confirmCheckout(kv: Kv, env: Env, me: Account | null, body: Recor
   return json({ ok: true, me: account ? publicMe(account) : null, sku: order.sku })
 }
 
-async function stripeWebhook(req: Request, env: Env, kv: Kv): Promise<Response> {
+async function stripeWebhook(req: Request, env: Env, kv: Store): Promise<Response> {
   const key = env.STRIPE_SECRET_KEY?.trim() ?? ''
   const secret = env.STRIPE_WEBHOOK_SECRET?.trim() ?? ''
   if (!key || !secret || !stripeAllowed(key, env.CONTEXT)) return json({ error: 'stripe-test-only' }, 503)
@@ -1053,7 +1036,7 @@ async function stripeWebhook(req: Request, env: Env, kv: Kv): Promise<Response> 
   return json({ received: true })
 }
 
-async function wasntMe(kv: Kv, body: Record<string, unknown>): Promise<Response> {
+async function wasntMe(kv: Store, body: Record<string, unknown>): Promise<Response> {
   const token = String(body.token ?? '')
   const orderId = await kv.get<string>(`wasnt:${token}`)
   if (!orderId) return json({ error: 'used' }, 400)
@@ -1069,7 +1052,7 @@ async function wasntMe(kv: Kv, body: Record<string, unknown>): Promise<Response>
   return json({ ok: true })
 }
 
-async function spendCharge(kv: Kv, me: Account | null, body: Record<string, unknown>): Promise<Response> {
+async function spendCharge(kv: Store, me: Account | null, body: Record<string, unknown>): Promise<Response> {
   if (!me) return json({ error: 'auth' }, 401)
   const ability = String(body.ability ?? '')
   if (!['place', 'heart', 'rule', 'light', 'light6'].includes(ability)) return json({ error: 'ability' }, 400)
@@ -1080,7 +1063,7 @@ async function spendCharge(kv: Kv, me: Account | null, body: Record<string, unkn
   return json({ me: publicMe(me) })
 }
 
-async function recordWin(kv: Kv, me: Account | null, body: Record<string, unknown>): Promise<Response> {
+async function recordWin(kv: Store, me: Account | null, body: Record<string, unknown>): Promise<Response> {
   if (!me) return json({ error: 'auth' }, 401)
   const size = Number(body.size)
   const seconds = Number(body.seconds)
@@ -1103,7 +1086,6 @@ async function recordWin(kv: Kv, me: Account | null, body: Record<string, unknow
     if (mode === 'daily' && me.dailyWin !== today) {
       me.dailyWin = today
       me.dailySeconds = seconds
-      me.coins += DAILY_FREE_COINS
     }
     const wk = weekKey()
     if (me.weekKey !== wk) {
@@ -1129,49 +1111,19 @@ async function recordWin(kv: Kv, me: Account | null, body: Record<string, unknow
       }
     }
     await saveAccount(kv, me)
-    await upsertBoard(kv, me)
+    await kv.addScore(me.id, { size, seconds, moves, mode, puzzleId, run: Number(body.run) || 0 }, me.teamId)
   }
   return json({ me: publicMe(me) })
 }
 
-async function upsertBoard(kv: Kv, account: Account): Promise<void> {
-  const rows = (await kv.get<{ name: string; wins: number; daily: string | null; dailySeconds: number | null; weekWins: number; bestRun: Record<string, number>; throne: number; hidden: boolean }[]>('leaderboard')) ?? []
-  const throne = throneForWins(account.wins)
-  const hidden = account.ageGate === 'under' && !account.holderId
-  const next = rows.filter((row) => row.name !== account.playerName)
-  next.push({
-    name: hidden ? 'Player' : account.playerName,
-    wins: account.wins,
-    daily: account.dailyWin,
-    dailySeconds: account.dailySeconds,
-    weekWins: account.weekWins,
-    bestRun: account.bestRun,
-    throne: throne?.id ?? 0,
-    hidden,
-  })
-  next.sort((a, b) => b.wins - a.wins)
-  await kv.set('leaderboard', next.slice(0, 200))
-}
-
-async function leaderboard(kv: Kv, url: URL): Promise<Response> {
+async function leaderboard(kv: Store, url: URL, me: Account | null): Promise<Response> {
   const scope = url.searchParams.get('scope') ?? 'week'
-  if (scope === 'friends') return json({ placeholder: true, rows: [] })
-  const rows = (await kv.get<{ name: string; wins: number; daily: string | null; dailySeconds: number | null; weekWins: number; bestRun: Record<string, number>; throne: number }[]>('leaderboard')) ?? []
-  const today = torontoDate()
-  const size = url.searchParams.get('size') ?? '6'
-  const ranked = rows
-    .map((row) => ({
-      name: row.name,
-      throne: row.throne,
-      score: scope === 'today' ? (row.daily === today ? row.dailySeconds ?? row.wins : 0) : scope === 'survival' ? (row.bestRun?.[size] ?? 0) : row.weekWins,
-    }))
-    .filter((row) => row.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 50)
-  return json({ rows: ranked, scope })
+  const size = Number(url.searchParams.get('size') ?? '6')
+  const board = await kv.board(scope, size, me?.id ?? null)
+  return json({ ...board, scope })
 }
 
-async function makeChallenge(kv: Kv, me: Account | null, body: Record<string, unknown>): Promise<Response> {
+async function makeChallenge(kv: Store, me: Account | null, body: Record<string, unknown>): Promise<Response> {
   const puzzle = body.puzzle as Puzzle
   if (!puzzle || !Array.isArray(puzzle.solution) || typeof puzzle.size !== 'number') return json({ error: 'board' }, 400)
   const code = randomToken(4).slice(0, 8)
@@ -1187,13 +1139,13 @@ async function makeChallenge(kv: Kv, me: Account | null, body: Record<string, un
   return json({ code, path: `/c/${code}` })
 }
 
-async function getChallenge(kv: Kv, code: string): Promise<Response> {
+async function getChallenge(kv: Store, code: string): Promise<Response> {
   const challenge = await kv.get<Challenge>(`challenge:${code}`)
   if (!challenge) return json({ error: 'missing' }, 404)
   return json({ challenge })
 }
 
-async function challengeResult(kv: Kv, code: string, body: Record<string, unknown>): Promise<Response> {
+async function challengeResult(kv: Store, code: string, body: Record<string, unknown>): Promise<Response> {
   const challenge = await kv.get<Challenge>(`challenge:${code}`)
   if (!challenge) return json({ error: 'missing' }, 404)
   const seconds = Number(body.seconds)
@@ -1208,7 +1160,7 @@ async function challengeResult(kv: Kv, code: string, body: Record<string, unknow
   })
 }
 
-async function makeTeam(kv: Kv, me: Account | null, body: Record<string, unknown>): Promise<Response> {
+async function makeTeam(kv: Store, me: Account | null, body: Record<string, unknown>): Promise<Response> {
   if (!me) return json({ error: 'auth' }, 401)
   if (me.teamId) return json({ error: 'already' }, 400)
   const pick = body.pick as TeamNamePick
@@ -1259,7 +1211,7 @@ function publicTeam(team: Team, mine: boolean) {
   }
 }
 
-async function getTeam(kv: Kv, me: Account | null, url: URL): Promise<Response> {
+async function getTeam(kv: Store, me: Account | null, url: URL): Promise<Response> {
   const code = url.searchParams.get('code')
   if (code) {
     const id = await kv.get<string>(`team-code:${code}`)
@@ -1276,7 +1228,7 @@ async function getTeam(kv: Kv, me: Account | null, url: URL): Promise<Response> 
   return json({ team: null, board: rows })
 }
 
-async function joinTeam(kv: Kv, me: Account | null, body: Record<string, unknown>): Promise<Response> {
+async function joinTeam(kv: Store, me: Account | null, body: Record<string, unknown>): Promise<Response> {
   if (!me) return json({ error: 'auth' }, 401)
   if (me.teamId) return json({ error: 'already' }, 400)
   const id = await kv.get<string>(`team-code:${String(body.code ?? '')}`)
@@ -1286,6 +1238,8 @@ async function joinTeam(kv: Kv, me: Account | null, body: Record<string, unknown
   if (!team.openJoin || body.ask === true) {
     if (!team.asks.some((ask) => ask.id === me.id)) team.asks.push({ id: me.id, name: me.playerName, at: new Date().toISOString() })
     await kv.set(`team:${team.id}`, team)
+    const leader = team.members.find((member) => member.rank === 'leader')
+    if (leader) await kv.notify(leader.id, me.id, me.playerName, 'Ask to join your group', { kind: 'team', teamId: team.id })
     return json({ pending: true, team: publicTeam(team, false) })
   }
   team.members.push({ id: me.id, name: me.playerName, rank: 'member', joinedAt: new Date().toISOString() })
@@ -1296,7 +1250,7 @@ async function joinTeam(kv: Kv, me: Account | null, body: Record<string, unknown
   return json({ team: publicTeam(team, true) })
 }
 
-async function answerAsk(kv: Kv, me: Account | null, body: Record<string, unknown>): Promise<Response> {
+async function answerAsk(kv: Store, me: Account | null, body: Record<string, unknown>): Promise<Response> {
   if (!me?.teamId) return json({ error: 'auth' }, 401)
   const team = await kv.get<Team>(`team:${me.teamId}`)
   if (!team) return json({ error: 'missing' }, 404)
@@ -1323,7 +1277,7 @@ function nextInLine(team: Team, leaderId: string) {
   return rest.sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))[0] ?? null
 }
 
-async function leaveTeam(kv: Kv, me: Account | null): Promise<Response> {
+async function leaveTeam(kv: Store, me: Account | null): Promise<Response> {
   if (!me?.teamId) return json({ error: 'auth' }, 401)
   const team = await kv.get<Team>(`team:${me.teamId}`)
   if (!team) return json({ error: 'missing' }, 404)
@@ -1342,7 +1296,7 @@ async function leaveTeam(kv: Kv, me: Account | null): Promise<Response> {
   return json({ ok: true, passedTo: team.members.find((member) => member.rank === 'leader')?.name ?? null })
 }
 
-async function setRank(kv: Kv, me: Account | null, body: Record<string, unknown>): Promise<Response> {
+async function setRank(kv: Store, me: Account | null, body: Record<string, unknown>): Promise<Response> {
   if (!me?.teamId) return json({ error: 'auth' }, 401)
   const team = await kv.get<Team>(`team:${me.teamId}`)
   if (!team) return json({ error: 'missing' }, 404)
@@ -1368,12 +1322,12 @@ async function setRank(kv: Kv, me: Account | null, body: Record<string, unknown>
   return json({ team: publicTeam(team, true) })
 }
 
-async function refreshTeamBoard(kv: Kv): Promise<void> {
+async function refreshTeamBoard(kv: Store): Promise<void> {
   const current = (await kv.get<{ id: string }[]>('team-ids')) ?? []
   void current
 }
 
-async function contact(kv: Kv, env: Env, body: Record<string, unknown>, origin: string, ip: string): Promise<Response> {
+async function contact(kv: Store, env: Env, body: Record<string, unknown>, origin: string, ip: string): Promise<Response> {
   if (!(await rate(kv, `rate:contact:${ip}`, 5, 3600_000))) return json({ error: 'slow-down' }, 429)
   const email = String(body.email ?? '')
   const message = String(body.message ?? '').slice(0, 4000)
@@ -1389,6 +1343,95 @@ async function contact(kv: Kv, env: Env, body: Record<string, unknown>, origin: 
   return json({ ok: true })
 }
 
-export function hashForTest(secret: string, salt: string): string {
-  return hashSecret(secret, salt)
+async function renameTeam(kv: Store, me: Account | null, body: Record<string, unknown>): Promise<Response> {
+  if (!me?.teamId) return json({ error: 'auth' }, 401)
+  const team = await kv.get<Team>(`team:${me.teamId}`)
+  if (!team) return json({ error: 'missing' }, 404)
+  const leader = team.members.find((member) => member.id === me.id && member.rank === 'leader')
+  if (!leader) return json({ error: 'auth' }, 403)
+  const pick = body.pick as TeamNamePick
+  const parsed = pick ? parseTeamName(formatTeamName(pick)) : null
+  if (!parsed) return json({ error: 'name' }, 400)
+  let name = formatTeamName(parsed)
+  let n = parsed.number
+  while (await kv.get(`team-name:${name.toLowerCase()}`)) {
+    if (name.toLowerCase() === team.name.toLowerCase()) break
+    n = n >= 999 ? 1 : n + 1
+    name = formatTeamName({ ...parsed, number: n })
+  }
+  team.name = name
+  await kv.set(`team:${team.id}`, team)
+  return json({ team: publicTeam(team, true) })
+}
+
+async function askTeam(kv: Store, me: Account | null, body: Record<string, unknown>): Promise<Response> {
+  if (!me) return json({ error: 'auth' }, 401)
+  if (me.teamId) return json({ error: 'already' }, 400)
+  const target = await kv.get<Account>(`account:${String(body.id ?? '')}`)
+  if (!target?.teamId) return json({ error: 'missing' }, 404)
+  const team = await kv.get<Team>(`team:${target.teamId}`)
+  if (!team || team.closed) return json({ error: 'missing' }, 404)
+  if (team.members.length >= 10) return json({ error: 'full' }, 400)
+  if (!team.asks.some((ask) => ask.id === me.id)) team.asks.push({ id: me.id, name: me.playerName, at: new Date().toISOString() })
+  await kv.set(`team:${team.id}`, team)
+  const leader = team.members.find((member) => member.rank === 'leader')
+  if (leader) await kv.notify(leader.id, me.id, me.playerName, 'Ask to join your group', { kind: 'team', teamId: team.id })
+  return json({ pending: true, team: publicTeam(team, false) })
+}
+
+async function renameMe(kv: Store, me: Account | null, body: Record<string, unknown>): Promise<Response> {
+  if (!me) return json({ error: 'auth' }, 401)
+  if (!(await passwordMatches(kv, me, String(body.password ?? '')))) return json({ error: 'password' }, 401)
+  const name = String(body.name ?? '').trim()
+  if (!name || name.length > 24 || profane(name) || (await kv.profane(name))) return json({ error: 'name' }, 400)
+  me.playerName = await kv.rename(me.id, name)
+  await saveAccount(kv, me)
+  return json({ me: publicMe(me) })
+}
+
+async function setHost(kv: Store, me: Account | null, body: Record<string, unknown>): Promise<Response> {
+  if (!me) return json({ error: 'auth' }, 401)
+  const pet = String(body.pet ?? '')
+  if (!me.pets.includes(pet)) return json({ error: 'pet' }, 400)
+  me.hostPet = pet
+  await saveAccount(kv, me)
+  return json({ me: publicMe(me) })
+}
+
+async function friends(kv: Store, me: Account | null): Promise<Response> {
+  if (!me) return json({ error: 'auth' }, 401)
+  const social = await kv.social(me.id)
+  const messages = await kv.inbox(me.id)
+  return json({ ...social, inbox: messages })
+}
+
+async function friendAct(kv: Store, me: Account | null, body: Record<string, unknown>): Promise<Response> {
+  if (!me) return json({ error: 'auth' }, 401)
+  const other = String(body.id ?? '')
+  const action = String(body.action ?? 'ask')
+  if (action === 'ask') {
+    const name = String(body.name ?? '')
+    const id = other || (name ? await kv.idByPublicName(name) : null)
+    if (!id) return json({ error: 'missing' }, 404)
+    const result = await kv.friendAsk(me.id, me.playerName, id)
+    if (result === 'bad') return json({ error: 'bad' }, 400)
+    return json({ ok: true, status: result })
+  }
+  if (!other) return json({ error: 'missing' }, 404)
+  if (action === 'accept' || action === 'decline') await kv.friendAnswer(me.id, other, action === 'accept')
+  else if (action === 'cancel') await kv.friendCancel(me.id, other)
+  else if (action === 'unfriend') await kv.friendRemove(me.id, other)
+  else return json({ error: 'bad' }, 400)
+  return json({ ok: true })
+}
+
+async function inbox(kv: Store, me: Account | null): Promise<Response> {
+  if (!me) return json({ error: 'auth' }, 401)
+  return json({ inbox: await kv.inbox(me.id) })
+}
+
+async function readInbox(kv: Store, me: Account | null, body: Record<string, unknown>): Promise<Response> {
+  if (!me) return json({ error: 'auth' }, 401)
+  await kv.markRead(me.id, Number(body.id))
+  return json({ ok: true })
 }

@@ -93,7 +93,7 @@ export function App() {
       ) : <span style={{ flex: 1 }} />}
       <button className="coin" type="button" onClick={() => go('/shop')}>{me?.coins ?? 0} ¢</button>
       <button className="chip" type="button" onClick={() => setMuted(!isMuted())}>{isMuted() ? t.off : t.on}</button>
-      <button className="chip" type="button" onClick={() => setMusic(!musicEnabled())}>{t.music}</button>
+      <button className="chip" type="button" title={t.musicWait} onClick={() => setMusic(!musicEnabled())}>{t.music}</button>
       <span className="build">{BUILD_NUMBER}</span>
     </header>
   )

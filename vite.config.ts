@@ -23,18 +23,28 @@ function apiPlugin(): Plugin {
           headers,
           body: req.method === 'GET' || req.method === 'HEAD' ? undefined : body,
         })
-        const response = await handle(request, {
-          RG_DEV_MAILBOX: '1',
-          RG_STORE_FILE: '/tmp/rg-rewrite-store.json',
-          CONTEXT: 'dev',
-          country: 'CA',
-        })
-        res.statusCode = response.status
-        response.headers.forEach((value, key) => {
-          if (key === 'set-cookie') res.setHeader('set-cookie', value)
-          else res.setHeader(key, value)
-        })
-        res.end(Buffer.from(await response.arrayBuffer()))
+        try {
+          const response = await handle(request, {
+            RG_DEV_MAILBOX: '1',
+            CONTEXT: 'dev',
+            country: 'CA',
+            SUPABASE_URL: process.env.SUPABASE_URL,
+            SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+          })
+          res.statusCode = response.status
+          response.headers.forEach((value, key) => {
+            if (key === 'set-cookie') res.setHeader('set-cookie', value)
+            else res.setHeader(key, value)
+          })
+          res.end(Buffer.from(await response.arrayBuffer()))
+        } catch (err) {
+          console.error('rg', err instanceof Error ? err.message : 'error')
+          if (!res.headersSent) {
+            res.statusCode = 500
+            res.setHeader('content-type', 'application/json')
+          }
+          res.end(JSON.stringify({ error: 'server' }))
+        }
       })
     },
   }

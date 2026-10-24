@@ -45,7 +45,11 @@ export function BoardView({
             style={{ ['--hue' as string]: String(HUES[region % HUES.length]) }}
             aria-label={`Row ${row + 1} column ${col + 1}`}
             onPointerDown={(event) => {
-              event.currentTarget.setPointerCapture(event.pointerId)
+              try {
+                event.currentTarget.setPointerCapture(event.pointerId)
+              } catch {
+                /* A pointer without an id still taps on pointerup. */
+              }
               pressedRef.current = index
               setPressed(index)
             }}
