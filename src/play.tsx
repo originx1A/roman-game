@@ -293,9 +293,9 @@ export function PlayScreen({
           <span>{progress.left} → {lang === 'fr' ? progress.next.nameFr : progress.next.name}</span>
         </div>
       ) : null}
+      {!pc && line ? <UnseenCutout line={line} /> : null}
       <div className="board-slot">
-        <BoardView puzzle={puzzle} cells={cells} highlights={highlights} onTap={tap} />
-        {line ? <UnseenCutout line={line} /> : null}
+        <BoardView puzzle={puzzle} cells={cells} highlights={highlights} onTap={tap} piece={me?.hostPet || 'leo'} />
       </div>
       <div className="defs">
         {DEFENDERS.map((defender) => (
@@ -307,7 +307,7 @@ export function PlayScreen({
           </button>
         ))}
       </div>
-      <div className="grid2">
+      <div className={mode === 'daily' ? 'stack' : 'grid2'}>
         <div className="tabs">
           {(['daily', 'free', 'survival'] as Mode[]).map((item) => (
             <button
@@ -339,7 +339,7 @@ export function PlayScreen({
               boot(mode, size, next, mode === 'survival' ? hearts : MAX_HEARTS, run)
             }}>{diffLabel}</button>
           </div>
-        ) : <span className="muted">{t.daily}</span>}
+        ) : null}
       </div>
     </div>
   )
@@ -448,7 +448,7 @@ export function PlayScreen({
 
   if (!pc) {
     return (
-      <div className="body play-frame">
+      <div className={`body play-frame${line ? ' with-unseen' : ''}`}>
         {boardBlock}
         {result}
       </div>
@@ -466,6 +466,7 @@ export function PlayScreen({
           <p className="muted">{modeName} · {diffLabel}</p>
           <p className="muted">{progress.left} → {nextThrone}</p>
         </div>
+        {line ? <UnseenCutout line={line} /> : null}
         <div className="card stack">
           <b>{t.myTeam}</b>
           <button className="btn" type="button" onClick={() => go('/teams')}>{t.teams}</button>

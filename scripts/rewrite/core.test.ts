@@ -15,6 +15,12 @@ test('boards are solvable and regions stay connected', () => {
       const puzzle = makePuzzle(size, difficulty, `t-${size}-${difficulty}`)
       assert.equal(puzzle.solution.length, size)
       assert.equal(regionConnected(size, puzzle.regions), true)
+      const counts = Array<number>(size).fill(0)
+      for (const region of puzzle.regions) counts[region]++
+      const smallest = Math.min(...counts)
+      const largest = Math.max(...counts)
+      assert.ok(smallest >= 2, `region of ${smallest}`)
+      assert.ok(largest - smallest <= difficulty * 2 + 2, counts.join(','))
       const cells = emptyBoard(size)
       for (const index of puzzle.solution) cells[index] = 'buddy'
       assert.equal(isSolved(puzzle, cells), true)

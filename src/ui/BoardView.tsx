@@ -1,6 +1,7 @@
 import type { Cell, Puzzle } from '../game/logic'
 import { colOf, rowOf } from '../game/logic'
 import { unlockAudio } from '../game/sound'
+import { DefenderArt } from './DefenderArt'
 
 const HUES = [28, 200, 130, 330, 50, 260, 170, 12]
 
@@ -9,11 +10,14 @@ export function BoardView({
   cells,
   highlights,
   onTap,
+  piece = 'leo',
 }: {
   puzzle: Puzzle
   cells: Cell[]
   highlights?: number[]
   onTap: (index: number) => void
+  /** The approved sheet character drawn on a placed buddy. */
+  piece?: string
 }) {
   const size = puzzle.size
   return (
@@ -52,7 +56,7 @@ export function BoardView({
           >
             <span className="cell-fill" />
             {cell === 'mark' ? <Mark /> : null}
-            {cell === 'buddy' ? <Buddy /> : null}
+            {cell === 'buddy' ? <Buddy piece={piece} /> : null}
           </button>
         )
       })}
@@ -70,15 +74,10 @@ function Mark() {
   )
 }
 
-function Buddy() {
+function Buddy({ piece }: { piece: string }) {
   return (
     <span className="buddy" aria-hidden>
-      <span className="buddy-body">
-        <span className="buddy-face">
-          <i />
-          <i />
-        </span>
-      </span>
+      <DefenderArt id={piece} size={96} />
     </span>
   )
 }

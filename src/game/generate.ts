@@ -63,59 +63,161 @@ function placeColumns(size: number, rng: () => number): number[] | null {
   return go(0) ? col : null
 }
 
+function neighbors4(cell: number, size: number): number[] {
+  const row = Math.floor(cell / size)
+  const col = cell % size
+  const out: number[] = []
+  if (row > 0) out.push(cell - size)
+  if (row < size - 1) out.push(cell + size)
+  if (col > 0) out.push(cell - 1)
+  if (col < size - 1) out.push(cell + 1)
+  return out
+}
+
+/** Each colour wants about `size` squares. Harder boards may differ by a few, not by a whole board. */
+function regionTargets(size: number, rng: () => number, difficulty: Difficulty): number[] {
+  const targets = Array<number>(size).fill(size)
+  const slack = difficulty
+  const min = Math.max(2, size - slack)
+  const max = size + slack
+  for (let step = 0; step < slack * size; step++) {
+    const from = Math.floor(rng() * size)
+    const to = Math.floor(rng() * size)
+    if (from === to) continue
+    if (targets[from] - 1 < min || targets[to] + 1 > max) continue
+    targets[from]--
+    targets[to]++
+  }
+  return targets
+}
+
+/**
+ * Grow one connected colour around each solution square.
+ * Medium used to claim the largest neighbour, so one colour ate the board.
+ */
 function growRegions(size: number, columns: number[], rng: () => number, difficulty: Difficulty): number[] {
-  const regions = Array<number>(size * size).fill(-1)
+  const n = size * size
+  const regions = Array<number>(n).fill(-1)
+  const frontiers: Set<number>[] = Array.from({ length: size }, () => new Set())
+  const counts = Array<number>(size).fill(1)
+  const targets = regionTargets(size, rng, difficulty)
   columns.forEach((col, row) => {
     regions[idx(row, col, size)] = row
   })
-  const open: number[] = []
-  for (let i = 0; i < regions.length; i++) if (regions[i] < 0) open.push(i)
-  let guard = 0
-  while (open.length && guard < size * size * 40) {
-    guard++
-    let placed = false
-    for (let k = open.length - 1; k >= 0; k--) {
-      const i = open[k]
-      const row = Math.floor(i / size)
-      const col = i % size
-      const neighbors: number[] = []
-      for (const [dr, dc] of [
-        [1, 0],
-        [-1, 0],
-        [0, 1],
-        [0, -1],
-      ] as const) {
-        const nr = row + dr
-        const nc = col + dc
-        if (nr < 0 || nc < 0 || nr >= size || nc >= size) continue
-        const region = regions[idx(nr, nc, size)]
-        if (region >= 0) neighbors.push(region)
-      }
-      if (!neighbors.length) continue
-      const pick =
-        difficulty === 0
-          ? neighbors.sort((a, b) => count(regions, a) - count(regions, b))[0]
-          : difficulty >= 2
-            ? neighbors[Math.floor(rng() * neighbors.length)]
-            : neighbors.sort((a, b) => count(regions, b) - count(regions, a))[0]
-      regions[i] = pick
-      open.splice(k, 1)
-      placed = true
+  columns.forEach((col, row) => {
+    for (const cell of neighbors4(idx(row, col, size), size)) {
+      if (regions[cell] === -1) frontiers[row].add(cell)
     }
-    if (!placed) break
+  })
+
+  let remaining = n - size
+  while (remaining > 0) {
+    const eligible: number[] = []
+    for (let region = 0; region < size; region++) {
+      for (const cell of [...frontiers[region]]) {
+        if (regions[cell] !== -1) frontiers[region].delete(cell)
+      }
+      if (frontiers[region].size > 0 && counts[region] < targets[region]) eligible.push(region)
+    }
+    const pool = eligible.length
+      ? eligible
+      : frontiers.map((front, region) => (front.size > 0 ? region : -1)).filter((region) => region >= 0)
+    if (!pool.length) break
+    let total = 0
+    const weights = pool.map((region) => {
+      const weight = 1 + Math.max(0, targets[region] - counts[region])
+      total += weight
+      return weight
+    })
+    let pick = rng() * total
+    let regionId = pool[0]
+    for (let i = 0; i < pool.length; i++) {
+      pick -= weights[i]
+      if (pick <= 0) {
+        regionId = pool[i]
+        break
+      }
+    }
+    const border = [...frontiers[regionId]]
+    let best = border[0]
+    let bestScore = Infinity
+    for (const cell of border) {
+      let free = 0
+      for (const next of neighbors4(cell, size)) if (regions[next] === -1) free++
+      const score = free + rng() * (difficulty === 0 ? 0.15 : 0.5)
+      if (score < bestScore) {
+        bestScore = score
+        best = cell
+      }
+    }
+    frontiers[regionId].delete(best)
+    regions[best] = regionId
+    counts[regionId]++
+    remaining--
+    for (const next of neighbors4(best, size)) {
+      if (regions[next] === -1) frontiers[regionId].add(next)
+    }
+  }
+  if (regions.some((region) => region < 0) || !evenRegions(size, regions, difficulty)) {
+    return Array<number>(n).fill(-1)
   }
   return regions
 }
 
-function count(regions: number[], id: number): number {
-  let n = 0
-  for (const region of regions) if (region === id) n++
-  return n
+function evenRegions(size: number, regions: number[], difficulty: Difficulty): boolean {
+  const minWant = Math.max(2, size - difficulty)
+  const maxWant = size + difficulty
+  for (let guard = 0; guard < size * size * 8; guard++) {
+    const counts = Array<number>(size).fill(0)
+    for (const region of regions) counts[region]++
+    const smallest = Math.min(...counts)
+    const largest = Math.max(...counts)
+    if (smallest >= minWant && largest <= maxWant) return true
+    const from = counts.indexOf(largest)
+    const to = counts.indexOf(smallest)
+    const moved = moveBorderCell(size, regions, from, to)
+    if (!moved) return false
+  }
+  return false
+}
+
+/** Give one border square from a large colour to a smaller neighbour, keeping both connected. */
+function moveBorderCell(size: number, regions: number[], from: number, to: number): boolean {
+  for (let cell = 0; cell < regions.length; cell++) {
+    if (regions[cell] !== from) continue
+    if (!neighbors4(cell, size).some((next) => regions[next] === to)) continue
+    regions[cell] = to
+    const fromOk = regionStillJoined(size, regions, from)
+    const toOk = regionStillJoined(size, regions, to)
+    if (fromOk && toOk) return true
+    regions[cell] = from
+  }
+  return false
+}
+
+function regionStillJoined(size: number, regions: number[], id: number): boolean {
+  const cells: number[] = []
+  regions.forEach((region, cell) => {
+    if (region === id) cells.push(cell)
+  })
+  if (cells.length === 0) return false
+  const seen = new Set<number>([cells[0]])
+  const queue = [cells[0]]
+  while (queue.length) {
+    const cell = queue.pop()!
+    for (const next of neighbors4(cell, size)) {
+      if (regions[next] === id && !seen.has(next)) {
+        seen.add(next)
+        queue.push(next)
+      }
+    }
+  }
+  return seen.size === cells.length
 }
 
 export function makePuzzle(size: number, difficulty: Difficulty, seedText: string): Puzzle {
   const safeSize = Math.min(8, Math.max(5, size))
-  for (let attempt = 0; attempt < 12; attempt++) {
+  for (let attempt = 0; attempt < 48; attempt++) {
     const rng = mulberry32(hashSeed(`${seedText}:${attempt}`))
     const columns = placeColumns(safeSize, rng)
     if (!columns) continue

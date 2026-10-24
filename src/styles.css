@@ -108,9 +108,10 @@ button.card { display: block; width: 100%; text-align: left; position: relative;
 }
 .mark-x svg { width: 100%; height: 100%; display: block; }
 .buddy {
-  position: absolute; left: 22%; top: 22%; width: 56%; height: 56%; z-index: 2;
+  position: absolute; inset: 8%; z-index: 2;
   display: grid; place-items: center; pointer-events: none;
 }
+.buddy .defender-art { width: 100%; height: 100%; }
 .buddy-body {
   width: 100%; height: 100%; border-radius: 50%;
   background: radial-gradient(circle at 32% 28%, #fff9e8, #ffd166 42%, #ff9f1c 78%, #e07a00);
@@ -136,13 +137,16 @@ button.card { display: block; width: 100%; text-align: left; position: relative;
 .unseen { display: flex; gap: 8px; align-items: flex-end; }
 .unseen img { width: 120px; height: auto; }
 .unseen-pop {
-  position: absolute; right: 0; bottom: 0; z-index: 6; pointer-events: none;
+  position: relative; z-index: 6; pointer-events: none;
   display: flex; align-items: flex-end; gap: 8px; max-width: 100%;
 }
 .unseen-pop img {
-  width: 120px; height: auto; flex: none; background: transparent;
+  width: 72px; height: auto; flex: none; background: transparent;
   filter: drop-shadow(0 10px 14px rgba(0,0,0,.5));
 }
+.pc-side .unseen-pop { flex-direction: column; align-items: flex-start; }
+.pc-side .unseen-pop img { width: 140px; }
+.phone-stage .with-unseen .board-slot { width: min(100%, 268px); }
 .play-main { display: flex; flex-direction: column; align-items: center; position: relative; }
 .play-main > .stack { width: min(100%, 560px); }
 .result-card { width: min(100%, 520px); }
@@ -154,7 +158,18 @@ button.card { display: block; width: 100%; text-align: left; position: relative;
   max-width: 1080px; margin: 0 auto; width: 100%; padding: 16px 22px 24px;
   min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px;
 }
-.pc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; align-items: stretch; }
+.pc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; align-items: stretch; }
+.shop-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; align-items: stretch; }
+.shop-cards.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.shop-cards.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.shop-cards.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.shop-cards.lone { display: flex; justify-content: center; }
+.shop-cards.lone > * { width: min(100%, 440px); }
+.team-balance {
+  display: grid; gap: 16px; justify-content: center; align-items: start; width: 100%;
+  grid-template-columns: repeat(3, minmax(240px, 300px));
+}
+.team-balance.two { grid-template-columns: repeat(2, minmax(280px, 360px)); }
 .pc-grid .span-all { grid-column: 1 / -1; }
 .pc-split {
   display: grid; grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr); gap: 16px;

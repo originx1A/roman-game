@@ -76,7 +76,7 @@ export function HomeScreen({ t, lang, me, pc }: Bag) {
           {me ? (
             <button className="name-chip" type="button" onClick={() => setOpen((v) => !v)}>{me.playerName}</button>
           ) : <span className="muted">{t.logic}</span>}
-          <button className="coin" type="button" onClick={() => go('/shop')}>{formatCoins(me?.coins ?? 0, lang)} ¢</button>
+          {pc ? <button className="coin" type="button" onClick={() => go('/shop')}>{formatCoins(me?.coins ?? 0, lang)} ¢</button> : null}
         </div>
         {open && me ? (
           <div className="card stack">
@@ -92,10 +92,10 @@ export function HomeScreen({ t, lang, me, pc }: Bag) {
           <a href="https://romansgame.com" target="_blank" rel="noreferrer"><img className="logo-tile" src="/site-logo.png" alt={t.website} /></a>
         </div>
         <div className="grid2">
-          <button className="card" type="button" onClick={() => go('/shop')} style={{ textAlign: 'left' }}>
+          <button className="card" type="button" onClick={() => go('/leaderboard')} style={{ textAlign: 'left' }}>
             <b>{t.goal}</b>
-            <p className="muted">{me ? t.claimed : t.play}</p>
-            <span>{t.shop} ›</span>
+            <p className="muted">{t.week}</p>
+            <span>{me?.throne ? (lang === 'fr' ? me.throne.nameFr : me.throne.name) : `${t.streak} ${me?.streak ?? 0}`}</span>
           </button>
           <button className="card" type="button" onClick={() => go('/play')} style={{ textAlign: 'left' }}>
             <b>{t.daily}</b>
@@ -289,6 +289,7 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
   const [prices, setPrices] = useState(priceForCountry(null))
   const [orderId, setOrderId] = useState<string | null>(sessionStorage.getItem('rg.order'))
   const [sku, setSku] = useState<Sku>(isSku(sessionStorage.getItem('rg.sku')) ? sessionStorage.getItem('rg.sku') as Sku : 'starter')
+  const [chargeId, setChargeId] = useState<(typeof DEFENDERS)[number]['id']>(DEFENDERS[0].id)
   const failed = path.includes('failed=1')
   const step = path.startsWith('/shop/') ? path.split('/')[2]?.split('?')[0] : 'browse'
 
@@ -448,34 +449,32 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
   }
   if (step === 'waiting') return wrap(<div className="stack"><h1>{t.waiting}</h1><button className="btn" type="button" onClick={() => go('/play')}>{t.keepPlaying}</button></div>)
 
+  const charge = DEFENDERS.find((item) => item.id === chargeId) ?? DEFENDERS[0]
   const showStarter = !me?.starterOwned
   if (pc) {
     return wrap(
       <div className="stack">
         <div className="spread"><button className="logo" type="button" onClick={() => go('/')}>{t.brand}</button><span className="coin">{formatCoins(me?.coins ?? 0, lang)} ¢</span></div>
         {error ? <p className="err">{error}</p> : null}
-        <div className="pc-grid">
-          {showStarter ? (
-            <button className="starter" type="button" onClick={() => void begin('starter')}>
-              <span className="tag">{t.bonus}</span>
-              <span className="spread"><DefenderArt id="night-owl" size={88} /><DefenderArt id="top-hat" size={88} /></span>
-              <b>{t.starter}</b>
-              <p className="muted">{t.oneTime}</p>
-              <p>{t.bonusIcons}</p>
-              <p>{formatPrice(prices.starterCents, prices.symbol, lang)}</p>
-            </button>
-          ) : null}
-          <p className="muted span-all">{t.charges}</p>
-          {DEFENDERS.map((item) => (
-            <div key={`charge-${item.id}`} className="card pic-card stack">
-              <DefenderArt id={item.id} size={96} />
-              <b>{item.name}</b>
-              <p className="muted">{CHARGE_LABEL[item.ability][lang]}</p>
-              <p>{formatCoins(CHARGE_COST, lang)} {t.coins}</p>
-              <button className="btn gold" type="button" onClick={() => void buyCoins('charge', item.id)}>{t.buy}</button>
-            </div>
-          ))}
-          <p className="muted span-all">{t.defenders}</p>
+        <h2>{t.charges}</h2>
+        <div className="shop-cards lone">
+          <div className="card pic-card stack">
+            <span className="row">{DEFENDERS.map((item) => <DefenderArt key={item.id} id={item.id} size={64} />)}</span>
+            <b>{t.charges}</b>
+            <p className="muted">{CHARGE_LABEL[charge.ability][lang]}</p>
+            <p>{formatCoins(CHARGE_COST, lang)} {t.coins}</p>
+            <label className="field">
+              <select value={chargeId} onChange={(event) => setChargeId(event.target.value as typeof chargeId)}>
+                {DEFENDERS.map((item) => (
+                  <option key={item.id} value={item.id}>{item.name}</option>
+                ))}
+              </select>
+            </label>
+            <button className="btn gold" type="button" onClick={() => void buyCoins('charge', chargeId)}>{t.buy}</button>
+          </div>
+        </div>
+        <h2>{t.defenders}</h2>
+        <div className="shop-cards five">
           {DEFENDERS.map((defender) => {
             const owned = me?.pets.includes(defender.id)
             return (
@@ -488,7 +487,9 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
               </div>
             )
           })}
-          <p className="muted span-all">{t.clothing}</p>
+        </div>
+        <h2>{t.clothing}</h2>
+        <div className="shop-cards three">
           {CLOTHES.map((piece) => {
             const owned = me?.clothes.includes(piece.id)
             const detail = piece.earn === 'throne' ? t.laurelEarn : piece.earn === 'streak' ? t.crownEarn : t.oneWearer
@@ -503,7 +504,19 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
               </div>
             )
           })}
-          <p className="muted span-all">{t.coinPacks}</p>
+        </div>
+        <h2>{t.coinPacks}</h2>
+        <div className={showStarter ? 'shop-cards four' : 'shop-cards three'}>
+          {showStarter ? (
+            <button className="starter" type="button" onClick={() => void begin('starter')}>
+              <span className="tag">{t.bonus}</span>
+              <span className="spread"><DefenderArt id="night-owl" size={72} /><DefenderArt id="top-hat" size={72} /></span>
+              <b>{t.starter}</b>
+              <p className="muted">{t.oneTime}</p>
+              <p>{t.bonusIcons}</p>
+              <p>{formatPrice(prices.starterCents, prices.symbol, lang)}</p>
+            </button>
+          ) : null}
           {PACKS.map((pack) => {
             const packCents = centsForSku(pack.sku, prices)
             const tag = pack.tag === 'bonus7' ? t.bonus7 : pack.tag === 'bonus15' ? t.bonus15 : null
@@ -952,7 +965,7 @@ export function TeamScreen({ t, me, path, pc }: Bag) {
     <div className={pc ? 'pc-sheet shop-scroll' : 'body stack scroll shop-scroll'}>
       <h1>{t.teams}</h1>
       {team?.name ? (
-        <div className={pc ? 'team-columns' : 'card stack'}>
+        <div className={pc ? 'team-balance two' : 'card stack'}>
           <div className={pc ? 'card stack' : 'team-flat'}>
           <span className="row"><DefenderArt id={team.mascot} size={48} /><b>{team.name}</b></span>
           <p className="muted">{team.memberCount ?? 0}/10{team.code ? ` · ${team.code}` : ''}</p>
@@ -1006,20 +1019,37 @@ export function TeamScreen({ t, me, path, pc }: Bag) {
       ) : pc ? (
         <>
           {!me ? <p>{t.signInFriends}</p> : null}
-          <div className="pc-grid">
-            {createForm}
+          <div className="team-balance">
+            <form className="card pic-card stack" onSubmit={(event) => {
+              event.preventDefault()
+              void api('/api/team', { pick: { adjective: adj, noun, number: Number(number) }, mascot, openJoin }).then(() => location.reload()).catch((err) => setError(errText(t, err)))
+            }}>
+              <DefenderArt id={mascot} size={120} />
+              <b>{formatTeamName({ adjective: adj, noun, number: Number(number) })}</b>
+              <p className="muted">{openJoin ? t.openJoin : t.inviteOnly}</p>
+              <label className="field">{t.teams}<select value={adj} onChange={(event) => setAdj(event.target.value as typeof adj)}>{ADJECTIVES.map((word) => <option key={word}>{word}</option>)}</select></label>
+              <label className="field"><select value={noun} onChange={(event) => setNoun(event.target.value as typeof noun)}>{NOUNS.map((word) => <option key={word}>{word}</option>)}</select></label>
+              <Field label="#" value={String(number)} set={(value) => setNumber(Number(value) || 1)} />
+              <label className="field">{t.defenders}<select value={mascot} onChange={(event) => setMascot(event.target.value)}>{['Leo', 'Lupa', 'Aquila', 'Nox', 'Invictus'].map((name) => <option key={name}>{name}</option>)}</select></label>
+              <button className="btn gold" type="submit">{t.makeTeam}</button>
+            </form>
             <form className="card stack" onSubmit={(event) => { event.preventDefault(); go(`/t/${joinCode}`) }}>
               <b>{t.joinTeam}</b>
               <Field label={t.code} value={joinCode} set={setJoinCode} />
               <button className="btn" type="submit">{t.joinTeam}</button>
             </form>
-            {openTeams.map((row) => (
-              <div key={row.code} className="card stack">
-                <span className="row"><DefenderArt id={row.mascot ?? 'leo'} size={48} /><b>{row.name}</b></span>
-                <p className="muted">{row.memberCount}/10</p>
-                {row.full ? <span>{t.full}</span> : <button className="btn" type="button" onClick={() => go(`/t/${row.code}`)}>{t.joinTeam}</button>}
-              </div>
-            ))}
+            <div className="card stack">
+              <b>{t.teams}</b>
+              <p className="muted">{t.roster}</p>
+              <p className="muted">{t.passNote}</p>
+              {openTeams.length === 0 ? <p className="muted">{t.openTeams}</p> : openTeams.map((row) => (
+                <div key={row.code} className="stack">
+                  <span className="row"><DefenderArt id={row.mascot ?? 'leo'} size={48} /><b>{row.name}</b></span>
+                  <span className="muted">{row.memberCount}/10</span>
+                  {row.full ? <span>{t.full}</span> : <button className="btn" type="button" onClick={() => go(`/t/${row.code}`)}>{t.joinTeam}</button>}
+                </div>
+              ))}
+            </div>
           </div>
         </>
       ) : (
