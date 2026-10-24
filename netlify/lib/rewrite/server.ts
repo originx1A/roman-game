@@ -7,7 +7,13 @@ import {
   REMINDER_DAYS,
   RESET_MINUTES,
   SUPPORT_EMAIL,
+  CLOTHES,
+  PETS,
+  STARTER_CLOTH,
+  STARTER_COINS,
+  STARTER_PET,
   TERMS_VERSION,
+  creditStarter,
   formatPrice,
   priceForCountry,
   type Sku,
@@ -1034,21 +1040,28 @@ async function checkout(kv: Store, env: Env, me: Account | null, body: Record<st
 }
 
 async function grant(kv: Store, order: Order, origin: string, env: Env): Promise<void> {
-  if (order.status === 'paid') return
+  if (!(await kv.claimOrderGrant(order.id))) return
   const account = await kv.get<Account>(`account:${order.accountId}`)
   if (!account) return
-  order.status = 'paid'
-  order.paidAt = new Date().toISOString()
-  order.wasntToken = randomToken(12)
-  if (order.sku === 'starter') account.starterOwned = true
+  const firstPaid = order.status !== 'paid'
+  if (order.sku === 'starter') Object.assign(account, creditStarter(account))
+  if (firstPaid) {
+    order.status = 'paid'
+    order.paidAt = new Date().toISOString()
+    order.wasntToken = randomToken(12)
+  }
   await saveAccount(kv, account)
   await kv.set(`order:${order.id}`, order)
-  await kv.set(`wasnt:${order.wasntToken}`, order.id)
-  if (account.email) {
+  if (firstPaid && order.wasntToken) await kv.set(`wasnt:${order.wasntToken}`, order.id)
+  if (firstPaid && account.email && order.paidAt && order.wasntToken) {
+    const pet = PETS.find((item) => item.id === STARTER_PET)?.name ?? STARTER_PET
+    const cloth = CLOTHES.find((item) => item.id === STARTER_CLOTH)?.name ?? STARTER_CLOTH
     await mail(env, kv, receiptMail({
       origin,
       to: account.email,
-      item: order.sku === 'starter' ? 'Starter Pack (one time). Coin amounts are not set yet.' : 'Coin pack (▢ coins)',
+      item: order.sku === 'starter'
+        ? `Starter Pack (one time). ${STARTER_COINS.toLocaleString('en-CA')} coins, ${pet}, ${cloth}.`
+        : 'Coin pack (▢ coins)',
       price: order.price,
       when: order.paidAt,
       wasnt: order.wasntToken,

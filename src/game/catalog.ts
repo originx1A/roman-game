@@ -1,7 +1,7 @@
 /** Shared numbers. Coin amounts and item prices stay placeholders until the coin chart. */
 
 export const TERMS_VERSION = '2026-10-24'
-export const BUILD_NUMBER = '2026.10.24.5'
+export const BUILD_NUMBER = '2026.10.24.6'
 
 /** Working cash-buying age. Quebec's 14 is not applied. Asked once, then only over/under is kept. */
 export const CASH_AGE = 13
@@ -49,6 +49,29 @@ export const CHARGE_LABEL: Record<Ability, { en: string; fr: string }> = {
   light: { en: 'Big light', fr: 'Grande lumière' },
   rule: { en: 'Rule out', fr: 'Écarter' },
   light6: { en: 'Light 6', fr: 'Lumière 6' },
+}
+
+/**
+ * Starter Pack contents. 8,000 coins is Tony's master-spec amount.
+ * The approved shop card draws an owl and a top hat: Night Owl, and For Lupa (the top hat).
+ * Granted only after the pack is paid, and not set as the host pet.
+ */
+export const STARTER_COINS = 8000
+export const STARTER_PET = 'night-owl'
+export const STARTER_CLOTH = 'for-lupa'
+
+export function formatCoins(amount: number, lang: 'en' | 'fr'): string {
+  return amount.toLocaleString(lang === 'fr' ? 'fr-CA' : 'en-CA')
+}
+
+export function creditStarter<T extends { coins: number; pets: string[]; clothes: string[]; starterOwned: boolean }>(account: T): T {
+  return {
+    ...account,
+    coins: account.coins + STARTER_COINS,
+    pets: account.pets.includes(STARTER_PET) ? account.pets : [...account.pets, STARTER_PET],
+    clothes: account.clothes.includes(STARTER_CLOTH) ? account.clothes : [...account.clothes, STARTER_CLOTH],
+    starterOwned: true,
+  }
 }
 
 /** Shop pets and clothing. Coin prices are intentionally unset. */

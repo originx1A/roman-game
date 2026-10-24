@@ -4,7 +4,7 @@ import { BoardView } from './ui/BoardView'
 import { isSolved } from './game/logic'
 import { isMuted, setMuted, sfxMark, sfxPlace } from './game/sound'
 import { ADJECTIVES, NOUNS, formatTeamName } from './game/teamNames'
-import { DEFENDERS, PETS, CLOTHES, SELLER, SUPPORT_EMAIL, formatPrice, priceForCountry } from './game/catalog'
+import { DEFENDERS, PETS, CLOTHES, SELLER, SUPPORT_EMAIL, STARTER_COINS, formatCoins, formatPrice, priceForCountry } from './game/catalog'
 import { throneAt, throneForBoards, winMap } from './game/thrones'
 import type { Copy, Lang } from './i18n'
 import { legalSections } from './i18n'
@@ -271,7 +271,7 @@ export function NudgeScreen({ t, me }: Bag) {
   )
 }
 
-export function ShopScreen({ t, me, onMe, path, pc }: Bag) {
+export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
   const [tab, setTab] = useState<'charges' | 'defenders' | 'clothing'>('charges')
   const [day, setDay] = useState('')
   const [month, setMonth] = useState('')
@@ -420,7 +420,7 @@ export function ShopScreen({ t, me, onMe, path, pc }: Bag) {
   if (step === 'done') {
     const sessionId = new URLSearchParams(location.search).get('session_id')
     return wrap(
-      <Done t={t} sessionId={sessionId} onMe={onMe} />,
+      <Done t={t} lang={lang} sessionId={sessionId} onMe={onMe} />,
     )
   }
   if (step === 'waiting') return wrap(<div className="stack"><h1>{t.waiting}</h1><button className="btn" type="button" onClick={() => go('/play')}>{t.keepPlaying}</button></div>)
@@ -473,20 +473,22 @@ export function ShopScreen({ t, me, onMe, path, pc }: Bag) {
   )
 }
 
-function Done({ t, sessionId, onMe }: { t: Copy; sessionId: string | null; onMe: (me: Me | null) => void }) {
+function Done({ t, lang, sessionId, onMe }: { t: Copy; lang: Lang; sessionId: string | null; onMe: (me: Me | null) => void }) {
   const [note, setNote] = useState(t.receiptWay)
+  const [line, setLine] = useState('')
   useEffect(() => {
     if (!sessionId) return
     void api<{ me: Me | null; sku: string }>('/api/shop/confirm', { sessionId }).then((res) => {
       if (res.me) onMe(res.me)
       setNote(res.sku === 'starter' ? t.starter : t.smallPack)
+      setLine(res.sku === 'starter' ? `${formatCoins(STARTER_COINS, lang)} ${t.coins} · ${t.bonusIcons}` : t.placeholderCoins)
     }).catch(() => setNote(t.paymentFailed))
-  }, [sessionId, onMe, t])
+  }, [sessionId, onMe, t, lang])
   return (
     <div className="stack">
       <h1>{t.added}</h1>
       <p>{note}</p>
-      <p className="muted">{t.placeholderCoins} · {t.bonusIcons}</p>
+      {line ? <p className="muted">{line}</p> : null}
       <button className="btn gold" type="button" onClick={() => go('/shop')}>{t.backShop}</button>
     </div>
   )

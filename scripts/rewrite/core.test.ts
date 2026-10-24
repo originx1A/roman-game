@@ -4,7 +4,8 @@ import { conflicts, emptyBoard, isSolved, puzzlePlayable, regionConnected, type 
 import { dailyPuzzle, makePuzzle, puzzleFromId, torontoDate } from '../../src/game/generate.ts'
 import { THRONES, boardFromPuzzleId, boardSteps, throneAt, throneForBoards, throneForWins, throneIdForBoard, throneProgress, winsNeeded } from '../../src/game/thrones.ts'
 import { formatTeamName, parseTeamName } from '../../src/game/teamNames.ts'
-import { formatPrice, priceForCountry } from '../../src/game/catalog.ts'
+import { STARTER_CLOTH, STARTER_COINS, STARTER_PET, creditStarter, formatCoins, formatPrice, priceForCountry } from '../../src/game/catalog.ts'
+import { openStore } from '../../netlify/lib/rewrite/db.ts'
 import { EMAIL_HOLD_MS, emailHeldBy, emailHoldKey } from '../../netlify/lib/rewrite/emailHold.ts'
 import { en, fr } from '../../src/i18n.ts'
 
@@ -117,6 +118,25 @@ test('prices are per country and the small pack matches the starter', () => {
   assert.equal(ca.smallCents, 299)
   assert.equal(us.smallCents, 199)
   assert.equal(formatPrice(priceForCountry('FR').starterCents, 'CA$'), 'CA$2.99')
+})
+
+test('the starter pack credits 8000 coins, the owl, and the top hat once', async () => {
+  const granted = creditStarter({ coins: 0, pets: [], clothes: [], starterOwned: false, hostPet: null })
+  assert.equal(granted.coins, STARTER_COINS)
+  assert.equal(STARTER_COINS, 8000)
+  assert.deepEqual(granted.pets, [STARTER_PET])
+  assert.deepEqual(granted.clothes, [STARTER_CLOTH])
+  assert.equal(granted.starterOwned, true)
+  assert.equal(granted.hostPet, null)
+  const again = creditStarter(granted)
+  assert.deepEqual(again.pets, [STARTER_PET])
+  assert.deepEqual(again.clothes, [STARTER_CLOTH])
+  assert.equal(formatCoins(STARTER_COINS, 'en'), '8,000')
+  assert.match(formatCoins(STARTER_COINS, 'fr'), /^8[\s\u00a0\u202f]000$/)
+  assert.equal(`${formatCoins(STARTER_COINS, 'en')} ${en.coins} · ${en.bonusIcons}`, '8,000 coins · Coins, pet, clothing')
+  const store = openStore({})
+  assert.equal(await store.claimOrderGrant('order-once'), true)
+  assert.equal(await store.claimOrderGrant('order-once'), false)
 })
 
 test('one account holds an email, and a pending hold expires', () => {

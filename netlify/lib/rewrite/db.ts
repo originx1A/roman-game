@@ -207,6 +207,24 @@ export class Store {
     if (key.startsWith('team:')) return this.writeTeam(value as Team)
   }
 
+  /** One winner per order. A second confirm or webhook sees the same row and does not grant again. */
+  async claimOrderGrant(orderId: string): Promise<boolean> {
+    const key = `rate:order-grant:${orderId}`
+    const nonce = randomBytes(8).toString('hex')
+    if (!this.key) {
+      if (memoryPayload.has(key)) return false
+      memoryPayload.set(key, { nonce })
+      return true
+    }
+    await this.rest('rg_rate?on_conflict=key', {
+      method: 'POST',
+      prefer: 'resolution=ignore-duplicates,return=minimal',
+      body: { key, payload: { nonce }, updated_at: new Date().toISOString() },
+    })
+    const row = await this.get<{ nonce?: string }>(key)
+    return row?.nonce === nonce
+  }
+
   async del(key: string): Promise<void> {
     if (key.startsWith('rate:') || key.startsWith('mail-day:')) {
       memoryPayload.delete(key)
