@@ -426,6 +426,8 @@ const MENU_CSS = `
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('home')
+  // Phone menus: the old footer items open from a header button instead of a bar or a buried section.
+  const [aboutOpen, setAboutOpen] = useState(false)
   const [{ layout }, setLayoutInfo] = useState(() => readLayout())
   const [profile, setProfile] = useState<Profile | null>(() => loadProfile())
   const [progress, setProgress] = useState(() => getProgress())
@@ -490,6 +492,18 @@ export default function App() {
       window.visualViewport?.removeEventListener('resize', apply)
     }
   }, [])
+  useEffect(() => {
+    if (!aboutOpen) return
+    if (screen === 'play' || screen === 'how') {
+      setAboutOpen(false)
+      return
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setAboutOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [aboutOpen, screen])
   const [wallet, setWallet] = useState<Wallet>(() => loadWallet())
   // 9.30-a: buddies (The Stable)
   const [pets, setPets] = useState<PetState>(() => loadPets())
@@ -1159,6 +1173,12 @@ export default function App() {
   function sendFeedback(vote: 'up' | 'down', note: string) {
     if (isStoreBuild() || settingsRef.current.analytics === false) return
     sendPing({ id: loadAnon(safeLocalStorage()).id, ev: 'feedback', vote, note: note.slice(0, 200) })
+  }
+  function toggleSound() {
+    const next = { ...settings, sound: !settings.sound }
+    setSettings(next)
+    saveSettings(next)
+    setMuted(!next.sound)
   }
   function saveSettingsPatch(patch: Partial<Settings>) {
     if (patch.analytics !== undefined) setGaEnabled(patch.analytics !== false)
@@ -2885,6 +2905,18 @@ export default function App() {
             </button>
           </nav>
           <div className="hud-pills">
+            <button
+              type="button"
+              className="about-launcher"
+              data-testid="about-launcher"
+              aria-haspopup="dialog"
+              aria-expanded={aboutOpen}
+              aria-controls="about-sheet"
+              onClick={() => setAboutOpen(true)}
+            >
+              <span className="about-launcher-mark" aria-hidden>👍</span>
+              About
+            </button>
             <div className="score-pill coin" title="Coins">
               {wallet.coins}
               <span>¢</span>
@@ -4027,8 +4059,17 @@ export default function App() {
       />
 
       {/* Footer bar removed 2026-10-22 (Tony): it was eating screen space on every menu screen.
-          Its contents live in Save & settings now — Sound effects toggle in Settings, and the
-          version, thumbs, Privacy and JRNY credit in the About section at the bottom. */}
+          Wider screens keep the About section at the bottom of Save & settings (9.32-h).
+          Phones open the same items from the header About button — feedback, sound, Privacy, JRNY, build tag —
+          so they are not buried and the play screen stays full height. */}
+      <AboutSheet
+        open={aboutOpen && screen !== 'play' && screen !== 'how'}
+        showFeedback={!isStoreBuild() && settings.analytics !== false}
+        soundOn={settings.sound}
+        onClose={() => setAboutOpen(false)}
+        onSend={sendFeedback}
+        onToggleSound={toggleSound}
+      />
       {/* Keep clear of Netlify “Powered by” badge */}
       <div className="netlify-safe" aria-hidden />
       {/* 10.06: Unseen heckler pop-up — visual only, never blocks input */}
@@ -4050,26 +4091,80 @@ export default function App() {
   )
 }
 
-/** 9.30-r: small 👍/👎 in the About section; tapping one opens a one-line optional note */
-function FeedbackChip({ onSend }: { onSend: (vote: 'up' | 'down', note: string) => void }) {
+/** 9.30-r: small 👍/👎; tapping one opens a one-line optional note.
+ *  `large` is the phone About sheet: the two votes sit side by side as real buttons. */
+function FeedbackChip({ onSend, large }: { onSend: (vote: 'up' | 'down', note: string) => void; large?: boolean }) {
   const [vote, setVote] = useState<'up' | 'down' | null>(null)
   const [note, setNote] = useState('')
   const [sent, setSent] = useState(false)
-  if (sent) return <span className="fb-thanks" data-testid="fb-thanks">Thanks! 💛</span>
+  if (sent) return <span className={`fb-thanks${large ? ' fb-thanks-large' : ''}`} data-testid="fb-thanks">Thanks! 💛</span>
   if (!vote)
     return (
-      <span className="fb-chip" data-testid="fb-chip">
-        <button type="button" className="fb-btn" data-testid="fb-up" aria-label="Thumbs up: I like the game" onClick={() => setVote('up')}>👍</button>
-        <button type="button" className="fb-btn" data-testid="fb-down" aria-label="Thumbs down: something is wrong" onClick={() => setVote('down')}>👎</button>
+      <span className={`fb-chip${large ? ' fb-chip-large' : ''}`} data-testid="fb-chip">
+        <button type="button" className={large ? 'fb-choice' : 'fb-btn'} data-testid="fb-up" aria-label="Thumbs up: I like the game" onClick={() => setVote('up')}>
+          {large ? '👍 Like it' : '👍'}
+        </button>
+        <button type="button" className={large ? 'fb-choice' : 'fb-btn'} data-testid="fb-down" aria-label="Thumbs down: something is wrong" onClick={() => setVote('down')}>
+          {large ? '👎 Not quite' : '👎'}
+        </button>
       </span>
     )
   return (
-    <span className="fb-form" data-testid="fb-form">
+    <span className={`fb-form${large ? ' fb-form-large' : ''}`} data-testid="fb-form">
       <span aria-hidden>{vote === 'up' ? '👍' : '👎'}</span>
       <input value={note} maxLength={200} placeholder="Add a short note (optional)" aria-label="Optional note" data-testid="fb-note" onChange={(e) => setNote(e.target.value)} />
       <button type="button" className="fb-send" data-testid="fb-send" onClick={() => { onSend(vote, note); setSent(true) }}>Send</button>
       <button type="button" className="fb-btn" aria-label="Cancel" onClick={() => setVote(null)}>✕</button>
     </span>
+  )
+}
+
+/** Phone About sheet: the old footer items, opened from the header, not pinned to the screen. */
+function AboutSheet({
+  open,
+  showFeedback,
+  soundOn,
+  onClose,
+  onSend,
+  onToggleSound,
+}: {
+  open: boolean
+  showFeedback: boolean
+  soundOn: boolean
+  onClose: () => void
+  onSend: (vote: 'up' | 'down', note: string) => void
+  onToggleSound: () => void
+}) {
+  if (!open) return null
+  return createPortal(
+    <div className="about-sheet" id="about-sheet" role="dialog" aria-modal="true" aria-label="About Roman's Game" data-testid="about-sheet">
+      <div className="about-sheet-scrim" onClick={onClose} />
+      <div className="about-sheet-card">
+        <div className="about-sheet-head">
+          <h3>About</h3>
+          <button type="button" className="about-sheet-close" aria-label="Close" onClick={onClose}>✕</button>
+        </div>
+        <p className="about-sheet-build">
+          Roman&rsquo;s Game <span className="build-tag" data-build={BUILD_TAG}>{BUILD_TAG}</span>
+        </p>
+        {showFeedback ? (
+          <div className="about-sheet-feedback">
+            <p className="about-sheet-label">How&rsquo;s the game?</p>
+            <FeedbackChip large onSend={onSend} />
+          </div>
+        ) : null}
+        <button type="button" className="about-sound" onClick={onToggleSound}>
+          {soundOn ? 'Sound on' : 'Sound off'}
+        </button>
+        <div className="about-link-row">
+          <a className="about-action" href="./privacy.html">Privacy</a>
+          <a className="about-action" data-testid="jrny-link" href="https://jrny.fun" target="_blank">
+            A JRNY project
+          </a>
+        </div>
+      </div>
+    </div>,
+    document.body,
   )
 }
 

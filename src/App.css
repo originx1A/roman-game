@@ -6048,6 +6048,166 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 .about-link { color: rgba(244, 251, 255, 0.86); font-weight: 700; }
 .about-link:hover, .about-link:focus-visible { color: #f4fbff; }
 
+/* Phone About entry: sits in the existing header row (same height as the coin pill).
+   Hidden on wide screens so desktop menus stay as 9.32-h. */
+.about-launcher {
+  display: none;
+  align-items: center;
+  gap: 0.28rem;
+  margin: 0;
+  border: 1px solid rgba(255, 209, 102, 0.55);
+  background: rgba(255, 209, 102, 0.16);
+  color: var(--sun);
+  border-radius: 999px;
+  padding: 0.28rem 0.55rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.1;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  touch-action: manipulation;
+}
+.about-launcher-mark { font-size: 0.85rem; line-height: 1; }
+@media (max-width: 640px) {
+  .about-launcher { display: inline-flex; }
+}
+html[data-device='phone'] .about-launcher { display: inline-flex; }
+
+/* Phone About sheet — not a bar. Feedback votes share a row; Privacy and JRNY share the next. */
+.about-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 92;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: max(0.75rem, env(safe-area-inset-top)) 0.65rem max(0.65rem, env(safe-area-inset-bottom));
+}
+.about-sheet-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(3, 8, 20, 0.72);
+}
+.about-sheet-card {
+  position: relative;
+  width: min(100%, 420px);
+  max-height: 100%;
+  overflow-y: auto;
+  box-sizing: border-box;
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.9rem 0.95rem 1rem;
+  border-radius: 20px;
+  background: #0d1f45;
+  border: 1px solid rgba(255, 209, 102, 0.4);
+  color: var(--foam);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.about-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.about-sheet-head h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  color: var(--sun);
+  font-size: 1.45rem;
+  letter-spacing: 0.02em;
+}
+.about-sheet-close {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--foam);
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.about-sheet-build {
+  margin: -0.25rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: rgba(244, 251, 255, 0.62);
+}
+.about-sheet-label {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(244, 251, 255, 0.55);
+}
+.about-sound,
+.about-action {
+  min-height: 48px;
+  border-radius: 14px;
+  font-weight: 800;
+  font-size: 0.95rem;
+  touch-action: manipulation;
+}
+.about-sound {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--foam);
+  cursor: pointer;
+}
+.about-link-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+.about-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 0.4rem;
+  text-align: center;
+  text-decoration: none;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(244, 251, 255, 0.92);
+}
+.about-action:hover,
+.about-action:focus-visible { color: #f4fbff; }
+.fb-chip-large {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  width: 100%;
+  margin: 0;
+}
+.fb-choice {
+  min-height: 52px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 209, 102, 0.45);
+  background: rgba(255, 209, 102, 0.14);
+  color: var(--foam);
+  font-weight: 800;
+  font-size: 1rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.fb-form-large {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 0.4rem;
+  width: 100%;
+  margin: 0;
+  align-items: center;
+}
+.fb-form-large input { width: 100%; max-width: none; }
+.fb-thanks-large { justify-content: center; width: 100%; margin: 0; min-height: 48px; font-size: 1rem; }
+@media (min-width: 641px) {
+  html:not([data-device='phone']) .about-sheet { display: none !important; }
+}
+
 /* Footer must never clip on a narrow phone: the "Sound on/off" button was cut off at the right edge. */
 .foot {
   flex-wrap: wrap;
