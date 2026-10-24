@@ -10,6 +10,7 @@ import {
   HelpScreen,
   HomeScreen,
   LaterScreen,
+  LegalLinks,
   LegalScreen,
   NudgeScreen,
   SettingsScreen,
@@ -92,15 +93,18 @@ export function App() {
       <button className="logo" type="button" onClick={() => go('/')}>{t.brand}</button>
       {!onPlay ? <a className="site-link" href="https://romansgame.com" target="_blank" rel="noreferrer">{t.website}</a> : <span />}
       {pc ? (
+        <>
         <nav className="tabs" style={{ flex: 1 }}>
           <button className={`tab ${path === '/' || path === '/play' ? 'on' : ''}`} type="button" onClick={() => go('/play')}>{t.play}</button>
           <button className={`tab ${path.startsWith('/shop') ? 'on' : ''}`} type="button" onClick={() => go('/shop')}>{t.shop}</button>
           <button className={`tab ${path === '/leaderboard' ? 'on' : ''}`} type="button" onClick={() => go('/leaderboard')}>{t.leaderboard}</button>
           <button className={`tab ${path.startsWith('/teams') || path.startsWith('/t/') ? 'on' : ''}`} type="button" onClick={() => go('/teams')}>{t.teams}</button>
           <button className={`tab ${path === '/stable' ? 'on' : ''}`} type="button" onClick={() => go('/stable')}>{t.stable}</button>
-          <button className={`tab ${path === '/thrones' ? 'on' : ''}`} type="button" onClick={() => go('/thrones')}>{t.throne}</button>
+          <button className={`tab ${path.startsWith('/family') ? 'on' : ''}`} type="button" onClick={() => go('/family')}>{t.family}</button>
           <button className={`tab ${path.startsWith('/settings') ? 'on' : ''}`} type="button" onClick={() => go('/settings')}>{t.settings}</button>
         </nav>
+        <LegalLinks t={t} />
+        </>
       ) : <span style={{ flex: 1 }} />}
       {me?.hostPet ? <DefenderArt id={me.hostPet} size={36} /> : null}
       <button className="coin" type="button" onClick={() => go('/shop')}>{formatCoins(me?.coins ?? 0, lang)} ¢</button>

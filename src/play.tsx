@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ApiError, api, type Me } from './api'
 import { BoardView } from './ui/BoardView'
 import { DefenderArt } from './ui/DefenderArt'
-import { CHARGE_LABEL, DEFENDERS, MAX_HEARTS, type Ability } from './game/catalog'
+import { CHARGE_LABEL, DEFENDERS, MAX_HEARTS, WEEK_WIN_BONUS_AT, type Ability } from './game/catalog'
 import { dailyPuzzle, makePuzzle, type Difficulty } from './game/generate'
 import { buddyIndexes, conflicts, cycleCell, emptyBoard, isSolved, ruledOut, type Cell, type Puzzle } from './game/logic'
 import { playVoice, sfxError, sfxGiggle, sfxMark, sfxPlace, sfxWin, unlockAudio } from './game/sound'
@@ -13,11 +13,6 @@ import { go } from './nav'
 
 type Mode = 'daily' | 'free' | 'survival'
 type Phase = 'play' | 'unseen' | 'victory' | 'loss' | 'over' | 'hunt' | 'hunt-end'
-
-const GOAL_LINE = {
-  en: 'Place one buddy in every row, every column and every colour. Buddies cannot touch, even on a corner. An X marks a square you have ruled out.',
-  fr: 'Place un compagnon dans chaque rangée, chaque colonne et chaque couleur. Les compagnons ne se touchent pas, même par un coin. Un X écarte une case.',
-}
 
 interface Guest {
   wins: number
@@ -98,9 +93,7 @@ export function PlayScreen({
     if (phase !== 'play') return
     const quiet = Date.now() - started > 25000 && moves < 2 && tick > 0 && tick % 28 === 0
     if (!quiet) return
-    const picked = pickUnseen('slow', true)
-    setLine(picked)
-    playVoice(picked.id)
+    playVoice(pickUnseen('slow', true).id)
   }, [tick, phase, moves, started])
 
   useEffect(() => {
@@ -295,10 +288,10 @@ export function PlayScreen({
           <span>{progress.left} → {lang === 'fr' ? progress.next.nameFr : progress.next.name}</span>
         </div>
       ) : null}
-      {!pc && line ? <UnseenCutout line={line} /> : null}
       <div className="board-slot">
         <BoardView puzzle={puzzle} cells={cells} highlights={highlights} onTap={tap} />
       </div>
+      {pc ? null : (
       <div className="defs">
         {DEFENDERS.map((defender) => (
           <button key={defender.id} className="btn" type="button" onClick={() => spend(defender.ability)}>
@@ -309,6 +302,8 @@ export function PlayScreen({
           </button>
         ))}
       </div>
+      )}
+      {pc ? null : (
       <div className={mode === 'daily' ? 'stack' : 'grid2'}>
         <div className="tabs">
           {(['daily', 'free', 'survival'] as Mode[]).map((item) => (
@@ -343,6 +338,7 @@ export function PlayScreen({
           </div>
         ) : null}
       </div>
+      )}
     </div>
   )
 
@@ -448,35 +444,105 @@ export function PlayScreen({
 
   const nextThrone = lang === 'fr' ? progress.next.nameFr : progress.next.name
 
+  const showUnseen = (phase === 'unseen' || phase === 'hunt-end') && line
+  const elapsed = Math.max(0, Math.round((Date.now() - started) / 1000))
+  void tick
+  const weekWins = me?.weekWins ?? 0
+  const goalFilled = Math.min(100, (Math.max(0, weekWins) / WEEK_WIN_BONUS_AT) * 100)
+  const streak = me?.streak ?? guest.streak
+
+  const modeControls = (
+    <div className="stack">
+      <div className="tabs">
+        {(['daily', 'free', 'survival'] as Mode[]).map((item) => (
+          <button
+            key={item}
+            className={`tab ${mode === item ? 'on' : ''}`}
+            type="button"
+            onClick={() => {
+              setMode(item)
+              const nextSize = item === 'daily' ? 6 : size
+              const nextDiff = item === 'daily' ? 1 : difficulty
+              boot(item, nextSize, nextDiff as Difficulty, item === 'survival' ? hearts : MAX_HEARTS, item === 'survival' ? run : 0)
+            }}
+          >
+            {item === 'daily' ? t.daily : item === 'free' ? t.freePlay : t.survival}
+          </button>
+        ))}
+      </div>
+      {mode !== 'daily' ? (
+        <div className="tabs">
+          <button className="tab on" type="button" onClick={() => {
+            const order = [5, 6, 7, 8] as const
+            const next = order[(order.indexOf(size) + 1) % order.length]
+            setSize(next)
+            boot(mode, next, difficulty, mode === 'survival' ? hearts : MAX_HEARTS, run)
+          }}>{size}×{size}</button>
+          <button className="tab" type="button" onClick={() => {
+            const next = ((difficulty + 1) % 4) as Difficulty
+            setDifficulty(next)
+            boot(mode, size, next, mode === 'survival' ? hearts : MAX_HEARTS, run)
+          }}>{diffLabel}</button>
+        </div>
+      ) : null}
+    </div>
+  )
+
   if (!pc) {
     return (
-      <div className={`body play-frame${line ? ' with-unseen' : ''}`}>
+      <div className="body play-frame">
         {boardBlock}
         {result}
+        {showUnseen ? <div className="unseen-anchor"><UnseenCutout line={line} /></div> : null}
       </div>
     )
   }
 
   return (
-    <div className="pc-body" style={{ width: '100%' }}>
+    <div className="pc-body play-pc" style={{ width: '100%' }}>
       <div className="pc-side">
         <div className="card stack">
+          {DEFENDERS.map((defender) => (
+            <button key={defender.id} className="spread" type="button" onClick={() => spend(defender.ability)}>
+              <span className="row"><DefenderArt id={defender.id} size={36} />{defender.name}</span>
+              <span>{charges[defender.ability] ?? 0}</span>
+            </button>
+          ))}
+        </div>
+        <div className="card stack">
           <b>{t.goal}</b>
-          <p className="muted">{GOAL_LINE[lang]}</p>
-          <p>{t.hearts} {'♥'.repeat(Math.max(0, hearts))}</p>
-          <p>{t.streak} {me?.streak ?? guest.streak}</p>
-          <p className="muted">{modeName} · {diffLabel}</p>
+          <p className="muted">{t.winsThisWeek}</p>
+          <span>{weekWins} / {WEEK_WIN_BONUS_AT}</span>
+          <span className="goal-bar" role="progressbar" aria-valuenow={Math.min(weekWins, WEEK_WIN_BONUS_AT)} aria-valuemax={WEEK_WIN_BONUS_AT}><span style={{ width: `${goalFilled}%` }} /></span>
+          <p>{t.streak} {streak}</p>
+          <span className="pips" aria-hidden="true">{Array.from({ length: 7 }, (_, i) => <span key={i} className={i < Math.min(7, streak) ? 'on' : ''} />)}</span>
+        </div>
+      </div>
+      <div className="pc-main play-main">
+        {boardBlock}
+        <p className="muted">{t.hearts} {'♥'.repeat(Math.max(0, hearts))} · {formatTime(elapsed)} · {modeName} · {size}×{size} · {diffLabel}</p>
+        {result}
+      </div>
+      <aside className="pc-side">
+        <div className="card stack">
+          {modeControls}
           <p className="muted">{progress.left} → {nextThrone}</p>
+        </div>
+        <div className="card stack">
+          <b>{t.yourRank}</b>
+          <span>{t.solo}</span>
+          <p className="muted">{t.noRank}</p>
         </div>
         <div className="card stack">
           <b>{t.myTeam}</b>
           <button className="btn" type="button" onClick={() => go('/teams')}>{t.teams}</button>
-          <button className="btn" type="button" onClick={() => go('/shop')}>{t.shop}</button>
-          <button className="btn" type="button" onClick={() => go('/stable')}>{t.stable}</button>
         </div>
-      </div>
-      <div className="pc-main play-main">{boardBlock}{result}</div>
-      <MiniBoard t={t} line={line} />
+        <div className="row">
+          <button className="btn" type="button" onClick={() => go('/stable')}>{t.stable}</button>
+          <button className="btn gold" type="button" onClick={() => go('/shop')}>{t.shop}</button>
+        </div>
+        {showUnseen ? <div className="unseen-anchor"><UnseenCutout line={line} /></div> : null}
+      </aside>
     </div>
   )
 }
@@ -492,29 +558,6 @@ function UnseenCutout({ line }: { line: UnseenLine }) {
         onError={() => setSrc((current) => (current.endsWith('.webp') ? '/images/unseen.png' : '/unseen.png'))}
       />
     </div>
-  )
-}
-
-function MiniBoard({ t, line }: { t: Copy; line: UnseenLine | null }) {
-  const [rows, setRows] = useState<{ name: string; score: number; hostPet?: string | null }[]>([])
-  const [note, setNote] = useState('')
-  useEffect(() => {
-    void api<{ rows: { name: string; score: number; hostPet?: string | null }[] }>('/api/leaderboard?scope=week').then((res) => setRows(res.rows.slice(0, 8))).catch((err) => {
-      setNote(err instanceof ApiError && err.code === 'schema' ? t.errorSchema : t.errorSupabase)
-    })
-  }, [t])
-  return (
-    <aside className="pc-side">
-      <div className="card scroll stack">
-        <b>{t.leaderboard}</b>
-        <span className="chip">{t.week}</span>
-        {note ? <p className="muted">{note}</p> : rows.length === 0 ? <p className="muted">{t.noRank}</p> : rows.map((row, index) => (
-          <div key={row.name} className="spread"><span className="row"><DefenderArt id={row.hostPet} size={24} />{index + 1}. {row.name}</span><span>{row.score}</span></div>
-        ))}
-        <button className="btn" type="button" onClick={() => go('/leaderboard')}>{t.seeAll}</button>
-      </div>
-      {line ? <UnseenCutout line={line} /> : null}
-    </aside>
   )
 }
 

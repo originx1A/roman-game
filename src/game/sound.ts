@@ -106,17 +106,16 @@ function noiseBurst(duration: number, gain = 0.08, when = 0): void {
   }
 }
 
-/** Soft click for ordinary buttons. Board tiles keep their own sounds. */
+/** Soft tap for buttons and nav. Warm and short, in the same family as the board boop. */
 export function sfxClick(): void {
-  tone(740, 0.028, 'sine', 0.045)
-  noiseBurst(0.018, 0.018)
+  tone(392, 0.07, 'sine', 0.04)
+  tone(523, 0.09, 'triangle', 0.025, 0.02)
 }
 
-/** X mark. */
+/** X mark. A lower tok, still sine and triangle, not a click. */
 export function sfxMark(): void {
-  tone(380, 0.07, 'square', 0.1, 0, 220)
-  tone(520, 0.06, 'square', 0.08, 0.04, 300)
-  noiseBurst(0.06, 0.055, 0.01)
+  tone(330, 0.08, 'triangle', 0.07, 0, 220)
+  tone(247, 0.1, 'sine', 0.05, 0.03)
 }
 
 /** Buddy placed. The boop from 9.33-m `sfxPlace`. */
@@ -135,14 +134,16 @@ export function sfxGiggle(): void {
   ;[0.04, 0.12, 0.2].forEach((when, i) => noiseBurst(0.04, 0.015 + i * 0.004, when))
 }
 
+/** Short celebratory ta-da. Three warm notes, then it stops. */
 export function sfxWin(): void {
-  ;[523, 659, 784, 988, 1175].forEach((freq, i) => tone(freq, 0.3, i % 2 ? 'triangle' : 'sine', 0.1, i * 0.09))
+  tone(523, 0.12, 'triangle', 0.07)
+  tone(659, 0.12, 'sine', 0.06, 0.1)
+  tone(784, 0.22, 'triangle', 0.07, 0.2)
 }
 
 export function sfxError(): void {
-  tone(180, 0.14, 'sawtooth', 0.09, 0, 90)
-  tone(140, 0.18, 'square', 0.07, 0.05, 70)
-  noiseBurst(0.14, 0.06, 0.02)
+  tone(196, 0.12, 'triangle', 0.06, 0, 140)
+  tone(165, 0.14, 'sine', 0.04, 0.06)
 }
 
 export function playVoice(id: string): void {

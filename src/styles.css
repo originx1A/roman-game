@@ -92,6 +92,7 @@ h1, h2, .display { font-family: 'Titan One', Nunito, sans-serif; font-weight: 40
 }
 .btn.gold { background: linear-gradient(180deg, #ffe49a, #f4b93a); color: #2a1a00; border-color: #ffd166; }
 .btn.full { width: 100%; }
+.pc-root .btn.full { width: auto; align-self: flex-start; min-width: 160px; }
 .btn.danger { border-color: #ff8b7a; color: #ffd0c8; }
 .btn:disabled { opacity: .45; }
 .tabs { display: flex; gap: 4px; }
@@ -264,9 +265,17 @@ button.spread {
   width: 72px; height: auto; flex: none; background: transparent;
   filter: drop-shadow(0 10px 14px rgba(0,0,0,.5));
 }
+.unseen-anchor {
+  margin-top: auto; align-self: flex-end; pointer-events: none; z-index: 6;
+  animation: unseenRise 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.phone-stage .play-frame { position: relative; }
+.phone-stage .unseen-anchor {
+  position: absolute; right: 6px; bottom: 6px; max-width: 68%;
+}
+.phone-stage .unseen-anchor img { width: 84px; }
 .pc-side .unseen-pop {
   width: 100%; margin-top: auto; flex: none;
-  animation: unseenRise 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 .pc-side .unseen-pop .bubble { flex: 1; }
 .pc-side .unseen-pop img { width: 120px; }
@@ -276,6 +285,7 @@ button.spread {
 }
 .phone-stage .unseen-pop .bubble { max-width: 210px; }
 .phone-stage .with-unseen .board-slot { width: min(100%, 268px); }
+.play-pc > aside.pc-side { position: relative; }
 .play-main { display: flex; flex-direction: column; align-items: center; position: relative; }
 .play-main > .stack { width: min(100%, 560px); }
 .result-card { width: min(100%, 520px); }
@@ -292,6 +302,16 @@ button.spread {
 .shop-cards.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .shop-cards.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .shop-cards.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.shop-cards.six { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.pc-shop-all { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 8px; }
+.pc-shop-all .pic-card { padding: 6px; gap: 2px; }
+.pc-shop-all .defender-art { width: 52px; height: 52px; }
+.pc-boards {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px;
+  flex: 1; min-height: 0; width: 100%; padding: 12px 22px; overflow: hidden;
+}
+.pc-boards > .card { min-height: 0; overflow: hidden; }
+.pc-bar .legal-row { flex: none; }
 .shop-cards.lone { display: flex; justify-content: center; }
 .shop-cards.lone > * { width: min(100%, 440px); }
 .team-balance {
@@ -389,7 +409,15 @@ button.spread {
   grid-template-rows: 1fr 1fr;
 }
 .throne-card {
-  min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px;
+  min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 2px;
+  overflow: hidden; color: #fffaf0; text-shadow: 0 1px 2px #07122a;
+}
+.throne-card img {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0;
+}
+.throne-card b, .throne-card span { position: relative; z-index: 1; }
+.throne-card {
+  position: relative;
   border-color: rgba(255,214,120,.7);
   border-radius: 18px;
   background:
