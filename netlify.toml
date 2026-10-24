@@ -1,7 +1,7 @@
 [build]
   # typescript and vite are devDependencies. NODE_ENV=production makes npm skip
   # them, and the build then stops at "tsc: not found" before anything is published.
-  command = "npm ci --include=dev && npm run build"
+  command = "node scripts/netlify-build-diag.mjs"
   publish = "dist"
 
 [build.environment]
