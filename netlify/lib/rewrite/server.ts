@@ -1110,12 +1110,16 @@ async function checkout(kv: Store, env: Env, me: Account | null, body: Record<st
         price_data: {
           currency: order.currency,
           unit_amount: order.cents,
-          product_data: { name: checkoutName(order.sku), description: "Coins for Roman's Game. No cash value." },
+          product_data: {
+            name: checkoutName(order.sku),
+            description: "Coins for Roman's Game. No cash value.",
+            images: [packImageUrl(origin, order.sku)],
+          },
         },
       },
     ],
     success_url: `${origin}/shop/done?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${origin}/shop/review?failed=1&order=${order.id}`,
+    cancel_url: `${origin}/shop/review?cancelled=1&order=${order.id}`,
   })
   order.sessionId = session.id
   await kv.set(`order:${order.id}`, order)
@@ -1124,10 +1128,23 @@ async function checkout(kv: Store, env: Env, me: Account | null, body: Record<st
 }
 
 function checkoutName(sku: Sku): string {
-  if (sku === 'starter') return 'Starter Pack'
+  if (sku === 'starter') return 'Starter Pack: 8,000 coins + Nox + For Lupa'
   const pack = PACKS.find((item) => item.sku === sku)
   const size = sku === 'pack-small' ? 'Small' : sku === 'pack-medium' ? 'Medium' : 'Large'
   return pack ? `${size} coin pack (${formatCoins(pack.coins, 'en')} coins)` : 'Coin pack'
+}
+
+/** Public picture Stripe fetches for this pack. The starter file is the owl and hat the shop card draws. */
+const PACK_IMAGE: Record<Sku, string> = {
+  starter: 'starter.png',
+  'pack-small': 'small.png',
+  'pack-medium': 'medium.png',
+  'pack-large': 'large.png',
+}
+
+function packImageUrl(origin: string, sku: Sku): string {
+  const base = origin.startsWith('https://') ? origin.replace(/\/$/, '') : 'https://play.romansgame.com'
+  return `${base}/images/shop/${PACK_IMAGE[sku]}`
 }
 
 function receiptPack(sku: Sku): string {

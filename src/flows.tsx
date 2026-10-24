@@ -458,7 +458,7 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
   const [prices, setPrices] = useState(priceForCountry(null))
   const [orderId, setOrderId] = useState<string | null>(sessionStorage.getItem('rg.order'))
   const [sku, setSku] = useState<Sku>(isSku(sessionStorage.getItem('rg.sku')) ? sessionStorage.getItem('rg.sku') as Sku : 'starter')
-  const failed = path.includes('failed=1')
+  const backedOut = path.includes('cancelled=1') || path.includes('failed=1')
   const step = path.startsWith('/shop/') ? path.split('/')[2]?.split('?')[0] : 'browse'
 
   useEffect(() => {
@@ -586,7 +586,7 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
     return wrap(
       <div className="stack">
         <h1>{t.reviewTitle}</h1>
-        {failed ? <p className="err">{t.paymentFailed}</p> : null}
+        {backedOut ? <p>{t.noCharge}</p> : null}
         <div className="card">
           <b>{offerName}</b>
           <p>{offerLine}</p>

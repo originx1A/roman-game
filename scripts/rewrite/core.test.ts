@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { conflicts, emptyBoard, isSolved, puzzlePlayable, regionConnected, type Cell } from '../../src/game/logic.ts'
 import { dailyPuzzle, makePuzzle, puzzleFromId, torontoDate } from '../../src/game/generate.ts'
@@ -263,6 +264,21 @@ test('one account holds an email, and a pending hold expires', () => {
   assert.equal(emailHoldKey('  Person@Example.com '), 'rate:email-hold:person@example.com')
   assert.equal(en.emailUsed, 'That email is already used.')
   assert.equal(fr.emailUsed, 'Ce courriel est déjà utilisé.')
+})
+
+test('checkout uses hosted Stripe, pack art, and a calm cancel', () => {
+  const source = readFileSync(new URL('../../netlify/lib/rewrite/server.ts', import.meta.url), 'utf8')
+  const start = source.indexOf('async function checkout(')
+  const end = source.indexOf('function checkoutName')
+  const fn = source.slice(start, end)
+  assert.equal(fn.includes('payment_method_types'), false)
+  assert.match(fn, /cancel_url: `\$\{origin\}\/shop\/review\?cancelled=1&order=\$\{order\.id\}`/)
+  assert.match(fn, /images: \[packImageUrl\(origin, order\.sku\)\]/)
+  assert.match(fn, /Coins for Roman's Game\. No cash value\./)
+  assert.match(source, /return 'Starter Pack: 8,000 coins \+ Nox \+ For Lupa'/)
+  assert.match(source, /\$\{size\} coin pack \(\$\{formatCoins\(pack\.coins, 'en'\)\} coins\)/)
+  assert.equal(en.noCharge, 'No charge made.')
+  assert.equal(fr.noCharge, 'Aucun frais.')
 })
 
 test('French has every English string and neither language uses the banned words', () => {
