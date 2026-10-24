@@ -7,7 +7,10 @@ import {
   REMINDER_DAYS,
   RESET_MINUTES,
   SUPPORT_EMAIL,
+  CHARGE_COST,
   CLOTHES,
+  DEFENDER_PRICE,
+  DEFENDERS,
   PETS,
   PACKS,
   STARTER_CLOTH,
@@ -15,6 +18,7 @@ import {
   STARTER_PET,
   TERMS_VERSION,
   centsForSku,
+  coinsForWin,
   creditCoins,
   creditStarter,
   formatCoins,
@@ -68,6 +72,10 @@ export interface Account {
   dailySeconds: number | null
   weekKey: string
   weekWins: number
+  weekBonusPaid: boolean
+  dayKey: string | null
+  dayWins: number
+  lbPaidWeek: string | null
   teamId: string | null
   sessions: string[]
   resetToken: string | null
@@ -323,6 +331,10 @@ function blankAccount(input: { loginKey: string; playerName: string; email: stri
     dailySeconds: null,
     weekKey: weekKey(),
     weekWins: 0,
+    weekBonusPaid: false,
+    dayKey: null,
+    dayWins: 0,
+    lbPaidWeek: null,
     teamId: null,
     sessions: [],
     resetToken: null,
@@ -444,6 +456,7 @@ export async function handle(req: Request, env: Env): Promise<Response> {
     if (path === '/api/shop/accept' && req.method === 'POST') return await acceptOrder(kv, me, body, env)
     if (path === '/api/shop/checkout' && req.method === 'POST') return await checkout(kv, env, me, body, origin)
     if (path === '/api/shop/confirm' && req.method === 'POST') return await confirmCheckout(kv, env, me, body, origin)
+    if (path === '/api/shop/buy' && req.method === 'POST') return await buyWithCoins(kv, me, body)
     if (path === '/api/wasnt-me' && req.method === 'POST') return await wasntMe(kv, body)
     if (path === '/api/win' && req.method === 'POST') return await recordWin(kv, me, body)
     if (path === '/api/charge' && req.method === 'POST') return await spendCharge(kv, me, body)
@@ -580,7 +593,37 @@ async function signoutAll(kv: Store, me: Account | null, secure: boolean): Promi
 async function meRoute(kv: Store, env: Env, me: Account | null, origin: string): Promise<Response> {
   if (!me) return json({ me: null })
   await maybeRemind(kv, env, me, origin)
+  await payLastWeek(kv, me)
+  if (grantEarned(me)) await saveAccount(kv, me)
   return json({ me: publicMe(me) })
+}
+
+function grantEarned(me: Account): boolean {
+  let changed = false
+  if (throneForBoards(winMap(me)) && !me.clothes.includes('laurel')) {
+    me.clothes = [...me.clothes, 'laurel']
+    changed = true
+  }
+  if (me.streak >= 7 && !me.clothes.includes('crown')) {
+    me.clothes = [...me.clothes, 'crown']
+    changed = true
+  }
+  return changed
+}
+
+/** Pays the closed week's board once. The flag is saved before the coins move. */
+async function payLastWeek(kv: Store, me: Account): Promise<void> {
+  try {
+    const reward = await kv.previousWeekReward(me.id, me.lbPaidWeek)
+    if (!reward) return
+    me.lbPaidWeek = reward.weekId
+    await saveAccount(kv, me)
+    if (reward.prize <= 0) return
+    const next = await kv.adjustCoins(me.id, reward.prize)
+    if (next != null) me.coins = next
+  } catch {
+    /* a missed week can be paid on a later visit */
+  }
 }
 
 async function maybeRemind(kv: Store, env: Env, me: Account, origin: string): Promise<void> {
@@ -1059,12 +1102,20 @@ function receiptPack(sku: Sku): string {
 }
 
 async function grant(kv: Store, order: Order, origin: string, env: Env): Promise<void> {
-  if (!(await kv.claimOrderGrant(order.id))) return
   const account = await kv.get<Account>(`account:${order.accountId}`)
   if (!account) return
+  const before = account.coins
+  const preview = order.sku === 'starter' ? creditStarter(account) : creditCoins(account, order.sku)
+  const delta = preview.coins - before
+  const next = delta > 0 ? await kv.adjustCoins(account.id, delta) : before
+  if (delta > 0 && next == null) return
+  if (!(await kv.claimOrderGrant(order.id))) {
+    if (delta > 0) await kv.adjustCoins(account.id, -delta)
+    return
+  }
   const firstPaid = order.status !== 'paid'
-  if (order.sku === 'starter') Object.assign(account, creditStarter(account))
-  else Object.assign(account, creditCoins(account, order.sku))
+  Object.assign(account, preview)
+  if (next != null) account.coins = next
   if (firstPaid) {
     order.status = 'paid'
     order.paidAt = new Date().toISOString()
@@ -1157,8 +1208,47 @@ async function spendCharge(kv: Store, me: Account | null, body: Record<string, u
   return json({ me: publicMe(me) })
 }
 
+async function buyWithCoins(kv: Store, me: Account | null, body: Record<string, unknown>): Promise<Response> {
+  if (!me) return json({ error: 'auth' }, 401)
+  const kind = String(body.kind ?? '')
+  const id = String(body.id ?? '')
+  let price = 0
+  if (kind === 'charge') {
+    if (!DEFENDERS.some((item) => item.id === id)) return json({ error: 'item' }, 400)
+    price = CHARGE_COST
+  } else if (kind === 'defender') {
+    const listed = DEFENDER_PRICE[id as keyof typeof DEFENDER_PRICE]
+    if (listed == null) return json({ error: 'item' }, 400)
+    if (me.pets.includes(id)) return json({ error: 'owned' }, 400)
+    price = listed
+  } else if (kind === 'cloth') {
+    const piece = CLOTHES.find((item) => item.id === id)
+    if (!piece || piece.price == null) return json({ error: 'item' }, 400)
+    if (me.clothes.includes(id)) return json({ error: 'owned' }, 400)
+    price = piece.price
+  } else return json({ error: 'item' }, 400)
+  const next = await kv.adjustCoins(me.id, -price)
+  if (next == null) return json({ error: 'coins' }, 400)
+  me.coins = next
+  if (kind === 'charge') {
+    const defender = DEFENDERS.find((item) => item.id === id)
+    if (!defender) return json({ error: 'item' }, 400)
+    me.charges[defender.ability] = (me.charges[defender.ability] ?? 0) + 1
+  } else if (kind === 'defender') me.pets = [...me.pets, id]
+  else me.clothes = [...me.clothes, id]
+  try {
+    await saveAccount(kv, me)
+  } catch (err) {
+    const refund = await kv.adjustCoins(me.id, price)
+    if (refund != null) me.coins = refund
+    throw err
+  }
+  return json({ me: publicMe(me) })
+}
+
 async function recordWin(kv: Store, me: Account | null, body: Record<string, unknown>): Promise<Response> {
   if (!me) return json({ error: 'auth' }, 401)
+  await payLastWeek(kv, me)
   const size = Number(body.size)
   const seconds = Number(body.seconds)
   const moves = Number(body.moves)
@@ -1178,6 +1268,25 @@ async function recordWin(kv: Store, me: Account | null, body: Record<string, unk
     me.wins += 1
     if (body.perfect === true) me.perfects += 1
     const today = torontoDate()
+    if (me.dayKey !== today) {
+      me.dayKey = today
+      me.dayWins = 0
+    }
+    const wk = weekKey()
+    if (me.weekKey !== wk) {
+      me.weekKey = wk
+      me.weekWins = 0
+      me.weekBonusPaid = false
+    }
+    const earned = coinsForWin({
+      winsTodayBefore: me.dayWins,
+      dailyFirst: mode === 'daily' && me.dailyWin !== today,
+      winsThisWeekBefore: me.weekWins,
+      weekBonusAlready: me.weekBonusPaid,
+    })
+    me.dayWins += 1
+    me.weekWins += 1
+    me.weekBonusPaid = earned.weekBonus
     if (me.streakDay !== today) {
       const yesterday = torontoDate(new Date(Date.now() - 86400000))
       me.streak = me.streakDay === yesterday ? me.streak + 1 : 1
@@ -1188,12 +1297,7 @@ async function recordWin(kv: Store, me: Account | null, body: Record<string, unk
       me.dailyWin = today
       me.dailySeconds = seconds
     }
-    const wk = weekKey()
-    if (me.weekKey !== wk) {
-      me.weekKey = wk
-      me.weekWins = 0
-    }
-    me.weekWins += 1
+    grantEarned(me)
     if (mode === 'survival') {
       const run = Number(body.run) || 0
       me.bestRun[String(size)] = Math.max(me.bestRun[String(size)] ?? 0, run)
@@ -1213,6 +1317,8 @@ async function recordWin(kv: Store, me: Account | null, body: Record<string, unk
     }
     await saveAccount(kv, me)
     await kv.addScore(me.id, { size, seconds, moves, mode, puzzleId, run: Number(body.run) || 0 }, me.teamId)
+    const paid = await kv.adjustCoins(me.id, earned.coins)
+    if (paid != null) me.coins = paid
   }
   return json({ me: publicMe(me) })
 }

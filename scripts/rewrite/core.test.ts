@@ -4,7 +4,7 @@ import { conflicts, emptyBoard, isSolved, puzzlePlayable, regionConnected, type 
 import { dailyPuzzle, makePuzzle, puzzleFromId, torontoDate } from '../../src/game/generate.ts'
 import { THRONES, boardFromPuzzleId, boardSteps, throneAt, throneForBoards, throneForWins, throneIdForBoard, throneProgress, winsNeeded } from '../../src/game/thrones.ts'
 import { formatTeamName, parseTeamName } from '../../src/game/teamNames.ts'
-import { PACKS, STARTER_CLOTH, STARTER_COINS, STARTER_PET, centsForSku, creditCoins, creditStarter, formatCoins, formatPrice, isSku, priceForCountry } from '../../src/game/catalog.ts'
+import { CHARGE_COST, CLOTHES, DEFENDER_PRICE, PACKS, STARTER_CLOTH, STARTER_COINS, STARTER_PET, applyCoinDelta, centsForSku, coinsForWin, creditCoins, creditStarter, formatCoins, formatPrice, isSku, leaderboardPrize, priceForCountry, sameSiteNext } from '../../src/game/catalog.ts'
 import { openStore } from '../../netlify/lib/rewrite/db.ts'
 import { EMAIL_HOLD_MS, emailHeldBy, emailHoldKey } from '../../netlify/lib/rewrite/emailHold.ts'
 import { en, fr } from '../../src/i18n.ts'
@@ -164,6 +164,39 @@ test('prices are per country and the small pack matches the starter', () => {
   assert.equal(isSku('pack-small'), true)
   assert.equal(isSku('starter'), true)
   assert.equal(isSku('pack-other'), false)
+})
+
+test('approved coin prices and win payouts', () => {
+  assert.equal(CHARGE_COST, 150)
+  assert.deepEqual(DEFENDER_PRICE, { lupa: 6000, nox: 8000, aquila: 10000, leo: 12000, invictus: 15000 })
+  assert.deepEqual(CLOTHES.map((piece) => [piece.id, piece.price, piece.earn]), [
+    ['top-hat', 3000, null],
+    ['sunglasses', 3000, null],
+    ['scarf', 3000, null],
+    ['badge', 4000, null],
+    ['laurel', null, 'throne'],
+    ['crown', null, 'streak'],
+  ])
+  assert.equal(coinsForWin({ winsTodayBefore: 0, dailyFirst: false, winsThisWeekBefore: 0, weekBonusAlready: false }).coins, 100)
+  assert.equal(coinsForWin({ winsTodayBefore: 9, dailyFirst: false, winsThisWeekBefore: 0, weekBonusAlready: false }).coins, 100)
+  assert.equal(coinsForWin({ winsTodayBefore: 10, dailyFirst: false, winsThisWeekBefore: 0, weekBonusAlready: false }).coins, 25)
+  assert.equal(coinsForWin({ winsTodayBefore: 3, dailyFirst: true, winsThisWeekBefore: 1, weekBonusAlready: false }).coins, 250)
+  const week = coinsForWin({ winsTodayBefore: 0, dailyFirst: false, winsThisWeekBefore: 19, weekBonusAlready: false })
+  assert.equal(week.coins, 600)
+  assert.equal(week.weekBonus, true)
+  assert.equal(coinsForWin({ winsTodayBefore: 0, dailyFirst: false, winsThisWeekBefore: 20, weekBonusAlready: true }).coins, 100)
+  assert.equal(leaderboardPrize(1), 300)
+  assert.equal(leaderboardPrize(10), 300)
+  assert.equal(leaderboardPrize(11), 100)
+  assert.equal(leaderboardPrize(100), 100)
+  assert.equal(leaderboardPrize(101), 0)
+  assert.equal(applyCoinDelta(150, -150), 0)
+  assert.equal(applyCoinDelta(149, -150), null)
+  assert.equal(sameSiteNext('/shop'), '/shop')
+  assert.equal(sameSiteNext('/shop?tab=clothing'), '/shop?tab=clothing')
+  assert.equal(sameSiteNext('https://evil.example/shop'), null)
+  assert.equal(sameSiteNext('//evil.example/shop'), null)
+  assert.equal(sameSiteNext('/shop/../admin'), null)
 })
 
 test('the starter pack credits 8000 coins, the owl, and the top hat once', async () => {

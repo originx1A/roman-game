@@ -20,11 +20,25 @@ const ROW: Record<DefenderId, ClothPiece | null> = {
   nox: null,
 }
 
+/** Clothing ids draw on the defender that wears that piece in the sheets. Older ids still resolve. */
+const CLOTH_ON: Record<string, { who: DefenderId; piece: ClothPiece }> = {
+  'top-hat': { who: 'lupa', piece: 'top-hat' },
+  'for-lupa': { who: 'lupa', piece: 'top-hat' },
+  sunglasses: { who: 'aquila', piece: 'sunglasses' },
+  'for-aquila': { who: 'aquila', piece: 'sunglasses' },
+  scarf: { who: 'lupa', piece: 'scarf' },
+  badge: { who: 'invictus', piece: 'badge' },
+  laurel: { who: 'leo', piece: 'laurel' },
+  'for-leo': { who: 'leo', piece: 'laurel' },
+  crown: { who: 'lupa', piece: 'crown' },
+}
+
 export function defenderIdFor(id: string | null | undefined): DefenderId | null {
   const key = (id ?? '').toLowerCase()
-  if (key === 'lupa' || key === 'for-lupa') return 'lupa'
-  if (key === 'aquila' || key === 'eagle' || key === 'for-aquila') return 'aquila'
-  if (key === 'leo' || key === 'for-leo') return 'leo'
+  if (CLOTH_ON[key]) return CLOTH_ON[key].who
+  if (key === 'lupa') return 'lupa'
+  if (key === 'aquila' || key === 'eagle') return 'aquila'
+  if (key === 'leo') return 'leo'
   if (key === 'invictus' || key === 'war-horse') return 'invictus'
   if (key === 'nox' || key === 'night-owl') return 'nox'
   return null
@@ -309,10 +323,12 @@ export function DefenderArt({
   pieces?: 'row' | ClothPiece[]
   title?: string
 }) {
+  const key = (id ?? '').toLowerCase()
   const who = defenderIdFor(id)
   if (!who) return null
   const Draw = BODY[who]
-  const worn = pieces === 'row' ? (ROW[who] ? [ROW[who]] : []) : pieces
+  const cloth = pieces === 'row' ? CLOTH_ON[key] : undefined
+  const worn = cloth ? [cloth.piece] : pieces === 'row' ? (ROW[who] ? [ROW[who]] : []) : pieces
   return (
     <svg className="defender-art" width={size} height={size} viewBox="0 0 100 100" role="img" aria-label={title ?? who}>
       <Draw />

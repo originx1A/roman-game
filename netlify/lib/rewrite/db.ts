@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { RESET_MINUTES, TERMS_VERSION, isSku } from '../../../src/game/catalog.ts'
+import { RESET_MINUTES, TERMS_VERSION, applyCoinDelta, isSku, leaderboardPrize } from '../../../src/game/catalog.ts'
 import { throneForBoards, winMap } from '../../../src/game/thrones.ts'
 import { torontoDate } from '../../../src/game/generate.ts'
 import { emailHeldBy, emailHoldKey, type EmailHold } from './emailHold.ts'
@@ -75,6 +75,10 @@ interface State {
   dailySeconds?: number | null
   weekKey?: string
   weekWins?: number
+  weekBonusPaid?: boolean
+  dayKey?: string | null
+  dayWins?: number
+  lbPaidWeek?: string | null
   teamId?: string | null
   language?: 'en' | 'fr' | null
   lastPlayed?: string | null
@@ -223,6 +227,69 @@ export class Store {
     })
     const row = await this.get<{ nonce?: string }>(key)
     return row?.nonce === nonce
+  }
+
+  /**
+   * Compare-and-swap on player_balances. One update matches the balance we read,
+   * so two spends cannot both pass and the balance cannot go below zero.
+   * Null means the debit did not fit.
+   */
+  async adjustCoins(id: string, delta: number): Promise<number | null> {
+    const mem = `bal:${id}`
+    if (!this.key) {
+      const cur = typeof memoryPayload.get(mem) === 'number' ? (memoryPayload.get(mem) as number) : 0
+      const next = applyCoinDelta(cur, delta)
+      if (next == null) return null
+      memoryPayload.set(mem, next)
+      return next
+    }
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const row = await this.one<{ balance: number | string }>(`player_balances?player_id=eq.${id}&select=balance`)
+      const cur = row ? Number(row.balance) : 0
+      const next = applyCoinDelta(cur, delta)
+      if (next == null) return null
+      if (!row) {
+        try {
+          const inserted = await this.rest('player_balances', {
+            method: 'POST',
+            prefer: 'return=representation,resolution=ignore-duplicates',
+            body: { player_id: id, balance: next },
+          })
+          if (inserted.length) return next
+        } catch {
+          /* another request inserted the row */
+        }
+        continue
+      }
+      const updated = await this.rest(`player_balances?player_id=eq.${id}&balance=eq.${cur}`, {
+        method: 'PATCH',
+        prefer: 'return=representation',
+        body: { balance: next },
+      })
+      if (updated.length) return Number((updated[0] as { balance: number | string }).balance)
+    }
+    return null
+  }
+
+  /**
+   * Prize for the week that just ended. Null when this account was already paid for that week.
+   * Ranks use the same win count as the weekly board.
+   */
+  async previousWeekReward(playerId: string, paidWeek: string | null): Promise<{ weekId: string; prize: number } | null> {
+    const end = weekStart()
+    const weekId = String(end)
+    if (paidWeek === weekId) return null
+    if (!this.key) return { weekId, prize: 0 }
+    const startIso = new Date(end - 7 * 86400000).toISOString()
+    const endIso = new Date(end).toISOString()
+    const rows = await this.many<{ player_id: string }>(
+      `scores?created_at=gte.${encodeURIComponent(startIso)}&created_at=lt.${encodeURIComponent(endIso)}&select=player_id&limit=5000`,
+    )
+    const totals = new Map<string, number>()
+    for (const row of rows) totals.set(row.player_id, (totals.get(row.player_id) ?? 0) + 1)
+    const ranked = [...totals.entries()].filter(([, count]) => count > 0).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    const index = ranked.findIndex(([id]) => id === playerId)
+    return { weekId, prize: index >= 0 ? leaderboardPrize(index + 1) : 0 }
   }
 
   async del(key: string): Promise<void> {
@@ -575,6 +642,10 @@ export class Store {
       dailySeconds: state.dailySeconds ?? null,
       weekKey: state.weekKey ?? '',
       weekWins: state.weekWins ?? 0,
+      weekBonusPaid: state.weekBonusPaid ?? false,
+      dayKey: state.dayKey ?? null,
+      dayWins: state.dayWins ?? 0,
+      lbPaidWeek: state.lbPaidWeek ?? null,
       teamId: state.teamId ?? null,
       sessions: devices.map((device) => device.session_id),
       resetToken: state.resetToken ?? null,
@@ -613,6 +684,10 @@ export class Store {
       dailySeconds: account.dailySeconds,
       weekKey: account.weekKey,
       weekWins: account.weekWins,
+      weekBonusPaid: account.weekBonusPaid,
+      dayKey: account.dayKey,
+      dayWins: account.dayWins,
+      lbPaidWeek: account.lbPaidWeek,
       teamId: account.teamId,
       language: account.language,
       lastPlayed: account.lastPlayed,
@@ -633,11 +708,6 @@ export class Store {
       method: 'POST',
       prefer: 'resolution=merge-duplicates',
       body: { player_id: account.id, slot: 'rewrite', version: 2, state },
-    })
-    await this.rest('player_balances?on_conflict=player_id', {
-      method: 'POST',
-      prefer: 'resolution=merge-duplicates',
-      body: { player_id: account.id, balance: account.coins },
     })
     await this.rest('account_flags?on_conflict=user_id', {
       method: 'POST',

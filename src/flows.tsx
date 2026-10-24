@@ -5,7 +5,7 @@ import { DefenderArt } from './ui/DefenderArt'
 import { isSolved } from './game/logic'
 import { isMuted, setMuted, sfxMark, sfxPlace } from './game/sound'
 import { ADJECTIVES, NOUNS, formatTeamName } from './game/teamNames'
-import { DEFENDERS, PETS, CLOTHES, PACKS, SELLER, SUPPORT_EMAIL, STARTER_COINS, centsForSku, formatCoins, formatPrice, isSku, priceForCountry, type Sku } from './game/catalog'
+import { CHARGE_COST, DEFENDERS, DEFENDER_PRICE, PETS, CLOTHES, PACKS, SELLER, SUPPORT_EMAIL, STARTER_COINS, centsForSku, formatCoins, formatPrice, isSku, priceForCountry, sameSiteNext, type Sku } from './game/catalog'
 import { throneAt, throneForBoards, winMap } from './game/thrones'
 import type { Copy, Lang } from './i18n'
 import { legalSections } from './i18n'
@@ -33,6 +33,8 @@ function errText(t: Copy, error: unknown): string {
   if (code === 'mail') return t.errorMail
   if (code === 'email-used') return t.emailUsed
   if (code === 'email-holder') return t.emailNeedsHolder
+  if (code === 'coins') return t.needCoins
+  if (code === 'owned') return t.owned
   if (code === 'schema') return t.errorSchema
   if (code === 'supabase-key') return t.errorSupabase
   if (code === 'deleted') return t.deleted
@@ -137,8 +139,11 @@ export function AuthScreen({ t, pc, onMe, path }: Bag) {
   const [recovery, setRecovery] = useState<string | null>(null)
   const [publicName, setPublicName] = useState('')
   const [names, setNames] = useState<string[]>([])
-  const mode = path.startsWith('/reset/') ? 'reset' : path.replace('/', '') || 'join'
-  const token = path.startsWith('/reset/') ? decodeURIComponent(path.split('/')[2] || '') : ''
+  const route = path.split('?')[0]
+  const mode = route.startsWith('/reset/') ? 'reset' : route.replace('/', '') || 'join'
+  const token = route.startsWith('/reset/') ? decodeURIComponent(route.split('/')[2] || '') : ''
+  const next = sameSiteNext(new URLSearchParams(path.split('?')[1] ?? '').get('next'))
+  const nextQuery = next ? `?next=${encodeURIComponent(next)}` : ''
 
   async function submit(event: { preventDefault: () => void }) {
     event.preventDefault()
@@ -150,11 +155,11 @@ export function AuthScreen({ t, pc, onMe, path }: Bag) {
         setPublicName(res.me.playerName)
         if (res.recoveryCode) setRecovery(res.recoveryCode)
         else if (res.mailSent === false) setError(t.errorMail)
-        else go('/')
+        else go(next || '/')
       } else if (mode === 'signin') {
         const res = await api<{ me: Me }>('/api/signin', { login, password })
         onMe(res.me)
-        go('/')
+        go(next || '/')
       } else if (mode === 'forgot') {
         const res = await api<{ sent: boolean; reason?: string }>('/api/recover/email', { login })
         setNote(res.reason === 'no-email' ? t.noEmail : t.linkSent)
@@ -167,7 +172,7 @@ export function AuthScreen({ t, pc, onMe, path }: Bag) {
         onMe(res.me)
         setNames(res.names)
         setRecovery(res.recoveryCode)
-        if (!res.recoveryCode) go('/')
+        if (!res.recoveryCode) go(next || '/')
       }
     } catch (error) {
       setError(errText(t, error))
@@ -195,7 +200,7 @@ export function AuthScreen({ t, pc, onMe, path }: Bag) {
 
   if (recovery && mode === 'join') {
     return (
-      <form className={pc ? 'pc-body' : 'body'} onSubmit={(event) => { event.preventDefault(); go('/nudge') }}>
+      <form className={pc ? 'pc-body' : 'body'} onSubmit={(event) => { event.preventDefault(); go(next || '/nudge') }}>
         <div className={pc ? 'pc-main stack' : 'stack'}>
           <h1>{t.recoveryTitle}</h1>
           <div className="card"><b>{recovery}</b><p className="muted">{t.publicName}: {publicName}</p><p className="muted">{t.recoveryOnce}</p></div>
@@ -236,8 +241,8 @@ export function AuthScreen({ t, pc, onMe, path }: Bag) {
         </div>
         {mode === 'signin' ? <button type="button" onClick={() => go('/forgot')}>{t.forgot}</button> : null}
         {mode === 'forgot' ? <button type="button" onClick={() => go('/code')}>{t.haveCode}</button> : null}
-        {mode === 'join' ? <button type="button" onClick={() => go('/signin')}>{t.already} {t.signIn}</button> : null}
-        {mode === 'signin' ? <button type="button" onClick={() => go('/join')}>{t.newHere} {t.join}</button> : null}
+        {mode === 'join' ? <button type="button" onClick={() => go(`/signin${nextQuery}`)}>{t.already} {t.signIn}</button> : null}
+        {mode === 'signin' ? <button type="button" onClick={() => go(`/join${nextQuery}`)}>{t.newHere} {t.join}</button> : null}
         <span className="build">{t.build} {BUILD_NUMBER}</span>
       </div>
     </form>
@@ -291,8 +296,19 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
     void api<typeof prices>('/api/prices').then(setPrices).catch(() => undefined)
   }, [])
 
+  async function buyCoins(kind: 'charge' | 'defender' | 'cloth', id: string) {
+    if (!me) return go('/signin?next=/shop')
+    setError('')
+    try {
+      const res = await api<{ me: Me }>('/api/shop/buy', { kind, id })
+      onMe(res.me)
+    } catch (err) {
+      setError(errText(t, err))
+    }
+  }
+
   async function begin(next: Sku) {
-    if (!me) return go('/signin')
+    if (!me) return go('/signin?next=/shop')
     setSku(next)
     sessionStorage.setItem('rg.sku', next)
     if (me.buyingStopped) return go('/shop/setup')
@@ -318,7 +334,7 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
   }
 
   const cents = centsForSku(sku, prices)
-  const price = cents == null ? t.placeholderCoins : formatPrice(cents, prices.symbol, lang)
+  const price = cents == null ? '' : formatPrice(cents, prices.symbol, lang)
   const offerName = packName(t, sku)
   const offerLine = sku === 'starter'
     ? `${formatCoins(STARTER_COINS, lang)} ${t.coins} · ${t.bonusIcons}`
@@ -446,7 +462,7 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
       {showStarter ? (
         <button className="starter" type="button" onClick={() => void begin('starter')}>
           <span className="tag">{t.bonus}</span>
-          <span className="spread"><DefenderArt id="night-owl" size={56} /><DefenderArt id="for-lupa" size={56} /></span>
+          <span className="spread"><DefenderArt id="night-owl" size={56} /><DefenderArt id="top-hat" size={56} /></span>
           <b>{t.starter}</b>
           <p className="muted">{t.oneTime}</p>
           <p>{t.bonusIcons}</p>
@@ -455,17 +471,33 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
       ) : null}
       {pc || tab === 'charges' ? (
         <div className="stack">
-          {DEFENDERS.slice(0, 3).map((item) => (
-            <div key={item.id} className="card spread"><DefenderArt id={item.id} size={48} /><span>{item.name}</span><span>{t.placeholderCoins}</span></div>
+          {DEFENDERS.map((item) => (
+            <div key={item.id} className="card stack">
+              <div className="spread"><DefenderArt id={item.id} size={48} /><span>{item.name}</span><span>{formatCoins(CHARGE_COST, lang)} {t.coins}</span></div>
+              <button className="btn" type="button" onClick={() => void buyCoins('charge', item.id)}>{t.buy}</button>
+            </div>
           ))}
         </div>
       ) : null}
-      {pc || tab === 'defenders' ? PETS.filter((pet) => !pet.free).map((pet) => (
-        <div key={pet.id} className="card spread"><DefenderArt id={pet.id} size={48} /><span>{pet.name}</span><span>{t.placeholderCoins}</span></div>
-      )) : null}
-      {pc || tab === 'clothing' ? CLOTHES.map((piece) => (
-        <div key={piece.id} className="card spread"><DefenderArt id={piece.id} size={48} pieces={piece.id === 'for-lupa' ? ['top-hat'] : piece.id === 'for-aquila' ? ['sunglasses'] : ['laurel']} /><span>{piece.name}</span><span>{t.placeholderCoins}</span></div>
-      )) : null}
+      {pc || tab === 'defenders' ? DEFENDERS.map((defender) => {
+        const owned = me?.pets.includes(defender.id)
+        return (
+          <div key={defender.id} className="card stack">
+            <div className="spread"><DefenderArt id={defender.id} size={48} /><span>{defender.name}</span><span>{owned ? t.owned : `${formatCoins(DEFENDER_PRICE[defender.id], lang)} ${t.coins}`}</span></div>
+            {owned ? null : <button className="btn" type="button" onClick={() => void buyCoins('defender', defender.id)}>{t.buy}</button>}
+          </div>
+        )
+      }) : null}
+      {pc || tab === 'clothing' ? CLOTHES.map((piece) => {
+        const owned = me?.clothes.includes(piece.id)
+        const note = piece.earn === 'throne' ? t.laurelEarn : piece.earn === 'streak' ? t.crownEarn : owned ? t.owned : `${formatCoins(piece.price ?? 0, lang)} ${t.coins}`
+        return (
+          <div key={piece.id} className="card stack">
+            <div className="spread"><DefenderArt id={piece.id} size={48} /><span>{piece.name}</span><span>{note}</span></div>
+            {piece.price == null || owned ? null : <button className="btn" type="button" onClick={() => void buyCoins('cloth', piece.id)}>{t.buy}</button>}
+          </div>
+        )
+      }) : null}
       <p className="muted">{t.coinPacks}</p>
       {PACKS.map((pack) => {
         const packCents = centsForSku(pack.sku, prices)
@@ -475,7 +507,7 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
             {tag ? <span className="tag">{tag}</span> : null}
             <b>{packName(t, pack.sku)}</b>
             <p>{formatCoins(pack.coins, lang)} {t.coins}</p>
-            <p>{packCents == null ? t.placeholderCoins : formatPrice(packCents, prices.symbol, lang)}</p>
+            {packCents == null ? null : <p>{formatPrice(packCents, prices.symbol, lang)}</p>}
           </>
         )
         if (packCents == null) return <div key={pack.sku} className="card">{body}</div>
@@ -505,7 +537,7 @@ function Done({ t, lang, sessionId, onMe }: { t: Copy; lang: Lang; sessionId: st
     void api<{ me: Me | null; sku: string }>('/api/shop/confirm', { sessionId }).then((res) => {
       if (res.me) onMe(res.me)
       const pack = PACKS.find((item) => item.sku === res.sku)
-      setNote(res.sku === 'starter' ? t.starter : pack ? packName(t, pack.sku) : t.placeholderCoins)
+      setNote(res.sku === 'starter' ? t.starter : pack ? packName(t, pack.sku) : t.coins)
       setLine(res.sku === 'starter'
         ? `${formatCoins(STARTER_COINS, lang)} ${t.coins} · ${t.bonusIcons}`
         : pack ? `${formatCoins(pack.coins, lang)} ${t.coins}` : '')
@@ -514,7 +546,7 @@ function Done({ t, lang, sessionId, onMe }: { t: Copy; lang: Lang; sessionId: st
   return (
     <div className="stack">
       <h1>{t.added}</h1>
-      {note === t.starter ? <span className="spread"><DefenderArt id="night-owl" size={64} /><DefenderArt id="for-lupa" size={64} /></span> : null}
+      {note === t.starter ? <span className="spread"><DefenderArt id="night-owl" size={64} /><DefenderArt id="top-hat" size={64} /></span> : null}
       <p>{note}</p>
       {line ? <p className="muted">{line}</p> : null}
       <button className="btn gold" type="button" onClick={() => go('/shop')}>{t.backShop}</button>
@@ -1057,19 +1089,19 @@ export function StableScreen({ t, me, onMe }: Bag) {
         ))}
       </div>
       <p className="muted">{t.host}: {host ?? t.noHost}</p>
-      {pets.length === 0 ? <p className="muted">{t.priceUnset}</p> : pets.map((id) => (
+      {pets.map((id) => (
         <div key={id} className="card spread">
           <DefenderArt id={id} size={48} />
-          <span>{PETS.find((pet) => pet.id === id)?.name ?? id}</span>
+          <span>{PETS.find((pet) => pet.id === id)?.name ?? DEFENDERS.find((defender) => defender.id === id)?.name ?? id}</span>
           <button className="btn" type="button" onClick={() => void api<{ me: Me }>('/api/host', { pet: id }).then((res) => onMe(res.me))}>{t.pickHost}</button>
         </div>
       ))}
       <h2>{t.dress}</h2>
       <p className="muted">{t.oneWearer}</p>
-      {clothes.length === 0 ? <p className="muted">{t.priceUnset}</p> : clothes.map((id) => (
+      {clothes.map((id) => (
         <div key={id} className="card spread">
-          <DefenderArt id={id} size={48} pieces={id === 'for-lupa' ? ['top-hat'] : id === 'for-aquila' ? ['sunglasses'] : ['laurel']} />
-          <span>{CLOTHES.find((piece) => piece.id === id)?.name ?? id}</span>
+          <DefenderArt id={id} size={48} />
+          <span>{CLOTHES.find((piece) => piece.id === id)?.name ?? (id === 'for-lupa' ? 'Top hat' : id === 'for-aquila' ? 'Sunglasses' : id === 'for-leo' ? 'Laurel' : id)}</span>
         </div>
       ))}
       <button className="btn" type="button" onClick={() => go('/shop')}>{t.shop}</button>
