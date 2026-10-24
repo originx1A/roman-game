@@ -1380,7 +1380,12 @@ async function challengeResult(kv: Store, me: Account | null, code: string, body
 }
 
 async function makeTeam(kv: Store, me: Account | null, body: Record<string, unknown>): Promise<Response> {
-  if (!me) return json({ error: 'auth' }, 401)
+  if (!me) {
+    // No service key makes every session look signed out, so the generic
+    // failure was hiding the real preview problem.
+    if (!(await kv.status()).key) return json({ error: 'supabase-key' }, 503)
+    return json({ error: 'auth' }, 401)
+  }
   if (me.teamId) return json({ error: 'already' }, 400)
   const pick = body.pick as TeamNamePick
   const parsed = pick ? parseTeamName(formatTeamName(pick)) : null

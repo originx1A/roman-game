@@ -37,6 +37,7 @@ function errText(t: Copy, error: unknown): string {
   if (code === 'owned') return t.owned
   if (code === 'schema') return t.errorSchema
   if (code === 'supabase-key') return t.errorSupabase
+  if (code === 'auth') return t.signInFriends
   if (code === 'deleted') return t.deleted
   return t.errorGeneric
 }
@@ -259,10 +260,14 @@ export function AuthScreen({ t, pc, onMe, path }: Bag) {
           <span>·</span>
           <button type="button" onClick={() => go('/legal/terms')}>{t.terms}</button>
         </div>
-        {mode === 'signin' ? <button type="button" onClick={() => go('/forgot')}>{t.forgot}</button> : null}
-        {mode === 'forgot' ? <button type="button" onClick={() => go('/code')}>{t.haveCode}</button> : null}
-        {mode === 'join' ? <button type="button" onClick={() => go(`/signin${nextQuery}`)}>{t.already} {t.signIn}</button> : null}
-        {mode === 'signin' ? <button type="button" onClick={() => go(`/join${nextQuery}`)}>{t.newHere} {t.join}</button> : null}
+        {mode === 'signin' || mode === 'forgot' || mode === 'join' ? (
+          <div className="row auth-links">
+            {mode === 'signin' ? <button className="btn" type="button" onClick={() => go('/forgot')}>{t.forgot}</button> : null}
+            {mode === 'forgot' ? <button className="btn" type="button" onClick={() => go('/code')}>{t.haveCode}</button> : null}
+            {mode === 'join' ? <button className="btn" type="button" onClick={() => go(`/signin${nextQuery}`)}>{t.already} {t.signIn}</button> : null}
+            {mode === 'signin' ? <button className="btn" type="button" onClick={() => go(`/join${nextQuery}`)}>{t.newHere} {t.join}</button> : null}
+          </div>
+        ) : null}
         <span className="build">{t.build} {BUILD_NUMBER}</span>
       </div>
     </form>
@@ -298,7 +303,7 @@ export function NudgeScreen({ t, me }: Bag) {
 }
 
 export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
-  const [tab, setTab] = useState<'charges' | 'defenders' | 'clothing'>('charges')
+  const [tab, setTab] = useState<'charges' | 'defenders' | 'clothing' | 'packs'>('charges')
   const [day, setDay] = useState('')
   const [month, setMonth] = useState('')
   const [year, setYear] = useState('')
@@ -472,90 +477,104 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
   const charge = DEFENDERS.find((item) => item.id === chargeId) ?? DEFENDERS[0]
   const showStarter = !me?.starterOwned
   if (pc) {
+    const shopTab = (tab === 'packs' ? 'packs' : tab) as 'charges' | 'defenders' | 'clothing' | 'packs'
     return wrap(
-      <div className="stack">
+      <div className="stack shop-fit">
         <div className="spread"><button className="logo" type="button" onClick={() => go('/')}>{t.brand}</button><span className="coin">{formatCoins(me?.coins ?? 0, lang)} ¢</span></div>
         {error ? <p className="err">{error}</p> : null}
-        <h2>{t.charges}</h2>
-        <div className="shop-cards lone">
-          <div className="card pic-card stack">
-            <span className="row">{DEFENDERS.map((item) => <DefenderArt key={item.id} id={item.id} size={64} />)}</span>
-            <b>{t.charges}</b>
-            <p className="muted">{CHARGE_LABEL[charge.ability][lang]}</p>
-            <p>{formatCoins(CHARGE_COST, lang)} {t.coins}</p>
-            <label className="field">
-              <select value={chargeId} onChange={(event) => setChargeId(event.target.value as typeof chargeId)}>
-                {DEFENDERS.map((item) => (
-                  <option key={item.id} value={item.id}>{item.name}</option>
-                ))}
-              </select>
-            </label>
-            <button className="btn gold" type="button" onClick={() => void buyCoins('charge', chargeId)}>{t.buy}</button>
-          </div>
+        <div className="tabs">
+          {(['charges', 'defenders', 'clothing', 'packs'] as const).map((item) => (
+            <button key={item} className={`tab ${shopTab === item ? 'on' : ''}`} type="button" onClick={() => setTab(item)}>{item === 'packs' ? t.coinPacks : t[item]}</button>
+          ))}
         </div>
-        <h2>{t.defenders}</h2>
-        <div className="shop-cards five">
-          {DEFENDERS.map((defender) => {
-            const owned = me?.pets.includes(defender.id)
-            return (
-              <div key={defender.id} className="card pic-card stack">
-                <DefenderArt id={defender.id} size={96} />
-                <b>{defender.name}</b>
-                <p className="muted">{CHARGE_LABEL[defender.ability][lang]}</p>
-                <p>{owned ? t.owned : `${formatCoins(DEFENDER_PRICE[defender.id], lang)} ${t.coins}`}</p>
-                {owned ? null : <button className="btn gold" type="button" onClick={() => void buyCoins('defender', defender.id)}>{t.buy}</button>}
+        <div className="shop-stage">
+          {shopTab === 'charges' ? (
+            <div className="shop-cards lone">
+              <div className="card pic-card stack">
+                <DefenderArt id={charge.id} size={160} />
+                <b>{t.charges}</b>
+                <p className="muted">{CHARGE_LABEL[charge.ability][lang]}</p>
+                <p>{formatCoins(CHARGE_COST, lang)} {t.coins}</p>
+                <label className="field">
+                  <select value={chargeId} onChange={(event) => setChargeId(event.target.value as typeof chargeId)}>
+                    {DEFENDERS.map((item) => (
+                      <option key={item.id} value={item.id}>{item.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <button className="btn gold" type="button" onClick={() => void buyCoins('charge', chargeId)}>{t.buy}</button>
               </div>
-            )
-          })}
-        </div>
-        <h2>{t.clothing}</h2>
-        <div className="shop-cards three">
-          {CLOTHES.map((piece) => {
-            const owned = me?.clothes.includes(piece.id)
-            const detail = piece.earn === 'throne' ? t.laurelEarn : piece.earn === 'streak' ? t.crownEarn : t.oneWearer
-            const priceLine = owned ? t.owned : piece.price == null ? '' : `${formatCoins(piece.price, lang)} ${t.coins}`
-            return (
-              <div key={piece.id} className="card pic-card stack">
-                <DefenderArt id={piece.id} size={96} />
-                <b>{piece.name}</b>
-                <p className="muted">{detail}</p>
-                {priceLine ? <p>{priceLine}</p> : null}
-                {piece.price == null || owned ? null : <button className="btn gold" type="button" onClick={() => void buyCoins('cloth', piece.id)}>{t.buy}</button>}
-              </div>
-            )
-          })}
-        </div>
-        <h2>{t.coinPacks}</h2>
-        <div className={showStarter ? 'shop-cards four' : 'shop-cards three'}>
-          {showStarter ? (
-            <button className="starter" type="button" onClick={() => void begin('starter')}>
-              <span className="tag">{t.bonus}</span>
-              <span className="spread"><DefenderArt id="night-owl" size={72} /><DefenderArt id="top-hat" size={72} /></span>
-              <b>{t.starter}</b>
-              <p className="muted">{t.oneTime}</p>
-              <p>{t.bonusIcons}</p>
-              <p>{formatPrice(prices.starterCents, prices.symbol, lang)}</p>
-            </button>
+            </div>
           ) : null}
-          {PACKS.map((pack) => {
-            const packCents = centsForSku(pack.sku, prices)
-            const tag = pack.tag === 'bonus7' ? t.bonus7 : pack.tag === 'bonus15' ? t.bonus15 : null
-            const body = (
-              <>
-                {tag ? <span className="tag">{tag}</span> : null}
-                <b>{packName(t, pack.sku)}</b>
-                <p className="muted">{formatCoins(pack.coins, lang)} {t.coins}</p>
-                {packCents == null ? null : <p>{formatPrice(packCents, prices.symbol, lang)}</p>}
-              </>
-            )
-            if (packCents == null) return <div key={pack.sku} className="card pic-card stack">{body}</div>
-            return (
-              <button key={pack.sku} className="card pic-card stack" type="button" onClick={() => void begin(pack.sku)}>{body}</button>
-            )
-          })}
+          {shopTab === 'defenders' ? (
+            <div className="shop-cards five">
+              {DEFENDERS.map((defender) => {
+                const owned = me?.pets.includes(defender.id)
+                return (
+                  <div key={defender.id} className="card pic-card stack">
+                    <DefenderArt id={defender.id} size={150} />
+                    <b>{defender.name}</b>
+                    <p className="muted">{CHARGE_LABEL[defender.ability][lang]}</p>
+                    <p>{owned ? t.owned : `${formatCoins(DEFENDER_PRICE[defender.id], lang)} ${t.coins}`}</p>
+                    {owned ? null : <button className="btn gold" type="button" onClick={() => void buyCoins('defender', defender.id)}>{t.buy}</button>}
+                  </div>
+                )
+              })}
+            </div>
+          ) : null}
+          {shopTab === 'clothing' ? (
+            <div className="shop-cards three">
+              {CLOTHES.map((piece) => {
+                const owned = me?.clothes.includes(piece.id)
+                const detail = piece.earn === 'throne' ? t.laurelEarn : piece.earn === 'streak' ? t.crownEarn : t.oneWearer
+                const priceLine = owned ? t.owned : piece.price == null ? '' : `${formatCoins(piece.price, lang)} ${t.coins}`
+                return (
+                  <div key={piece.id} className="card pic-card stack">
+                    <DefenderArt id={piece.id} size={150} />
+                    <b>{piece.name}</b>
+                    <p className="muted">{detail}</p>
+                    {priceLine ? <p>{priceLine}</p> : null}
+                    {piece.price == null || owned ? null : <button className="btn gold" type="button" onClick={() => void buyCoins('cloth', piece.id)}>{t.buy}</button>}
+                  </div>
+                )
+              })}
+            </div>
+          ) : null}
+          {shopTab === 'packs' ? (
+            <div className={showStarter ? 'shop-cards four' : 'shop-cards three'}>
+              {showStarter ? (
+                <button className="starter pic-card stack" type="button" onClick={() => void begin('starter')}>
+                  <span className="tag">{t.bonus}</span>
+                  <span className="row"><DefenderArt id="night-owl" size={120} /><DefenderArt id="top-hat" size={120} /></span>
+                  <b>{t.starter}</b>
+                  <p className="muted">{t.oneTime}</p>
+                  <p>{t.bonusIcons}</p>
+                  <p>{formatPrice(prices.starterCents, prices.symbol, lang)}</p>
+                </button>
+              ) : null}
+              {PACKS.map((pack) => {
+                const packCents = centsForSku(pack.sku, prices)
+                const tag = pack.tag === 'bonus7' ? t.bonus7 : pack.tag === 'bonus15' ? t.bonus15 : null
+                const body = (
+                  <>
+                    {tag ? <span className="tag">{tag}</span> : null}
+                    <b>{packName(t, pack.sku)}</b>
+                    <p className="muted">{formatCoins(pack.coins, lang)} {t.coins}</p>
+                    {packCents == null ? null : <p>{formatPrice(packCents, prices.symbol, lang)}</p>}
+                  </>
+                )
+                if (packCents == null) return <div key={pack.sku} className="card pic-card stack">{body}</div>
+                return (
+                  <button key={pack.sku} className="card pic-card stack" type="button" onClick={() => void begin(pack.sku)}>{body}</button>
+                )
+              })}
+            </div>
+          ) : null}
         </div>
-        <div className="card"><button className="btn" type="button" disabled>{t.buyFree}</button> <button className="btn" type="button" onClick={() => go('/shop')}>{t.notNow}</button></div>
-        <p className="muted">{t.shopTabsNote}</p>
+        <div className="spread">
+          <span className="row"><button className="btn" type="button" disabled>{t.buyFree}</button><button className="btn" type="button" onClick={() => go('/shop')}>{t.notNow}</button></span>
+          <p className="muted">{t.shopTabsNote}</p>
+        </div>
       </div>,
     )
   }
@@ -887,7 +906,7 @@ export function HelpScreen({ t, path, lang }: Bag) {
   const topic = topics.find(([id]) => id === page)
   return (
     <div className="body stack">
-      <button type="button" onClick={() => go('/help')}>{t.helpLegal}</button>
+      <button className="btn" type="button" onClick={() => go('/help')}>{t.helpLegal}</button>
       <h1>{topic?.[1]}</h1>
       <p>{topic?.[2]}</p>
     </div>
@@ -922,7 +941,7 @@ export function LegalScreen({ t, lang, path }: Bag) {
   const sections = legalSections(lang, page === 'accessibility' ? 'accessibility' : page)
   return (
     <div className={path ? 'body stack scroll legal' : 'body'}>
-      <button type="button" onClick={() => go('/help')}>{t.helpLegal}</button>
+      <button className="btn" type="button" onClick={() => go('/help')}>{t.helpLegal}</button>
       <h1>{title}</h1>
       <p className="muted">{t.legalUpdated}</p>
       {sections.map((section) => {
@@ -997,7 +1016,7 @@ export function TeamScreen({ t, me, path, pc }: Bag) {
                 {iAmLeader && member.id !== me?.id ? (
                   <div className="grid2">
                     <button className="btn" type="button" onClick={() => void api('/api/team/rank', { id: member.id, rank: member.rank === 'captain' ? 'member' : 'captain' }).then(() => location.reload())}>{member.rank === 'captain' ? t.member : t.captain}</button>
-                    <button className="btn" type="button" onClick={() => void api('/api/team/rank', { id: member.id, remove: true }).then(() => location.reload()).catch(() => setError(t.errorGeneric))}>{t.remove}</button>
+                    <button className="btn" type="button" onClick={() => void api('/api/team/rank', { id: member.id, remove: true }).then(() => location.reload()).catch((err) => setError(errText(t, err)))}>{t.remove}</button>
                   </div>
                 ) : null}
               </div>
@@ -1160,8 +1179,9 @@ export function BoardScreen({ t, me, pc }: Bag) {
     return (
       <div className="pc-split">
         <div className="card stack">
-          <div className="spread"><h1>{t.leaderboard}</h1><button type="button" onClick={() => go('/')}>{t.close}</button></div>
+          <div className="spread"><h1>{t.leaderboard}</h1><button className="btn" type="button" onClick={() => go('/')}>{t.close}</button></div>
           {tabs}
+          <div className="scroll stack">
           {scope === 'friends' ? (
             friends.length === 0 ? <p className="muted">{t.noRank}</p> : friends.map((person) => (
               <div key={person.id} className="spread">
@@ -1174,6 +1194,7 @@ export function BoardScreen({ t, me, pc }: Bag) {
               <span className="row"><DefenderArt id={row.hostPet} size={32} />{index + 1}. {row.name}</span><span>{row.throne ? `#${row.throne}` : ''} {row.score}</span>
             </button>
           ))}
+          </div>
         </div>
         <div className="stack">
           {pickedCard}
@@ -1221,7 +1242,7 @@ export function BoardScreen({ t, me, pc }: Bag) {
   }
   return (
     <div className="body stack">
-      <div className="spread"><h1>{t.solo}</h1><button type="button" onClick={() => go('/')}>{t.close}</button></div>
+      <div className="spread"><h1>{t.solo}</h1><button className="btn" type="button" onClick={() => go('/')}>{t.close}</button></div>
       {tabs}
       {scope === 'friends' ? (
         <div className="scroll stack">
@@ -1280,18 +1301,17 @@ export function ThroneScreen({ t, lang, me, pc }: Bag) {
   const held = throneForBoards(winMap({ wins: me?.wins ?? 0, winsByBoard: me?.winsByBoard }))
   const list = Array.from({ length: 12 }, (_, index) => throneAt(index))
   const cards = list.map((throne) => (
-    <div key={throne.id} className="card spread">
-      <span>{throne.id}. {lang === 'fr' ? throne.nameFr : throne.name}</span>
+    <div key={throne.id} className="card throne-card">
+      <b>{throne.id}. {lang === 'fr' ? throne.nameFr : throne.name}</b>
       <span>{held && held.id >= throne.id ? '●' : throne.wins}</span>
     </div>
   ))
   return (
     <div className={pc ? 'pc-sheet shop-scroll' : 'body stack scroll'}>
-      <div className="spread"><h1>{t.thrones}</h1><button type="button" onClick={() => go('/')}>{t.home}</button></div>
+      <div className="spread"><h1>{t.thrones}</h1><button className="btn" type="button" onClick={() => go('/')}>{t.home}</button></div>
       <p className="muted">{t.throneRule}</p>
       <p className="muted">{t.statusOnly} {held ? (lang === 'fr' ? held.nameFr : held.name) : ''}</p>
-      {pc ? <div className="pc-grid">{cards}</div> : cards}
-      <p className="muted">{t.statusOnly}</p>
+      <div className="throne-grid">{cards}</div>
     </div>
   )
 }
@@ -1317,10 +1337,10 @@ export function StableScreen({ t, me, onMe, pc }: Bag) {
     <div className={pc ? 'pc-sheet shop-scroll' : 'body stack shop-scroll'}>
       <h1>{t.stable}</h1>
       {pc ? (
-        <div className="pc-grid">
+        <div className="stable-row">
           {DEFENDERS.map((defender) => (
             <div key={defender.id} className="card pic-card stack">
-              <DefenderArt id={defender.id} size={96} />
+              <DefenderArt id={defender.id} size={168} />
               <b>{defender.name}</b>
             </div>
           ))}
@@ -1340,8 +1360,10 @@ export function StableScreen({ t, me, onMe, pc }: Bag) {
       <h2>{t.dress}</h2>
       <p className="muted">{t.oneWearer}</p>
       {pc && clothCards.length > 0 ? <div className="pc-grid">{clothCards}</div> : clothCards}
-      <button className="btn" type="button" onClick={() => go('/shop')}>{t.shop}</button>
-      <button className="btn" type="button" onClick={() => go('/')}>{t.home}</button>
+      <div className={pc ? 'row' : 'stack'}>
+        <button className="btn" type="button" onClick={() => go('/shop')}>{t.shop}</button>
+        <button className="btn" type="button" onClick={() => go('/')}>{t.home}</button>
+      </div>
     </div>
   )
 }
