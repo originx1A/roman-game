@@ -93,7 +93,7 @@ interface State {
 }
 
 export interface BoardResult {
-  rows: { id?: string; name: string; score: number; throne: number }[]
+  rows: { id?: string; name: string; score: number; throne: number; hostPet?: string | null }[]
   friends?: { id: string; name: string }[]
   incoming?: { id: string; name: string }[]
   outgoing?: { id: string; name: string }[]
@@ -1085,6 +1085,7 @@ export class Store {
       ? await this.many<{ player_id: string; state: State }>(`game_saves?player_id=in.(${ids.join(',')})&slot=eq.rewrite&select=player_id,state`)
       : []
     const winsOf = new Map(saves.map((save) => [save.player_id, winMap(save.state ?? {})]))
+    const hostOf = new Map(saves.map((save) => [save.player_id, save.state?.hostPet ?? null]))
     return [...totals.entries()]
       .filter(([, score]) => score > 0)
       .sort((a, b) => (scope === 'today' ? a[1] - b[1] : b[1] - a[1]))
@@ -1093,12 +1094,13 @@ export class Store {
         name: hidden.has(id) ? 'Player' : names.get(id) ?? 'Player',
         score,
         throne: throneForBoards(winsOf.get(id) ?? {})?.id ?? 0,
+        hostPet: hostOf.get(id) ?? null,
       }))
   }
 
-  async openTeams(): Promise<{ name: string; memberCount: number; code: string; full: boolean }[]> {
-    const groups = await this.many<{ id: string; name: string; invite_code: string | null; founder_id: string | null }>(
-      'game_groups?open_join=eq.true&select=id,name,invite_code,founder_id&order=created_at.desc&limit=40',
+  async openTeams(): Promise<{ name: string; memberCount: number; code: string; full: boolean; mascot: string | null }[]> {
+    const groups = await this.many<{ id: string; name: string; invite_code: string | null; founder_id: string | null; mascot: string | null }>(
+      'game_groups?open_join=eq.true&select=id,name,invite_code,founder_id,mascot&order=created_at.desc&limit=40',
     )
     if (!groups.length) return []
     const closed = await this.many<{ group_id: string }>('group_closed?select=group_id')
@@ -1118,7 +1120,7 @@ export class Store {
       const set = seen.get(group.id) ?? new Set<string>()
       if (group.founder_id) set.add(group.founder_id)
       const memberCount = set.size
-      return { name: group.name, memberCount, code: group.invite_code as string, full: memberCount >= 10 }
+      return { name: group.name, memberCount, code: group.invite_code as string, full: memberCount >= 10, mascot: group.mascot }
     })
   }
 

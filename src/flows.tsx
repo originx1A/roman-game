@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { ApiError, api, type Me } from './api'
 import { BoardView } from './ui/BoardView'
+import { DefenderArt } from './ui/DefenderArt'
 import { isSolved } from './game/logic'
 import { isMuted, setMuted, sfxMark, sfxPlace } from './game/sound'
 import { ADJECTIVES, NOUNS, formatTeamName } from './game/teamNames'
@@ -445,6 +446,7 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
       {showStarter ? (
         <button className="starter" type="button" onClick={() => void begin('starter')}>
           <span className="tag">{t.bonus}</span>
+          <span className="spread"><DefenderArt id="night-owl" size={56} /><DefenderArt id="for-lupa" size={56} /></span>
           <b>{t.starter}</b>
           <p className="muted">{t.oneTime}</p>
           <p>{t.bonusIcons}</p>
@@ -454,15 +456,15 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
       {pc || tab === 'charges' ? (
         <div className="stack">
           {DEFENDERS.slice(0, 3).map((item) => (
-            <div key={item.id} className="card spread"><span>{item.name}</span><span>{t.placeholderCoins}</span></div>
+            <div key={item.id} className="card spread"><DefenderArt id={item.id} size={48} /><span>{item.name}</span><span>{t.placeholderCoins}</span></div>
           ))}
         </div>
       ) : null}
       {pc || tab === 'defenders' ? PETS.filter((pet) => !pet.free).map((pet) => (
-        <div key={pet.id} className="card spread"><span>{pet.name}</span><span>{t.placeholderCoins}</span></div>
+        <div key={pet.id} className="card spread"><DefenderArt id={pet.id} size={48} /><span>{pet.name}</span><span>{t.placeholderCoins}</span></div>
       )) : null}
       {pc || tab === 'clothing' ? CLOTHES.map((piece) => (
-        <div key={piece.id} className="card spread"><span>{piece.name}</span><span>{t.placeholderCoins}</span></div>
+        <div key={piece.id} className="card spread"><DefenderArt id={piece.id} size={48} pieces={piece.id === 'for-lupa' ? ['top-hat'] : piece.id === 'for-aquila' ? ['sunglasses'] : ['laurel']} /><span>{piece.name}</span><span>{t.placeholderCoins}</span></div>
       )) : null}
       <p className="muted">{t.coinPacks}</p>
       {PACKS.map((pack) => {
@@ -512,6 +514,7 @@ function Done({ t, lang, sessionId, onMe }: { t: Copy; lang: Lang; sessionId: st
   return (
     <div className="stack">
       <h1>{t.added}</h1>
+      {note === t.starter ? <span className="spread"><DefenderArt id="night-owl" size={64} /><DefenderArt id="for-lupa" size={64} /></span> : null}
       <p>{note}</p>
       {line ? <p className="muted">{line}</p> : null}
       <button className="btn gold" type="button" onClick={() => go('/shop')}>{t.backShop}</button>
@@ -792,8 +795,8 @@ export function LegalScreen({ t, lang, path }: Bag) {
 
 export function TeamScreen({ t, me, path, pc }: Bag) {
   const code = path.startsWith('/t/') ? path.split('/')[2] : ''
-  const [team, setTeam] = useState<{ name?: string; code?: string; members?: { id: string; name: string; rank: string }[]; asks?: { id: string; name: string }[]; memberCount?: number; path?: string } | null>(null)
-  const [openTeams, setOpenTeams] = useState<{ name: string; memberCount: number; code: string; full: boolean }[]>([])
+  const [team, setTeam] = useState<{ name?: string; code?: string; mascot?: string; members?: { id: string; name: string; rank: string }[]; asks?: { id: string; name: string }[]; memberCount?: number; path?: string } | null>(null)
+  const [openTeams, setOpenTeams] = useState<{ name: string; memberCount: number; code: string; full: boolean; mascot?: string }[]>([])
   const [adj, setAdj] = useState(ADJECTIVES[0])
   const [noun, setNoun] = useState(NOUNS[0])
   const [number, setNumber] = useState(12)
@@ -803,7 +806,7 @@ export function TeamScreen({ t, me, path, pc }: Bag) {
   const [error, setError] = useState('')
   useEffect(() => {
     const query = code ? `?code=${code}` : ''
-    void api<{ team: typeof team; board?: { name: string; memberCount: number; code: string; full: boolean }[] }>(`/api/team${query}`).then((res) => {
+    void api<{ team: typeof team; board?: { name: string; memberCount: number; code: string; full: boolean; mascot?: string }[] }>(`/api/team${query}`).then((res) => {
       setTeam(res.team)
       setOpenTeams(res.board ?? [])
     }).catch(() => undefined)
@@ -819,11 +822,11 @@ export function TeamScreen({ t, me, path, pc }: Bag) {
   }
 
   return (
-    <div className="body stack scroll">
+    <div className="body stack scroll shop-scroll">
       <h1>{t.teams}</h1>
       {team?.name ? (
         <div className="card stack">
-          <b>{team.name}</b>
+          <span className="row"><DefenderArt id={team.mascot} size={48} /><b>{team.name}</b></span>
           <p className="muted">{team.memberCount ?? 0}/10{team.code ? ` · ${team.code}` : ''}</p>
           {(team.members ?? []).map((member) => {
             const iAmLeader = (team.members ?? []).some((row) => row.id === me?.id && row.rank === 'leader')
@@ -882,6 +885,7 @@ export function TeamScreen({ t, me, path, pc }: Bag) {
             <label className="field"> <select value={noun} onChange={(event) => setNoun(event.target.value as typeof noun)}>{NOUNS.map((word) => <option key={word}>{word}</option>)}</select></label>
             <Field label="#" value={String(number)} set={(value) => setNumber(Number(value) || 1)} />
             <label className="field">{t.defenders}<select value={mascot} onChange={(event) => setMascot(event.target.value)}>{['Leo', 'Lupa', 'Aquila', 'Nox', 'Invictus'].map((name) => <option key={name}>{name}</option>)}</select></label>
+            <DefenderArt id={mascot} size={56} />
             <label className="spread"><span>{t.openJoin}</span><input type="checkbox" checked={openJoin} onChange={(event) => setOpenJoin(event.target.checked)} /></label>
             <p className="muted">{openJoin ? t.openJoin : t.inviteOnly}</p>
             <button className="btn gold" type="submit">{t.makeTeam}</button>
@@ -895,7 +899,7 @@ export function TeamScreen({ t, me, path, pc }: Bag) {
               <b>{t.openTeams}</b>
               {openTeams.map((row) => (
                 <div key={row.code} className="spread">
-                  <span>{row.name}</span>
+                  <span className="row"><DefenderArt id={row.mascot ?? 'leo'} size={32} />{row.name}</span>
                   <span>{row.memberCount}/10</span>
                   {row.full ? <span>{t.full}</span> : <button className="btn" type="button" onClick={() => go(`/t/${row.code}`)}>{t.joinTeam}</button>}
                 </div>
@@ -918,7 +922,7 @@ export function TeamScreen({ t, me, path, pc }: Bag) {
 
 export function BoardScreen({ t, me }: Bag) {
   const [scope, setScope] = useState('week')
-  const [rows, setRows] = useState<{ id?: string; name: string; score: number; throne: number }[]>([])
+  const [rows, setRows] = useState<{ id?: string; name: string; score: number; throne: number; hostPet?: string | null }[]>([])
   const [incoming, setIncoming] = useState<{ id: string; name: string }[]>([])
   const [outgoing, setOutgoing] = useState<{ id: string; name: string }[]>([])
   const [friends, setFriends] = useState<{ id: string; name: string }[]>([])
@@ -989,7 +993,7 @@ export function BoardScreen({ t, me }: Bag) {
         <div className="scroll">
           {rows.length === 0 ? <p className="muted">{t.noRank}</p> : rows.map((row, index) => (
             <button key={`${row.id ?? row.name}${index}`} className="spread" type="button" onClick={() => setPicked(row)}>
-              <span>{index + 1}. {row.name}</span><span>{row.throne ? `#${row.throne}` : ''} {row.score}</span>
+              <span className="row"><DefenderArt id={row.hostPet} size={32} />{index + 1}. {row.name}</span><span>{row.throne ? `#${row.throne}` : ''} {row.score}</span>
             </button>
           ))}
         </div>
@@ -1040,20 +1044,34 @@ export function ThroneScreen({ t, lang, me }: Bag) {
 export function StableScreen({ t, me, onMe }: Bag) {
   const pets = me?.pets ?? []
   const clothes = me?.clothes ?? []
-  const host = PETS.find((pet) => pet.id === me?.hostPet)?.name
+  const host = PETS.find((pet) => pet.id === me?.hostPet)?.name ?? DEFENDERS.find((defender) => defender.id === me?.hostPet)?.name
   return (
-    <div className="body stack">
+    <div className="body stack shop-scroll">
       <h1>{t.stable}</h1>
+      <div className="defender-row">
+        {DEFENDERS.map((defender) => (
+          <div key={defender.id}>
+            <DefenderArt id={defender.id} size={56} />
+            <div>{defender.name}</div>
+          </div>
+        ))}
+      </div>
       <p className="muted">{t.host}: {host ?? t.noHost}</p>
       {pets.length === 0 ? <p className="muted">{t.priceUnset}</p> : pets.map((id) => (
-        <div key={id} className="card stack">
+        <div key={id} className="card spread">
+          <DefenderArt id={id} size={48} />
           <span>{PETS.find((pet) => pet.id === id)?.name ?? id}</span>
           <button className="btn" type="button" onClick={() => void api<{ me: Me }>('/api/host', { pet: id }).then((res) => onMe(res.me))}>{t.pickHost}</button>
         </div>
       ))}
       <h2>{t.dress}</h2>
       <p className="muted">{t.oneWearer}</p>
-      {clothes.length === 0 ? <p className="muted">{t.priceUnset}</p> : clothes.map((id) => <div key={id} className="card">{CLOTHES.find((piece) => piece.id === id)?.name ?? id}</div>)}
+      {clothes.length === 0 ? <p className="muted">{t.priceUnset}</p> : clothes.map((id) => (
+        <div key={id} className="card spread">
+          <DefenderArt id={id} size={48} pieces={id === 'for-lupa' ? ['top-hat'] : id === 'for-aquila' ? ['sunglasses'] : ['laurel']} />
+          <span>{CLOTHES.find((piece) => piece.id === id)?.name ?? id}</span>
+        </div>
+      ))}
       <button className="btn" type="button" onClick={() => go('/shop')}>{t.shop}</button>
       <button className="btn" type="button" onClick={() => go('/')}>{t.home}</button>
     </div>

@@ -24,6 +24,7 @@ import {
 import { copyFor, detectLang, type Lang } from './i18n'
 import { go, usePath } from './nav'
 import { PlayScreen } from './play'
+import { DefenderArt } from './ui/DefenderArt'
 
 export function App() {
   const full = usePath()
@@ -95,6 +96,7 @@ export function App() {
           <button className="tab" type="button" onClick={() => go('/thrones')}>{t.throne}</button>
         </nav>
       ) : <span style={{ flex: 1 }} />}
+      {me?.hostPet ? <DefenderArt id={me.hostPet} size={36} /> : null}
       <button className="coin" type="button" onClick={() => go('/shop')}>{formatCoins(me?.coins ?? 0, lang)} ¢</button>
       <span className="build">{BUILD_NUMBER}</span>
     </header>

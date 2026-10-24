@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ApiError, api, type Me } from './api'
 import { BoardView } from './ui/BoardView'
+import { DefenderArt } from './ui/DefenderArt'
 import { CHARGE_LABEL, DEFENDERS, MAX_HEARTS, type Ability } from './game/catalog'
 import { dailyPuzzle, makePuzzle, type Difficulty } from './game/generate'
 import { buddyIndexes, conflicts, cycleCell, emptyBoard, isSolved, ruledOut, type Cell, type Puzzle } from './game/logic'
@@ -272,6 +273,7 @@ export function PlayScreen({
       <div className="defs">
         {DEFENDERS.map((defender) => (
           <button key={defender.id} className="btn" type="button" onClick={() => spend(defender.ability)}>
+            <DefenderArt id={defender.id} size={28} />
             {defender.name}
             <br />
             {CHARGE_LABEL[defender.ability][lang]} · {charges[defender.ability] ?? 0}
@@ -453,10 +455,10 @@ export function PlayScreen({
 }
 
 function MiniBoard({ t }: { t: Copy }) {
-  const [rows, setRows] = useState<{ name: string; score: number }[]>([])
+  const [rows, setRows] = useState<{ name: string; score: number; hostPet?: string | null }[]>([])
   const [note, setNote] = useState('')
   useEffect(() => {
-    void api<{ rows: { name: string; score: number }[] }>('/api/leaderboard?scope=week').then((res) => setRows(res.rows.slice(0, 8))).catch((err) => {
+    void api<{ rows: { name: string; score: number; hostPet?: string | null }[] }>('/api/leaderboard?scope=week').then((res) => setRows(res.rows.slice(0, 8))).catch((err) => {
       setNote(err instanceof ApiError && err.code === 'schema' ? t.errorSchema : t.errorSupabase)
     })
   }, [t])
@@ -465,7 +467,7 @@ function MiniBoard({ t }: { t: Copy }) {
       <div className="card scroll">
         <b>{t.week}</b>
         {note ? <p className="muted">{note}</p> : rows.length === 0 ? <p className="muted">{t.noRank}</p> : rows.map((row, index) => (
-          <div key={row.name} className="spread"><span>{index + 1}. {row.name}</span><span>{row.score}</span></div>
+          <div key={row.name} className="spread"><span className="row"><DefenderArt id={row.hostPet} size={24} />{index + 1}. {row.name}</span><span>{row.score}</span></div>
         ))}
         <button className="btn" type="button" onClick={() => go('/leaderboard')}>{t.seeAll}</button>
       </div>
