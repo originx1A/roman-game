@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { RESET_MINUTES, TERMS_VERSION } from '../../../src/game/catalog.ts'
+import { RESET_MINUTES, TERMS_VERSION, isSku } from '../../../src/game/catalog.ts'
 import { throneForBoards, winMap } from '../../../src/game/thrones.ts'
 import { torontoDate } from '../../../src/game/generate.ts'
 import { emailHeldBy, emailHoldKey, type EmailHold } from './emailHold.ts'
@@ -891,7 +891,7 @@ export class Store {
     return {
       id: String(row.id),
       accountId: String(row.player_id),
-      sku: row.sku === 'starter' ? 'starter' : 'pack-small',
+      sku: isSku(row.sku) ? row.sku : 'pack-small',
       cents: Number(row.cents),
       currency: row.currency === 'usd' ? 'usd' : 'cad',
       price: String(row.price),

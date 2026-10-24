@@ -4,7 +4,7 @@ import { conflicts, emptyBoard, isSolved, puzzlePlayable, regionConnected, type 
 import { dailyPuzzle, makePuzzle, puzzleFromId, torontoDate } from '../../src/game/generate.ts'
 import { THRONES, boardFromPuzzleId, boardSteps, throneAt, throneForBoards, throneForWins, throneIdForBoard, throneProgress, winsNeeded } from '../../src/game/thrones.ts'
 import { formatTeamName, parseTeamName } from '../../src/game/teamNames.ts'
-import { STARTER_CLOTH, STARTER_COINS, STARTER_PET, creditStarter, formatCoins, formatPrice, priceForCountry } from '../../src/game/catalog.ts'
+import { PACKS, STARTER_CLOTH, STARTER_COINS, STARTER_PET, centsForSku, creditCoins, creditStarter, formatCoins, formatPrice, isSku, priceForCountry } from '../../src/game/catalog.ts'
 import { openStore } from '../../netlify/lib/rewrite/db.ts'
 import { EMAIL_HOLD_MS, emailHeldBy, emailHoldKey } from '../../netlify/lib/rewrite/emailHold.ts'
 import { en, fr } from '../../src/i18n.ts'
@@ -113,11 +113,52 @@ test('team names only come from the lists', () => {
 test('prices are per country and the small pack matches the starter', () => {
   const ca = priceForCountry('CA')
   const us = priceForCountry('US')
+  const small = PACKS.find((pack) => pack.sku === 'pack-small')
+  const medium = PACKS.find((pack) => pack.sku === 'pack-medium')
+  const large = PACKS.find((pack) => pack.sku === 'pack-large')
+  assert.ok(small && medium && large)
   assert.equal(formatPrice(ca.starterCents, ca.symbol), 'CA$2.99')
   assert.equal(formatPrice(us.starterCents, us.symbol), 'US$1.99')
   assert.equal(ca.smallCents, 299)
   assert.equal(us.smallCents, 199)
+  assert.equal(us.starterCents, 199)
+  assert.equal(ca.mediumCents, 699)
+  assert.equal(ca.largeCents, 1499)
+  assert.equal(formatPrice(ca.mediumCents ?? 0, 'CA$'), 'CA$6.99')
+  assert.equal(formatPrice(ca.largeCents ?? 0, 'CA$'), 'CA$14.99')
+  assert.equal(us.mediumCents, null)
+  assert.equal(us.largeCents, null)
+  assert.equal(centsForSku('pack-medium', us), null)
+  assert.equal(centsForSku('pack-large', us), null)
+  assert.equal(centsForSku('pack-small', us), 199)
+  assert.equal(centsForSku('pack-small', ca), 299)
+  assert.equal(small.coins, 4000)
+  assert.equal(medium.coins, 10000)
+  assert.equal(large.coins, 23000)
+  assert.equal(small.tag, null)
+  assert.equal(medium.tag, 'bonus7')
+  assert.equal(large.tag, 'bonus15')
+  assert.equal(small.usdCents, 199)
+  assert.equal(medium.usdCents, null)
+  assert.equal(large.usdCents, null)
+  assert.equal(creditCoins({ coins: 0 }, 'pack-medium').coins, 10000)
+  assert.equal(creditCoins({ coins: 10000 }, 'pack-large').coins, 33000)
+  assert.equal(creditCoins({ coins: 5 }, 'starter').coins, 5)
+  assert.equal(formatCoins(4000, 'en'), '4,000')
+  assert.equal(formatCoins(10000, 'en'), '10,000')
+  assert.equal(formatCoins(23000, 'en'), '23,000')
+  assert.match(formatCoins(10000, 'fr'), /^10[\s\u00a0\u202f]000$/)
+  assert.match(formatCoins(23000, 'fr'), /^23[\s\u00a0\u202f]000$/)
+  assert.equal(en.bonus7, '+7% BONUS')
+  assert.equal(en.bonus15, '+15% BONUS')
+  assert.equal(fr.bonus7, '+7 % BONUS')
+  assert.equal(fr.bonus15, '+15 % BONUS')
   assert.equal(formatPrice(priceForCountry('FR').starterCents, 'CA$'), 'CA$2.99')
+  assert.equal(isSku('pack-medium'), true)
+  assert.equal(isSku('pack-large'), true)
+  assert.equal(isSku('pack-small'), true)
+  assert.equal(isSku('starter'), true)
+  assert.equal(isSku('pack-other'), false)
 })
 
 test('the starter pack credits 8000 coins, the owl, and the top hat once', async () => {

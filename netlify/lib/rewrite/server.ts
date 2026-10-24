@@ -9,12 +9,17 @@ import {
   SUPPORT_EMAIL,
   CLOTHES,
   PETS,
+  PACKS,
   STARTER_CLOTH,
   STARTER_COINS,
   STARTER_PET,
   TERMS_VERSION,
+  centsForSku,
+  creditCoins,
   creditStarter,
+  formatCoins,
   formatPrice,
+  isSku,
   priceForCountry,
   type Sku,
 } from '../../../src/game/catalog.ts'
@@ -981,11 +986,12 @@ async function acceptOrder(kv: Store, me: Account | null, body: Record<string, u
   if (me.ageGate !== 'over') return json({ error: 'birthday' }, 403)
   if (!me.emailVerified || !me.email) return json({ error: 'email' }, 403)
   if (me.buyingStopped) return json({ error: 'stopped' }, 403)
-  const sku = body.sku === 'starter' || body.sku === 'pack-small' ? body.sku : null
+  const sku = isSku(body.sku) ? body.sku : null
   if (!sku) return json({ error: 'sku' }, 400)
   if (sku === 'starter' && me.starterOwned) return json({ error: 'owned' }, 400)
   const price = priceForCountry(env.country)
-  const cents = sku === 'starter' ? price.starterCents : price.smallCents
+  const cents = centsForSku(sku, price)
+  if (cents == null) return json({ error: 'sku' }, 400)
   const order: Order = {
     id: crypto.randomUUID(),
     accountId: me.id,
@@ -1026,7 +1032,7 @@ async function checkout(kv: Store, env: Env, me: Account | null, body: Record<st
         price_data: {
           currency: order.currency,
           unit_amount: order.cents,
-          product_data: { name: order.sku === 'starter' ? 'Starter Pack' : 'Coin pack', description: "Coins for Roman's Game. No cash value." },
+          product_data: { name: checkoutName(order.sku), description: "Coins for Roman's Game. No cash value." },
         },
       },
     ],
@@ -1039,12 +1045,26 @@ async function checkout(kv: Store, env: Env, me: Account | null, body: Record<st
   return json({ url: session.url })
 }
 
+function checkoutName(sku: Sku): string {
+  if (sku === 'starter') return 'Starter Pack'
+  const pack = PACKS.find((item) => item.sku === sku)
+  const size = sku === 'pack-small' ? 'Small' : sku === 'pack-medium' ? 'Medium' : 'Large'
+  return pack ? `${size} coin pack (${formatCoins(pack.coins, 'en')} coins)` : 'Coin pack'
+}
+
+function receiptPack(sku: Sku): string {
+  const pack = PACKS.find((item) => item.sku === sku)
+  const size = sku === 'pack-small' ? 'Small' : sku === 'pack-medium' ? 'Medium' : 'Large'
+  return pack ? `${size} coin pack. ${formatCoins(pack.coins, 'en')} coins.` : 'Coin pack.'
+}
+
 async function grant(kv: Store, order: Order, origin: string, env: Env): Promise<void> {
   if (!(await kv.claimOrderGrant(order.id))) return
   const account = await kv.get<Account>(`account:${order.accountId}`)
   if (!account) return
   const firstPaid = order.status !== 'paid'
   if (order.sku === 'starter') Object.assign(account, creditStarter(account))
+  else Object.assign(account, creditCoins(account, order.sku))
   if (firstPaid) {
     order.status = 'paid'
     order.paidAt = new Date().toISOString()
@@ -1060,8 +1080,8 @@ async function grant(kv: Store, order: Order, origin: string, env: Env): Promise
       origin,
       to: account.email,
       item: order.sku === 'starter'
-        ? `Starter Pack (one time). ${STARTER_COINS.toLocaleString('en-CA')} coins, ${pet}, ${cloth}.`
-        : 'Coin pack (▢ coins)',
+        ? `Starter Pack (one time). ${formatCoins(STARTER_COINS, 'en')} coins, ${pet}, ${cloth}.`
+        : receiptPack(order.sku),
       price: order.price,
       when: order.paidAt,
       wasnt: order.wasntToken,

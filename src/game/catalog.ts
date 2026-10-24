@@ -1,7 +1,7 @@
-/** Shared numbers. Coin amounts and item prices stay placeholders until the coin chart. */
+/** Shared numbers. Pet and clothing coin prices stay unset. */
 
 export const TERMS_VERSION = '2026-10-24'
-export const BUILD_NUMBER = '2026.10.24.7'
+export const BUILD_NUMBER = '2026.10.24.8'
 
 /** Working cash-buying age. Quebec's 14 is not applied. Asked once, then only over/under is kept. */
 export const CASH_AGE = 13
@@ -14,18 +14,67 @@ export const REMINDER_DAYS = 3
 export const SELLER = 'Funderwood'
 export const SUPPORT_EMAIL = 'support@romansgame.com'
 
-export type Sku = 'starter' | 'pack-small'
+export type Sku = 'starter' | 'pack-small' | 'pack-medium' | 'pack-large'
+
+/**
+ * Tony's coin packs. CAD prices are the ones he set.
+ * US$1.99 on the small pack was already in the code. Medium and large have no USD price.
+ */
+export const PACKS: {
+  sku: 'pack-small' | 'pack-medium' | 'pack-large'
+  coins: number
+  cadCents: number
+  usdCents: number | null
+  tag: 'bonus7' | 'bonus15' | null
+}[] = [
+  { sku: 'pack-small', coins: 4000, cadCents: 299, usdCents: 199, tag: null },
+  { sku: 'pack-medium', coins: 10000, cadCents: 699, usdCents: null, tag: 'bonus7' },
+  { sku: 'pack-large', coins: 23000, cadCents: 1499, usdCents: null, tag: 'bonus15' },
+]
+
+export function isSku(value: unknown): value is Sku {
+  return value === 'starter' || value === 'pack-small' || value === 'pack-medium' || value === 'pack-large'
+}
 
 export function priceForCountry(country: string | null | undefined): {
   currency: 'cad' | 'usd'
   starterCents: number
   smallCents: number
+  mediumCents: number | null
+  largeCents: number | null
   symbol: 'CA$' | 'US$'
 } {
+  const small = PACKS[0]
+  const medium = PACKS[1]
+  const large = PACKS[2]
   if ((country ?? '').toUpperCase() === 'US') {
-    return { currency: 'usd', starterCents: 199, smallCents: 199, symbol: 'US$' }
+    return {
+      currency: 'usd',
+      starterCents: 199,
+      smallCents: 199,
+      mediumCents: medium.usdCents,
+      largeCents: large.usdCents,
+      symbol: 'US$',
+    }
   }
-  return { currency: 'cad', starterCents: 299, smallCents: 299, symbol: 'CA$' }
+  return {
+    currency: 'cad',
+    starterCents: 299,
+    smallCents: small.cadCents,
+    mediumCents: medium.cadCents,
+    largeCents: large.cadCents,
+    symbol: 'CA$',
+  }
+}
+
+export function centsForSku(
+  sku: Sku,
+  prices: { starterCents: number; smallCents: number; mediumCents: number | null; largeCents: number | null },
+): number | null {
+  if (sku === 'starter') return prices.starterCents
+  if (sku === 'pack-small') return prices.smallCents
+  if (sku === 'pack-medium') return prices.mediumCents
+  return prices.largeCents
 }
 
 export function formatPrice(cents: number, symbol: 'CA$' | 'US$'): string {
@@ -72,6 +121,13 @@ export function creditStarter<T extends { coins: number; pets: string[]; clothes
     clothes: account.clothes.includes(STARTER_CLOTH) ? account.clothes : [...account.clothes, STARTER_CLOTH],
     starterOwned: true,
   }
+}
+
+/** Coin packs add only their coin amount. The exactly-once lock lives on the order, not here. */
+export function creditCoins<T extends { coins: number }>(account: T, sku: string): T {
+  const pack = PACKS.find((item) => item.sku === sku)
+  if (!pack) return account
+  return { ...account, coins: account.coins + pack.coins }
 }
 
 /** Shop pets and clothing. Coin prices are intentionally unset. */

@@ -4,7 +4,7 @@ import { BoardView } from './ui/BoardView'
 import { isSolved } from './game/logic'
 import { isMuted, setMuted, sfxMark, sfxPlace } from './game/sound'
 import { ADJECTIVES, NOUNS, formatTeamName } from './game/teamNames'
-import { DEFENDERS, PETS, CLOTHES, SELLER, SUPPORT_EMAIL, STARTER_COINS, formatCoins, formatPrice, priceForCountry } from './game/catalog'
+import { DEFENDERS, PETS, CLOTHES, PACKS, SELLER, SUPPORT_EMAIL, STARTER_COINS, centsForSku, formatCoins, formatPrice, isSku, priceForCountry, type Sku } from './game/catalog'
 import { throneAt, throneForBoards, winMap } from './game/thrones'
 import type { Copy, Lang } from './i18n'
 import { legalSections } from './i18n'
@@ -282,7 +282,7 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
   const [error, setError] = useState('')
   const [prices, setPrices] = useState(priceForCountry(null))
   const [orderId, setOrderId] = useState<string | null>(sessionStorage.getItem('rg.order'))
-  const [sku, setSku] = useState<'starter' | 'pack-small'>((sessionStorage.getItem('rg.sku') as 'starter' | 'pack-small') || 'starter')
+  const [sku, setSku] = useState<Sku>(isSku(sessionStorage.getItem('rg.sku')) ? sessionStorage.getItem('rg.sku') as Sku : 'starter')
   const failed = path.includes('failed=1')
   const step = path.startsWith('/shop/') ? path.split('/')[2]?.split('?')[0] : 'browse'
 
@@ -290,7 +290,7 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
     void api<typeof prices>('/api/prices').then(setPrices).catch(() => undefined)
   }, [])
 
-  async function begin(next: 'starter' | 'pack-small') {
+  async function begin(next: Sku) {
     if (!me) return go('/signin')
     setSku(next)
     sessionStorage.setItem('rg.sku', next)
@@ -316,7 +316,12 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
     }
   }
 
-  const price = sku === 'starter' ? formatPrice(prices.starterCents, prices.symbol) : formatPrice(prices.smallCents, prices.symbol)
+  const cents = centsForSku(sku, prices)
+  const price = cents == null ? t.placeholderCoins : formatPrice(cents, prices.symbol)
+  const offerName = packName(t, sku)
+  const offerLine = sku === 'starter'
+    ? `${formatCoins(STARTER_COINS, lang)} ${t.coins} · ${t.bonusIcons}`
+    : `${formatCoins(PACKS.find((pack) => pack.sku === sku)?.coins ?? 0, lang)} ${t.coins}`
   const wrap = (node: ReactNode) => <div className="body stack">{node}</div>
 
   if (step === 'birthday') {
@@ -382,7 +387,8 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
         <h1>{t.reviewTitle}</h1>
         {failed ? <p className="err">{t.paymentFailed}</p> : null}
         <div className="card">
-          <b>{sku === 'starter' ? t.starter : t.smallPack}</b>
+          <b>{offerName}</b>
+          <p>{offerLine}</p>
           <p>{price}</p>
           <p className="muted">{t.seller}: {SELLER} · {SUPPORT_EMAIL}</p>
           <p className="muted">{t.payWith}</p>
@@ -459,18 +465,34 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
         <div key={piece.id} className="card spread"><span>{piece.name}</span><span>{t.placeholderCoins}</span></div>
       )) : null}
       <p className="muted">{t.coinPacks}</p>
-      <div className="card">
-        <b>{t.smallPack}</b>
-        <p>{t.placeholderCoins}</p>
-        <p>{formatPrice(prices.smallCents, prices.symbol)}</p>
-      </div>
-      <div className="card"><b>{t.smallPack}</b><p>{t.placeholderCoins}</p><p className="muted">{t.priceUnset}</p></div>
-      <div className="card"><b>{t.smallPack}</b><p>{t.placeholderCoins}</p><p className="muted">{t.priceUnset}</p></div>
+      {PACKS.map((pack) => {
+        const packCents = centsForSku(pack.sku, prices)
+        const tag = pack.tag === 'bonus7' ? t.bonus7 : pack.tag === 'bonus15' ? t.bonus15 : null
+        const body = (
+          <>
+            {tag ? <span className="tag">{tag}</span> : null}
+            <b>{packName(t, pack.sku)}</b>
+            <p>{formatCoins(pack.coins, lang)} {t.coins}</p>
+            <p>{packCents == null ? t.placeholderCoins : formatPrice(packCents, prices.symbol)}</p>
+          </>
+        )
+        if (packCents == null) return <div key={pack.sku} className="card">{body}</div>
+        return (
+          <button key={pack.sku} className="card" type="button" onClick={() => void begin(pack.sku)}>{body}</button>
+        )
+      })}
       <div className="card"><p className="muted">{t.priceUnset}</p><button className="btn" type="button" disabled>{t.buyFree}</button> <button className="btn" type="button" onClick={() => go('/shop')}>{t.notNow}</button></div>
       <p className="muted">{t.shopTabsNote}</p>
       {error ? <p className="err">{error}</p> : null}
     </div>,
   )
+}
+
+function packName(t: Copy, sku: string): string {
+  if (sku === 'pack-small') return t.packSmall
+  if (sku === 'pack-medium') return t.packMedium
+  if (sku === 'pack-large') return t.packLarge
+  return t.starter
 }
 
 function Done({ t, lang, sessionId, onMe }: { t: Copy; lang: Lang; sessionId: string | null; onMe: (me: Me | null) => void }) {
@@ -480,8 +502,11 @@ function Done({ t, lang, sessionId, onMe }: { t: Copy; lang: Lang; sessionId: st
     if (!sessionId) return
     void api<{ me: Me | null; sku: string }>('/api/shop/confirm', { sessionId }).then((res) => {
       if (res.me) onMe(res.me)
-      setNote(res.sku === 'starter' ? t.starter : t.smallPack)
-      setLine(res.sku === 'starter' ? `${formatCoins(STARTER_COINS, lang)} ${t.coins} · ${t.bonusIcons}` : t.placeholderCoins)
+      const pack = PACKS.find((item) => item.sku === res.sku)
+      setNote(res.sku === 'starter' ? t.starter : pack ? packName(t, pack.sku) : t.placeholderCoins)
+      setLine(res.sku === 'starter'
+        ? `${formatCoins(STARTER_COINS, lang)} ${t.coins} · ${t.bonusIcons}`
+        : pack ? `${formatCoins(pack.coins, lang)} ${t.coins}` : '')
     }).catch(() => setNote(t.paymentFailed))
   }, [sessionId, onMe, t, lang])
   return (
