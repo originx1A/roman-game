@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, type Me } from './api'
-import { BUILD_NUMBER } from './game/catalog'
+import { BUILD_NUMBER, formatCoins } from './game/catalog'
 import { bindButtonClicks, loadSoundPrefs } from './game/sound'
 import {
   AuthScreen,
@@ -95,7 +95,7 @@ export function App() {
           <button className="tab" type="button" onClick={() => go('/thrones')}>{t.throne}</button>
         </nav>
       ) : <span style={{ flex: 1 }} />}
-      <button className="coin" type="button" onClick={() => go('/shop')}>{me?.coins ?? 0} ¢</button>
+      <button className="coin" type="button" onClick={() => go('/shop')}>{formatCoins(me?.coins ?? 0, lang)} ¢</button>
       <span className="build">{BUILD_NUMBER}</span>
     </header>
   )

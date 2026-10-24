@@ -64,7 +64,7 @@ async function shareHome(title: string) {
   }
 }
 
-export function HomeScreen({ t, me, pc }: Bag) {
+export function HomeScreen({ t, lang, me, pc }: Bag) {
   const [open, setOpen] = useState(false)
   return (
     <div className={pc ? 'pc-body' : 'body'}>
@@ -73,7 +73,7 @@ export function HomeScreen({ t, me, pc }: Bag) {
           {me ? (
             <button className="name-chip" type="button" onClick={() => setOpen((v) => !v)}>{me.playerName}</button>
           ) : <span className="muted">{t.logic}</span>}
-          <button className="coin" type="button" onClick={() => go('/shop')}>{me?.coins ?? 0} ¢</button>
+          <button className="coin" type="button" onClick={() => go('/shop')}>{formatCoins(me?.coins ?? 0, lang)} ¢</button>
         </div>
         {open && me ? (
           <div className="card stack">
@@ -428,7 +428,7 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
   const showStarter = !me?.starterOwned
   return wrap(
     <div className="stack">
-      <div className="spread"><button className="logo" type="button" onClick={() => go('/')}>{t.brand}</button><span className="coin">{me?.coins ?? 0} ¢</span></div>
+      <div className="spread"><button className="logo" type="button" onClick={() => go('/')}>{t.brand}</button><span className="coin">{formatCoins(me?.coins ?? 0, lang)} ¢</span></div>
       {pc ? null : (
         <div className="tabs">
           {(['charges', 'defenders', 'clothing'] as const).map((item) => (
@@ -459,11 +459,11 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
         <div key={piece.id} className="card spread"><span>{piece.name}</span><span>{t.placeholderCoins}</span></div>
       )) : null}
       <p className="muted">{t.coinPacks}</p>
-      <button className="card" type="button" onClick={() => void begin('pack-small')}>
+      <div className="card">
         <b>{t.smallPack}</b>
         <p>{t.placeholderCoins}</p>
         <p>{formatPrice(prices.smallCents, prices.symbol)}</p>
-      </button>
+      </div>
       <div className="card"><b>{t.smallPack}</b><p>{t.placeholderCoins}</p><p className="muted">{t.priceUnset}</p></div>
       <div className="card"><b>{t.smallPack}</b><p>{t.placeholderCoins}</p><p className="muted">{t.priceUnset}</p></div>
       <div className="card"><p className="muted">{t.priceUnset}</p><button className="btn" type="button" disabled>{t.buyFree}</button> <button className="btn" type="button" onClick={() => go('/shop')}>{t.notNow}</button></div>
