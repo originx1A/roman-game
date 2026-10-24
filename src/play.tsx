@@ -13,6 +13,12 @@ import type { Copy, Lang } from './i18n'
 import { go } from './nav'
 
 type Mode = 'daily' | 'free' | 'survival'
+
+function openingMode(): Mode {
+  const value = new URLSearchParams(location.search).get('mode')
+  if (value === 'free' || value === 'survival') return value
+  return 'daily'
+}
 type Phase = 'play' | 'unseen' | 'victory' | 'loss' | 'over' | 'hunt' | 'hunt-end'
 
 interface Guest {
@@ -69,10 +75,13 @@ export function PlayScreen({
   me: Me | null
   onMe: (me: Me | null) => void
 }) {
-  const [mode, setMode] = useState<Mode>('daily')
+  const [mode, setMode] = useState<Mode>(openingMode)
   const [size, setSize] = useState<5 | 6 | 7 | 8>(6)
   const [difficulty, setDifficulty] = useState<Difficulty>(1)
-  const [puzzle, setPuzzle] = useState<Puzzle>(() => dailyPuzzle())
+  const [puzzle, setPuzzle] = useState<Puzzle>(() => {
+    const opening = openingMode()
+    return opening === 'daily' ? dailyPuzzle() : makePuzzle(6, 1, `${opening}-open`)
+  })
   const [cells, setCells] = useState<Cell[]>(() => emptyBoard(6))
   const [hearts, setHearts] = useState(MAX_HEARTS)
   const [run, setRun] = useState(0)

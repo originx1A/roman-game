@@ -471,6 +471,7 @@ export async function handle(req: Request, env: Env): Promise<Response> {
     if (path === '/api/family/add' && req.method === 'POST') return await familyAdd(kv, me, body)
     if (path === '/api/family/member' && req.method === 'POST') return await familyMember(kv, me, body)
     if (path === '/api/shop/birthday' && req.method === 'POST') return await birthday(kv, me, body)
+    if (path === '/api/shop/email' && req.method === 'POST') return await shopEmail(kv, me, body)
     if (path === '/api/shop/accept' && req.method === 'POST') return await acceptOrder(kv, me, body, env)
     if (path === '/api/shop/checkout' && req.method === 'POST') return await checkout(kv, env, me, body, origin)
     if (path === '/api/shop/confirm' && req.method === 'POST') return await confirmCheckout(kv, env, me, body, origin)
@@ -1040,12 +1041,28 @@ async function birthday(kv: Store, me: Account | null, body: Record<string, unkn
   return json({ ageGate: me.ageGate })
 }
 
+async function shopEmail(kv: Store, me: Account | null, body: Record<string, unknown>): Promise<Response> {
+  if (!me) return json({ error: 'auth' }, 401)
+  if (me.email) return json({ ok: true, me: publicMe(me) })
+  const email = String(body.email ?? '').trim().toLowerCase()
+  const password = String(body.password ?? '')
+  if (!emailOf(email)) return json({ error: 'email' }, 400)
+  if (!(await passwordMatches(kv, me, password))) return json({ error: 'password' }, 401)
+  if (emailBlocked(me)) return json({ error: 'email-holder' }, 403)
+  if (await kv.emailOccupant(email, me.id)) return json({ error: 'email-used' }, 409)
+  if (!(await claimEmailHold(kv, email, me.id))) return json({ error: 'email-used' }, 409)
+  me.email = email
+  me.pendingEmail = null
+  await saveAccount(kv, me)
+  return json({ ok: true, me: publicMe(me) })
+}
+
 async function acceptOrder(kv: Store, me: Account | null, body: Record<string, unknown>, env: Env): Promise<Response> {
   if (!me) return json({ error: 'auth' }, 401)
   if (me.holderId && me.ageGate === 'under') return json({ error: 'holder-only' }, 403)
   if (me.ageGate === 'under') return json({ error: 'ask-holder' }, 403)
   if (me.ageGate !== 'over') return json({ error: 'birthday' }, 403)
-  if (!me.emailVerified || !me.email) return json({ error: 'email' }, 403)
+  if (!me.email) return json({ error: 'email' }, 403)
   if (me.buyingStopped) return json({ error: 'stopped' }, 403)
   const sku = isSku(body.sku) ? body.sku : null
   if (!sku) return json({ error: 'sku' }, 400)

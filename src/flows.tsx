@@ -77,20 +77,31 @@ function WeekGoal({ t, wins }: { t: Copy; wins: number }) {
   )
 }
 
-async function shareHome(title: string) {
+async function shareHome(title: string): Promise<'shared' | 'copied'> {
   const url = `${location.origin}/`
   if (navigator.share) {
     try {
       await navigator.share({ title, url })
-      return
-    } catch {
-      return
+      return 'shared'
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return 'shared'
     }
   }
   try {
     await navigator.clipboard.writeText(url)
+    return 'copied'
   } catch {
-    /* The share sheet is the destination. Copy is the PC fallback. */
+    const area = document.createElement('textarea')
+    area.value = url
+    area.setAttribute('readonly', '')
+    area.style.position = 'fixed'
+    area.style.left = '-9999px'
+    document.body.appendChild(area)
+    area.select()
+    const ok = document.execCommand('copy')
+    area.remove()
+    if (!ok) throw new Error('copy')
+    return 'copied'
   }
 }
 
@@ -142,6 +153,7 @@ function AccountMenu({ t, me }: { t: Copy; me: Me }) {
 
 export function HomeScreen({ t, me, pc }: Bag) {
   const [open, setOpen] = useState(false)
+  const [shareNote, setShareNote] = useState('')
   const guest = guestBoard()
   const streak = me?.streak ?? guest.streak
   const bestRun = me ? Object.values(me.bestRun ?? {}).reduce((top, n) => Math.max(top, Number(n) || 0), 0) : guest.bestRun
@@ -163,7 +175,10 @@ export function HomeScreen({ t, me, pc }: Bag) {
     <div className="tabs">
       <button className="tab on" type="button" onClick={() => go('/play')}>{t.play}</button>
       <button className="tab" type="button" onClick={() => go('/stable')}>{t.stable}</button>
-      <button className="tab" type="button" onClick={() => void shareHome(t.brand)}>{t.share}</button>
+      <button className="tab" type="button" onClick={() => {
+        setShareNote('')
+        void shareHome(t.brand).then((result) => setShareNote(result === 'copied' ? t.linkCopied : '')).catch(() => setShareNote(''))
+      }}>{t.share}</button>
       <button className="tab" type="button" onClick={() => go(me ? '/settings' : '/join')}>{t.save}</button>
     </div>
   )
@@ -189,6 +204,7 @@ export function HomeScreen({ t, me, pc }: Bag) {
     return (
       <div className="body home-phone">
         {tabs}
+        {shareNote ? <p className="muted">{shareNote}</p> : null}
         {me ? (
           <div className="home-name">
             <button className="name-chip" type="button" onClick={() => go('/progress')}>{me.playerName}</button>
@@ -227,8 +243,8 @@ export function HomeScreen({ t, me, pc }: Bag) {
         <b className="eyebrow">{t.pickMode}</b>
         <div className="home-mode-row">
           <button className="card stack" type="button" onClick={() => go('/play')}><b>{t.daily}</b></button>
-          <button className="card stack" type="button" onClick={() => go('/play')}><b>{t.freePlay}</b><span className="muted">6×6 · {t.medium}</span></button>
-          <button className="card stack" type="button" onClick={() => go('/play')}><b>{t.survival}</b><span className="muted">{t.bestRun} {bestRun}</span></button>
+          <button className="card stack" type="button" onClick={() => go('/play?mode=free')}><b>{t.freePlay}</b><span className="muted">6×6 · {t.medium}</span></button>
+          <button className="card stack" type="button" onClick={() => go('/play?mode=survival')}><b>{t.survival}</b><span className="muted">{t.bestRun} {bestRun}</span></button>
         </div>
         <div className="card stack home-you progress-door" onClick={() => go('/progress')}>
           <div className="home-name">
@@ -473,7 +489,7 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
     if (me.buyingStopped) return go('/shop/setup')
     if (!me.ageGate) return go('/shop/birthday')
     if (me.ageGate === 'under') return go('/shop/ask')
-    if (!me.emailVerified) return go('/shop/email')
+    if (!me.email) return go('/shop/email')
     await review(next)
   }
 
@@ -508,7 +524,7 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
           const meRes = await api<{ me: Me }>('/api/me')
           onMe(meRes.me)
           if (res.ageGate === 'under') go('/shop/ask')
-          else if (!meRes.me?.emailVerified) go('/shop/email')
+          else if (!meRes.me?.email) go('/shop/email')
           else await review(sku)
         }).catch((error) => setError(errText(t, error)))
       }}>
@@ -546,14 +562,23 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
     return wrap(
       <form className="stack" onSubmit={(event) => {
         event.preventDefault()
-        void api('/api/email/add', { email, password }).then(() => setError(t.verifySent)).catch((err) => setError(errText(t, err)))
+        setError('')
+        void api<{ me: Me }>('/api/shop/email', { email, password }).then(async (saved) => {
+          onMe(saved.me)
+          const accepted = await api<{ orderId: string }>('/api/shop/accept', { sku })
+          sessionStorage.setItem('rg.order', accepted.orderId)
+          setOrderId(accepted.orderId)
+          const pay = await api<{ url: string }>('/api/shop/checkout', { orderId: accepted.orderId, password })
+          if (pay.url) location.href = pay.url
+          else setError(t.errorStripe)
+        }).catch((err) => setError(errText(t, err)))
       }}>
         <h1>{t.addEmail}</h1>
         <Field label={t.yourEmail} value={email} set={setEmail} />
         <Field label={t.password} value={password} set={setPassword} type="password" />
         <button className="btn" type="button" onClick={() => go('/legal/privacy')}>{t.privacy}</button>
         {error ? <p className="err">{error}</p> : null}
-        <button className="btn gold" type="submit">{t.sendLink}</button>
+        <button className="btn gold" type="submit">{t.continuePay}</button>
       </form>,
     )
   }
@@ -1256,7 +1281,7 @@ export function TeamScreen({ t, me, path, pc }: Bag) {
           void api('/api/team/join', { code }).then(() => location.reload()).catch((err) => setError(errText(t, err)))
         }}>{t.joinTeam}</button>
       ) : null}
-      {error ? <p className="err">{error}</p> : null}
+      {error ? <p className={error === t.guestLine ? undefined : 'err'}>{error}</p> : null}
       <p className="muted">{t.roster}</p>
     </div>
   )
