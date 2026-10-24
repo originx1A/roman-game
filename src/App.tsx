@@ -31,7 +31,7 @@ export function App() {
   const path = full.split('?')[0]
   const [lang, setLangState] = useState<Lang>(detectLang)
   const [me, setMe] = useState<Me | null>(null)
-  const [pc, setPc] = useState(() => window.matchMedia('(min-width: 960px)').matches)
+  const [pc, setPc] = useState(() => !isPhone())
   const t = copyFor(lang)
 
   useEffect(() => {
@@ -50,10 +50,15 @@ export function App() {
   }, [])
 
   useEffect(() => {
-    const mq = window.matchMedia('(min-width: 960px)')
-    const on = () => setPc(mq.matches)
+    const on = () => setPc(!isPhone())
+    on()
+    const mq = window.matchMedia('(max-width: 959px)')
     mq.addEventListener('change', on)
-    return () => mq.removeEventListener('change', on)
+    window.addEventListener('resize', on)
+    return () => {
+      mq.removeEventListener('change', on)
+      window.removeEventListener('resize', on)
+    }
   }, [])
 
   function setLang(next: Lang) {
@@ -115,6 +120,20 @@ export function App() {
       {page}
     </div>
   )
+}
+
+/**
+ * Phones stay on the phone layout. A phone set to "desktop site" gets a layout
+ * viewport of about 980px, which is just wide enough for a 960px desktop check.
+ * The user agent and the screen's short side still identify that phone.
+ */
+function isPhone(): boolean {
+  if (window.matchMedia('(max-width: 959px)').matches) return true
+  const shortSide = Math.min(window.screen.width, window.screen.height)
+  const ua = navigator.userAgent
+  if (/iPhone|iPod|Windows Phone/i.test(ua)) return true
+  if (/Android/i.test(ua) && /Mobile/i.test(ua)) return true
+  return shortSide > 0 && shortSide <= 520 && window.matchMedia('(pointer: coarse)').matches
 }
 
 function PhoneStage({ children }: { children: React.ReactNode }) {

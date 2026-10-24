@@ -5,7 +5,7 @@ import { DefenderArt } from './ui/DefenderArt'
 import { isSolved } from './game/logic'
 import { isMuted, setMuted, sfxMark, sfxPlace } from './game/sound'
 import { ADJECTIVES, NOUNS, formatTeamName } from './game/teamNames'
-import { CHARGE_COST, DEFENDERS, DEFENDER_PRICE, PETS, CLOTHES, PACKS, SELLER, SUPPORT_EMAIL, STARTER_COINS, centsForSku, formatCoins, formatPrice, isSku, priceForCountry, sameSiteNext, type Sku } from './game/catalog'
+import { CHARGE_COST, CHARGE_LABEL, DEFENDERS, DEFENDER_PRICE, PETS, CLOTHES, PACKS, SELLER, SUPPORT_EMAIL, STARTER_COINS, centsForSku, formatCoins, formatPrice, isSku, priceForCountry, sameSiteNext, type Sku } from './game/catalog'
 import { throneAt, throneForBoards, winMap } from './game/thrones'
 import type { Copy, Lang } from './i18n'
 import { legalSections } from './i18n'
@@ -339,7 +339,7 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
   const offerLine = sku === 'starter'
     ? `${formatCoins(STARTER_COINS, lang)} ${t.coins} · ${t.bonusIcons}`
     : `${formatCoins(PACKS.find((pack) => pack.sku === sku)?.coins ?? 0, lang)} ${t.coins}`
-  const wrap = (node: ReactNode) => <div className="body stack shop-scroll">{node}</div>
+  const wrap = (node: ReactNode) => <div className={pc ? 'pc-sheet shop-scroll' : 'body stack shop-scroll'}>{node}</div>
 
   if (step === 'birthday') {
     return wrap(
@@ -449,6 +449,83 @@ export function ShopScreen({ t, lang, me, onMe, path, pc }: Bag) {
   if (step === 'waiting') return wrap(<div className="stack"><h1>{t.waiting}</h1><button className="btn" type="button" onClick={() => go('/play')}>{t.keepPlaying}</button></div>)
 
   const showStarter = !me?.starterOwned
+  if (pc) {
+    return wrap(
+      <div className="stack">
+        <div className="spread"><button className="logo" type="button" onClick={() => go('/')}>{t.brand}</button><span className="coin">{formatCoins(me?.coins ?? 0, lang)} ¢</span></div>
+        {error ? <p className="err">{error}</p> : null}
+        <div className="pc-grid">
+          {showStarter ? (
+            <button className="starter" type="button" onClick={() => void begin('starter')}>
+              <span className="tag">{t.bonus}</span>
+              <span className="spread"><DefenderArt id="night-owl" size={88} /><DefenderArt id="top-hat" size={88} /></span>
+              <b>{t.starter}</b>
+              <p className="muted">{t.oneTime}</p>
+              <p>{t.bonusIcons}</p>
+              <p>{formatPrice(prices.starterCents, prices.symbol, lang)}</p>
+            </button>
+          ) : null}
+          <p className="muted span-all">{t.charges}</p>
+          {DEFENDERS.map((item) => (
+            <div key={`charge-${item.id}`} className="card pic-card stack">
+              <DefenderArt id={item.id} size={96} />
+              <b>{item.name}</b>
+              <p className="muted">{CHARGE_LABEL[item.ability][lang]}</p>
+              <p>{formatCoins(CHARGE_COST, lang)} {t.coins}</p>
+              <button className="btn gold" type="button" onClick={() => void buyCoins('charge', item.id)}>{t.buy}</button>
+            </div>
+          ))}
+          <p className="muted span-all">{t.defenders}</p>
+          {DEFENDERS.map((defender) => {
+            const owned = me?.pets.includes(defender.id)
+            return (
+              <div key={defender.id} className="card pic-card stack">
+                <DefenderArt id={defender.id} size={96} />
+                <b>{defender.name}</b>
+                <p className="muted">{CHARGE_LABEL[defender.ability][lang]}</p>
+                <p>{owned ? t.owned : `${formatCoins(DEFENDER_PRICE[defender.id], lang)} ${t.coins}`}</p>
+                {owned ? null : <button className="btn gold" type="button" onClick={() => void buyCoins('defender', defender.id)}>{t.buy}</button>}
+              </div>
+            )
+          })}
+          <p className="muted span-all">{t.clothing}</p>
+          {CLOTHES.map((piece) => {
+            const owned = me?.clothes.includes(piece.id)
+            const detail = piece.earn === 'throne' ? t.laurelEarn : piece.earn === 'streak' ? t.crownEarn : t.oneWearer
+            const priceLine = owned ? t.owned : piece.price == null ? '' : `${formatCoins(piece.price, lang)} ${t.coins}`
+            return (
+              <div key={piece.id} className="card pic-card stack">
+                <DefenderArt id={piece.id} size={96} />
+                <b>{piece.name}</b>
+                <p className="muted">{detail}</p>
+                {priceLine ? <p>{priceLine}</p> : null}
+                {piece.price == null || owned ? null : <button className="btn gold" type="button" onClick={() => void buyCoins('cloth', piece.id)}>{t.buy}</button>}
+              </div>
+            )
+          })}
+          <p className="muted span-all">{t.coinPacks}</p>
+          {PACKS.map((pack) => {
+            const packCents = centsForSku(pack.sku, prices)
+            const tag = pack.tag === 'bonus7' ? t.bonus7 : pack.tag === 'bonus15' ? t.bonus15 : null
+            const body = (
+              <>
+                {tag ? <span className="tag">{tag}</span> : null}
+                <b>{packName(t, pack.sku)}</b>
+                <p className="muted">{formatCoins(pack.coins, lang)} {t.coins}</p>
+                {packCents == null ? null : <p>{formatPrice(packCents, prices.symbol, lang)}</p>}
+              </>
+            )
+            if (packCents == null) return <div key={pack.sku} className="card pic-card stack">{body}</div>
+            return (
+              <button key={pack.sku} className="card pic-card stack" type="button" onClick={() => void begin(pack.sku)}>{body}</button>
+            )
+          })}
+        </div>
+        <div className="card"><button className="btn" type="button" disabled>{t.buyFree}</button> <button className="btn" type="button" onClick={() => go('/shop')}>{t.notNow}</button></div>
+        <p className="muted">{t.shopTabsNote}</p>
+      </div>,
+    )
+  }
   return wrap(
     <div className="stack">
       <div className="spread"><button className="logo" type="button" onClick={() => go('/')}>{t.brand}</button><span className="coin">{formatCoins(me?.coins ?? 0, lang)} ¢</span></div>
@@ -853,11 +930,30 @@ export function TeamScreen({ t, me, path, pc }: Bag) {
     await navigator.clipboard.writeText(url)
   }
 
+  const createForm = (
+    <form className="card stack" onSubmit={(event) => {
+      event.preventDefault()
+      void api('/api/team', { pick: { adjective: adj, noun, number: Number(number) }, mascot, openJoin }).then(() => location.reload()).catch((err) => setError(errText(t, err)))
+    }}>
+      <b>{t.makeTeam}</b>
+      <p>{formatTeamName({ adjective: adj, noun, number: Number(number) })}</p>
+      <label className="field">{t.teams}<select value={adj} onChange={(event) => setAdj(event.target.value as typeof adj)}>{ADJECTIVES.map((word) => <option key={word}>{word}</option>)}</select></label>
+      <label className="field"> <select value={noun} onChange={(event) => setNoun(event.target.value as typeof noun)}>{NOUNS.map((word) => <option key={word}>{word}</option>)}</select></label>
+      <Field label="#" value={String(number)} set={(value) => setNumber(Number(value) || 1)} />
+      <label className="field">{t.defenders}<select value={mascot} onChange={(event) => setMascot(event.target.value)}>{['Leo', 'Lupa', 'Aquila', 'Nox', 'Invictus'].map((name) => <option key={name}>{name}</option>)}</select></label>
+      <DefenderArt id={mascot} size={56} />
+      <label className="spread"><span>{t.openJoin}</span><input type="checkbox" checked={openJoin} onChange={(event) => setOpenJoin(event.target.checked)} /></label>
+      <p className="muted">{openJoin ? t.openJoin : t.inviteOnly}</p>
+      <button className="btn gold" type="submit">{t.makeTeam}</button>
+    </form>
+  )
+
   return (
-    <div className="body stack scroll shop-scroll">
+    <div className={pc ? 'pc-sheet shop-scroll' : 'body stack scroll shop-scroll'}>
       <h1>{t.teams}</h1>
       {team?.name ? (
-        <div className="card stack">
+        <div className={pc ? 'team-columns' : 'card stack'}>
+          <div className={pc ? 'card stack' : 'team-flat'}>
           <span className="row"><DefenderArt id={team.mascot} size={48} /><b>{team.name}</b></span>
           <p className="muted">{team.memberCount ?? 0}/10{team.code ? ` · ${team.code}` : ''}</p>
           {(team.members ?? []).map((member) => {
@@ -892,6 +988,8 @@ export function TeamScreen({ t, me, path, pc }: Bag) {
             const captain = rest.find((row) => row.rank === 'captain')
             return (captain ?? rest[0])?.name ?? '—'
           })()}</p>
+          </div>
+          <div className={pc ? 'card stack' : 'team-flat'}>
           {(team.asks ?? []).map((ask) => (
             <div key={ask.id} className="spread">
               <span>{ask.name}</span>
@@ -903,25 +1001,31 @@ export function TeamScreen({ t, me, path, pc }: Bag) {
           {pc ? <button className="btn" type="button" onClick={() => void navigator.clipboard.writeText(`${location.origin}${team.path}`)}>{t.copyLink}</button> : null}
           <p className="muted">{t.passNote}</p>
           <button className="btn danger" type="button" onClick={() => void api('/api/team/leave', {}).then(() => go('/teams'))}>{t.leaveCrown}</button>
+          </div>
         </div>
+      ) : pc ? (
+        <>
+          {!me ? <p>{t.signInFriends}</p> : null}
+          <div className="pc-grid">
+            {createForm}
+            <form className="card stack" onSubmit={(event) => { event.preventDefault(); go(`/t/${joinCode}`) }}>
+              <b>{t.joinTeam}</b>
+              <Field label={t.code} value={joinCode} set={setJoinCode} />
+              <button className="btn" type="submit">{t.joinTeam}</button>
+            </form>
+            {openTeams.map((row) => (
+              <div key={row.code} className="card stack">
+                <span className="row"><DefenderArt id={row.mascot ?? 'leo'} size={48} /><b>{row.name}</b></span>
+                <p className="muted">{row.memberCount}/10</p>
+                {row.full ? <span>{t.full}</span> : <button className="btn" type="button" onClick={() => go(`/t/${row.code}`)}>{t.joinTeam}</button>}
+              </div>
+            ))}
+          </div>
+        </>
       ) : (
         <>
           {!me ? <p>{t.signInFriends}</p> : null}
-          <form className="card stack" onSubmit={(event) => {
-            event.preventDefault()
-            void api('/api/team', { pick: { adjective: adj, noun, number: Number(number) }, mascot, openJoin }).then(() => location.reload()).catch((err) => setError(errText(t, err)))
-          }}>
-            <b>{t.makeTeam}</b>
-            <p>{formatTeamName({ adjective: adj, noun, number: Number(number) })}</p>
-            <label className="field">{t.teams}<select value={adj} onChange={(event) => setAdj(event.target.value as typeof adj)}>{ADJECTIVES.map((word) => <option key={word}>{word}</option>)}</select></label>
-            <label className="field"> <select value={noun} onChange={(event) => setNoun(event.target.value as typeof noun)}>{NOUNS.map((word) => <option key={word}>{word}</option>)}</select></label>
-            <Field label="#" value={String(number)} set={(value) => setNumber(Number(value) || 1)} />
-            <label className="field">{t.defenders}<select value={mascot} onChange={(event) => setMascot(event.target.value)}>{['Leo', 'Lupa', 'Aquila', 'Nox', 'Invictus'].map((name) => <option key={name}>{name}</option>)}</select></label>
-            <DefenderArt id={mascot} size={56} />
-            <label className="spread"><span>{t.openJoin}</span><input type="checkbox" checked={openJoin} onChange={(event) => setOpenJoin(event.target.checked)} /></label>
-            <p className="muted">{openJoin ? t.openJoin : t.inviteOnly}</p>
-            <button className="btn gold" type="submit">{t.makeTeam}</button>
-          </form>
+          {createForm}
           <form className="stack" onSubmit={(event) => { event.preventDefault(); go(`/t/${joinCode}`) }}>
             <Field label={t.code} value={joinCode} set={setJoinCode} />
             <button className="btn" type="submit">{t.joinTeam}</button>
@@ -952,7 +1056,7 @@ export function TeamScreen({ t, me, path, pc }: Bag) {
   )
 }
 
-export function BoardScreen({ t, me }: Bag) {
+export function BoardScreen({ t, me, pc }: Bag) {
   const [scope, setScope] = useState('week')
   const [rows, setRows] = useState<{ id?: string; name: string; score: number; throne: number; hostPet?: string | null }[]>([])
   const [incoming, setIncoming] = useState<{ id: string; name: string }[]>([])
@@ -975,14 +1079,100 @@ export function BoardScreen({ t, me }: Bag) {
     if (!me) return go('/signin')
     void api('/api/friends', { action, id }).then(() => { setPicked(null); load() }).catch((err) => setNote(errText(t, err)))
   }
+  const tabs = (
+    <div className="tabs">
+      {(['today', 'week', 'friends', 'survival'] as const).map((item) => (
+        <button key={item} className={`tab ${scope === item ? 'on' : ''}`} type="button" onClick={() => setScope(item)}>{t[item === 'survival' ? 'survival' : item === 'friends' ? 'friends' : item]}</button>
+      ))}
+    </div>
+  )
+  const pickedCard = picked ? (
+    <div className="card stack">
+      <b>{picked.name}</b>
+      {!me ? <button className="btn gold" type="button" onClick={() => go('/signin')}>{t.signInFriends}</button> : (
+        <>
+          <button className="btn" type="button" onClick={() => {
+            if (picked.id) act('ask', picked.id)
+            else void api('/api/friends', { action: 'ask', name: picked.name }).then(() => { setPicked(null); load() }).catch((err) => setNote(errText(t, err)))
+          }}>{t.addFriend}</button>
+          <button className="btn" type="button" onClick={() => {
+            if (!me) return go('/signin')
+            const body = picked.id ? { id: picked.id } : { name: picked.name }
+            void api('/api/team/ask', body).then(() => setNote(t.requestSent)).catch((err) => setNote(errText(t, err)))
+          }}>{t.askJoin}</button>
+        </>
+      )}
+      <button className="btn" type="button" onClick={() => setPicked(null)}>{t.close}</button>
+    </div>
+  ) : null
+  if (pc) {
+    const mine = me ? rows.findIndex((row) => row.id === me.id || row.name === me.playerName) : -1
+    return (
+      <div className="pc-split">
+        <div className="card stack">
+          <div className="spread"><h1>{t.leaderboard}</h1><button type="button" onClick={() => go('/')}>{t.close}</button></div>
+          {tabs}
+          {scope === 'friends' ? (
+            friends.length === 0 ? <p className="muted">{t.noRank}</p> : friends.map((person) => (
+              <div key={person.id} className="spread">
+                <span>{person.name}</span>
+                <button className="btn" type="button" onClick={() => act('unfriend', person.id)}>{t.unfriend}</button>
+              </div>
+            ))
+          ) : rows.length === 0 ? <p className="muted">{t.noRank}</p> : rows.map((row, index) => (
+            <button key={`${row.id ?? row.name}${index}`} className="spread" type="button" onClick={() => setPicked(row)}>
+              <span className="row"><DefenderArt id={row.hostPet} size={32} />{index + 1}. {row.name}</span><span>{row.throne ? `#${row.throne}` : ''} {row.score}</span>
+            </button>
+          ))}
+        </div>
+        <div className="stack">
+          {pickedCard}
+          {scope === 'friends' ? (
+            <div className="card stack">
+              {!me ? <button className="btn gold" type="button" onClick={() => go('/signin')}>{t.signInFriends}</button> : null}
+              <b>{t.inbox}</b>
+              {inbox.length === 0 ? <p className="muted">{t.inboxEmpty}</p> : inbox.map((item) => (
+                <div key={item.id} className="stack">
+                  <b>{item.from_name}</b>
+                  <span>{item.body}</span>
+                  {item.from_id ? (
+                    <div className="grid2">
+                      <button className="btn" type="button" onClick={() => act('accept', item.from_id!)}>{t.accept}</button>
+                      <button className="btn" type="button" onClick={() => { act('decline', item.from_id!); void api('/api/inbox/read', { id: item.id }) }}>{t.decline}</button>
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+              <b>{t.pendingFriend}</b>
+              {incoming.map((person) => (
+                <div key={person.id} className="spread">
+                  <span>{person.name}</span>
+                  <button className="btn" type="button" onClick={() => act('accept', person.id)}>{t.accept}</button>
+                  <button className="btn" type="button" onClick={() => act('decline', person.id)}>{t.decline}</button>
+                </div>
+              ))}
+              {outgoing.map((person) => (
+                <div key={person.id} className="spread">
+                  <span>{person.name}</span>
+                  <button className="btn" type="button" onClick={() => act('cancel', person.id)}>{t.cancelRequest}</button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="card stack">
+              <b>{t.yourRank}</b>
+              <p className="muted">{mine >= 0 ? String(mine + 1) : t.noRank}</p>
+            </div>
+          )}
+          {note ? <p className="muted">{note}</p> : null}
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="body stack">
       <div className="spread"><h1>{t.solo}</h1><button type="button" onClick={() => go('/')}>{t.close}</button></div>
-      <div className="tabs">
-        {(['today', 'week', 'friends', 'survival'] as const).map((item) => (
-          <button key={item} className={`tab ${scope === item ? 'on' : ''}`} type="button" onClick={() => setScope(item)}>{t[item === 'survival' ? 'survival' : item === 'friends' ? 'friends' : item]}</button>
-        ))}
-      </div>
+      {tabs}
       {scope === 'friends' ? (
         <div className="scroll stack">
           {!me ? <button className="btn gold" type="button" onClick={() => go('/signin')}>{t.signInFriends}</button> : null}
@@ -1030,80 +1220,76 @@ export function BoardScreen({ t, me }: Bag) {
           ))}
         </div>
       )}
-      {picked ? (
-        <div className="card stack">
-          <b>{picked.name}</b>
-          {!me ? <button className="btn gold" type="button" onClick={() => go('/signin')}>{t.signInFriends}</button> : (
-            <>
-              <button className="btn" type="button" onClick={() => {
-                if (picked.id) act('ask', picked.id)
-                else void api('/api/friends', { action: 'ask', name: picked.name }).then(() => { setPicked(null); load() }).catch((err) => setNote(errText(t, err)))
-              }}>{t.addFriend}</button>
-              <button className="btn" type="button" onClick={() => {
-                if (!me) return go('/signin')
-                const body = picked.id ? { id: picked.id } : { name: picked.name }
-                void api('/api/team/ask', body).then(() => setNote(t.requestSent)).catch((err) => setNote(errText(t, err)))
-              }}>{t.askJoin}</button>
-            </>
-          )}
-          <button className="btn" type="button" onClick={() => setPicked(null)}>{t.close}</button>
-        </div>
-      ) : null}
+      {pickedCard}
       {note ? <p className="muted">{note}</p> : null}
     </div>
   )
 }
 
-export function ThroneScreen({ t, lang, me }: Bag) {
+export function ThroneScreen({ t, lang, me, pc }: Bag) {
   const held = throneForBoards(winMap({ wins: me?.wins ?? 0, winsByBoard: me?.winsByBoard }))
   const list = Array.from({ length: 12 }, (_, index) => throneAt(index))
+  const cards = list.map((throne) => (
+    <div key={throne.id} className="card spread">
+      <span>{throne.id}. {lang === 'fr' ? throne.nameFr : throne.name}</span>
+      <span>{held && held.id >= throne.id ? '●' : throne.wins}</span>
+    </div>
+  ))
   return (
-    <div className="body stack scroll">
+    <div className={pc ? 'pc-sheet shop-scroll' : 'body stack scroll'}>
       <div className="spread"><h1>{t.thrones}</h1><button type="button" onClick={() => go('/')}>{t.home}</button></div>
       <p className="muted">{t.throneRule}</p>
       <p className="muted">{t.statusOnly} {held ? (lang === 'fr' ? held.nameFr : held.name) : ''}</p>
-      {list.map((throne) => (
-        <div key={throne.id} className="card spread">
-          <span>{throne.id}. {lang === 'fr' ? throne.nameFr : throne.name}</span>
-          <span>{held && held.id >= throne.id ? '●' : throne.wins}</span>
-        </div>
-      ))}
+      {pc ? <div className="pc-grid">{cards}</div> : cards}
       <p className="muted">{t.statusOnly}</p>
     </div>
   )
 }
 
-export function StableScreen({ t, me, onMe }: Bag) {
+export function StableScreen({ t, me, onMe, pc }: Bag) {
   const pets = me?.pets ?? []
   const clothes = me?.clothes ?? []
   const host = PETS.find((pet) => pet.id === me?.hostPet)?.name ?? DEFENDERS.find((defender) => defender.id === me?.hostPet)?.name
+  const petCards = pets.map((id) => (
+    <div key={id} className={pc ? 'card pic-card stack' : 'card spread'}>
+      <DefenderArt id={id} size={pc ? 96 : 48} />
+      <span>{PETS.find((pet) => pet.id === id)?.name ?? DEFENDERS.find((defender) => defender.id === id)?.name ?? id}</span>
+      <button className="btn" type="button" onClick={() => void api<{ me: Me }>('/api/host', { pet: id }).then((res) => onMe(res.me))}>{t.pickHost}</button>
+    </div>
+  ))
+  const clothCards = clothes.map((id) => (
+    <div key={id} className={pc ? 'card pic-card stack' : 'card spread'}>
+      <DefenderArt id={id} size={pc ? 96 : 48} />
+      <span>{CLOTHES.find((piece) => piece.id === id)?.name ?? (id === 'for-lupa' ? 'Top hat' : id === 'for-aquila' ? 'Sunglasses' : id === 'for-leo' ? 'Laurel' : id)}</span>
+    </div>
+  ))
   return (
-    <div className="body stack shop-scroll">
+    <div className={pc ? 'pc-sheet shop-scroll' : 'body stack shop-scroll'}>
       <h1>{t.stable}</h1>
-      <div className="defender-row">
-        {DEFENDERS.map((defender) => (
-          <div key={defender.id}>
-            <DefenderArt id={defender.id} size={56} />
-            <div>{defender.name}</div>
-          </div>
-        ))}
-      </div>
-      <p className="muted">{t.host}: {host ?? t.noHost}</p>
-      {pets.map((id) => (
-        <div key={id} className="card spread">
-          <DefenderArt id={id} size={48} />
-          <span>{PETS.find((pet) => pet.id === id)?.name ?? DEFENDERS.find((defender) => defender.id === id)?.name ?? id}</span>
-          <button className="btn" type="button" onClick={() => void api<{ me: Me }>('/api/host', { pet: id }).then((res) => onMe(res.me))}>{t.pickHost}</button>
+      {pc ? (
+        <div className="pc-grid">
+          {DEFENDERS.map((defender) => (
+            <div key={defender.id} className="card pic-card stack">
+              <DefenderArt id={defender.id} size={96} />
+              <b>{defender.name}</b>
+            </div>
+          ))}
         </div>
-      ))}
+      ) : (
+        <div className="defender-row">
+          {DEFENDERS.map((defender) => (
+            <div key={defender.id}>
+              <DefenderArt id={defender.id} size={56} />
+              <div>{defender.name}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="muted">{t.host}: {host ?? t.noHost}</p>
+      {pc && petCards.length > 0 ? <div className="pc-grid">{petCards}</div> : petCards}
       <h2>{t.dress}</h2>
       <p className="muted">{t.oneWearer}</p>
-      {clothes.map((id) => (
-        <div key={id} className="card spread">
-          <DefenderArt id={id} size={48} />
-          <span>{CLOTHES.find((piece) => piece.id === id)?.name ?? (id === 'for-lupa' ? 'Top hat' : id === 'for-aquila' ? 'Sunglasses' : id === 'for-leo' ? 'Laurel' : id)}</span>
-        </div>
-      ))}
+      {pc && clothCards.length > 0 ? <div className="pc-grid">{clothCards}</div> : clothCards}
       <button className="btn" type="button" onClick={() => go('/shop')}>{t.shop}</button>
       <button className="btn" type="button" onClick={() => go('/')}>{t.home}</button>
     </div>

@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react'
 import type { Cell, Puzzle } from '../game/logic'
 import { colOf, rowOf } from '../game/logic'
+import { unlockAudio } from '../game/sound'
 
 const HUES = [28, 200, 130, 330, 50, 260, 170, 12]
 
@@ -15,13 +15,14 @@ export function BoardView({
   highlights?: number[]
   onTap: (index: number) => void
 }) {
-  const [pressed, setPressed] = useState<number | null>(null)
-  const pressedRef = useRef<number | null>(null)
   const size = puzzle.size
   return (
     <div
       className="board"
-      style={{ gridTemplateColumns: `repeat(${size}, 1fr)` }}
+      style={{
+        gridTemplateColumns: `repeat(${size}, 1fr)`,
+        gridTemplateRows: `repeat(${size}, 1fr)`,
+      }}
       role="grid"
       aria-label="Board"
     >
@@ -41,26 +42,12 @@ export function BoardView({
           <button
             key={index}
             type="button"
-            className={`cell ${edge} ${pressed === index ? 'pressed' : ''} ${highlights?.includes(index) ? 'lit' : ''}`}
+            className={`cell ${edge} ${highlights?.includes(index) ? 'lit' : ''}`}
             style={{ ['--hue' as string]: String(HUES[region % HUES.length]) }}
             aria-label={`Row ${row + 1} column ${col + 1}`}
-            onPointerDown={(event) => {
-              try {
-                event.currentTarget.setPointerCapture(event.pointerId)
-              } catch {
-                /* A pointer without an id still taps on pointerup. */
-              }
-              pressedRef.current = index
-              setPressed(index)
-            }}
-            onPointerUp={() => {
-              if (pressedRef.current === index) onTap(index)
-              pressedRef.current = null
-              setPressed(null)
-            }}
-            onPointerCancel={() => {
-              pressedRef.current = null
-              setPressed(null)
+            onClick={() => {
+              unlockAudio()
+              onTap(index)
             }}
           >
             <span className="cell-fill" />

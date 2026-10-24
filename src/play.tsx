@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ApiError, api, type Me } from './api'
 import { BoardView } from './ui/BoardView'
 import { DefenderArt } from './ui/DefenderArt'
 import { CHARGE_LABEL, DEFENDERS, MAX_HEARTS, type Ability } from './game/catalog'
 import { dailyPuzzle, makePuzzle, type Difficulty } from './game/generate'
 import { buddyIndexes, conflicts, cycleCell, emptyBoard, isSolved, ruledOut, type Cell, type Puzzle } from './game/logic'
-import { playVoice, sfxError, sfxMark, sfxPlace, sfxWin } from './game/sound'
+import { playVoice, sfxError, sfxMark, sfxPlace, sfxWin, unlockAudio } from './game/sound'
 import { boardFromPuzzleId, boardSteps, throneForBoards, throneProgress, winMap } from './game/thrones'
 import { pickUnseen, type UnseenLine } from './game/unseen'
 import type { Copy, Lang } from './i18n'
@@ -13,6 +13,11 @@ import { go } from './nav'
 
 type Mode = 'daily' | 'free' | 'survival'
 type Phase = 'play' | 'unseen' | 'victory' | 'loss' | 'over' | 'hunt' | 'hunt-end'
+
+const GOAL_LINE = {
+  en: 'Place one buddy in every row, every column and every colour. Buddies cannot touch, even on a corner. An X marks a square you have ruled out.',
+  fr: 'Place un compagnon dans chaque rangée, chaque colonne et chaque couleur. Les compagnons ne se touchent pas, même par un coin. Un X écarte une case.',
+}
 
 interface Guest {
   wins: number
@@ -80,6 +85,9 @@ export function PlayScreen({
   const throne = throneForBoards(boards)
   const progress = throneProgress(boards[playing.key] ?? 0, boardSteps(playing.size, playing.difficulty))
   const diffLabel = [t.easy, t.medium, t.hard, t.expert][difficulty]
+  const phaseRef = useRef(phase)
+  const afterRef = useRef<() => void>(() => undefined)
+  phaseRef.current = phase
 
   useEffect(() => {
     const id = window.setInterval(() => setTick((n) => n + 1), 1000)
@@ -94,6 +102,19 @@ export function PlayScreen({
     setLine(picked)
     playVoice(picked.id)
   }, [tick, phase, moves, started])
+
+  useEffect(() => {
+    if (!line) return
+    const id = window.setTimeout(() => {
+      const current = phaseRef.current
+      if (current === 'unseen') afterRef.current()
+      else if (current === 'hunt-end') {
+        setLine(null)
+        setPhase('victory')
+      } else setLine(null)
+    }, 4500)
+    return () => window.clearTimeout(id)
+  }, [line])
 
   function boot(nextMode: Mode, nextSize: number, nextDiff: Difficulty, nextHearts: number, nextRun: number) {
     const seed = nextMode === 'daily' ? undefined : `${nextMode}-${nextRun}-${Date.now()}`
@@ -146,6 +167,7 @@ export function PlayScreen({
   }
 
   function tap(index: number) {
+    unlockAudio()
     if (phase !== 'play') return
     const nextState = cycleCell(cells[index])
     const next = cells.slice()
@@ -215,9 +237,11 @@ export function PlayScreen({
   }
 
   function afterUnseen() {
+    setLine(null)
     if (hearts <= 0 && !isSolved(puzzle, cells)) setPhase(mode === 'survival' ? 'over' : 'loss')
     else setPhase('victory')
   }
+  afterRef.current = afterUnseen
 
   function nextBoard() {
     if (mode === 'survival') {
@@ -269,7 +293,10 @@ export function PlayScreen({
           <span>{progress.left} → {lang === 'fr' ? progress.next.nameFr : progress.next.name}</span>
         </div>
       ) : null}
-      <BoardView puzzle={puzzle} cells={cells} highlights={highlights} onTap={tap} />
+      <div className="board-slot">
+        <BoardView puzzle={puzzle} cells={cells} highlights={highlights} onTap={tap} />
+        {line ? <UnseenCutout line={line} /> : null}
+      </div>
       <div className="defs">
         {DEFENDERS.map((defender) => (
           <button key={defender.id} className="btn" type="button" onClick={() => spend(defender.ability)}>
@@ -317,15 +344,8 @@ export function PlayScreen({
     </div>
   )
 
-  const overlay = phase === 'play' ? null : (
-    <div className="modal-back">
-      <div className="modal">
-        {phase === 'unseen' && line ? (
-          <button type="button" className="unseen" onClick={afterUnseen}>
-            <img src="/unseen.png" alt="" />
-            <span className="bubble"><small>The Unseen</small>{line.text}<br /><span className="muted">{t.tapContinue}</span></span>
-          </button>
-        ) : null}
+  const result = phase === 'play' || phase === 'unseen' ? null : (
+      <div className="card stack result-card">
         {phase === 'victory' ? (
           <>
             <h2>{t.victory}</h2>
@@ -418,38 +438,57 @@ export function PlayScreen({
             </div>
           </>
         ) : null}
-        {phase === 'hunt-end' && line ? (
-          <>
-            <button type="button" className="unseen" onClick={() => setPhase('victory')}>
-              <img src="/unseen.png" alt="" />
-              <span className="bubble"><small>The Unseen</small>{line.text}</span>
-            </button>
-            <p>{t.huntFound} {huntTiles.filter((buddy, index) => buddy && huntOpen[index]).length} {t.huntOf}</p>
-          </>
+        {phase === 'hunt-end' ? (
+          <p>{t.huntFound} {huntTiles.filter((buddy, index) => buddy && huntOpen[index]).length} {t.huntOf}</p>
         ) : null}
       </div>
-    </div>
   )
+
+  const nextThrone = lang === 'fr' ? progress.next.nameFr : progress.next.name
 
   if (!pc) {
     return (
-      <div className="body" style={{ position: 'relative', overflow: 'hidden' }}>
+      <div className="body play-frame">
         {boardBlock}
-        {overlay}
+        {result}
       </div>
     )
   }
 
   return (
-    <div className="pc-body" style={{ position: 'relative', width: '100%' }}>
+    <div className="pc-body" style={{ width: '100%' }}>
       <div className="pc-side">
-        <div className="card"><b>{t.goal}</b><p className="muted">{t.streak} {me?.streak ?? guest.streak}</p></div>
-        <div className="card"><b>{t.myTeam}</b><button className="btn" type="button" onClick={() => go('/teams')}>{t.teams}</button></div>
-        <button className="btn" type="button" onClick={() => go('/shop')}>{t.shop}</button>
-        <button className="btn" type="button" onClick={() => go('/stable')}>{t.stable}</button>
+        <div className="card stack">
+          <b>{t.goal}</b>
+          <p className="muted">{GOAL_LINE[lang]}</p>
+          <p>{t.hearts} {'♥'.repeat(Math.max(0, hearts))}</p>
+          <p>{t.streak} {me?.streak ?? guest.streak}</p>
+          <p className="muted">{modeName} · {diffLabel}</p>
+          <p className="muted">{progress.left} → {nextThrone}</p>
+        </div>
+        <div className="card stack">
+          <b>{t.myTeam}</b>
+          <button className="btn" type="button" onClick={() => go('/teams')}>{t.teams}</button>
+          <button className="btn" type="button" onClick={() => go('/shop')}>{t.shop}</button>
+          <button className="btn" type="button" onClick={() => go('/stable')}>{t.stable}</button>
+        </div>
       </div>
-      <div className="pc-main" style={{ position: 'relative' }}>{boardBlock}{overlay}</div>
+      <div className="pc-main play-main">{boardBlock}{result}</div>
       <MiniBoard t={t} />
+    </div>
+  )
+}
+
+function UnseenCutout({ line }: { line: UnseenLine }) {
+  const [src, setSrc] = useState('/images/unseen.webp')
+  return (
+    <div className="unseen-pop" aria-live="polite">
+      <span className="bubble"><small>The Unseen</small>{line.text}</span>
+      <img
+        src={src}
+        alt=""
+        onError={() => setSrc((current) => (current.endsWith('.webp') ? '/images/unseen.png' : '/unseen.png'))}
+      />
     </div>
   )
 }
@@ -464,8 +503,9 @@ function MiniBoard({ t }: { t: Copy }) {
   }, [t])
   return (
     <aside className="pc-side">
-      <div className="card scroll">
-        <b>{t.week}</b>
+      <div className="card scroll stack">
+        <b>{t.leaderboard}</b>
+        <span className="chip">{t.week}</span>
         {note ? <p className="muted">{note}</p> : rows.length === 0 ? <p className="muted">{t.noRank}</p> : rows.map((row, index) => (
           <div key={row.name} className="spread"><span className="row"><DefenderArt id={row.hostPet} size={24} />{index + 1}. {row.name}</span><span>{row.score}</span></div>
         ))}

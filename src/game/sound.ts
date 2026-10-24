@@ -51,6 +51,16 @@ function ac(): AudioContext {
   return ctx
 }
 
+/** Call from the first pointer on the board so later tones are allowed to play. */
+export function unlockAudio(): void {
+  try {
+    const c = ac()
+    if (c.state === 'suspended') void c.resume()
+  } catch {
+    /* ignore */
+  }
+}
+
 function tone(freq: number, duration: number, type: OscillatorType, gain: number, when = 0, slideTo?: number): void {
   if (muted) return
   try {
