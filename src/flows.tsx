@@ -103,6 +103,20 @@ function guestBoard(): { streak: number; bestRun: number } {
   }
 }
 
+function nextDailyLeft(): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Toronto',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date())
+  const read = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? 0)
+  const left = (23 - read('hour')) * 3600 + (59 - read('minute')) * 60 + (60 - read('second'))
+  const safe = Math.max(0, left)
+  return `${Math.floor(safe / 3600)}h ${Math.floor((safe % 3600) / 60)}m`
+}
+
 function StreakPips({ streak }: { streak: number }) {
   const filled = Math.min(7, Math.max(0, streak))
   return (
@@ -124,7 +138,7 @@ function AccountMenu({ t, me }: { t: Copy; me: Me }) {
   )
 }
 
-export function HomeScreen({ t, lang, me, pc }: Bag) {
+export function HomeScreen({ t, me, pc }: Bag) {
   const [open, setOpen] = useState(false)
   const guest = guestBoard()
   const streak = me?.streak ?? guest.streak
@@ -146,7 +160,6 @@ export function HomeScreen({ t, lang, me, pc }: Bag) {
   const tabs = (
     <div className="tabs">
       <button className="tab on" type="button" onClick={() => go('/play')}>{t.play}</button>
-      <button className="tab" type="button" onClick={() => go('/later/rewards')}>{t.rewards}</button>
       <button className="tab" type="button" onClick={() => go('/stable')}>{t.stable}</button>
       <button className="tab" type="button" onClick={() => void shareHome(t.brand)}>{t.share}</button>
       <button className="tab" type="button" onClick={() => go(me ? '/settings' : '/join')}>{t.save}</button>
@@ -158,7 +171,7 @@ export function HomeScreen({ t, lang, me, pc }: Bag) {
       <p className="home-mark">{t.brand}</p>
       <div className="home-hero">
         <button className="btn gold home-play" type="button" onClick={() => go('/play')}>{t.play}</button>
-        <a href="https://romansgame.com" target="_blank" rel="noreferrer"><img className="logo-tile" src="/site-logo.png" alt={t.website} /></a>
+        <button className="throne-tile" type="button" onClick={() => go('/thrones')}><img src="/images/cinematic/bg-throne.webp" alt={t.throne} /></button>
       </div>
     </>
   )
@@ -198,7 +211,7 @@ export function HomeScreen({ t, lang, me, pc }: Bag) {
           <div className="card stack">
             <p className="guest-prompt">{t.guestLine}</p>
             <button className="btn gold" type="button" onClick={() => go('/settings')}>{t.guestSave}</button>
-            <p className="muted">{t.already}</p>
+            <p className="home-signin"><span className="muted">{t.already}</span> <button className="legal-link" type="button" onClick={() => go('/signin')}>{t.signIn}</button></p>
           </div>
         )}
         {legal}
@@ -210,10 +223,11 @@ export function HomeScreen({ t, lang, me, pc }: Bag) {
     <div className="pc-body home-pc">
       <div className="home-col">
         {hero}
-        <div className="card stack home-modes">
-          <button className="spread" type="button" onClick={() => go('/play')}><b>{t.daily}</b></button>
-          <button className="spread" type="button" onClick={() => go('/play')}><b>{t.freePlay}</b><span className="muted">6×6 · {t.medium}</span></button>
-          <button className="spread" type="button" onClick={() => go('/play')}><b>{t.survival}</b><span className="muted">{t.bestRun} {bestRun}</span></button>
+        <b className="eyebrow">{t.pickMode}</b>
+        <div className="home-mode-row">
+          <button className="card stack" type="button" onClick={() => go('/play')}><b>{t.daily}</b></button>
+          <button className="card stack" type="button" onClick={() => go('/play')}><b>{t.freePlay}</b><span className="muted">6×6 · {t.medium}</span></button>
+          <button className="card stack" type="button" onClick={() => go('/play')}><b>{t.survival}</b><span className="muted">{t.bestRun} {bestRun}</span></button>
         </div>
         <div className="card stack home-you">
           <div className="home-name">
@@ -223,15 +237,9 @@ export function HomeScreen({ t, lang, me, pc }: Bag) {
           <span className="row">{me?.hostPet ? <DefenderArt id={me.hostPet} size={48} /> : null}<span>{t.host} · {hostName}</span></span>
           <div className="row">
             <button className="btn" type="button" onClick={() => go('/stable')}>{t.stable}</button>
-            <button className="btn gold" type="button" onClick={() => go('/shop')}>{t.shop} · {formatCoins(me?.coins ?? 0, lang)} ¢</button>
+            <button className="btn gold" type="button" onClick={() => go('/shop')}>{t.shop}</button>
           </div>
-          {!me ? (
-            <>
-              <p className="guest-prompt">{t.guestLine}</p>
-              <button className="btn gold" type="button" onClick={() => go('/settings')}>{t.guestSave}</button>
-              <p className="muted">{t.already}</p>
-            </>
-          ) : null}
+          {!me ? <p className="guest-prompt">{t.guestLine}</p> : null}
         </div>
         {legal}
       </div>
@@ -240,7 +248,7 @@ export function HomeScreen({ t, lang, me, pc }: Bag) {
           <b>{t.daily}</b>
           <span>{t.streak} {streak}</span>
           <StreakPips streak={streak} />
-          <button className="btn" type="button" onClick={() => go('/play')}>{t.play}</button>
+          <span className="muted">{t.nextDaily} {nextDailyLeft()}</span>
         </div>
         <button className="card stack home-goal" type="button" onClick={() => go('/shop')}>
           <span className="spread"><b>{t.goal}</b><span>{t.shop}</span></span>
@@ -262,7 +270,7 @@ export function HomeScreen({ t, lang, me, pc }: Bag) {
               <span key={`${row.name}-${index}`} className="spread"><span className="row"><DefenderArt id={row.hostPet} size={28} />{index + 1}. {row.name}</span><span>{row.score}</span></span>
             ))}
           </div>
-          <button className="btn" type="button" onClick={() => go('/leaderboard')}>{t.seeAll}</button>
+          <button className="btn" type="button" onClick={() => go('/leaderboard')}>{t.fullLeaderboard}</button>
         </div>
       </div>
     </div>
@@ -1398,12 +1406,27 @@ export function BoardScreen({ t, me, pc }: Bag) {
   )
 }
 
+const THRONE_ART = [
+  '/images/cinematic/bg-throne.webp',
+  '/images/cinematic/throne-stone.webp',
+  '/images/cinematic/throne-cedar.webp',
+  '/images/cinematic/throne-river.webp',
+  '/images/cinematic/throne-amber.webp',
+  '/images/cinematic/throne-harbor.webp',
+  '/images/cinematic/throne-iron.webp',
+  '/images/cinematic/throne-silver.webp',
+  '/images/cinematic/throne-lantern.webp',
+  '/images/cinematic/throne-gold.webp',
+  '/images/cinematic/throne-crown.webp',
+  '/images/cinematic/throne-dawn.webp',
+]
+
 export function ThroneScreen({ t, lang, me, pc }: Bag) {
   const held = throneForBoards(winMap({ wins: me?.wins ?? 0, winsByBoard: me?.winsByBoard }))
   const list = Array.from({ length: 12 }, (_, index) => throneAt(index))
   const cards = list.map((throne) => (
     <div key={throne.id} className="card throne-card">
-      <img src="/images/cinematic/bg-throne.webp" alt="" />
+      <img src={THRONE_ART[throne.id - 1]} alt="" />
       <b>{throne.id}. {lang === 'fr' ? throne.nameFr : throne.name}</b>
       <span>{held && held.id >= throne.id ? '●' : throne.wins}</span>
     </div>

@@ -356,6 +356,16 @@ button.spread {
 .home-play { font-size: 19px; padding: 11px 30px; }
 .pc-root .home-play { font-size: 28px; padding: 14px 28px; width: min(300px, 100%); }
 .home-modes .spread, .home-you .row { flex-wrap: wrap; }
+.home-mode-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.home-mode-row .card { padding: 8px 8px; min-width: 0; }
+.home-mode-row .muted { font-size: 12px; }
+.home-signin { margin: 0; }
+.throne-tile {
+  width: 64px; height: 64px; padding: 0; border-radius: 16px; overflow: hidden; flex: none;
+  border: 2px solid #ffd166; background: #1a1408;
+}
+.throne-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pc-root .throne-tile { width: 110px; height: 110px; border-radius: 26px; border-width: 3px; }
 .home-daily { border-color: #3dd68c; }
 .home-goal { border-color: rgba(255, 209, 102, .85); }
 .home-col > .home-board { flex: 1; min-height: 0; }
