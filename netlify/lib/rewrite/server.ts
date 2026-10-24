@@ -537,8 +537,12 @@ async function join(kv: Kv, env: Env, body: Record<string, unknown>, origin: str
     await kv.set(`verify:${account.verifyToken}`, account.id)
   }
   const session = await startSession(kv, account, secure)
-  if (isEmail && account.verifyToken) await mail(env, kv, verificationMail(origin, account.email!, account.verifyToken))
-  return json({ me: publicMe(session.account), recoveryCode: recovery }, 200, { 'set-cookie': session.cookie })
+  let mailSent = true
+  if (isEmail && account.verifyToken) {
+    const sent = await mail(env, kv, verificationMail(origin, account.email!, account.verifyToken))
+    mailSent = sent.ok
+  }
+  return json({ me: publicMe(session.account), recoveryCode: recovery, mailSent }, 200, { 'set-cookie': session.cookie })
 }
 
 async function signin(kv: Kv, body: Record<string, unknown>, secure: boolean, ip: string): Promise<Response> {
@@ -619,7 +623,8 @@ async function recoverEmail(kv: Kv, env: Env, body: Record<string, unknown>, ori
   account.resetToken = randomToken()
   await saveAccount(kv, account)
   await kv.set(`reset:${account.resetToken}`, { accountId: account.id, exp: Date.now() + RESET_MINUTES * 60_000 })
-  await mail(env, kv, resetMail(origin, target, account.playerName, account.resetToken))
+  const sent = await mail(env, kv, resetMail(origin, target, account.playerName, account.resetToken))
+  if (!sent.ok) console.error('reset mail was not sent')
   return json(same)
 }
 
@@ -686,7 +691,8 @@ async function addEmail(kv: Kv, env: Env, me: Account | null, body: Record<strin
   me.verifyToken = randomToken()
   await saveAccount(kv, me)
   await kv.set(`verify:${me.verifyToken}`, me.id)
-  await mail(env, kv, verificationMail(origin, email, me.verifyToken))
+  const sent = await mail(env, kv, verificationMail(origin, email, me.verifyToken))
+  if (!sent.ok) return json({ error: 'mail' }, 502)
   return json({ ok: true })
 }
 
@@ -777,7 +783,8 @@ async function familyAsk(kv: Kv, env: Env, me: Account | null, body: Record<stri
   await kv.set(`approval:${token}`, approval)
   await kv.set(`player-approval:${me.id}`, token)
   await kv.set(`mail-day:${email}`, Date.now())
-  await mail(env, kv, approvalMail(origin, email, me.playerName, token))
+  const sent = await mail(env, kv, approvalMail(origin, email, me.playerName, token))
+  if (!sent.ok) return json({ error: 'mail' }, 502)
   return json({ ok: true })
 }
 
@@ -1372,12 +1379,13 @@ async function contact(kv: Kv, env: Env, body: Record<string, unknown>, origin: 
   const message = String(body.message ?? '').slice(0, 4000)
   const about = String(body.about ?? 'Game').slice(0, 80)
   if (!emailOf(email) || message.length < 2) return json({ error: 'message' }, 400)
-  await mail(env, kv, {
+  const sent = await mail(env, kv, {
     to: SUPPORT_EMAIL,
     subject: `Contact: ${about}`,
     text: `From ${email}\n\n${message}\n\n${origin}`,
     html: `<p>From ${email}</p><p>${message.replace(/</g, '')}</p>`,
   })
+  if (!sent.ok) return json({ error: 'mail' }, 502)
   return json({ ok: true })
 }
 

@@ -29,6 +29,7 @@ function errText(t: Copy, error: unknown): string {
   if (code === 'slow-down' || code === 'locked' || code === 'one-a-day') return t.errorSlow
   if (code === 'code-dead' || code === 'expired') return t.errorCode
   if (code === 'stripe-test-only') return t.errorStripe
+  if (code === 'mail') return t.errorMail
   return t.errorGeneric
 }
 
@@ -116,9 +117,10 @@ export function AuthScreen({ t, pc, onMe, path }: Bag) {
     setError('')
     try {
       if (mode === 'join') {
-        const res = await api<{ me: Me; recoveryCode: string | null }>('/api/join', { login, password, agree: true })
+        const res = await api<{ me: Me; recoveryCode: string | null; mailSent?: boolean }>('/api/join', { login, password, agree: true })
         onMe(res.me)
         if (res.recoveryCode) setRecovery(res.recoveryCode)
+        else if (res.mailSent === false) setError(t.errorMail)
         else go('/')
       } else if (mode === 'signin') {
         const res = await api<{ me: Me }>('/api/signin', { login, password })
