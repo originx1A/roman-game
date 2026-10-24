@@ -5,7 +5,7 @@ import { DefenderArt } from './ui/DefenderArt'
 import { isSolved } from './game/logic'
 import { isMuted, setMuted, sfxMark, sfxPlace } from './game/sound'
 import { ADJECTIVES, NOUNS, formatTeamName } from './game/teamNames'
-import { CHARGE_COST, CHARGE_LABEL, DEFENDERS, DEFENDER_PRICE, PETS, CLOTHES, PACKS, SELLER, SUPPORT_EMAIL, STARTER_COINS, centsForSku, formatCoins, formatPrice, isSku, priceForCountry, sameSiteNext, type Sku } from './game/catalog'
+import { CHARGE_COST, CHARGE_LABEL, DEFENDERS, DEFENDER_PRICE, PETS, CLOTHES, PACKS, SELLER, SUPPORT_EMAIL, STARTER_COINS, WEEK_WIN_BONUS_AT, centsForSku, formatCoins, formatPrice, isSku, priceForCountry, sameSiteNext, type Sku } from './game/catalog'
 import { throneAt, throneForBoards, winMap } from './game/thrones'
 import type { Copy, Lang } from './i18n'
 import { legalSections } from './i18n'
@@ -47,6 +47,20 @@ function Field({ label, value, set, type = 'text' }: { label: string; value: str
       {label}
       <input value={value} type={type} onChange={(event) => set(event.target.value)} autoComplete={type === 'password' ? 'current-password' : 'username'} />
     </label>
+  )
+}
+
+function WeekGoal({ t, wins }: { t: Copy; wins: number }) {
+  const shown = Math.max(0, wins)
+  const filled = Math.min(100, (shown / WEEK_WIN_BONUS_AT) * 100)
+  return (
+    <>
+      <p className="muted">{t.winsThisWeek}</p>
+      <span>{shown} / {WEEK_WIN_BONUS_AT}</span>
+      <span className="goal-bar" role="progressbar" aria-valuemin={0} aria-valuemax={WEEK_WIN_BONUS_AT} aria-valuenow={Math.min(shown, WEEK_WIN_BONUS_AT)} aria-label={t.winsThisWeek}>
+        <span style={{ width: `${filled}%` }} />
+      </span>
+    </>
   )
 }
 
@@ -94,8 +108,14 @@ export function HomeScreen({ t, lang, me, pc }: Bag) {
         <div className="grid2">
           <button className="card" type="button" onClick={() => go('/leaderboard')} style={{ textAlign: 'left' }}>
             <b>{t.goal}</b>
-            <p className="muted">{t.week}</p>
-            <span>{me?.throne ? (lang === 'fr' ? me.throne.nameFr : me.throne.name) : `${t.streak} ${me?.streak ?? 0}`}</span>
+            {pc ? (
+              <>
+                <p className="muted">{t.week}</p>
+                <span>{me?.throne ? (lang === 'fr' ? me.throne.nameFr : me.throne.name) : `${t.streak} ${me?.streak ?? 0}`}</span>
+              </>
+            ) : (
+              <WeekGoal t={t} wins={me?.weekWins ?? 0} />
+            )}
           </button>
           <button className="card" type="button" onClick={() => go('/play')} style={{ textAlign: 'left' }}>
             <b>{t.daily}</b>

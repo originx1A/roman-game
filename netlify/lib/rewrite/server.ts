@@ -237,6 +237,7 @@ function publicMe(account: Account) {
     hearts: account.hearts,
     bestRun: account.bestRun,
     streak: account.streak,
+    weekWins: account.weekKey === weekKey() ? account.weekWins : 0,
     teamId: account.teamId,
     language: account.language,
     throne: throne ? { id: throne.id, name: throne.name, nameFr: throne.nameFr } : null,

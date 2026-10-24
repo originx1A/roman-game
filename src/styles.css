@@ -50,6 +50,15 @@ h1, h2, .display { font-family: 'Titan One', Nunito, sans-serif; font-weight: 40
 .coin {
   border: 1px solid rgba(255,209,102,.5); background: rgba(20,36,90,.8); color: #ffd166;
   border-radius: 14px; padding: 4px 8px; font-weight: 800; font-size: 13px;
+  white-space: nowrap; flex-shrink: 0;
+}
+.goal-bar {
+  display: block; height: 8px; margin-top: 6px; border-radius: 8px; overflow: hidden;
+  background: rgba(255,255,255,.16);
+}
+.goal-bar > span {
+  display: block; height: 100%; border-radius: 8px;
+  background: linear-gradient(180deg, #ffe08a, #f4b93a);
 }
 .chip, .name-chip {
   border: 1px solid rgba(255,255,255,.2); background: rgba(18,32,80,.72); border-radius: 14px;

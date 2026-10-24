@@ -41,6 +41,7 @@ export interface Me {
   hearts: number
   bestRun: Record<string, number>
   streak: number
+  weekWins?: number
   teamId: string | null
   language: 'en' | 'fr' | null
   throne: { id: number; name: string; nameFr: string } | null
