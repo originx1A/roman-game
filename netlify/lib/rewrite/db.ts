@@ -28,6 +28,13 @@ export class TakenError extends Error {
   }
 }
 
+export class EmailUsedError extends Error {
+  constructor() {
+    super('email-used')
+    this.name = 'EmailUsedError'
+  }
+}
+
 export interface Env {
   RESEND_API_KEY?: string
   STRIPE_SECRET_KEY?: string
@@ -85,7 +92,7 @@ interface State {
 }
 
 export interface BoardResult {
-  rows: { id: string; name: string; score: number; throne: number }[]
+  rows: { id?: string; name: string; score: number; throne: number }[]
   friends?: { id: string; name: string }[]
   incoming?: { id: string; name: string }[]
   outgoing?: { id: string; name: string }[]
@@ -139,6 +146,7 @@ export class Store {
       await this.rest('game_groups?select=invite_code&limit=1')
       await this.rest('account_flags?select=buying_stopped&limit=1')
       await this.rpc('rg_auth_id_by_email', { target: '' })
+      await this.rpc('rg_password_matches', { user_id: '00000000-0000-0000-0000-000000000000', plain: 'x' })
       return { key: true, schema: true, project: PROJECT, accounts: 'supabase' }
     } catch {
       return { key: true, schema: false, project: PROJECT, accounts: 'supabase' }
@@ -224,12 +232,10 @@ export class Store {
 
   async passwordOk(email: string, password: string): Promise<boolean> {
     if (!this.key || !email || !password) return false
-    const res = await fetch(`${this.url}/auth/v1/token?grant_type=password`, {
-      method: 'POST',
-      headers: { apikey: this.key, 'content-type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    })
-    return res.ok
+    const id = await this.authId(email)
+    if (!id) return false
+    const ok = await this.rpc('rg_password_matches', { user_id: id, plain: password })
+    return ok === true
   }
 
   async setPassword(id: string, password: string): Promise<void> {
@@ -239,7 +245,11 @@ export class Store {
 
   async updateAuthEmail(id: string, email: string): Promise<void> {
     const res = await this.auth(`/admin/users/${id}`, { method: 'PUT', body: { email, email_confirm: true } })
-    if (!res.ok) throw new SchemaError('auth-email')
+    if (res.ok) return
+    const data = (await res.json().catch(() => ({}))) as { error_code?: string; msg?: string; message?: string }
+    const msg = `${data.error_code ?? ''} ${data.msg ?? ''} ${data.message ?? ''}`
+    if (res.status === 422 || /email_exists|already registered|already been registered|already exists/i.test(msg)) throw new EmailUsedError()
+    throw new SchemaError('auth-email')
   }
 
   async deleteUser(id: string): Promise<void> {
@@ -843,16 +853,19 @@ export class Store {
   }
 
   private async readTeam(id: string): Promise<Team | null> {
-    const group = await this.one<{ id: string; name: string; invite_code: string | null; open_join: boolean; mascot: string | null; week_key: string | null; week_scores: Record<string, number> | null }>(
-      `game_groups?id=eq.${id}&select=id,name,invite_code,open_join,mascot,week_key,week_scores`,
+    const group = await this.one<{ id: string; name: string; invite_code: string | null; open_join: boolean; mascot: string | null; week_key: string | null; week_scores: Record<string, number> | null; founder_id: string | null; created_at: string }>(
+      `game_groups?id=eq.${id}&select=id,name,invite_code,open_join,mascot,week_key,week_scores,founder_id,created_at`,
     )
     if (!group) return null
     const closed = await this.one(`group_closed?group_id=eq.${id}&select=group_id`)
     const members = await this.many<{ player_id: string; joined_at: string }>(`group_members?group_id=eq.${id}&left_at=is.null&removed_at=is.null&select=player_id,joined_at`)
+    if (group.founder_id && !members.some((member) => member.player_id === group.founder_id)) {
+      members.unshift({ player_id: group.founder_id, joined_at: group.created_at })
+    }
     const roles = await this.many<{ player_id: string; role: Team['members'][number]['rank'] }>(`group_roles?group_id=eq.${id}&select=player_id,role`)
     const asks = await this.many<{ player_id: string; created_at: string }>(`group_join_requests?group_id=eq.${id}&status=eq.pending&select=player_id,created_at`)
     const names = await this.names([...members.map((member) => member.player_id), ...asks.map((ask) => ask.player_id)])
-    const roleOf = (playerId: string) => roles.find((role) => role.player_id === playerId)?.role ?? 'member'
+    const roleOf = (playerId: string) => roles.find((role) => role.player_id === playerId)?.role ?? (playerId === group.founder_id ? 'leader' : 'member')
     return {
       id: group.id,
       code: group.invite_code ?? '',
@@ -974,11 +987,36 @@ export class Store {
       .sort((a, b) => (scope === 'today' ? a[1] - b[1] : b[1] - a[1]))
       .slice(0, 50)
       .map(([id, score]) => ({
-        id,
         name: hidden.has(id) ? 'Player' : names.get(id) ?? 'Player',
         score,
         throne: throneForBoards(winsOf.get(id) ?? {})?.id ?? 0,
       }))
+  }
+
+  async openTeams(): Promise<{ name: string; memberCount: number; code: string; full: boolean }[]> {
+    const groups = await this.many<{ id: string; name: string; invite_code: string | null; founder_id: string | null }>(
+      'game_groups?open_join=eq.true&select=id,name,invite_code,founder_id&order=created_at.desc&limit=40',
+    )
+    if (!groups.length) return []
+    const closed = await this.many<{ group_id: string }>('group_closed?select=group_id')
+    const shut = new Set(closed.map((row) => row.group_id))
+    const open = groups.filter((group) => group.invite_code && !shut.has(group.id))
+    if (!open.length) return []
+    const members = await this.many<{ group_id: string; player_id: string }>(
+      `group_members?group_id=in.(${open.map((group) => group.id).join(',')})&left_at=is.null&removed_at=is.null&select=group_id,player_id`,
+    )
+    const seen = new Map<string, Set<string>>()
+    for (const row of members) {
+      const set = seen.get(row.group_id) ?? new Set<string>()
+      set.add(row.player_id)
+      seen.set(row.group_id, set)
+    }
+    return open.map((group) => {
+      const set = seen.get(group.id) ?? new Set<string>()
+      if (group.founder_id) set.add(group.founder_id)
+      const memberCount = set.size
+      return { name: group.name, memberCount, code: group.invite_code as string, full: memberCount >= 10 }
+    })
   }
 
   private async names(ids: string[]): Promise<Map<string, string>> {

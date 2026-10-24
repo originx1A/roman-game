@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { ApiError, api, type Me } from './api'
 import { BoardView } from './ui/BoardView'
 import { isSolved } from './game/logic'
-import { sfxMark, sfxPlace } from './game/sound'
+import { isMuted, setMuted, sfxMark, sfxPlace } from './game/sound'
 import { ADJECTIVES, NOUNS, formatTeamName } from './game/teamNames'
 import { DEFENDERS, PETS, CLOTHES, SELLER, SUPPORT_EMAIL, formatPrice, priceForCountry } from './game/catalog'
 import { throneAt, throneForBoards, winMap } from './game/thrones'
@@ -30,6 +30,8 @@ function errText(t: Copy, error: unknown): string {
   if (code === 'code-dead' || code === 'expired') return t.errorCode
   if (code === 'stripe-test-only') return t.errorStripe
   if (code === 'mail') return t.errorMail
+  if (code === 'email-used') return t.emailUsed
+  if (code === 'email-holder') return t.emailNeedsHolder
   if (code === 'schema') return t.errorSchema
   if (code === 'supabase-key') return t.errorSupabase
   if (code === 'deleted') return t.deleted
@@ -43,6 +45,23 @@ function Field({ label, value, set, type = 'text' }: { label: string; value: str
       <input value={value} type={type} onChange={(event) => set(event.target.value)} autoComplete={type === 'password' ? 'current-password' : 'username'} />
     </label>
   )
+}
+
+async function shareHome(title: string) {
+  const url = `${location.origin}/`
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, url })
+      return
+    } catch {
+      return
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url)
+  } catch {
+    /* The share sheet is the destination. Copy is the PC fallback. */
+  }
 }
 
 export function HomeScreen({ t, me, pc }: Bag) {
@@ -70,7 +89,11 @@ export function HomeScreen({ t, me, pc }: Bag) {
           <a href="https://romansgame.com" target="_blank" rel="noreferrer"><img className="logo-tile" src="/site-logo.png" alt={t.website} /></a>
         </div>
         <div className="grid2">
-          <div className="card"><b>{t.goal}</b><p className="muted">{me ? t.claimed : t.play}</p></div>
+          <button className="card" type="button" onClick={() => go('/shop')} style={{ textAlign: 'left' }}>
+            <b>{t.goal}</b>
+            <p className="muted">{me ? t.claimed : t.play}</p>
+            <span>{t.shop} ›</span>
+          </button>
           <button className="card" type="button" onClick={() => go('/play')} style={{ textAlign: 'left' }}>
             <b>{t.daily}</b>
             <p className="muted">{t.streak} {me?.streak ?? 0}</p>
@@ -84,10 +107,10 @@ export function HomeScreen({ t, me, pc }: Bag) {
         ) : null}
         <div className="tabs">
           <button className="tab on" type="button" onClick={() => go('/play')}>{t.play}</button>
-          <button className="tab" type="button" onClick={() => go('/later/rewards')}>{t.rewards}</button>
           <button className="tab" type="button" onClick={() => go('/stable')}>{t.stable}</button>
-          <button className="tab" type="button" onClick={() => go('/later/share')}>{t.share}</button>
-          <button className="tab" type="button" onClick={() => (me ? go('/settings') : go('/join'))}>{t.save}</button>
+          <button className="tab" type="button" onClick={() => void shareHome(t.brand)}>{t.share}</button>
+          <button className="tab" type="button" onClick={() => go('/thrones')}>{t.throne}</button>
+          {!me ? <button className="tab" type="button" onClick={() => go('/join')}>{t.save}</button> : null}
         </div>
         {!me ? <p className="muted">{t.guestLine}</p> : null}
         <div className="foot">
@@ -223,10 +246,20 @@ export function AuthScreen({ t, pc, onMe, path }: Bag) {
 export function NudgeScreen({ t, me }: Bag) {
   const [email, setEmail] = useState('')
   const [note, setNote] = useState('')
+  const blocked = me?.ageGate === 'under' && !me.holderId
+  if (blocked) {
+    return (
+      <div className="body stack">
+        <h1>{t.nudgeTitle}</h1>
+        <p className="muted">{t.emailNeedsHolder}</p>
+        <button className="btn" type="button" onClick={() => go('/')}>{t.maybeLater}</button>
+      </div>
+    )
+  }
   return (
     <form className="body stack" onSubmit={(event) => {
       event.preventDefault()
-      void api('/api/email/add', { email, password: '' }).then(() => setNote(t.verifySent)).catch(() => setNote(t.errorGeneric))
+      void api('/api/email/add', { email, password: '' }).then(() => setNote(t.verifySent)).catch((err) => setNote(errText(t, err)))
     }}>
       <h1>{t.nudgeTitle}</h1>
       <p className="muted">{t.nudgeBody}</p>
@@ -234,7 +267,6 @@ export function NudgeScreen({ t, me }: Bag) {
       {note ? <p className="muted">{note}</p> : null}
       <button className="btn gold" type="submit">{t.addEmail}</button>
       <button className="btn" type="button" onClick={() => go('/')}>{t.maybeLater}</button>
-      {me ? null : null}
     </form>
   )
 }
@@ -610,12 +642,14 @@ export function SettingsScreen({ t, me, onMe, setLang, lang, path }: Bag) {
         <Field label={t.currentPassword} value={current} set={setCurrent} type="password" />
         <button className="btn" type="submit">{t.saveName}</button>
       </form>
-      <form className="card stack" onSubmit={(event) => { event.preventDefault(); void api('/api/email/add', { email, password: current }).then(() => setNote(t.verifySent)).catch(() => setNote(t.errorGeneric)) }}>
-        <b>{t.changeEmail}</b>
-        <Field label={t.yourEmail} value={email} set={setEmail} />
-        <Field label={t.currentPassword} value={current} set={setCurrent} type="password" />
-        <button className="btn" type="submit">{t.sendLink}</button>
-      </form>
+      {me.ageGate === 'under' && !me.holderId ? <p className="muted">{t.emailNeedsHolder}</p> : (
+        <form className="card stack" onSubmit={(event) => { event.preventDefault(); void api('/api/email/add', { email, password: current }).then(() => setNote(t.verifySent)).catch((err) => setNote(errText(t, err))) }}>
+          <b>{t.changeEmail}</b>
+          <Field label={t.yourEmail} value={email} set={setEmail} />
+          <Field label={t.currentPassword} value={current} set={setCurrent} type="password" />
+          <button className="btn" type="submit">{t.sendLink}</button>
+        </form>
+      )}
       <form className="card stack" onSubmit={(event) => {
         event.preventDefault()
         void api('/api/password', { current, password, again }).then(() => setNote(t.savePassword)).catch(() => setNote(t.errorPassword))
@@ -631,9 +665,7 @@ export function SettingsScreen({ t, me, onMe, setLang, lang, path }: Bag) {
       <button className="btn" type="button" onClick={() => go('/help')}>{t.helpLegal}</button>
       <button className="btn" type="button" onClick={() => go('/legal/terms')}>{t.terms}</button>
       <button className="btn" type="button" onClick={() => go('/legal/privacy')}>{t.privacy}</button>
-      <label className="spread">{t.sound}<input type="checkbox" defaultChecked onChange={(event) => {
-        void import('./game/sound').then(({ setMuted }) => setMuted(!event.target.checked))
-      }} /></label>
+      <label className="spread">{t.sound}<input type="checkbox" defaultChecked={!isMuted()} onChange={(event) => setMuted(!event.target.checked)} /></label>
       {note ? <p className="muted">{note}</p> : null}
       <span className="build">{t.build} {BUILD_NUMBER}</span>
     </div>
@@ -734,6 +766,7 @@ export function LegalScreen({ t, lang, path }: Bag) {
 export function TeamScreen({ t, me, path, pc }: Bag) {
   const code = path.startsWith('/t/') ? path.split('/')[2] : ''
   const [team, setTeam] = useState<{ name?: string; code?: string; members?: { id: string; name: string; rank: string }[]; asks?: { id: string; name: string }[]; memberCount?: number; path?: string } | null>(null)
+  const [openTeams, setOpenTeams] = useState<{ name: string; memberCount: number; code: string; full: boolean }[]>([])
   const [adj, setAdj] = useState(ADJECTIVES[0])
   const [noun, setNoun] = useState(NOUNS[0])
   const [number, setNumber] = useState(12)
@@ -743,7 +776,10 @@ export function TeamScreen({ t, me, path, pc }: Bag) {
   const [error, setError] = useState('')
   useEffect(() => {
     const query = code ? `?code=${code}` : ''
-    void api<{ team: typeof team }>(`/api/team${query}`).then((res) => setTeam(res.team)).catch(() => undefined)
+    void api<{ team: typeof team; board?: { name: string; memberCount: number; code: string; full: boolean }[] }>(`/api/team${query}`).then((res) => {
+      setTeam(res.team)
+      setOpenTeams(res.board ?? [])
+    }).catch(() => undefined)
   }, [code])
 
   async function share() {
@@ -761,7 +797,7 @@ export function TeamScreen({ t, me, path, pc }: Bag) {
       {team?.name ? (
         <div className="card stack">
           <b>{team.name}</b>
-          <p className="muted">{team.memberCount} · {team.code}</p>
+          <p className="muted">{team.memberCount ?? 0}/10{team.code ? ` · ${team.code}` : ''}</p>
           {(team.members ?? []).map((member) => {
             const iAmLeader = (team.members ?? []).some((row) => row.id === me?.id && row.rank === 'leader')
             return (
@@ -827,6 +863,18 @@ export function TeamScreen({ t, me, path, pc }: Bag) {
             <Field label={t.code} value={joinCode} set={setJoinCode} />
             <button className="btn" type="submit">{t.joinTeam}</button>
           </form>
+          {openTeams.length > 0 ? (
+            <div className="card stack">
+              <b>{t.openTeams}</b>
+              {openTeams.map((row) => (
+                <div key={row.code} className="spread">
+                  <span>{row.name}</span>
+                  <span>{row.memberCount}/10</span>
+                  {row.full ? <span>{t.full}</span> : <button className="btn" type="button" onClick={() => go(`/t/${row.code}`)}>{t.joinTeam}</button>}
+                </div>
+              ))}
+            </div>
+          ) : null}
         </>
       )}
       {code && team && !team.members ? (
@@ -924,11 +972,14 @@ export function BoardScreen({ t, me }: Bag) {
           <b>{picked.name}</b>
           {!me ? <button className="btn gold" type="button" onClick={() => go('/signin')}>{t.signInFriends}</button> : (
             <>
-              <button className="btn" type="button" onClick={() => picked.id && act('ask', picked.id)}>{t.addFriend}</button>
               <button className="btn" type="button" onClick={() => {
-                if (!picked.id) return
+                if (picked.id) act('ask', picked.id)
+                else void api('/api/friends', { action: 'ask', name: picked.name }).then(() => { setPicked(null); load() }).catch((err) => setNote(errText(t, err)))
+              }}>{t.addFriend}</button>
+              <button className="btn" type="button" onClick={() => {
                 if (!me) return go('/signin')
-                void api('/api/team/ask', { id: picked.id }).then(() => setNote(t.requestSent)).catch((err) => setNote(errText(t, err)))
+                const body = picked.id ? { id: picked.id } : { name: picked.name }
+                void api('/api/team/ask', body).then(() => setNote(t.requestSent)).catch((err) => setNote(errText(t, err)))
               }}>{t.askJoin}</button>
             </>
           )}
@@ -945,7 +996,7 @@ export function ThroneScreen({ t, lang, me }: Bag) {
   const list = Array.from({ length: 12 }, (_, index) => throneAt(index))
   return (
     <div className="body stack scroll">
-      <h1>{t.thrones}</h1>
+      <div className="spread"><h1>{t.thrones}</h1><button type="button" onClick={() => go('/')}>{t.home}</button></div>
       <p className="muted">{t.throneRule}</p>
       <p className="muted">{t.statusOnly} {held ? (lang === 'fr' ? held.nameFr : held.name) : ''}</p>
       {list.map((throne) => (
@@ -977,6 +1028,7 @@ export function StableScreen({ t, me, onMe }: Bag) {
       <p className="muted">{t.oneWearer}</p>
       {clothes.length === 0 ? <p className="muted">{t.priceUnset}</p> : clothes.map((id) => <div key={id} className="card">{CLOTHES.find((piece) => piece.id === id)?.name ?? id}</div>)}
       <button className="btn" type="button" onClick={() => go('/shop')}>{t.shop}</button>
+      <button className="btn" type="button" onClick={() => go('/')}>{t.home}</button>
     </div>
   )
 }
@@ -987,23 +1039,26 @@ export function LaterScreen({ t }: Bag) {
 
 export function ChallengeScreen({ t, path, me, pc }: Bag) {
   const code = path.split('/')[2] || ''
-  const [puzzleName, setPuzzleName] = useState('')
+  const [sender, setSender] = useState('')
+  const [playerName, setPlayerName] = useState('')
   const [board, setBoard] = useState<import('./game/logic').Puzzle | null>(null)
   const [cells, setCells] = useState<import('./game/logic').Cell[]>([])
   const [result, setResult] = useState('')
   const [started] = useState(() => Date.now())
   useEffect(() => {
-    void api<{ challenge: { puzzle: import('./game/logic').Puzzle; senderName: string; senderSeconds: number } }>(`/api/challenge/${code}`).then((res) => {
-      setBoard(res.challenge.puzzle)
-      setCells(Array.from({ length: res.challenge.puzzle.size * res.challenge.puzzle.size }, () => 'empty' as const))
-      setPuzzleName(res.challenge.senderName)
+    void api<{ challenge: { size: number; regions: number[]; senderName: string } }>(`/api/challenge/${code}`).then((res) => {
+      const size = res.challenge.size
+      setBoard({ id: code, size, regions: res.challenge.regions, solution: [] })
+      setCells(Array.from({ length: size * size }, () => 'empty' as const))
+      setSender(res.challenge.senderName)
     }).catch(() => setResult(t.errorGeneric))
   }, [code, t.errorGeneric])
-  if (!board) return <div className="body"><p>{result || '…'}</p></div>
+  if (!board) return <div className="body"><p>{result || '…'}</p><button className="btn" type="button" onClick={() => go('/')}>{t.home}</button></div>
   return (
     <div className="body stack">
       <p>{t.guestLine}</p>
-      <p className="muted">{puzzleName}</p>
+      <p className="muted">{sender}</p>
+      {me ? null : <Field label={t.yourName} value={playerName} set={setPlayerName} />}
       <BoardView puzzle={board} cells={cells} onTap={(index) => {
         const next = cells.slice()
         const order = { empty: 'mark', mark: 'buddy', buddy: 'empty' } as const
@@ -1012,8 +1067,8 @@ export function ChallengeScreen({ t, path, me, pc }: Bag) {
         if (next[index] === 'buddy') sfxPlace()
         setCells(next)
         if (isSolved(board, next)) {
-          const seconds = Math.round((Date.now() - started) / 1000)
-          void api<{ won: boolean }>(`/api/challenge/${code}`, { seconds, won: true, name: puzzleName }).then((res) => setResult(res.won ? t.youBeat : t.soClose))
+          const seconds = Math.max(0, Math.round((Date.now() - started) / 1000))
+          void api<{ won: boolean; solved?: boolean }>(`/api/challenge/${code}`, { seconds, cells: next, name: me?.playerName || playerName }).then((res) => setResult(res.solved === false ? t.errorGeneric : res.won ? t.youBeat : t.soClose))
         }
       }} />
       {result ? <h2>{result}</h2> : null}
@@ -1024,6 +1079,7 @@ export function ChallengeScreen({ t, path, me, pc }: Bag) {
         </>
       )}
       {pc ? <button className="btn" type="button" onClick={() => void navigator.clipboard.writeText(location.href)}>{t.copyLink}</button> : null}
+      <button className="btn" type="button" onClick={() => go('/')}>{t.home}</button>
     </div>
   )
 }
@@ -1051,7 +1107,7 @@ export function VerifyScreen({ t }: Bag) {
   const token = new URLSearchParams(location.search).get('token') || ''
   const [note, setNote] = useState('…')
   useEffect(() => {
-    void api('/api/email/verify', { token }).then(() => setNote(t.emailOn)).catch(() => setNote(t.errorCode))
-  }, [token, t.emailOn, t.errorCode])
+    void api('/api/email/verify', { token }).then(() => setNote(t.emailOn)).catch((err) => setNote(errText(t, err)))
+  }, [token, t])
   return <div className="body stack"><h1>{t.yourEmail}</h1><p>{note}</p><button className="btn" type="button" onClick={() => go('/settings')}>{t.settings}</button></div>
 }

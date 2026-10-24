@@ -136,3 +136,17 @@ export function makePuzzle(size: number, difficulty: Difficulty, seedText: strin
 export function dailyPuzzle(now = new Date()): Puzzle {
   return makePuzzle(6, 1, `daily-${torontoDate(now)}`)
 }
+
+/** Rebuild the board from its id. A made-up id does not count. */
+export function puzzleFromId(puzzleId: string): Puzzle | null {
+  const match = /^([5-8])\.([0-3])\.(.{1,100})$/.exec(puzzleId)
+  if (!match) return null
+  const size = Number(match[1])
+  const difficulty = Number(match[2]) as Difficulty
+  try {
+    const puzzle = makePuzzle(size, difficulty, match[3])
+    return puzzle.id === puzzleId ? puzzle : null
+  } catch {
+    return null
+  }
+}

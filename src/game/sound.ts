@@ -3,7 +3,6 @@
 let ctx: AudioContext | null = null
 let muted = false
 let volume = 0.8
-let musicOn = false
 
 const GIGGLES = ['/voices/buddy_giggle_1.mp3', '/voices/buddy_giggle_2.mp3', '/voices/buddy_giggle_3.mp3']
 let giggleEl: HTMLAudioElement | null = null
@@ -28,7 +27,6 @@ export function loadSoundPrefs(): void {
     muted = localStorage.getItem('rg.muted') === '1'
     const stored = Number(localStorage.getItem('rg.volume'))
     if (Number.isFinite(stored)) volume = Math.min(1, Math.max(0, stored))
-    musicOn = localStorage.getItem('rg.music') === '1'
   } catch {
     /* ignore */
   }
@@ -102,6 +100,12 @@ function noiseBurst(duration: number, gain = 0.08, when = 0): void {
   }
 }
 
+/** Soft click for ordinary buttons. Board tiles keep their own sounds. */
+export function sfxClick(): void {
+  tone(740, 0.028, 'sine', 0.045)
+  noiseBurst(0.018, 0.018)
+}
+
 /** X mark. */
 export function sfxMark(): void {
   tone(380, 0.07, 'square', 0.1, 0, 220)
@@ -151,19 +155,14 @@ export function playVoice(id: string): void {
   }
 }
 
-/**
- * Music control is on the sheet. No music file shipped with the design,
- * so this only remembers the switch. It does not play a generated loop.
- */
-export function setMusic(on: boolean): void {
-  musicOn = on
-  try {
-    localStorage.setItem('rg.music', on ? '1' : '0')
-  } catch {
-    /* ignore */
+export function bindButtonClicks(): () => void {
+  const onClick = (event: MouseEvent) => {
+    const target = event.target
+    if (!(target instanceof Element)) return
+    const hit = target.closest('button, a, [role="button"]')
+    if (!hit || hit.closest('.board') || hit.classList.contains('cell')) return
+    sfxClick()
   }
-}
-
-export function musicEnabled(): boolean {
-  return musicOn
+  document.addEventListener('click', onClick)
+  return () => document.removeEventListener('click', onClick)
 }

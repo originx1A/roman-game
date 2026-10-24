@@ -110,7 +110,7 @@ export function PlayScreen({
     setStarted(Date.now())
   }
 
-  function finish(won: boolean) {
+  function finish(won: boolean, board: Cell[] = cells) {
     const secs = Math.max(1, Math.round((Date.now() - started) / 1000))
     setSeconds(secs)
     const slow = secs > 90
@@ -126,6 +126,7 @@ export function PlayScreen({
         seconds: secs,
         moves: Math.max(moves, puzzle.size),
         puzzleId: puzzle.id,
+        cells: board,
         mode,
         perfect,
         run: run + 1,
@@ -165,7 +166,7 @@ export function PlayScreen({
     setMoves((n) => n + 1)
     if (isSolved(puzzle, next)) {
       sfxWin()
-      finish(true)
+      finish(true, next)
     }
   }
 
@@ -189,7 +190,7 @@ export function PlayScreen({
       setCells(next)
       if (isSolved(puzzle, next)) {
         sfxWin()
-        finish(true)
+        finish(true, next)
       }
     } else if (ability === 'heart') {
       setHearts((n) => (n < 2 ? 2 : n))

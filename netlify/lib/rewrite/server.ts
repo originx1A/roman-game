@@ -12,10 +12,10 @@ import {
   priceForCountry,
   type Sku,
 } from '../../../src/game/catalog.ts'
-import { MissingKey, SchemaError, Store, TakenError, openStore, type Env } from './db.ts'
+import { EmailUsedError, MissingKey, SchemaError, Store, TakenError, openStore, type Env } from './db.ts'
 import { formatTeamName, parseTeamName, type TeamNamePick } from '../../../src/game/teamNames.ts'
-import { torontoDate } from '../../../src/game/generate.ts'
-import type { Puzzle } from '../../../src/game/logic.ts'
+import { puzzleFromId, torontoDate } from '../../../src/game/generate.ts'
+import { isCellBoard, isSolved, puzzlePlayable, type Puzzle } from '../../../src/game/logic.ts'
 import { boardFromPuzzleId, throneForBoards, winMap } from '../../../src/game/thrones.ts'
 import { approvalMail, receiptMail, reminderMail, resetMail, sendMail, verificationMail, type Mail } from './mail.ts'
 
@@ -438,7 +438,7 @@ export async function handle(req: Request, env: Env): Promise<Response> {
     if (path === '/api/leaderboard' && req.method === 'GET') return await leaderboard(kv, url, me)
     if (path === '/api/challenge' && req.method === 'POST') return await makeChallenge(kv, me, body)
     if (path.startsWith('/api/challenge/') && req.method === 'GET') return await getChallenge(kv, path.split('/').pop()!)
-    if (path.startsWith('/api/challenge/') && req.method === 'POST') return await challengeResult(kv, path.split('/').pop()!, body)
+    if (path.startsWith('/api/challenge/') && req.method === 'POST') return await challengeResult(kv, me, path.split('/').pop()!, body)
     if (path === '/api/team' && req.method === 'POST') return await makeTeam(kv, me, body)
     if (path === '/api/team' && req.method === 'GET') return await getTeam(kv, me, url)
     if (path === '/api/team/join' && req.method === 'POST') return await joinTeam(kv, me, body)
@@ -465,6 +465,7 @@ function failure(err: unknown): Response {
   const name = err instanceof Error ? err.name : ''
   if (err instanceof MissingKey || name === 'MissingKey') return json({ error: 'supabase-key' }, 503)
   if (err instanceof SchemaError || name === 'SchemaError') return json({ error: 'schema', detail: err instanceof Error ? err.message : '' }, 503)
+  if (err instanceof EmailUsedError || name === 'EmailUsedError') return json({ error: 'email-used' }, 409)
   if (err instanceof TakenError || name === 'TakenError') return json({ error: 'taken' }, 409)
   console.error('rg', err instanceof Error ? err.message : 'error')
   return json({ error: 'server' }, 500)
@@ -662,13 +663,19 @@ async function resetPassword(kv: Store, body: Record<string, unknown>, secure: b
   return json({ me: publicMe(session.account), names, recoveryCode: recoveryCodeShown }, 200, { 'set-cookie': session.cookie })
 }
 
+function emailBlocked(account: Account): boolean {
+  return account.ageGate === 'under' && !account.holderId
+}
+
 async function addEmail(kv: Store, env: Env, me: Account | null, body: Record<string, unknown>, origin: string): Promise<Response> {
   if (!me) return json({ error: 'auth' }, 401)
+  if (emailBlocked(me)) return json({ error: 'email-holder' }, 403)
   const email = String(body.email ?? '').trim().toLowerCase()
   const password = String(body.password ?? '')
   if (!emailOf(email)) return json({ error: 'email' }, 400)
   if (password && !(await passwordMatches(kv, me, password))) return json({ error: 'password' }, 401)
-  if (await byEmail(kv, email)) return json({ error: 'taken' }, 409)
+  const existing = await byEmail(kv, email)
+  if (existing && existing.id !== me.id) return json({ error: 'email-used' }, 409)
   me.pendingEmail = email
   me.verifyToken = randomToken()
   await saveAccount(kv, me)
@@ -686,19 +693,19 @@ async function verifyEmail(kv: Store, body: Record<string, unknown>): Promise<Re
   if (!id) return json({ error: 'expired' }, 400)
   const account = await kv.get<Account>(`account:${id}`)
   if (!account) return json({ error: 'expired' }, 400)
+  if (emailBlocked(account)) return json({ error: 'email-holder' }, 403)
   if (account.emailVerified && account.verifyToken !== token) return json({ ok: true, email: account.email })
   if (account.verifyToken !== token && !account.emailVerified) return json({ error: 'expired' }, 400)
   if (account.pendingEmail) {
+    const existing = await byEmail(kv, account.pendingEmail)
+    if (existing && existing.id !== account.id) return json({ error: 'email-used' }, 409)
+    await kv.updateAuthEmail(account.id, account.pendingEmail)
     account.email = account.pendingEmail
+    account.authEmail = account.pendingEmail
     account.pendingEmail = null
-    await kv.set(`email:${account.email}`, account.id)
   }
   account.emailVerified = true
   account.verifyToken = null
-  if (account.email) {
-    await kv.updateAuthEmail(account.id, account.email)
-    account.authEmail = account.email
-  }
   await kv.set(`verify-used:${token}`, account.id)
   await kv.del(`verify:${token}`)
   await saveAccount(kv, account)
@@ -1072,9 +1079,12 @@ async function recordWin(kv: Store, me: Account | null, body: Record<string, unk
   const size = Number(body.size)
   const seconds = Number(body.seconds)
   const moves = Number(body.moves)
-  const puzzleId = String(body.puzzleId ?? '').slice(0, 80)
+  const puzzleId = String(body.puzzleId ?? '')
   const mode = String(body.mode ?? 'free')
-  if (![5, 6, 7, 8].includes(size) || seconds < 1 || moves < size || !puzzleId) return json({ error: 'board' }, 400)
+  const puzzle = puzzleFromId(puzzleId)
+  if (!puzzle || puzzle.size !== size || seconds < 1 || moves < size || !isCellBoard(body.cells, puzzle.size) || !isSolved(puzzle, body.cells)) {
+    return json({ error: 'board' }, 400)
+  }
   const key = `${mode}:${puzzleId}`
   if (!me.solved.includes(key)) {
     me.solved = [...me.solved, key].slice(-400)
@@ -1132,8 +1142,8 @@ async function leaderboard(kv: Store, url: URL, me: Account | null): Promise<Res
 }
 
 async function makeChallenge(kv: Store, me: Account | null, body: Record<string, unknown>): Promise<Response> {
-  const puzzle = body.puzzle as Puzzle
-  if (!puzzle || !Array.isArray(puzzle.solution) || typeof puzzle.size !== 'number') return json({ error: 'board' }, 400)
+  const puzzle = body.puzzle
+  if (!puzzlePlayable(puzzle)) return json({ error: 'board' }, 400)
   const code = randomToken(4).slice(0, 8)
   const challenge: Challenge = {
     code,
@@ -1149,22 +1159,33 @@ async function makeChallenge(kv: Store, me: Account | null, body: Record<string,
 
 async function getChallenge(kv: Store, code: string): Promise<Response> {
   const challenge = await kv.get<Challenge>(`challenge:${code}`)
-  if (!challenge) return json({ error: 'missing' }, 404)
-  return json({ challenge })
+  if (!challenge || !puzzlePlayable(challenge.puzzle)) return json({ error: 'missing' }, 404)
+  return json({
+    challenge: {
+      size: challenge.puzzle.size,
+      regions: challenge.puzzle.regions,
+      senderName: challenge.senderName,
+      senderSeconds: challenge.senderSeconds,
+      results: challenge.results.map((row) => ({ name: row.name, seconds: row.seconds, won: row.won })),
+    },
+  })
 }
 
-async function challengeResult(kv: Store, code: string, body: Record<string, unknown>): Promise<Response> {
+async function challengeResult(kv: Store, me: Account | null, code: string, body: Record<string, unknown>): Promise<Response> {
   const challenge = await kv.get<Challenge>(`challenge:${code}`)
-  if (!challenge) return json({ error: 'missing' }, 404)
+  if (!challenge || !puzzlePlayable(challenge.puzzle)) return json({ error: 'missing' }, 404)
   const seconds = Number(body.seconds)
-  const won = body.won === true
-  if (!Number.isFinite(seconds)) return json({ error: 'time' }, 400)
-  challenge.results.push({ name: String(body.name ?? 'A player').slice(0, 24), seconds, won })
+  if (!Number.isFinite(seconds) || seconds < 0) return json({ error: 'time' }, 400)
+  if (!isCellBoard(body.cells, challenge.puzzle.size) || !isSolved(challenge.puzzle, body.cells)) return json({ solved: false, won: false })
+  const typed = String(body.name ?? '').trim()
+  const name = (me ? me.playerName : typed || 'A player').slice(0, 24)
+  challenge.results.push({ name, seconds, won: true })
   await kv.set(`challenge:${code}`, challenge)
   return json({
     you: seconds,
     them: challenge.senderSeconds,
-    won: won && (challenge.senderSeconds === 0 || seconds <= challenge.senderSeconds),
+    won: challenge.senderSeconds === 0 || seconds <= challenge.senderSeconds,
+    solved: true,
   })
 }
 
@@ -1232,8 +1253,7 @@ async function getTeam(kv: Store, me: Account | null, url: URL): Promise<Respons
     const team = await kv.get<Team>(`team:${me.teamId}`)
     if (team && !team.closed) return json({ team: publicTeam(team, true) })
   }
-  const rows = (await kv.get<{ name: string; score: number; mascot: string; members: number }[]>('team-board')) ?? []
-  return json({ team: null, board: rows })
+  return json({ team: null, board: await kv.openTeams() })
 }
 
 async function joinTeam(kv: Store, me: Account | null, body: Record<string, unknown>): Promise<Response> {
@@ -1375,7 +1395,9 @@ async function renameTeam(kv: Store, me: Account | null, body: Record<string, un
 async function askTeam(kv: Store, me: Account | null, body: Record<string, unknown>): Promise<Response> {
   if (!me) return json({ error: 'auth' }, 401)
   if (me.teamId) return json({ error: 'already' }, 400)
-  const target = await kv.get<Account>(`account:${String(body.id ?? '')}`)
+  const named = String(body.name ?? '').trim()
+  const id = String(body.id ?? '') || (named ? await kv.idByPublicName(named) : null) || ''
+  const target = await kv.get<Account>(`account:${id}`)
   if (!target?.teamId) return json({ error: 'missing' }, 404)
   const team = await kv.get<Team>(`team:${target.teamId}`)
   if (!team || team.closed) return json({ error: 'missing' }, 404)

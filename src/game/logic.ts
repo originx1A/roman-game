@@ -148,3 +148,30 @@ export function regionConnected(size: number, regions: number[]): boolean {
   }
   return true
 }
+
+const SIZES = new Set([5, 6, 7, 8])
+
+export function isCellBoard(value: unknown, size: number): value is Cell[] {
+  return Array.isArray(value) && value.length === size * size && value.every((cell) => cell === 'empty' || cell === 'mark' || cell === 'buddy')
+}
+
+/** A board the server is willing to store: real size, connected regions, and a solution that actually solves it. */
+export function puzzlePlayable(puzzle: unknown): puzzle is Puzzle {
+  if (!puzzle || typeof puzzle !== 'object') return false
+  const row = puzzle as Partial<Puzzle>
+  const size = row.size
+  if (typeof size !== 'number' || !SIZES.has(size)) return false
+  if (!Array.isArray(row.regions) || row.regions.length !== size * size) return false
+  if (!row.regions.every((region) => Number.isInteger(region) && region >= 0 && region < size)) return false
+  if (!regionConnected(size, row.regions)) return false
+  if (!Array.isArray(row.solution) || row.solution.length !== size) return false
+  const cells = emptyBoard(size)
+  const seen = new Set<number>()
+  for (const index of row.solution) {
+    if (!Number.isInteger(index) || index < 0 || index >= size * size || seen.has(index)) return false
+    seen.add(index)
+    cells[index] = 'buddy'
+  }
+  const ready: Puzzle = { id: 'check', size, regions: row.regions, solution: row.solution }
+  return isSolved(ready, cells)
+}

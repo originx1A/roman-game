@@ -1,4 +1,10 @@
--- Roman's Game rewrite. NOT APPLIED.
+-- Roman's Game rewrite.
+-- Password checks are NOT in this file. Captcha stays on. After this file,
+-- run supabase/migration-014-password-check.sql (rg_password_matches).
+-- Do not turn captcha off.
+--
+-- The objects below are already on oelsglmfkpzbueqysvdm. Do not re-run this
+-- file unless a listed object is missing. The statements are idempotent.
 -- Project: romans-game (ref oelsglmfkpzbueqysvdm), the same database as romansgame.com.
 -- Do not run this from CI. Do not apply it to any other project.
 -- The preview does not use Netlify Blobs for accounts. After this file is applied,

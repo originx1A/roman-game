@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { conflicts, emptyBoard, isSolved, regionConnected, type Cell } from '../../src/game/logic.ts'
-import { dailyPuzzle, makePuzzle, torontoDate } from '../../src/game/generate.ts'
+import { conflicts, emptyBoard, isSolved, puzzlePlayable, regionConnected, type Cell } from '../../src/game/logic.ts'
+import { dailyPuzzle, makePuzzle, puzzleFromId, torontoDate } from '../../src/game/generate.ts'
 import { THRONES, boardFromPuzzleId, boardSteps, throneAt, throneForBoards, throneForWins, throneIdForBoard, throneProgress, winsNeeded } from '../../src/game/thrones.ts'
 import { formatTeamName, parseTeamName } from '../../src/game/teamNames.ts'
 import { formatPrice, priceForCountry } from '../../src/game/catalog.ts'
@@ -84,6 +84,22 @@ test('thrones count wins on the board they were won on', () => {
   const oneStep = throneProgress(9, 1)
   assert.equal(oneStep.held?.id, 1)
   assert.equal(oneStep.left, 10)
+})
+
+test('a win id rebuilds the same board and a broken board is rejected', () => {
+  const puzzle = makePuzzle(6, 1, 'daily-2026-10-24')
+  const again = puzzleFromId(puzzle.id)
+  assert.ok(again)
+  assert.deepEqual(again?.solution, puzzle.solution)
+  assert.equal(puzzlePlayable(puzzle), true)
+  assert.equal(puzzleFromId('9.0.nope'), null)
+  assert.equal(puzzleFromId('6.1.'), null)
+  assert.equal(puzzlePlayable({ size: 6, regions: [], solution: [] }), false)
+  const cells = emptyBoard(puzzle.size)
+  for (const index of puzzle.solution) cells[index] = 'buddy'
+  assert.equal(isSolved(again!, cells), true)
+  cells[puzzle.solution[0]] = 'empty'
+  assert.equal(isSolved(again!, cells), false)
 })
 
 test('team names only come from the lists', () => {

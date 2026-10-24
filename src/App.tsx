@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, type Me } from './api'
 import { BUILD_NUMBER } from './game/catalog'
-import { loadSoundPrefs, setMusic, musicEnabled, setMuted, isMuted } from './game/sound'
+import { bindButtonClicks, loadSoundPrefs } from './game/sound'
 import {
   AuthScreen,
   BoardScreen,
@@ -35,6 +35,10 @@ export function App() {
 
   useEffect(() => {
     loadSoundPrefs()
+    return bindButtonClicks()
+  }, [])
+
+  useEffect(() => {
     void api<{ me: Me | null }>('/api/me').then((res) => {
       setMe(res.me)
       if (res.me?.language) {
@@ -81,19 +85,17 @@ export function App() {
     <header className={pc ? 'pc-bar' : 'top'}>
       <button className="logo" type="button" onClick={() => go('/')}>{t.brand}</button>
       {!onPlay ? <a className="site-link" href="https://romansgame.com" target="_blank" rel="noreferrer">{t.website}</a> : <span />}
-      {pc && path !== '/' ? (
+      {pc ? (
         <nav className="tabs" style={{ flex: 1 }}>
           <button className="tab" type="button" onClick={() => go('/play')}>{t.play}</button>
           <button className="tab" type="button" onClick={() => go('/shop')}>{t.shop}</button>
+          <button className="tab" type="button" onClick={() => go('/leaderboard')}>{t.leaderboard}</button>
+          <button className="tab" type="button" onClick={() => go('/teams')}>{t.teams}</button>
           <button className="tab" type="button" onClick={() => go('/stable')}>{t.stable}</button>
-          <button className="tab" type="button" onClick={() => go('/family')}>{t.family}</button>
-          <button className="tab" type="button" onClick={() => go('/settings')}>{t.settings}</button>
-          <button className="tab" type="button" onClick={() => go('/help')}>{t.helpLegal}</button>
+          <button className="tab" type="button" onClick={() => go('/thrones')}>{t.throne}</button>
         </nav>
       ) : <span style={{ flex: 1 }} />}
       <button className="coin" type="button" onClick={() => go('/shop')}>{me?.coins ?? 0} ¢</button>
-      <button className="chip" type="button" onClick={() => setMuted(!isMuted())}>{isMuted() ? t.off : t.on}</button>
-      <button className="chip" type="button" title={t.musicWait} onClick={() => setMusic(!musicEnabled())}>{t.music}</button>
       <span className="build">{BUILD_NUMBER}</span>
     </header>
   )
