@@ -116,22 +116,87 @@ button.card { display: block; width: 100%; text-align: left; position: relative;
   color: rgba(255,248,230,.92); pointer-events: none;
 }
 .mark-x svg { width: 100%; height: 100%; display: block; }
+/* Placed buddy from build 9.33-m src/App.css. Same 56% tile size, kept out of flow so the grid does not grow. Later rules win, as they did in that file. */
 .buddy {
-  position: absolute; inset: 8%; z-index: 2;
+  position: absolute; left: 22%; top: 22%; width: 56%; height: 56%; z-index: 2;
   display: grid; place-items: center; pointer-events: none;
 }
-.buddy .defender-art { width: 100%; height: 100%; }
 .buddy-body {
-  width: 100%; height: 100%; border-radius: 50%;
+  position: relative; width: 100%; height: 100%; border-radius: 50%;
   background: radial-gradient(circle at 32% 28%, #fff9e8, #ffd166 42%, #ff9f1c 78%, #e07a00);
   box-shadow: 0 3px 8px rgba(0,0,0,.35), inset 0 2px 3px rgba(255,255,255,.55);
 }
-.buddy-face { position: absolute; inset: 22% 18% auto; display: flex; justify-content: space-between; animation: look 3.8s ease-in-out infinite; }
-.buddy-face i { width: 18%; aspect-ratio: 1; background: #2a1a00; border-radius: 50%; display: block; }
-@keyframes look {
-  0%, 100% { transform: translateX(0); }
-  40% { transform: translateX(2px); }
-  70% { transform: translateX(-2px); }
+.buddy-face { position: absolute; inset: 0; animation: lookAround 3.8s ease-in-out infinite; }
+.buddy-eye {
+  position: absolute; top: 36%; width: 22%; height: 26%; background: #fffaf0; border-radius: 50%;
+  display: grid; place-items: center; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(7,18,42,.15);
+}
+.buddy-eye.left { left: 22%; }
+.buddy-eye.right { right: 22%; }
+.buddy-pupil {
+  width: 48%; height: 48%; border-radius: 50%; background: #07122a;
+  animation: pupilWander 3.8s ease-in-out infinite;
+}
+.buddy-shine {
+  position: absolute; top: 14%; left: 18%; width: 28%; height: 20%; border-radius: 50%;
+  background: rgba(255,255,255,.55); pointer-events: none;
+}
+.buddy.win .buddy-body {
+  box-shadow: 0 0 14px rgba(255,209,102,.65), 0 3px 8px rgba(0,0,0,.35), inset 0 2px 3px rgba(255,255,255,.55);
+}
+.buddy-mouth { display: none; }
+.buddy.giggle .buddy-body { animation: buddyGiggle 0.7s ease; }
+.buddy.giggle .buddy-mouth {
+  height: 16%; border-bottom-width: 0; background: rgba(80,40,10,.55); border-radius: 40%; top: 60%;
+}
+.buddy.giggle .buddy-eye { height: 14%; top: 40%; border-radius: 40%; }
+.buddy.giggle .buddy-pupil { display: none; }
+.buddy-accent { display: none; }
+.buddy.giggle .buddy-body { animation: giggleBounce 0.55s ease; }
+.buddy.giggle .buddy-mouth {
+  display: block; position: absolute; left: 50%; bottom: 22%; width: 28%; height: 14%;
+  transform: translateX(-50%); border-radius: 0 0 50% 50%; background: rgba(80,30,10,.45);
+}
+.buddy-mouth { display: none; }
+.giggle-burst {
+  position: absolute; font-size: 0.7rem; animation: burstUp 0.8s ease forwards; pointer-events: none;
+}
+.giggle-burst.a { left: 10%; top: 0; }
+.giggle-burst.b { right: 5%; top: 10%; animation-delay: 0.08s; }
+.giggle-burst.c { left: 40%; top: -5%; animation-delay: 0.14s; }
+@keyframes lookAround {
+  0%, 18% { transform: translate(0, 0); }
+  28% { transform: translate(8%, -2%); }
+  42% { transform: translate(-6%, 3%); }
+  58% { transform: translate(4%, 4%); }
+  72% { transform: translate(-8%, -1%); }
+  88%, 100% { transform: translate(0, 0); }
+}
+@keyframes pupilWander {
+  0%, 18% { transform: translate(0, 0); }
+  28% { transform: translate(35%, -10%); }
+  42% { transform: translate(-30%, 15%); }
+  58% { transform: translate(20%, 25%); }
+  72% { transform: translate(-35%, -5%); }
+  88%, 100% { transform: translate(0, 0); }
+}
+@keyframes buddyGiggle {
+  0% { transform: scale(1) rotate(0); }
+  20% { transform: scale(1.12) rotate(-8deg); }
+  40% { transform: scale(1.08) rotate(8deg); }
+  60% { transform: scale(1.14) rotate(-6deg); }
+  80% { transform: scale(1.06) rotate(4deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+@keyframes giggleBounce {
+  0%, 100% { transform: scale(1); }
+  25% { transform: scale(1.12) rotate(-6deg); }
+  50% { transform: scale(0.94) rotate(5deg); }
+  75% { transform: scale(1.08) rotate(-3deg); }
+}
+@keyframes burstUp {
+  from { opacity: 1; transform: translateY(0) scale(0.6); }
+  to { opacity: 0; transform: translateY(-18px) scale(1.1); }
 }
 .defs { display: flex; gap: 4px; justify-content: space-between; }
 .defs button { flex: 1; font-size: 11px; padding: 6px 2px; line-height: 1.15; display: flex; flex-direction: column; align-items: center; }

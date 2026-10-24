@@ -3,7 +3,7 @@ import { ApiError, api, type Me } from './api'
 import { BoardView } from './ui/BoardView'
 import { DefenderArt } from './ui/DefenderArt'
 import { isSolved } from './game/logic'
-import { isMuted, setMuted, sfxMark, sfxPlace } from './game/sound'
+import { isMuted, setMuted, sfxGiggle, sfxMark, sfxPlace } from './game/sound'
 import { ADJECTIVES, NOUNS, formatTeamName } from './game/teamNames'
 import { CHARGE_COST, CHARGE_LABEL, DEFENDERS, DEFENDER_PRICE, PETS, CLOTHES, PACKS, SELLER, SUPPORT_EMAIL, STARTER_COINS, WEEK_WIN_BONUS_AT, centsForSku, formatCoins, formatPrice, isSku, priceForCountry, sameSiteNext, type Sku } from './game/catalog'
 import { throneAt, throneForBoards, winMap } from './game/thrones'
@@ -1377,7 +1377,10 @@ export function ChallengeScreen({ t, path, me, pc }: Bag) {
         const order = { empty: 'mark', mark: 'buddy', buddy: 'empty' } as const
         next[index] = order[next[index]]
         if (next[index] === 'mark') sfxMark()
-        if (next[index] === 'buddy') sfxPlace()
+        if (next[index] === 'buddy') {
+          sfxPlace()
+          sfxGiggle()
+        }
         setCells(next)
         if (isSolved(board, next)) {
           const seconds = Math.max(0, Math.round((Date.now() - started) / 1000))

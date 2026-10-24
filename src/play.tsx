@@ -5,7 +5,7 @@ import { DefenderArt } from './ui/DefenderArt'
 import { CHARGE_LABEL, DEFENDERS, MAX_HEARTS, type Ability } from './game/catalog'
 import { dailyPuzzle, makePuzzle, type Difficulty } from './game/generate'
 import { buddyIndexes, conflicts, cycleCell, emptyBoard, isSolved, ruledOut, type Cell, type Puzzle } from './game/logic'
-import { playVoice, sfxError, sfxMark, sfxPlace, sfxWin, unlockAudio } from './game/sound'
+import { playVoice, sfxError, sfxGiggle, sfxMark, sfxPlace, sfxWin, unlockAudio } from './game/sound'
 import { boardFromPuzzleId, boardSteps, throneForBoards, throneProgress, winMap } from './game/thrones'
 import { pickUnseen, type UnseenLine } from './game/unseen'
 import type { Copy, Lang } from './i18n'
@@ -174,7 +174,6 @@ export function PlayScreen({
     next[index] = nextState
     if (nextState === 'mark') sfxMark()
     if (nextState === 'buddy') {
-      sfxPlace()
       if (conflicts(puzzle, next).size) {
         sfxError()
         setHurt(true)
@@ -184,6 +183,8 @@ export function PlayScreen({
         if (left <= 0) finish(false)
         return
       }
+      sfxPlace()
+      sfxGiggle()
     }
     setCells(next)
     setMoves((n) => n + 1)
@@ -210,6 +211,7 @@ export function PlayScreen({
       const next = cells.slice()
       next[open] = 'buddy'
       sfxPlace()
+      sfxGiggle()
       setCells(next)
       if (isSolved(puzzle, next)) {
         sfxWin()
@@ -295,7 +297,7 @@ export function PlayScreen({
       ) : null}
       {!pc && line ? <UnseenCutout line={line} /> : null}
       <div className="board-slot">
-        <BoardView puzzle={puzzle} cells={cells} highlights={highlights} onTap={tap} piece={me?.hostPet || 'leo'} />
+        <BoardView puzzle={puzzle} cells={cells} highlights={highlights} onTap={tap} />
       </div>
       <div className="defs">
         {DEFENDERS.map((defender) => (

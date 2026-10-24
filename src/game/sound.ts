@@ -1,12 +1,8 @@
-/** Buddy place, X mark, and the recorded buddy giggles. Same tones as the previous game. */
+/** Board sounds from build 9.33-m (`src/game/sound.ts`): the place boop and the synth buddy peeps. */
 
 let ctx: AudioContext | null = null
 let muted = false
 let volume = 0.8
-
-const GIGGLES = ['/voices/buddy_giggle_1.mp3', '/voices/buddy_giggle_2.mp3', '/voices/buddy_giggle_3.mp3']
-let giggleEl: HTMLAudioElement | null = null
-let lastGiggle = -1
 let voiceEl: HTMLAudioElement | null = null
 
 export function isMuted(): boolean {
@@ -123,23 +119,20 @@ export function sfxMark(): void {
   noiseBurst(0.06, 0.055, 0.01)
 }
 
-/** Buddy placed. */
+/** Buddy placed. The boop from 9.33-m `sfxPlace`. */
 export function sfxPlace(): void {
   tone(260, 0.1, 'sine', 0.11)
   tone(520, 0.14, 'triangle', 0.09, 0.03)
   tone(1040, 0.09, 'sine', 0.05, 0.07)
-  let i = Math.floor(Math.random() * GIGGLES.length)
-  if (i === lastGiggle) i = (i + 1) % GIGGLES.length
-  lastGiggle = i
-  try {
-    if (!giggleEl) giggleEl = new Audio()
-    giggleEl.pause()
-    giggleEl.src = GIGGLES[i]
-    giggleEl.volume = 0.7 * volume
-    if (!muted) void giggleEl.play().catch(() => undefined)
-  } catch {
-    /* ignore */
-  }
+}
+
+/** Synth peeps from 9.33-m `sfxGiggle`. The recorded giggle clips are not the board buddy. */
+export function sfxGiggle(): void {
+  const peeps = [1100, 1320, 1480, 1240, 1600, 1400]
+  peeps.forEach((freq, i) => {
+    tone(freq, 0.05, i % 2 ? 'triangle' : 'sine', 0.055, i * 0.04)
+  })
+  ;[0.04, 0.12, 0.2].forEach((when, i) => noiseBurst(0.04, 0.015 + i * 0.004, when))
 }
 
 export function sfxWin(): void {
