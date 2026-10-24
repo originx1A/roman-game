@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { RESET_MINUTES, TERMS_VERSION } from '../../../src/game/catalog.ts'
-import { throneForWins } from '../../../src/game/thrones.ts'
+import { throneForBoards, winMap } from '../../../src/game/thrones.ts'
 import { torontoDate } from '../../../src/game/generate.ts'
 import type { Mail } from './mail.ts'
 import type { Account, Approval, Challenge, Order, Team } from './server.ts'
@@ -52,6 +52,7 @@ const memoryPayload = new Map<string, unknown>()
 interface State {
   authEmail?: string
   wins?: number
+  winsByBoard?: Record<string, number>
   perfects?: number
   starterOwned?: boolean
   pets?: string[]
@@ -460,6 +461,7 @@ export class Store {
       recoverySalt: null,
       ageGate: age?.choice === '13_plus' ? 'over' : age?.choice === 'under_13' ? 'under' : null,
       wins: state.wins ?? 0,
+      winsByBoard: winMap(state),
       perfects: state.perfects ?? 0,
       coins: balance?.balance ?? 0,
       starterOwned: state.starterOwned ?? false,
@@ -502,6 +504,7 @@ export class Store {
     const state: State = {
       authEmail: account.authEmail,
       wins: account.wins,
+      winsByBoard: account.winsByBoard,
       perfects: account.perfects,
       starterOwned: account.starterOwned,
       pets: account.pets,
@@ -965,7 +968,7 @@ export class Store {
     const saves = ids.length
       ? await this.many<{ player_id: string; state: State }>(`game_saves?player_id=in.(${ids.join(',')})&slot=eq.rewrite&select=player_id,state`)
       : []
-    const winsOf = new Map(saves.map((save) => [save.player_id, save.state?.wins ?? 0]))
+    const winsOf = new Map(saves.map((save) => [save.player_id, winMap(save.state ?? {})]))
     return [...totals.entries()]
       .filter(([, score]) => score > 0)
       .sort((a, b) => (scope === 'today' ? a[1] - b[1] : b[1] - a[1]))
@@ -974,7 +977,7 @@ export class Store {
         id,
         name: hidden.has(id) ? 'Player' : names.get(id) ?? 'Player',
         score,
-        throne: throneForWins(winsOf.get(id) ?? 0)?.id ?? 0,
+        throne: throneForBoards(winsOf.get(id) ?? {})?.id ?? 0,
       }))
   }
 

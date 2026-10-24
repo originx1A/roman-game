@@ -27,6 +27,7 @@ export interface Me {
   emailVerified: boolean
   ageGate: 'over' | 'under' | null
   wins: number
+  winsByBoard: Record<string, number>
   perfects: number
   coins: number
   starterOwned: boolean

@@ -5,7 +5,7 @@ import { isSolved } from './game/logic'
 import { sfxMark, sfxPlace } from './game/sound'
 import { ADJECTIVES, NOUNS, formatTeamName } from './game/teamNames'
 import { DEFENDERS, PETS, CLOTHES, SELLER, SUPPORT_EMAIL, formatPrice, priceForCountry } from './game/catalog'
-import { throneAt, throneForWins } from './game/thrones'
+import { throneAt, throneForBoards, winMap } from './game/thrones'
 import type { Copy, Lang } from './i18n'
 import { legalSections } from './i18n'
 import { go } from './nav'
@@ -941,17 +941,17 @@ export function BoardScreen({ t, me }: Bag) {
 }
 
 export function ThroneScreen({ t, lang, me }: Bag) {
-  const wins = me?.wins ?? 0
-  const held = throneForWins(wins)
+  const held = throneForBoards(winMap({ wins: me?.wins ?? 0, winsByBoard: me?.winsByBoard }))
   const list = Array.from({ length: 12 }, (_, index) => throneAt(index))
   return (
     <div className="body stack scroll">
       <h1>{t.thrones}</h1>
+      <p className="muted">{t.throneRule}</p>
       <p className="muted">{t.statusOnly} {held ? (lang === 'fr' ? held.nameFr : held.name) : ''}</p>
       {list.map((throne) => (
         <div key={throne.id} className="card spread">
           <span>{throne.id}. {lang === 'fr' ? throne.nameFr : throne.name}</span>
-          <span>{wins >= throne.wins ? '●' : throne.wins}</span>
+          <span>{held && held.id >= throne.id ? '●' : throne.wins}</span>
         </div>
       ))}
       <p className="muted">{t.statusOnly}</p>

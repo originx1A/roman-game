@@ -5,7 +5,7 @@ import { CHARGE_LABEL, DEFENDERS, MAX_HEARTS, type Ability } from './game/catalo
 import { dailyPuzzle, makePuzzle, type Difficulty } from './game/generate'
 import { buddyIndexes, conflicts, cycleCell, emptyBoard, isSolved, ruledOut, type Cell, type Puzzle } from './game/logic'
 import { playVoice, sfxError, sfxMark, sfxPlace, sfxWin } from './game/sound'
-import { throneForWins, throneProgress } from './game/thrones'
+import { boardFromPuzzleId, boardSteps, throneForBoards, throneProgress, winMap } from './game/thrones'
 import { pickUnseen, type UnseenLine } from './game/unseen'
 import type { Copy, Lang } from './i18n'
 import { go } from './nav'
@@ -15,6 +15,7 @@ type Phase = 'play' | 'unseen' | 'victory' | 'loss' | 'over' | 'hunt' | 'hunt-en
 
 interface Guest {
   wins: number
+  winsByBoard: Record<string, number>
   perfects: number
   charges: Record<string, number>
   bestRun: Record<string, number>
@@ -25,11 +26,13 @@ interface Guest {
 function loadGuest(): Guest {
   try {
     const raw = JSON.parse(localStorage.getItem('rg.guest') || '') as Guest
-    if (raw && typeof raw.wins === 'number') return raw
+    if (raw && typeof raw.wins === 'number') {
+      return { ...raw, winsByBoard: winMap(raw) }
+    }
   } catch {
     /* ignore */
   }
-  return { wins: 0, perfects: 0, charges: {}, bestRun: {}, streak: 0, streakDay: '' }
+  return { wins: 0, winsByBoard: {}, perfects: 0, charges: {}, bestRun: {}, streak: 0, streakDay: '' }
 }
 
 function saveGuest(guest: Guest) {
@@ -70,10 +73,11 @@ export function PlayScreen({
   const [huntTaps, setHuntTaps] = useState(0)
   const [shareNote, setShareNote] = useState('')
   const [guest, setGuest] = useState<Guest>(loadGuest)
-  const wins = me?.wins ?? guest.wins
   const charges = me?.charges ?? guest.charges
-  const throne = throneForWins(wins)
-  const progress = throneProgress(wins)
+  const boards = me?.winsByBoard ?? guest.winsByBoard
+  const playing = boardFromPuzzleId(puzzle.id, puzzle.size)
+  const throne = throneForBoards(boards)
+  const progress = throneProgress(boards[playing.key] ?? 0, boardSteps(playing.size, playing.difficulty))
   const diffLabel = [t.easy, t.medium, t.hard, t.expert][difficulty]
 
   useEffect(() => {
@@ -130,7 +134,9 @@ export function PlayScreen({
         .then((res) => onMe(res.me))
         .catch(() => undefined)
     } else {
-      const next = { ...guest, wins: guest.wins + 1, perfects: guest.perfects + (perfect ? 1 : 0) }
+      const wonOn = boardFromPuzzleId(puzzle.id, puzzle.size)
+      const winsByBoard = { ...guest.winsByBoard, [wonOn.key]: (guest.winsByBoard[wonOn.key] ?? 0) + 1 }
+      const next = { ...guest, wins: guest.wins + 1, winsByBoard, perfects: guest.perfects + (perfect ? 1 : 0) }
       if (mode === 'survival') next.bestRun = { ...guest.bestRun, [puzzle.size]: Math.max(guest.bestRun[puzzle.size] ?? 0, run + 1) }
       setGuest(next)
       saveGuest(next)
@@ -213,10 +219,7 @@ export function PlayScreen({
 
   function nextBoard() {
     if (mode === 'survival') {
-      const held = throneForWins((me?.wins ?? guest.wins))
-      const nextSize = held?.size ?? size
-      const nextDiff = (held?.difficulty ?? difficulty) as Difficulty
-      boot('survival', nextSize, nextDiff, hearts, run + 1)
+      boot('survival', size, difficulty, hearts, run + 1)
       return
     }
     if (mode === 'daily') boot('daily', 6, 1, MAX_HEARTS, 0)
@@ -261,7 +264,7 @@ export function PlayScreen({
         <div className="spread muted">
           <span>{t.boardsCleared} {run}</span>
           <span>{t.bestRun} {me?.bestRun?.[String(size)] ?? guest.bestRun[size] ?? 0}</span>
-          <span>{progress.next.wins - wins} → {lang === 'fr' ? progress.next.nameFr : progress.next.name}</span>
+          <span>{progress.left} → {lang === 'fr' ? progress.next.nameFr : progress.next.name}</span>
         </div>
       ) : null}
       <BoardView puzzle={puzzle} cells={cells} highlights={highlights} onTap={tap} />

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { conflicts, emptyBoard, isSolved, regionConnected, type Cell } from '../../src/game/logic.ts'
 import { dailyPuzzle, makePuzzle, torontoDate } from '../../src/game/generate.ts'
-import { THRONES, throneAt, throneForWins, throneProgress } from '../../src/game/thrones.ts'
+import { THRONES, boardFromPuzzleId, boardSteps, throneAt, throneForBoards, throneForWins, throneIdForBoard, throneProgress, winsNeeded } from '../../src/game/thrones.ts'
 import { formatTeamName, parseTeamName } from '../../src/game/teamNames.ts'
 import { formatPrice, priceForCountry } from '../../src/game/catalog.ts'
 import { en, fr } from '../../src/i18n.ts'
@@ -36,25 +36,54 @@ test('touching buddies are a conflict', () => {
   assert.ok(conflicts(puzzle, cells).size >= 2)
 })
 
-test('thrones count total wins and the ladder does not stop', () => {
+test('thrones count wins on the board they were won on', () => {
+  assert.equal(winsNeeded(1), 10)
+  assert.equal(winsNeeded(2), 20)
+  assert.equal(winsNeeded(3), 30)
+  assert.equal(winsNeeded(4), 40)
+  assert.equal(winsNeeded(1, 1), 9)
+  assert.equal(winsNeeded(2, 1), 19)
+  assert.equal(winsNeeded(1, 2), 8)
+  assert.equal(winsNeeded(2, 2), 18)
+  assert.equal(boardSteps(5, 0), 0)
+  assert.equal(boardSteps(5, 1), 1)
+  assert.equal(boardSteps(6, 0), 1)
+  assert.equal(boardSteps(6, 1), 2)
+  assert.equal(boardSteps(8, 3), 6)
   assert.equal(throneForWins(0), null)
   assert.equal(throneForWins(9), null)
   assert.equal(throneForWins(10)?.id, 1)
-  assert.equal(throneForWins(18)?.id, 1)
-  assert.equal(throneForWins(19)?.id, 2)
-  assert.equal(throneForWins(28)?.id, 3)
+  assert.equal(throneForWins(19)?.id, 1)
+  assert.equal(throneForWins(20)?.id, 2)
+  assert.equal(throneForWins(30)?.id, 3)
+  assert.equal(throneIdForBoard(8, 1), 0)
+  assert.equal(throneIdForBoard(9, 1), 1)
+  assert.equal(throneIdForBoard(18, 1), 1)
+  assert.equal(throneIdForBoard(19, 1), 2)
+  assert.equal(throneIdForBoard(7, 2), 0)
+  assert.equal(throneIdForBoard(8, 2), 1)
+  assert.equal(throneIdForBoard(18, 2), 2)
+  assert.equal(throneForBoards({ '5:0': 9, '5:1': 8 }), null)
+  assert.equal(throneForBoards({ '5:0': 10, '6:1': 9 })?.id, 1)
+  assert.equal(throneForBoards({ '5:0': 20, '6:0': 9 })?.id, 2)
+  assert.equal(throneForBoards({ '6:1': 18 })?.id, 2)
+  assert.equal(boardFromPuzzleId('6.1.daily-2026-10-24', 6).key, '6:1')
+  assert.equal(boardSteps(6, 1), 2)
   assert.equal(throneAt(0).wins, 10)
-  assert.equal(throneAt(1).wins, 19)
-  assert.equal(throneAt(0).size, 5)
-  assert.equal(throneAt(0).difficulty, 0)
-  assert.ok(throneAt(1).difficulty !== throneAt(0).difficulty || throneAt(1).size !== throneAt(0).size)
+  assert.equal(throneAt(1).wins, 20)
+  assert.equal(throneAt(2).wins, 30)
+  assert.equal(throneAt(3).wins, 40)
   const far = throneAt(40)
+  assert.equal(far.wins, 410)
   assert.ok(far.wins > THRONES[THRONES.length - 1].wins)
-  assert.ok(throneAt(41).wins > far.wins)
-  const progress = throneProgress(10)
-  assert.equal(progress.held?.id, 1)
-  assert.equal(progress.next.id, 2)
-  assert.equal(progress.next.wins, 19)
+  assert.equal(throneAt(41).wins, 420)
+  const easy = throneProgress(10, 0)
+  assert.equal(easy.held?.id, 1)
+  assert.equal(easy.next.id, 2)
+  assert.equal(easy.left, 10)
+  const oneStep = throneProgress(9, 1)
+  assert.equal(oneStep.held?.id, 1)
+  assert.equal(oneStep.left, 10)
 })
 
 test('team names only come from the lists', () => {

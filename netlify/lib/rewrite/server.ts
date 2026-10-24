@@ -16,7 +16,7 @@ import { MissingKey, SchemaError, Store, TakenError, openStore, type Env } from 
 import { formatTeamName, parseTeamName, type TeamNamePick } from '../../../src/game/teamNames.ts'
 import { torontoDate } from '../../../src/game/generate.ts'
 import type { Puzzle } from '../../../src/game/logic.ts'
-import { throneForWins } from '../../../src/game/thrones.ts'
+import { boardFromPuzzleId, throneForBoards, winMap } from '../../../src/game/thrones.ts'
 import { approvalMail, receiptMail, reminderMail, resetMail, sendMail, verificationMail, type Mail } from './mail.ts'
 
 export type { Env }
@@ -36,6 +36,7 @@ export interface Account {
   resetFresh?: boolean
   ageGate: 'over' | 'under' | null
   wins: number
+  winsByBoard: Record<string, number>
   perfects: number
   coins: number
   starterOwned: boolean
@@ -193,7 +194,8 @@ function clientIp(req: Request): string {
 }
 
 function publicMe(account: Account) {
-  const throne = throneForWins(account.wins)
+  const boards = winMap(account)
+  const throne = throneForBoards(boards)
   return {
     id: account.id,
     playerName: account.playerName,
@@ -201,6 +203,7 @@ function publicMe(account: Account) {
     emailVerified: account.emailVerified,
     ageGate: account.ageGate,
     wins: account.wins,
+    winsByBoard: boards,
     perfects: account.perfects,
     coins: account.coins,
     starterOwned: account.starterOwned,
@@ -288,6 +291,7 @@ function blankAccount(input: { loginKey: string; playerName: string; email: stri
     recoverySalt: null,
     ageGate: null,
     wins: 0,
+    winsByBoard: {},
     perfects: 0,
     coins: 0,
     starterOwned: false,
@@ -1074,6 +1078,10 @@ async function recordWin(kv: Store, me: Account | null, body: Record<string, unk
   const key = `${mode}:${puzzleId}`
   if (!me.solved.includes(key)) {
     me.solved = [...me.solved, key].slice(-400)
+    const board = boardFromPuzzleId(puzzleId, size)
+    const boards = winMap(me)
+    boards[board.key] = (boards[board.key] ?? 0) + 1
+    me.winsByBoard = boards
     me.wins += 1
     if (body.perfect === true) me.perfects += 1
     const today = torontoDate()
