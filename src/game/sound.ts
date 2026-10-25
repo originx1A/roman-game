@@ -2,13 +2,13 @@
  * SFX + one shared voice channel (Roman + coach).
  * Every voice line goes through a single HTMLAudioElement, so two lines can never sound at once.
  * Roman is always the deeper Brian clips; the Unseen heckler is William (+rasp); the coach is Jenny. No speech-synthesis fallback:
- * if a clip can't play, the line stays silent.
+ * if a clip can't play, the line stays silent and the console names the file.
  */
 
 import { heardEnough } from './heardLog'
 import {
-  WARM_COACH_CLIPS,
   isPlayableVoiceClip,
+  preloadClipIds,
   romanPlaybackRate,
   moodPlayback,
   roleForClip,
@@ -16,6 +16,14 @@ import {
   type VoiceMood,
 } from './voiceLines'
 import { boardEndCancel, clipEndsAt, decideVoice, replacesWaiting, type ChannelLine } from './voiceChannel'
+import {
+  PAUSE_GRACE_MS,
+  classifyPlayRejection,
+  pauseEndsLine,
+  retryStillFresh,
+  shouldAttachVoiceGraph,
+  shouldStartPrime,
+} from './voiceUnlock'
 
 let ctx: AudioContext | null = null
 let muted = false
@@ -40,9 +48,24 @@ let currentClip: string | null = null
 let voiceFreeSince = 0
 let voiceGeneration = 0
 let voiceSafetyTimer: number | null = null
+/** The shared element has completed a play() inside a user gesture. */
 let voiceUnlocked = false
+/**
+ * iOS drops that permission when the page is hidden, or when play() comes back
+ * NotAllowed / Abort. The next tap must prime again; the flag alone is not enough.
+ */
+let needsGesture = true
+/** In-flight silent play() that is unlocking the element. Must not be paused. */
+let priming: Promise<boolean> | null = null
+/** One blocked line, retried once on the next successful prime. */
+let retryLine: { id: string; opts: PlayVoiceOpts; at: number; used: boolean } | null = null
+let voiceGraphAttached = false
+let visibilityWatch = false
+let silentUrl: string | null = null
 /** One waiting line (e.g. a badge right after a win) that plays when the channel frees up */
 let waitingLine: { id: string; opts: PlayVoiceOpts; until: number } | null = null
+
+const PRIME_ATTR = 'data-voice-prime'
 
 const FALLBACK_TEXT: Partial<Record<VoiceLineId, string>> = {
   nice: 'Nice.',
@@ -601,8 +624,30 @@ function ensureAudio() {
 }
 
 function voiceHref(id: string): string {
-  const base = import.meta.env.BASE_URL || '/'
+  const base = import.meta.env?.BASE_URL || '/'
   return `${base.endsWith('/') ? base : `${base}/`}voices/${id}.mp3`
+}
+
+function warnVoice(file: string, detail: string) {
+  console.warn(`[voice] ${file}: ${detail}`)
+}
+
+/** Blob URL of the silent mp3. iOS is more willing to play a blob than a data: URI. */
+function silentSrc(): string {
+  if (silentUrl) return silentUrl
+  silentUrl = SILENT_MP3
+  try {
+    if (typeof Blob !== 'undefined' && typeof URL !== 'undefined' && typeof atob === 'function') {
+      const b64 = SILENT_MP3.slice(SILENT_MP3.indexOf(',') + 1)
+      const bin = atob(b64)
+      const bytes = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i) & 0xff
+      silentUrl = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }))
+    }
+  } catch {
+    silentUrl = SILENT_MP3
+  }
+  return silentUrl
 }
 
 /** 50 ms of silence (valid MP3) used to unlock the voice element on the first tap */
@@ -614,8 +659,59 @@ function voicePlayer(): HTMLAudioElement | null {
   if (!voiceEl) {
     voiceEl = new Audio()
     voiceEl.preload = 'auto'
+    voiceEl.setAttribute('playsinline', 'true')
+    voiceEl.setAttribute('webkit-playsinline', 'true')
+    // Some iOS versions stay silent until the element is in the document.
+    try {
+      if (typeof document !== 'undefined' && document.body && !voiceEl.isConnected) {
+        voiceEl.setAttribute('aria-hidden', 'true')
+        voiceEl.style.display = 'none'
+        document.body.appendChild(voiceEl)
+      }
+    } catch {
+      /* ignore */
+    }
+    watchVoiceVisibility()
   }
   return voiceEl
+}
+
+function watchVoiceVisibility() {
+  if (visibilityWatch || typeof document === 'undefined') return
+  visibilityWatch = true
+  document.addEventListener('visibilitychange', () => {
+    // iOS suspends the media session in the background. The next tap has to prime again.
+    if (document.visibilityState === 'hidden') needsGesture = true
+  })
+}
+
+function hookVoiceGraph(el: HTMLAudioElement) {
+  if (!ctx || !shouldAttachVoiceGraph(ctx.state, voiceGraphAttached)) return
+  try {
+    const node = ctx.createMediaElementSource(el)
+    node.connect(ctx.destination)
+    voiceGraphAttached = true
+  } catch (err) {
+    // Already hooked, or this browser won't route the element. Keep playing on the element.
+    voiceGraphAttached = true
+    warnVoice('voice-element', `could not route through Web Audio (${err instanceof Error ? err.message : 'error'})`)
+  }
+}
+
+/** Resume the sound-effect context and, once it is running, send the voice element through it. */
+function resumeVoiceGraph(el: HTMLAudioElement | null) {
+  try {
+    const c = ac()
+    if (c.state === 'running') {
+      if (el) hookVoiceGraph(el)
+      return
+    }
+    void c.resume().then(() => {
+      if (c.state === 'running' && el) hookVoiceGraph(el)
+    }).catch(() => {})
+  } catch {
+    /* no Web Audio: the element can still play on its own */
+  }
 }
 
 function clearVoiceSafety() {
@@ -625,12 +721,34 @@ function clearVoiceSafety() {
   }
 }
 
+/** Drop media events so a finished line cannot steal the next prime or clip. */
+function clearVoiceHandlers(el: HTMLAudioElement | null) {
+  if (!el) return
+  el.onended = null
+  el.onerror = null
+  el.onpause = null
+  el.onloadedmetadata = null
+  el.ontimeupdate = null
+}
+
 /** Free the channel if `gen` is still the current line, then start a waiting line if any */
 function releaseVoice(gen: number) {
   if (gen !== voiceGeneration) return
   clearVoiceSafety()
+  clearVoiceHandlers(voiceEl)
   currentLine = null
+  currentClip = null
   voiceFreeSince = 0
+  // The line never started. Stop a leftover silent prime, but never the one
+  // whose play() is still the in-gesture unlock.
+  if (!priming && voiceEl?.getAttribute(PRIME_ATTR) === '1') {
+    voiceEl.removeAttribute(PRIME_ATTR)
+    try {
+      voiceEl.pause()
+    } catch {
+      /* ignore */
+    }
+  }
   const next = waitingLine
   waitingLine = null
   if (next && performance.now() <= next.until) {
@@ -661,14 +779,17 @@ function stopVoice() {
   voiceGeneration += 1
   clearVoiceSafety()
   currentLine = null
+  currentClip = null
   voiceFreeSince = 0
   const el = voiceEl
   if (!el) return
-  el.onended = null
-  el.onerror = null
-  el.onpause = null
-  el.onloadedmetadata = null
-  el.ontimeupdate = null
+  // The silent prime's play() is the user-gesture unlock. Pausing it (the next
+  // line used to do this on the same tap) rejects that play() and iOS then
+  // refuses the real clip.
+  const primingEl = el.getAttribute(PRIME_ATTR) === '1' && !muted && voiceEnabled
+  clearVoiceHandlers(el)
+  if (primingEl) return
+  el.removeAttribute(PRIME_ATTR)
   try {
     el.pause()
   } catch {
@@ -698,6 +819,7 @@ export function setMuted(m: boolean) {
   voiceFreeSince = 0
   if (m) {
     waitingLine = null
+    retryLine = null
     stopVoice()
   }
 }
@@ -707,6 +829,7 @@ export function setVoiceEnabled(on: boolean) {
   voiceFreeSince = 0
   if (!on) {
     waitingLine = null
+    retryLine = null
     stopVoice()
   }
 }
@@ -728,6 +851,12 @@ export function resetVoiceQuietClock() {
   voiceFreeSince = 0
 }
 
+/**
+ * Call from a tap/click, before any voice line. Plays a silent clip synchronously
+ * so the shared element is allowed to speak later, and resumes the effect context
+ * (iOS starts that context suspended). A line that is only loading does not cancel
+ * this — see shouldStartPrime.
+ */
 export function unlockAudio() {
   ensureAudio()
   try {
@@ -743,26 +872,90 @@ export function unlockAudio() {
   } catch {
     /* ignore */
   }
-  // iOS only lets an audio element play without a tap once it has played inside one:
-  // prime the shared voice element with a silent clip on the first tap.
-  if (voiceUnlocked || currentLine) return
   const el = voicePlayer()
   if (!el) return
-  voiceUnlocked = true
-  try {
-    el.src = SILENT_MP3
-    el.volume = 0.01
-    void el
-      .play()
-      .then(() => {
-        if (el.src === SILENT_MP3) el.pause()
-      })
-      .catch(() => {
-        voiceUnlocked = false
-      })
-  } catch {
-    voiceUnlocked = false
+  resumeVoiceGraph(el)
+  const audible = !!(currentLine?.audible && !el.paused && !el.ended && el.getAttribute(PRIME_ATTR) !== '1')
+  if (!shouldStartPrime({ priming: !!priming, unlocked: voiceUnlocked, needsGesture, audible })) {
+    if (priming) void priming.then((ok) => { if (ok) flushRetry() })
+    else flushRetry()
+    return
   }
+  primeElement(el)
+}
+
+/**
+ * Silent play() inside the user gesture. Resolved only after the browser accepts
+ * it. Callers that want a real clip must wait for this before swapping src —
+ * swapping or pausing early is what made play() reject on iOS.
+ */
+function primeElement(el: HTMLAudioElement): Promise<boolean> {
+  if (priming) return priming
+  resumeVoiceGraph(el)
+  // A line that already finished leaves its pause handler on the element.
+  // Pausing the silence at the end of this prime must not look like that line stopping.
+  clearVoiceHandlers(el)
+  try {
+    el.setAttribute(PRIME_ATTR, '1')
+    el.src = silentSrc()
+    el.volume = 0.01
+    const started = el.play()
+    priming = Promise.resolve(started)
+      .then(() => {
+        voiceUnlocked = true
+        needsGesture = false
+        priming = null
+        // Don't pause if a real line is about to take this element. pause()
+        // then play() in the same turn is an iOS AbortError.
+        if (el.getAttribute(PRIME_ATTR) === '1' && !currentLine) {
+          el.removeAttribute(PRIME_ATTR)
+          try {
+            el.pause()
+          } catch {
+            /* ignore */
+          }
+        }
+        flushRetry()
+        return true
+      })
+      .catch((err) => {
+        priming = null
+        voiceUnlocked = false
+        needsGesture = true
+        el.removeAttribute(PRIME_ATTR)
+        const kind = classifyPlayRejection(err)
+        if (kind !== 'aborted') warnVoice('unlock', `play() was rejected (${kind}). The next tap will try again.`)
+        return false
+      })
+    return priming
+  } catch (err) {
+    voiceUnlocked = false
+    needsGesture = true
+    priming = null
+    warnVoice('unlock', err instanceof Error ? err.message : 'failed')
+    return Promise.resolve(false)
+  }
+}
+
+function armRetry(id: string, opts: PlayVoiceOpts) {
+  if (opts.retry || muted || !voiceEnabled) return
+  retryLine = {
+    id,
+    opts: { mood: opts.mood, priority: opts.priority, waitMs: 0, alts: opts.alts },
+    at: performance.now(),
+    used: false,
+  }
+}
+
+function flushRetry() {
+  const lined = retryLine
+  if (!lined || lined.used || currentLine || muted || !voiceEnabled) return
+  if (!retryStillFresh(lined.at, performance.now())) {
+    retryLine = null
+    return
+  }
+  lined.used = true
+  playVoice(lined.id, { ...lined.opts, retry: true })
 }
 
 function noiseBurst(duration: number, gain = 0.08, when = 0) {
@@ -1066,6 +1259,8 @@ export interface PlayVoiceOpts {
   waitMs?: number
   /** Same-pool clips to try when this file is missing or not audio. */
   alts?: readonly string[]
+  /** Internal: this is the single retry after a blocked play(). Not armed again. */
+  retry?: boolean
 }
 
 const clipUrlCache = new Map<string, string | null>()
@@ -1120,7 +1315,10 @@ function clipObjectUrl(id: string): Promise<string | null> {
 export function playVoice(id: string, opts: PlayVoiceOpts = {}) {
   if (muted || !voiceEnabled || !id) return
   const queue = [id, ...(opts.alts ?? [])].filter((clip, i, all) => isPlayableVoiceClip(clip) && all.indexOf(clip) === i).slice(0, 5)
-  if (!queue.length) return
+  if (!queue.length) {
+    warnVoice(`${id}.mp3`, 'not in the playable voice catalog')
+    return
+  }
   const priority = opts.priority ?? 1
   // 9.30-f: the same clip already playing or waiting its turn isn't asked for twice (a line only
   // counts as played once heard, so its bag can offer it again while it waits)
@@ -1133,8 +1331,13 @@ export function playVoice(id: string, opts: PlayVoiceOpts = {}) {
     return
   }
   if (waitingLine && priority >= (waitingLine.opts.priority ?? 1)) waitingLine = null
+  // A new line replaces a blocked one. The retry call itself must keep its slot.
+  if (!opts.retry) retryLine = null
   const el = voicePlayer()
-  if (!el) return
+  if (!el) {
+    warnVoice(`${id}.mp3`, 'no audio element on this device')
+    return
+  }
 
   stopVoice()
   const gen = voiceGeneration
@@ -1145,18 +1348,54 @@ export function playVoice(id: string, opts: PlayVoiceOpts = {}) {
   // this is replaced by one sized to the clip (so the channel isn't freed while he's still talking).
   voiceSafetyTimer = window.setTimeout(() => releaseVoice(gen), 12000)
   const { rate, volume } = moodPlayback(opts.mood ?? (roleForClip(id) === 'roman' ? 'excited' : 'neutral'))
-  void playClipQueue(el, queue, gen, rate, volume)
+  // Prime synchronously, before the fetch yields, so this tap still counts on iOS.
+  if (shouldStartPrime({ priming: !!priming, unlocked: voiceUnlocked, needsGesture, audible: false })) primeElement(el)
+  void playClipQueue(el, queue, gen, rate, volume, id, opts).catch((err) => {
+    warnVoice(`${id}.mp3`, err instanceof Error ? err.message : 'unexpected failure')
+    releaseVoice(gen)
+  })
 }
 
-async function playClipQueue(el: HTMLAudioElement, queue: string[], gen: number, rate: number, volume: number) {
-  for (const clipId of queue) {
+async function playClipQueue(
+  el: HTMLAudioElement,
+  queue: string[],
+  gen: number,
+  rate: number,
+  volume: number,
+  requestedId: string,
+  requestedOpts: PlayVoiceOpts,
+) {
+  // Fetch alongside the prime. The play() itself waits until the element is unlocked.
+  const loads = queue.map((clipId) => clipObjectUrl(clipId))
+  if (!voiceUnlocked || needsGesture) {
+    if (!priming) primeElement(el)
+    if (priming) {
+      const ok = await priming
+      if (gen !== voiceGeneration) return
+      if (!ok) {
+        warnVoice(`${requestedId}.mp3`, 'not unlocked yet. Will retry once after the next tap.')
+        armRetry(requestedId, requestedOpts)
+        releaseVoice(gen)
+        return
+      }
+    }
+  }
+  if (gen !== voiceGeneration) return
+  resumeVoiceGraph(el)
+  for (let i = 0; i < queue.length; i++) {
+    const clipId = queue[i]
+    if (gen !== voiceGeneration || muted || !voiceEnabled) return
+    const url = await loads[i]
     if (gen !== voiceGeneration) return
-    const url = await clipObjectUrl(clipId)
-    if (gen !== voiceGeneration) return
-    if (!url) continue
+    if (!url) {
+      warnVoice(`${clipId}.mp3`, 'missing or not an audio file')
+      continue
+    }
+    el.removeAttribute(PRIME_ATTR)
     el.onended = null
     el.onerror = null
     el.onpause = null
+    // Setting src starts the load. An extra load() here aborts the gesture play on iOS.
     el.src = url
     const role = roleForClip(clipId)
     // 9.30-h: pitch stays natural for every voice when the speed changes
@@ -1183,77 +1422,126 @@ async function playClipQueue(el: HTMLAudioElement, queue: string[], gen: number,
     const wantRate = el.playbackRate
     let ok = false
     let refused = false
+    let rejection: ReturnType<typeof classifyPlayRejection> | null = null
     try {
+      resumeVoiceGraph(el)
       await el.play()
       ok = !el.error
-    } catch {
+    } catch (err) {
       // The browser refused to play (autoplay / interrupted). The next clip would be refused too:
       // stop here instead of walking the pool in order (that made the first alts repeat a lot).
-      refused = true
+      rejection = classifyPlayRejection(err)
+      if (gen !== voiceGeneration) return
+      if (rejection === 'not-allowed' || rejection === 'aborted') {
+        refused = true
+        voiceUnlocked = false
+        needsGesture = true
+      }
     }
     if (gen !== voiceGeneration) return
-    if (refused) break
-    if (ok) {
+    if (refused) {
+      const again = requestedOpts.retry ? 'Giving up after one retry.' : 'Will retry once after the next tap.'
+      warnVoice(`${clipId}.mp3`, `play() was rejected (${rejection}). ${again}`)
+      if (!requestedOpts.retry) armRetry(requestedId, requestedOpts)
+      break
+    }
+    if (!ok) {
+      warnVoice(`${clipId}.mp3`, 'the browser reported a media error')
+      continue
+    }
+    try {
+      voiceStartListener?.(clipId)
+    } catch {
+      /* rotation bookkeeping never breaks playback */
+    }
+    const playStartedAt = performance.now()
+    let resumeTried = false
+    let pauseTimer: number | null = null
+    // Heard now: nothing may cut it. Size the safety net to what's left of the clip at this rate.
+    const markPlaying = () => {
+      if (gen !== voiceGeneration || !currentLine) return
+      // iOS can reset the rate once metadata loads: put the voice's speed back before timing the clip
+      if (Math.abs(el.playbackRate - wantRate) > 0.01) el.playbackRate = wantRate
+      const now = performance.now()
+      currentLine.audible = true
+      currentLine.endsAt = clipEndsAt(now, el.duration, el.playbackRate, el.duration - el.currentTime)
+      clearVoiceSafety()
+      const left = currentLine.endsAt ? currentLine.endsAt - now : 20000
+      voiceSafetyTimer = window.setTimeout(() => releaseVoice(gen), left + 2500)
+    }
+    markPlaying()
+    el.onloadedmetadata = markPlaying
+    const done = () => {
+      if (pauseTimer != null) window.clearTimeout(pauseTimer)
+      releaseVoice(gen)
+    }
+    // 9.30-k: heard = finished or 70% played; counted once per play
+    let counted = false
+    const countHeard = () => {
+      if (counted) return
+      counted = true
+      el.ontimeupdate = null
       try {
-        voiceStartListener?.(clipId)
+        voiceHeardListener?.(clipId)
       } catch {
-        /* rotation bookkeeping never breaks playback */
+        /* the heard log never breaks playback */
       }
-      // Heard now: nothing may cut it. Size the safety net to what's left of the clip at this rate.
-      const markPlaying = () => {
-        if (gen !== voiceGeneration || !currentLine) return
-        // iOS can reset the rate once metadata loads: put the voice's speed back before timing the clip
-        if (Math.abs(el.playbackRate - wantRate) > 0.01) el.playbackRate = wantRate
-        const now = performance.now()
-        currentLine.audible = true
-        currentLine.endsAt = clipEndsAt(now, el.duration, el.playbackRate, el.duration - el.currentTime)
-        clearVoiceSafety()
-        const left = currentLine.endsAt ? currentLine.endsAt - now : 20000
-        voiceSafetyTimer = window.setTimeout(() => releaseVoice(gen), left + 2500)
-      }
-      markPlaying()
-      el.onloadedmetadata = markPlaying
-      const done = () => releaseVoice(gen)
-      // 9.30-k: heard = finished or 70% played; counted once per play
-      let counted = false
-      const countHeard = () => {
-        if (counted) return
-        counted = true
+    }
+    el.ontimeupdate = () => {
+      if (gen !== voiceGeneration) {
         el.ontimeupdate = null
-        try {
-          voiceHeardListener?.(clipId)
-        } catch {
-          /* the heard log never breaks playback */
-        }
+        return
       }
-      el.ontimeupdate = () => {
-        if (gen !== voiceGeneration) {
-          el.ontimeupdate = null
-          return
-        }
-        if (heardEnough(el.currentTime, el.duration)) countHeard()
-      }
-      el.onended = () => {
-        countHeard()
-        done()
-      }
-      el.onerror = done
-      // Paused by the OS/browser (call, tab hidden…) — free the channel
-      el.onpause = () => {
-        if (gen === voiceGeneration && el.paused && !el.ended) {
+      if (heardEnough(el.currentTime, el.duration)) countHeard()
+    }
+    el.onended = () => {
+      countHeard()
+      done()
+    }
+    el.onerror = () => {
+      warnVoice(`${clipId}.mp3`, 'playback error')
+      done()
+    }
+    // Paused by the OS/browser (call, tab hidden…). A pause in the first moment is
+    // the iOS blip from applying playbackRate — resume once instead of dropping the line.
+    el.onpause = () => {
+      if (gen !== voiceGeneration || !el.paused || el.ended) return
+      if (pauseTimer != null) return
+      const since = performance.now() - playStartedAt
+      if (!pauseEndsLine({ paused: true, ended: false, sincePlayMs: since })) {
+        pauseTimer = window.setTimeout(() => {
+          pauseTimer = null
+          if (gen !== voiceGeneration) return
+          if (!el.paused || el.ended) return
+          if (!resumeTried && el.currentTime < 0.25) {
+            resumeTried = true
+            resumeVoiceGraph(el)
+            void el.play().catch((err) => {
+              if (gen !== voiceGeneration) return
+              warnVoice(`${clipId}.mp3`, `paused immediately and resume failed (${classifyPlayRejection(err)})`)
+              needsGesture = true
+              voiceUnlocked = false
+              if (!requestedOpts.retry) armRetry(requestedId, requestedOpts)
+              done()
+            })
+            return
+          }
           if (heardEnough(el.currentTime, el.duration)) countHeard()
           done()
-        }
+        }, Math.max(0, PAUSE_GRACE_MS - since))
+        return
       }
-      if (el.ended) {
-        countHeard()
-        done()
-      }
-      return
+      if (heardEnough(el.currentTime, el.duration)) countHeard()
+      done()
     }
+    if (el.ended) {
+      countHeard()
+      done()
+    }
+    return
   }
   // No playable clip: stay silent (no speech-synthesis fallback)
-  releaseVoice(gen)
+  if (gen === voiceGeneration) releaseVoice(gen)
 }
 
 /** Roman or coach line with emotional tone — one at a time on the shared channel */
@@ -1267,14 +1555,30 @@ export function playBanterClip(
   playVoice(id, { mood, alts, priority, waitMs })
 }
 
-/** Prefetch the short coach clips in the background (Roman lines load on demand) */
+/** Prefetch voice clips in the background, Roman first, so the next line is ready before its tap. */
 export function warmVoices() {
   if (typeof Audio === 'undefined' || typeof fetch === 'undefined') return
-  const ids: string[] = [...WARM_COACH_CLIPS]
+  const ids = [...preloadClipIds()]
   const next = () => {
     const id = ids.shift()
     if (!id) return
     void clipObjectUrl(id).finally(() => window.setTimeout(next, 120))
   }
   window.setTimeout(next, 1500)
+}
+
+/** Test hook. Drops unlock state so the next case starts from a locked element. */
+export function resetVoiceForTests() {
+  retryLine = null
+  priming = null
+  voiceUnlocked = false
+  needsGesture = true
+  waitingLine = null
+  clipUrlCache.clear()
+  clipLoads.clear()
+  muted = false
+  voiceEnabled = true
+  voiceEl?.removeAttribute(PRIME_ATTR)
+  stopVoice()
+  voiceFreeSince = 0
 }
