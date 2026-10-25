@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { isProfane } from './profanity'
 import { NAME_MAX, loadConsent, saveConsent, onCloud, savePlayerName, sendMagicLink, signOut, verifyEmailCode, type CloudState } from './cloud'
@@ -15,7 +15,28 @@ export function useCloud(): CloudState {
 
 type Sheet = null | 'email' | 'sent' | 'name' | 'account' | 'parent'
 
-export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: string; compact?: boolean }) {
+/** What the victory screen needs: no manual save button, just status + where to put Switch player. */
+export type CloudScoreActions = {
+  /** Signed in with a leaderboard name. The win was queued and flushes on its own. */
+  saving: boolean
+  /** Signed in, but the one-time leaderboard name is still missing. */
+  needsName: boolean
+  pending: number
+  publicName?: string
+  openSignIn: () => void
+  switchPlayer: () => void
+}
+
+export function CloudScoresButton({
+  suggestedName,
+  compact,
+  children,
+}: {
+  suggestedName?: string
+  compact?: boolean
+  /** When set, the big "Save my scores" button is not rendered. The sheet still is. */
+  children?: (actions: CloudScoreActions) => ReactNode
+}) {
   const cloud = useCloud()
   const [sheet, setSheet] = useState<Sheet>(null)
   const [email, setEmail] = useState('')
@@ -83,22 +104,33 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
 
   const nameProblem = !name.trim() ? '' : isProfane(name) ? "Let's pick a different name. Keep it friendly!" : ''
 
+  const actions: CloudScoreActions = {
+    saving: cloud.status === 'signed-in' && !!cloud.name,
+    needsName: cloud.status === 'signed-in' && !cloud.name,
+    pending: cloud.pending,
+    publicName: cloud.publicName ?? (cloud.name || undefined),
+    openSignIn: () => {
+      setErr('')
+      setSheet(cloud.status === 'signed-in' ? (cloud.name ? 'account' : 'name') : 'email')
+    },
+    switchPlayer: () => void switchPlayer(),
+  }
+
   return (
     <>
-      <button
-        type="button"
-        className={`btn ghost cloud-btn${compact ? ' is-compact' : ''}`}
-        onClick={() => {
-          setErr('')
-          setSheet(cloud.status === 'signed-in' ? (cloud.name ? 'account' : 'name') : 'email')
-        }}
-      >
-        {label}
-      </button>
-      {cloud.status === 'signed-in' && cloud.name && (
-        <button type="button" className={`btn ghost cloud-switch${compact ? ' is-compact' : ''}`} onClick={() => void switchPlayer()}>
-          Switch player
-        </button>
+      {children ? (
+        children(actions)
+      ) : (
+        <>
+          <button type="button" className={`btn ghost cloud-btn${compact ? ' is-compact' : ''}`} onClick={actions.openSignIn}>
+            {label}
+          </button>
+          {actions.saving && (
+            <button type="button" className={`btn ghost cloud-switch${compact ? ' is-compact' : ''}`} onClick={actions.switchPlayer}>
+              Switch player
+            </button>
+          )}
+        </>
       )}
       {sheet &&
         createPortal(
