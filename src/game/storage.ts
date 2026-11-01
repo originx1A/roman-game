@@ -40,9 +40,9 @@ export interface Settings {
   analytics?: boolean
 }
 
-export const PLAYER_NAME_MAX = 16
+export const PLAYER_NAME_MAX = 24
 
-/** Trim, drop control characters, squash spaces, cap at 16 characters */
+/** Trim, drop control characters, squash spaces, cap at the account player-name length */
 export function cleanPlayerName(raw: unknown): string {
   if (typeof raw !== 'string') return ''
   const s = raw.replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim()

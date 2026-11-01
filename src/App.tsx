@@ -18,7 +18,7 @@ import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './componen
 import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
 import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
-import { CloudScoresButton } from './cloud/CloudScores'
+import { CloudScoresButton, useCloud } from './cloud/CloudScores'
 import { initCloud, saveScore } from './cloud/cloud'
 import { UnseenCardTile } from './components/UnseenCard'
 import { noteCardWin } from './game/unseenCard'
@@ -430,6 +430,7 @@ export default function App() {
   const [profile, setProfile] = useState<Profile | null>(() => loadProfile())
   const [progress, setProgress] = useState(() => getProgress())
   const [settings, setSettings] = useState<Settings>(() => loadSettings())
+  const cloudAccount = useCloud()
   // Level select difficulty tab — persisted so it survives reloads
   const [levelTab, setLevelTab] = useState<Difficulty>(() => {
     const saved = (() => {
@@ -662,8 +663,9 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, remixSet])
   const [winReplay, setWinReplay] = useState<WinReplay | null>(null)
-  // Player name for share cards (asked once: first share or first finished board)
-  const playerName = cleanPlayerName(settings.playerName)
+  // Account player name when signed in. A device-only name is the fallback for guests.
+  const accountName = cloudAccount.status === 'signed-in' && cloudAccount.name ? cloudAccount.name : ''
+  const playerName = accountName || cleanPlayerName(settings.playerName)
   const [namePrompt, setNamePrompt] = useState<null | { then?: () => void }>(null)
   const [nameDraft, setNameDraft] = useState('')
   const comboRef = useRef<ComboState>(newCombo())
@@ -1168,6 +1170,11 @@ export default function App() {
       return next
     })
   }
+  useEffect(() => {
+    if (!accountName) return
+    if (settings.playerName === accountName && settings.namePrompted) return
+    saveSettingsPatch({ playerName: accountName.slice(0, PLAYER_NAME_MAX), namePrompted: true })
+  }, [accountName])
 
   /** Ask for a name once; `then` runs after Save or Skip */
   function askNameOnce(then?: () => void): boolean {
@@ -1846,7 +1853,7 @@ export default function App() {
         activeChallenge.scoreMs != null &&
         activeChallenge.scorePts != null
       ) {
-        const myName = profile?.displayName || 'You'
+        const myName = playerName || profile?.displayName || 'You'
         const result = createDuelResult({
           code: activeChallenge.code,
           puzzleId: puzzle.id,
@@ -2880,8 +2887,8 @@ export default function App() {
             <button type="button" className={screen === 'challenge' ? 'on' : ''} onClick={() => setScreen('challenge')}>
               Share
             </button>
-            <button type="button" className={screen === 'profile' ? 'on' : ''} onClick={() => setScreen('profile')}>
-              {profile ? profile.displayName.split(' ')[0] : 'Save'}
+            <button type="button" className={`nav-player ${screen === 'profile' ? 'on' : ''}`} onClick={() => setScreen('profile')} title={accountName || profile?.displayName || 'Save'}>
+              {accountName || (profile ? profile.displayName : 'Save')}
             </button>
           </nav>
           <div className="hud-pills">
@@ -3635,7 +3642,7 @@ export default function App() {
           <h2>Save & settings</h2>
           {profile ? (
             <div className="profile-card">
-              <p className="profile-name">{profile.displayName}</p>
+              <p className="profile-name">{accountName || profile.displayName}</p>
               <p className="profile-email">{profile.email}</p>
               <button
                 type="button"
@@ -3668,14 +3675,16 @@ export default function App() {
               Your name on shared scores
               <input
                 type="text"
-                value={settings.playerName ?? ''}
+                value={accountName || (settings.playerName ?? '')}
                 maxLength={PLAYER_NAME_MAX}
                 placeholder="Blank = “I scored…”"
                 aria-label="Your name on shared scores"
+                disabled={!!accountName}
                 onChange={(e) => saveSettingsPatch({ playerName: e.target.value.slice(0, PLAYER_NAME_MAX), namePrompted: true })}
                 onBlur={(e) => saveSettingsPatch({ playerName: cleanPlayerName(e.target.value) })}
               />
             </label>
+            {accountName ? <p className="sub">This is the player name on your account. Scores and the leaderboard use it.</p> : null}
             <label className="toggle">
               <input
                 type="checkbox"
