@@ -1,10 +1,14 @@
 import { gaEvent } from '../game/analytics'
+import { accountPlayerName, fetchAccountName, visibleEmail } from './siteAuth'
 /**
- * Player accounts + score saving (Supabase, project romans-game).
+ * Player accounts + score saving (Supabase, project romans-game, same database as romansgame.com).
  *
- * - Sign-in: email magic link, or the code from that same email (no passwords). The session
- *   lives in localStorage, but the player row and every score live on the server, so a cache clear
- *   only means "sign in again". The code is {{ .Token }} in the Magic Link email; Tony adds that.
+ * - Sign-in: the website account (player name or recovery email, plus a password) via
+ *   romansgame.com/api/auth. The returned session is stored the same way as the site
+ *   (supabase-js setSession, localStorage, auto-refresh). Email magic link, and the code
+ *   from that email, still sign in existing accounts.
+ * - The name on scores and the leaderboard is the account's player name, not the email
+ *   and not a name typed only on this device.
  * - Scores: queued locally first, then sent. Offline / Supabase down / not signed in = they wait
  *   in the queue (max 200) and flush on sign-in, on `online`, and after each new game.
  * - supabase-js is loaded lazily, so the game never waits on it and works fully without it.
@@ -43,6 +47,7 @@ export interface CloudState {
 }
 
 const QUEUE_KEY = 'rg.cloud.queue.v1'
+const AUTH_KIND_KEY = 'rg.cloud.authKind'
 const CONSENT_KEY = 'rg.cloud.consent.v1'
 /** Same Kit form as romansgame.com/news/#signup (public form endpoint, no secret key in the client) */
 export const KIT_FORM_URL = 'https://app.kit.com/forms/10053148/subscriptions'
@@ -100,6 +105,8 @@ export async function subscribeNews(email: string): Promise<boolean> {
 }
 const MAX_QUEUE = 200
 let clientP: Promise<SupabaseClient | null> | null = null
+/** Set before readQueue() runs at startup. Signed-out scores use the shared queue. */
+let queueOwner: string | null = null
 let state: CloudState = { status: 'off', pending: readQueue().length }
 const listeners = new Set<(s: CloudState) => void>()
 
@@ -122,7 +129,6 @@ export function onCloud(fn: (s: CloudState) => void): () => void {
  * "Switch player" signs out, so player A's unsent scores stay under A's id and only send when A
  * signs in again; they are never mixed into player B.
  */
-let queueOwner: string | null = null
 function queueKey(owner: string | null = queueOwner): string {
   return owner ? `${QUEUE_KEY}.${owner}` : QUEUE_KEY
 }
@@ -159,9 +165,40 @@ function client(): Promise<SupabaseClient | null> {
   return clientP
 }
 
+/** Name returned by the website auth API, used until the players row is read. */
+let hintedName = ''
+
+export function hintAccountName(name: string): void {
+  hintedName = name.trim()
+}
+
+/**
+ * Store a website auth session the way romansgame.com does: hand both tokens to
+ * supabase-js so they persist and refresh. Scores then upload on the existing path.
+ */
+export async function adoptSiteSession(
+  tokens: { access_token: string; refresh_token: string },
+  playerName: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const sb = await client()
+  if (!sb) return { ok: false, error: "The sign-in worked on the server, but this browser couldn't keep it. Try the sign-in code option." }
+  hintAccountName(playerName)
+  try {
+    localStorage.setItem(AUTH_KIND_KEY, 'site')
+  } catch {
+    /* private mode: the session still lives in supabase-js if storage works */
+  }
+  const { error } = await sb.auth.setSession({ access_token: tokens.access_token, refresh_token: tokens.refresh_token })
+  if (error) return { ok: false, error: "The sign-in worked on the server, but this browser couldn't keep it. Try the sign-in code option." }
+  const { data } = await sb.auth.getSession()
+  await loadPlayer(sb, data.session)
+  return { ok: true }
+}
+
 async function loadPlayer(sb: SupabaseClient, session: Session | null) {
   if (!session) {
     queueOwner = null
+    hintedName = ''
     return set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined })
   }
   if (queueOwner !== session.user.id) {
@@ -173,10 +210,22 @@ async function loadPlayer(sb: SupabaseClient, session: Session | null) {
       writeQueue([], null)
     }
   }
+  // Magic-link sessions stay on the players table. The website session route is only
+  // for name-and-password accounts, so a missing CORS header cannot disturb them.
+  let siteSession = false
+  try { siteSession = localStorage.getItem(AUTH_KIND_KEY) === 'site' } catch { /* private mode */ }
+  const fromApi = siteSession ? await fetchAccountName(session.access_token).catch(() => '') : ''
   const { data, error } = await sb.from('players').select('display_name, public_name').eq('id', session.user.id).maybeSingle()
-  if (error) return set({ status: 'signed-in', email: session.user.email, name: state.name ?? null })
-  set({ status: 'signed-in', email: session.user.email, name: data?.display_name ?? null, publicName: data?.public_name })
-  if (data) void flushScores().then(() => syncCard())
+  const name = accountPlayerName({
+    player_name: fromApi || hintedName,
+    name: hintedName,
+    display_name: data?.display_name,
+  }) || null
+  if (name) hintedName = name
+  const email = visibleEmail(session.user.email) || undefined
+  if (error && !name) return set({ status: 'signed-in', email, name: state.name ?? null, publicName: state.publicName })
+  set({ status: 'signed-in', email, name, publicName: data?.public_name || name || undefined })
+  if (name) void flushScores().then(() => syncCard())
 }
 
 /** Call once at startup. Never throws, never blocks. */
@@ -248,9 +297,11 @@ export async function savePlayerName(name: string, consent: Consent): Promise<{ 
 
 export async function signOut(): Promise<void> {
   const sb = await client()
-  // local scope: only this device; this player's unsent scores stay queued under their id
+  // local scope: only this device, same as the website. This player's unsent scores stay queued under their id.
   await sb?.auth.signOut({ scope: 'local' }).catch(() => undefined)
   queueOwner = null
+  hintedName = ''
+  try { localStorage.removeItem(AUTH_KIND_KEY) } catch { /* private mode */ }
   set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined })
 }
 

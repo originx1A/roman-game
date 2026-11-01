@@ -6370,6 +6370,101 @@ html[data-motion='reduce'] .td-invader {
 .cloud-check a { color: #ffd166; font-weight: 800; text-underline-offset: 0.12em; }
 .cloud-switch { font-size: 0.8rem; padding: 0.35rem 0.75rem; min-height: 0; opacity: 0.9; }
 
+/* Sign-in sheet: locked to the visible viewport. The card scrolls; the page does not. */
+html.rg-auth-open,
+html.rg-auth-open body {
+  overflow: hidden !important;
+  height: 100dvh;
+}
+html.rg-auth-open .scroll-pane {
+  overflow: hidden !important;
+}
+html.rg-cursor-fx-paused .cursor-fx,
+html.rg-cursor-fx-paused .cursor-fire,
+html.rg-cursor-fx-paused .fire-cursor,
+html.rg-cursor-fx-paused .particle-cursor,
+html.rg-cursor-fx-paused canvas.cursor-particles {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+.cloud-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  height: 100dvh;
+  max-height: 100dvh;
+  width: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding:
+    env(safe-area-inset-top, 0px)
+    env(safe-area-inset-right, 0px)
+    env(safe-area-inset-bottom, 0px)
+    env(safe-area-inset-left, 0px);
+  box-sizing: border-box;
+}
+.cloud-sheet .start-sheet-card {
+  width: min(100%, 420px);
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  padding: 0.5rem 0.75rem calc(0.45rem + env(safe-area-inset-bottom, 0px));
+  gap: 0.22rem;
+}
+.cloud-sheet .start-sheet-card h3 { font-size: 1.15rem; }
+.cloud-sheet .btn { padding: 0.48rem 1rem; }
+.cloud-sheet .name-input { padding: 0.38rem 0.65rem; }
+.cloud-sheet input,
+.cloud-sheet select,
+.cloud-sheet textarea {
+  font-size: 16px;
+}
+@media (max-height: 700px) {
+  .cloud-sheet .start-sheet-card { gap: 0.16rem; padding-top: 0.4rem; }
+  .cloud-sheet .start-sheet-tip,
+  .cloud-sheet .cloud-fine { font-size: 0.68rem; line-height: 1.25; }
+  .cloud-sheet .btn { padding: 0.4rem 0.85rem; }
+}
+.cloud-label { font-size: 0.82rem; font-weight: 800; text-align: left; }
+.cloud-fine { margin: 0; font-size: 0.75rem; opacity: 0.8; text-align: left; }
+.cloud-paths { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.cloud-path {
+  border: 1px solid rgba(255, 209, 102, 0.45);
+  background: transparent;
+  color: inherit;
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+.cloud-path.is-on { background: var(--sun); color: #07122a; }
+.cloud-text-btn {
+  border: 0;
+  background: none;
+  color: var(--sun);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 0.12em;
+  padding: 0.2rem;
+  cursor: pointer;
+}
+.cloud-captcha { min-height: 0; display: flex; justify-content: center; }
+.cloud-captcha:empty { display: none; }
+.nav button.nav-player {
+  max-width: 7.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* 9.32-d: exclusive Unseen card, back while locked, flips to the animated front when earned */
 .unseen-card { position: relative; width: 44px; aspect-ratio: 2 / 3; flex: none; perspective: 900px; }
 .unseen-card-lg { width: min(62vw, 240px); margin: 0 auto 12px; }
