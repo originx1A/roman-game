@@ -136,7 +136,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onBu
         </button>
         <div>
           <h2>The Stable</h2>
-          <p className="stable-sub">Roman's buddies. Keep them forever, ride with one.</p>
+          <p className="stable-sub">Roman's Defenders. Choose wisely — ride with one.</p>
         </div>
         <span className="stable-coins" aria-label={`${coins} coins`}>
           🪙 {coins}
@@ -167,7 +167,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onBu
       <div className="stable-stash" aria-label="Treat stash">
         <span>
           🍖 Stash: <strong>{pets.treats.snack}</strong> snacks · <strong>{pets.treats.feast}</strong> feasts
-          <small>safe from wild buddies · field pile: {pets.fieldTreats ?? 0}</small>
+          <small>safe from wild pets · field pile: {pets.fieldTreats ?? 0}</small>
         </span>
         <button type="button" className="btn tool" onClick={onSwapTreats} disabled={(pets.treats.snack ?? 0) <= 0}>
           Swap snacks → coins <small>1 🍖 = {SNACK_COIN_RATE} 🪙</small>
@@ -182,8 +182,8 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onBu
 
       {Object.keys(pets.owned).length === 0 && !pets.freePickUsed ? (
         <div className="stable-freepick" role="region" aria-label="Pick your free buddy">
-          <p className="stable-freepick-title">🎉 Pick your buddy — FREE!</p>
-          <p className="stable-freepick-sub">Choose one buddy to join you forever. Each has a special perk.</p>
+          <p className="stable-freepick-title">🎉 Pick your Defender — FREE!</p>
+          <p className="stable-freepick-sub">Choose one Defender to ride with you. Choose wisely — this one is free, with 10 calls in the bank.</p>
         </div>
       ) : null}
 
@@ -303,7 +303,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onBu
                   {freePickMode ? (
                     <>
                       <p className="stable-price is-free">
-                        <strong>FREE</strong> 🎉 <small>your first buddy</small>
+                        <strong>FREE</strong> 🎉 <small>your first Defender</small>
                       </p>
                       <button type="button" className="btn primary stable-btn stable-free-btn" onClick={() => onClaimFree(p.id)}>
                         Pick {p.name}!
@@ -324,7 +324,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onBu
                 <>
                   <p className="stable-next">{p.blurb}</p>
                   <p className="stable-price is-free">
-                    <strong>FREE</strong> 🎉 <small>your first buddy</small>
+                    <strong>FREE</strong> 🎉 <small>your first Defender</small>
                   </p>
                   <button type="button" className="btn primary stable-btn stable-free-btn" onClick={() => onClaimFree(p.id)}>
                     Pick {p.name}!
@@ -416,7 +416,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onBu
               <small>🎁 {GIFT_TAG}</small>
               {preview.gift.kind === 'pack' ? (
                 <>
-                  <strong>{preview.gift.pack === 'all' ? 'All buddies pack' : 'Gift pack'}</strong>
+                  <strong>{preview.gift.pack === 'all' ? 'All Defenders pack' : 'Gift pack'}</strong>
                   <ul className="gift-preview-items">
                     {preview.gift.items.map((it, i) => (
                       <li key={i}>{giftLabel(it)}</li>
@@ -443,7 +443,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onBu
       </section>
 
       <p className="stable-note">
-        Coins only, no random boxes. Win boards to earn coins, or grab more in the <button type="button" className="linkish" onClick={onShop}>Shop</button>. Coupons:
+        Coins only, no random boxes. Win boards to earn coins — coins only, never real money. Coupons:
         20% off for a 7-day daily streak, 30% off for a Roman's Trial clear (one per adoption).
       </p>
     </main>

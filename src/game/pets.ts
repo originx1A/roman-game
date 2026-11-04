@@ -39,7 +39,7 @@ export const PETS: readonly PetDef[] = [
     tier: 'limited',
     price: 5000,
     perk: 'rescue',
-    blurb: 'Hoots once a year. Swoops in to rescue a bad buddy.',
+    blurb: 'Hoots once a year. Finds coins in the dark.',
     limited: { from: '10-15', to: '11-02', label: 'Halloween' },
   },
 ]
@@ -197,10 +197,9 @@ export function perkFor(id: PetId, level: number, stars = 0): Perk {
       return { ...base, coins, label: `+${coins} coins every win${st ? starTxt : ''}`, next: L < 10 ? `+1 coin per level (to +15 at Lv10)` : L < 15 ? 'Level 15: +3 coins' : L < 25 ? 'Level 25: +3 coins' : undefined }
     }
     case 'aquila': {
-      const hints = L >= 15 ? 3 : L >= 6 ? 2 : 1
-      const coins = (L >= 25 ? 4 : 0) + st
-      const txt = `${hints} free hint${hints > 1 ? 's' : ''} every board`
-      return { ...base, hints, coins, label: coins ? `${txt}, +${coins} coins a win` : txt, next: L < 6 ? 'Level 6: 2 free hints' : L < 15 ? 'Level 15: 3 free hints' : L < 25 ? 'Level 25: also +4 coins a win' : undefined }
+      // 9.33-a: Aquila's gift is coins now (the Hint button is gone — the Defenders do that work)
+      const coins = 4 + Math.min(L, 10) + (L >= 15 ? 3 : 0) + (L >= 25 ? 4 : 0) + st
+      return { ...base, coins, label: `+${coins} coins every win${st ? starTxt : ''}`, next: L < 10 ? `+1 coin per level (to +14 at Lv10)` : L < 15 ? 'Level 15: +3 coins' : L < 25 ? 'Level 25: +4 coins' : undefined }
     }
     case 'leo': {
       const hearts = L >= 25 ? 2 : 1
@@ -214,10 +213,9 @@ export function perkFor(id: PetId, level: number, stars = 0): Perk {
       return { ...base, coinPct, coins, label: `+${coinPct}% coins every win${st ? `, +${st} coins from stars` : ''}`, next: L < 10 ? `+1% per level (to +19% at Lv10)` : L < 15 ? 'Level 15: +1%' : L < 25 ? 'Level 25: +1%' : undefined }
     }
     case 'nox': {
-      const rescues = L >= 25 ? 3 : L >= 6 ? 2 : 1
-      const coins = (L >= 15 ? 4 : 0) + st
-      const txt = `${rescues} free Rescue${rescues > 1 ? 's' : ''} every board`
-      return { ...base, rescues, coins, label: coins ? `${txt}, +${coins} coins a win` : txt, next: L < 6 ? 'Level 6: 2 free Rescues' : L < 15 ? 'Level 15: also +4 coins a win' : L < 25 ? 'Level 25: 3 free Rescues' : undefined }
+      // 9.33-a: Nox's gift is coins now (the Rescue button is gone — the Defenders do that work)
+      const coins = 3 + Math.min(L, 10) + (L >= 15 ? 4 : 0) + (L >= 25 ? 4 : 0) + st
+      return { ...base, coins, label: `+${coins} coins every win${st ? starTxt : ''}`, next: L < 10 ? `+1 coin per level (to +13 at Lv10)` : L < 15 ? 'Level 15: +4 coins' : L < 25 ? 'Level 25: +4 coins' : undefined }
     }
   }
 }
@@ -484,9 +482,9 @@ export function buyPet(s: PetState, coins: number, id: PetId, now: number): BuyR
 export function claimFreePet(s: PetState, id: PetId, now: number): { ok: true; state: PetState } | { ok: false; reason: string } {
   const p = petById(id)
   if (!p) return { ok: false, reason: 'Unknown buddy' }
-  if (s.freePickUsed) return { ok: false, reason: 'Free buddy already claimed' }
+  if (s.freePickUsed) return { ok: false, reason: 'Free Defender already claimed' }
   if (s.owned[id]) return { ok: false, reason: 'Already in your Stable' }
-  if (Object.keys(s.owned).length > 0) return { ok: false, reason: 'Free buddy is for new players' }
+  if (Object.keys(s.owned).length > 0) return { ok: false, reason: 'The free Defender is for new players' }
   const state: PetState = {
     ...s,
     owned: { ...s.owned, [id]: { at: now, xp: 0, gift: true } },
@@ -780,11 +778,11 @@ export function giftLabel(g: Gift): string {
   if (g.kind === 'pack') {
     const parts = g.items.map(giftLabel)
     const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0] ?? 'a gift'
-    return g.pack === 'all' ? `All buddies pack: ${list}` : `Gift pack: ${list}`
+    return g.pack === 'all' ? `All Defenders pack: ${list}` : `Gift pack: ${list}`
   }
-  if (g.kind === 'pet') return petLabel(g.pet) ?? 'a buddy'
+  if (g.kind === 'pet') return petLabel(g.pet) ?? 'a Defender'
   if (g.kind === 'coins') return `${g.amount.toLocaleString('en-US')} coins`
-  const who = g.pet ? petLabel(g.pet) ?? 'a buddy' : 'any buddy'
+  const who = g.pet ? petLabel(g.pet) ?? 'a Defender' : 'any Defender'
   return `${g.pct}% off ${who} (${g.days} day${g.days === 1 ? '' : 's'} to use it)`
 }
 
@@ -862,7 +860,7 @@ function applyPack(s: PetState, coins: number, gift: GiftPack, code: string, now
       else joined.push(p.name)
     }
     if (it.kind === 'coins' || (it.kind === 'pet' && s.owned[it.pet])) extraCoins += total - before
-    if (it.kind === 'coupon') coupons.push(`${it.pct}% off ${it.pet ? petById(it.pet)?.name : 'any buddy'}`)
+    if (it.kind === 'coupon') coupons.push(`${it.pct}% off ${it.pet ? petById(it.pet)?.name : 'any Defender'}`)
   }
   // ride with the first new buddy in the pack (or keep who you had)
   const firstNew = gift.items.find((it): it is Extract<GiftItem, { kind: 'pet' }> => it.kind === 'pet' && !s.owned[it.pet])
@@ -880,7 +878,7 @@ function applyGiftInner(s: PetState, coins: number, gift: GiftItem, code: string
   if (gift.kind === 'coins') return { state: { ...s, redeemed }, coins: coins + gift.amount, message: `${GIFT_TAG}: +${gift.amount} coins!` }
   if (gift.kind === 'coupon') {
     const state = addCoupon({ ...s, redeemed }, { pct: gift.pct, pet: gift.pet, source: 'gift', expires: now + gift.days * DAY_MS }, now)
-    const who = gift.pet ? petById(gift.pet)?.name : 'any buddy'
+    const who = gift.pet ? petById(gift.pet)?.name : 'any Defender'
     return { state, coins, message: `${GIFT_TAG}: ${gift.pct}% off ${who}!` }
   }
   const p = petById(gift.pet)!

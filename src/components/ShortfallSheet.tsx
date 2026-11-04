@@ -1,6 +1,6 @@
 import { useEffect, useId } from 'react'
 import { createPortal } from 'react-dom'
-import { cheapestPackForGap, isStoreBuild, packValueBlurb, type CoinPack } from '../game/iap'
+import { cheapestPackForGap, isStoreBuild, type CoinPack } from '../game/iap'
 import { cheapestWebPack, type WebPackOffer } from '../game/webPacks'
 
 export type ShortfallAction = 'hint' | 'rescue' | 'revive' | 'upgrade'
@@ -75,8 +75,7 @@ export function ShortfallSheet({
         <p className="shortfall-math">
           {actionLabel} costs {need} · you have {have} · need {short}
         </p>
-        <p className="shortfall-body">{packValueBlurb(100)}</p>
-        <p className="shortfall-body">Win a board for ~90–200 coins</p>
+        <p className="shortfall-body">Coins come from playing: win a board for ~90–200 coins, catch parade treasure, spin prizes.</p>
         {!store && purchasesUnavailable ? (
           <p className="shortfall-body shortfall-web-note">Purchases are unavailable right now.</p>
         ) : null}

@@ -11,7 +11,6 @@ import { ResultOverlay } from './components/ResultOverlay'
 import { WinScreen, type WinReplay } from './components/WinScreen'
 import { type ShortfallAction } from './components/ShortfallSheet'
 import { ShortfallSheetHost } from './components/ShortfallSheetHost'
-import { CoinPackCard } from './components/CoinPackCard'
 import './styles/store-layer.css'
 import { ShareBar } from './components/ShareBar'
 import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './components/SparkCritter'
@@ -23,7 +22,6 @@ import { initCloud, saveScore } from './cloud/cloud'
 import { UnseenCardTile } from './components/UnseenCard'
 import { noteCardWin } from './game/unseenCard'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
-import { TapButton } from './components/TapButton'
 import { BuddyHunt } from './components/BuddyHunt'
 import { PetArt } from './components/PetArt'
 import { Stable } from './components/Stable'
@@ -100,14 +98,12 @@ import {
   canEarnSpin,
   treasureBudget,
   treasureLeftPct,
-  hintPrice,
   huntPct,
   ledgerSummary,
   noteParadeGain,
   paradeRewardsLine,
   loadLedger,
   payWin,
-  rescuePrice,
   rollLedger,
   saveLedger,
   sparksOpen,
@@ -117,15 +113,11 @@ import {
 } from './game/dailyEconomy'
 import { dayCoins, dayShort, loadDay, saveDay, startBuddyDay, useDayBoard, type BuddyDay, type DayPerkKind } from './game/buddyDay'
 import { BUILD_TAG } from './buildTag'
-import { amendMove, createHistory, pushMove, redoMove, restoreHistory, stepsToSave, undoMove } from './game/history'
+import { amendMove, createHistory, pushMove, restoreHistory, stepsToSave } from './game/history'
 import {
-  applyHint,
-  clearBuddy,
   colOf,
   emptyBoard,
-  findHint,
   findConflicts,
-  findMisplacedBuddy,
   isSolved,
   rowOf,
 } from './game/logic'
@@ -194,6 +186,7 @@ import {
   eventAllowed,
   sparkProgressBanter,
   tipBanter,
+  unseenDefenderTaunt,
   VOICE_PRIORITY,
   type BoardOutcome,
   type ConflictKind as BanterConflictKind,
@@ -265,10 +258,8 @@ import {
   sfxAchievement,
   sfxCoin,
   sfxHeartLose,
-  sfxHint,
   sfxLose,
   sfxRecord,
-  sfxUndo,
   sfxWhoosh,
   sfxWin,
   resetVoiceQuietClock,
@@ -279,11 +270,9 @@ import {
   dropWaitingVoice,
   petGiggle,
 } from './game/sound'
-import { COIN_PACKS, purchaseCoinPack, restorePurchases, isStoreBuild, subscribeStore, type CoinPackId } from './game/iap'
-import { loadWebPacks, type WebPackOffer } from './game/webPacks'
+import { isStoreBuild } from './game/iap'
 import './App.css'
 /** Temporarily hide the real-money coin shop until Stripe is connected. Set to true to re-enable. */
-const SHOP_ENABLED = false;
 
 
 let lastAppHeight = 0
@@ -502,7 +491,7 @@ export default function App() {
   /** Buddy riding along on the board in progress (fixed at the start of the board) */
   const runPetRef = useRef<PetId | null>(null)
   /** Buddy freebies left on this board (free hints / free rescues) */
-  const [petFree, setPetFree] = useState({ hints: 0, rescues: 0 })
+  const [, setPetFree] = useState({ hints: 0, rescues: 0 })
   // ---- 9.33-a: Defender Boards ----
   /** This board's Defender brand (null = unbranded), rolled at a fresh board start */
   const [brand, setBrand] = useState<PetId | null>(null)
@@ -532,8 +521,8 @@ export default function App() {
   const [econ, setEconState] = useState<Ledger>(() => loadLedger(typeof window === 'undefined' ? null : safeLocalStorage(), torontoDateKey()))
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null)
   const [cells, setCells] = useState<CellState[]>([])
-  const [history, setHistory] = useState<CellState[][]>([])
-  const [future, setFuture] = useState<CellState[][]>([])
+  const [, setHistory] = useState<CellState[][]>([])
+  const [, setFuture] = useState<CellState[][]>([])
   const [elapsedMs, setElapsedMs] = useState(0)
   const [running, setRunning] = useState(false)
   const [hintsUsed, setHintsUsed] = useState(0)
@@ -567,13 +556,15 @@ export default function App() {
     unseenKey.current += 1
     setUnseenPop({ text: line.text, key: unseenKey.current })
   }
+  /** 9.33-a: the Unseen speaks in text (no clip) — Defender Boards moments use his pop-up directly */
+  function unseenSay(text: string) {
+    unseenKey.current += 1
+    setUnseenPop({ text, key: unseenKey.current })
+  }
   const [shortfall, setShortfall] = useState<null | { action: ShortfallAction; need: number; detail?: string }>(null)
   const [incoming, setIncoming] = useState<Challenge | null>(null)
   const [, setChallenges] = useState(() => loadChallenges())
   const [emailInput, setEmailInput] = useState('')
-  const [storePrices, setStorePrices] = useState<Record<string, string>>({})
-  const [webPacks, setWebPacks] = useState<WebPackOffer[] | null>(null)
-  const [webShop, setWebShop] = useState<'loading' | 'ready' | 'unavailable'>('loading')
   const [nameInput, setNameInput] = useState('Roman')
   const [challengeEmail, setChallengeEmail] = useState('')
   const [challengeMsg, setChallengeMsg] = useState('Can you beat me on this board?')
@@ -614,7 +605,6 @@ export default function App() {
   const shellRef = useRef<HTMLDivElement>(null)
   const tickRef = useRef<number | null>(null)
   const idleRef = useRef<number | null>(null)
-  const undoTimesRef = useRef<number[]>([])
   const lastActionRef = useRef(Date.now())
   // ---- Voice tips (9.28-b) ----
   const tipsRef = useRef<TipState>(loadTips())
@@ -751,31 +741,6 @@ export default function App() {
     setVoiceEnabled(settings.voice)
   }, [settings.sound, settings.voice])
 
-  useEffect(() => {
-    if (isStoreBuild()) return
-    let cancelled = false
-    void loadWebPacks()
-      .then((packs) => {
-        if (cancelled) return
-        if (!packs) {
-          setWebShop('unavailable')
-          setWebPacks(null)
-          return
-        }
-        setWebPacks(packs)
-        setWebShop('ready')
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setWebShop('unavailable')
-          setWebPacks(null)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
   // 9.30-a: trial buddies end after 24h (checked every minute and when the tab comes back)
   useEffect(() => {
     const tick = () => {
@@ -809,63 +774,6 @@ export default function App() {
     params.delete('gift')
     const q = params.toString()
     window.history.replaceState(null, '', window.location.pathname + (q ? `?${q}` : '') + window.location.hash)
-  }, [])
-
-  useEffect(() => {
-    if (isStoreBuild()) return
-    const params = new URLSearchParams(window.location.search)
-    const checkout = params.get('checkout')
-    const sessionId = params.get('session_id')
-    const clean = () => {
-      const next = window.location.pathname + window.location.hash
-      window.history.replaceState(null, '', next)
-    }
-    if (checkout === 'cancel') {
-      showToast('Purchase cancelled. No coins were added.')
-      clean()
-      return
-    }
-    if (checkout !== 'success' || !sessionId) return
-    let cancelled = false
-    void import('./game/webCheckout').then(async (mod) => {
-      if (cancelled) return
-      if (mod.wasCheckoutRedeemed(sessionId)) {
-        showToast('Those coins are already in your wallet.')
-        clean()
-        return
-      }
-      const result = await mod.confirmWebCheckout(sessionId)
-      if (cancelled) return
-      clean()
-      if (!result.ok) {
-        showToast(result.reason)
-        return
-      }
-      mod.rememberCheckoutRedeemed(sessionId)
-      if (result.alreadyRedeemed || result.coins <= 0) {
-        showToast('Those coins are already in your wallet.')
-        return
-      }
-      const current = loadWallet()
-      persistWallet({ ...current, coins: current.coins + result.coins })
-      sfxCoin()
-      showToast(`+${result.coins} coins · ${result.label}`)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!isStoreBuild()) return
-    return subscribeStore((notice) => {
-      if (notice.type === 'prices') setStorePrices(notice.prices)
-      if (notice.type === 'granted') {
-        setWallet(loadWallet())
-        sfxCoin()
-        showToast(`+${notice.coins} coins · ${notice.label}`)
-      }
-    })
   }, [])
 
   useEffect(() => {
@@ -967,29 +875,6 @@ export default function App() {
       if (tickRef.current) window.clearInterval(tickRef.current)
     }
   }, [running, rotatePaused])
-
-  // PC keyboard shortcuts on a live board: Z undo, Y redo, H hint (plus Ctrl/Cmd+Z, Ctrl+Y, Ctrl+Shift+Z)
-  const keysRef = useRef<{ undo: () => void; redo: () => void; hint: () => void }>({ undo: () => {}, redo: () => {}, hint: () => {} })
-  useEffect(() => {
-    if (screen !== 'play') return
-    const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null
-      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return
-      if (e.altKey || e.repeat) return
-      if (document.querySelector('.start-sheet, .win-screen, .buddy-hunt, .prize-overlay, .shortfall-overlay, .result-overlay, .rotate-prompt.is-on')) return
-      const k = e.key.toLowerCase()
-      const mod = e.ctrlKey || e.metaKey
-      let act: 'undo' | 'redo' | 'hint' | null = null
-      if (k === 'z' && !e.shiftKey) act = 'undo'
-      else if ((k === 'z' && e.shiftKey && mod) || k === 'y') act = 'redo'
-      else if (k === 'h' && !mod) act = 'hint'
-      if (!act) return
-      e.preventDefault()
-      keysRef.current[act]()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [screen])
 
   // A new board (or a comeback after a loss) is live again: its voice lines may speak
   useEffect(() => {
@@ -1448,7 +1333,15 @@ export default function App() {
     lastBrandRef.current = b
     const now = Date.now()
     const s = loadPets()
-    if (!hasPet(s, b, now) || callsFor(s, b) <= 0) return
+    if (!hasPet(s, b, now) || callsFor(s, b) <= 0) {
+      // The Defender sleeps — and the Unseen notices, more often than not
+      if (Math.random() < 0.7) {
+        window.setTimeout(() => {
+          if (brandRunRef.current === run && !boardOverRef.current) unseenSay(unseenDefenderTaunt('absent', b))
+        }, 1700)
+      }
+      return
+    }
     const spent = spendCall(s, b)
     if (!spent) return
     persistPets(spent)
@@ -1456,6 +1349,12 @@ export default function App() {
     window.setTimeout(() => {
       if (brandRunRef.current !== run || boardOverRef.current) return
       fireDefender(b, p)
+      // He sneers at summoned help about half the time
+      if (Math.random() < 0.5) {
+        window.setTimeout(() => {
+          if (brandRunRef.current === run && !boardOverRef.current) unseenSay(unseenDefenderTaunt('call', b))
+        }, 1000)
+      }
     }, 1100)
   }
 
@@ -1871,9 +1770,11 @@ export default function App() {
       // One line per move: the losing move gets the lose line only, not a wrong-move line too
       if (leoShieldRef.current || w.shields > 0 || lives > 1) pushBanter('place-bad', kind)
       if (leoShieldRef.current) {
-        // 9.33-a: on Leo's board, Leo roars off the first mistake — no heart lost, once
+        // 9.33-a: on Leo's board, Leo roars off the first mistake — no heart lost, once.
+        // The Unseen gets his jab in first, about half the time.
         leoShieldRef.current = false
         setLeoShield(false)
+        if (Math.random() < 0.5) unseenSay(unseenDefenderTaunt('leo-save', 'leo'))
         showToast('🦁 Leo roared off your mistake!')
         sfxCoin()
       } else if (w.shields > 0) {
@@ -2210,127 +2111,6 @@ export default function App() {
         }, 2200)
       }
     }
-  }
-
-  /** Undo/redo spam (4 within 5s) gives the Unseen an opening */
-  function noteUndoRedo() {
-    const now = Date.now()
-    const recent = [...undoTimesRef.current.filter((t) => now - t < 5000), now]
-    if (recent.length >= 4) {
-      undoTimesRef.current = []
-      pushBanter('undo-spam')
-    } else {
-      undoTimesRef.current = recent
-    }
-  }
-
-  function undo() {
-    if (historyRef.current.past.length === 0 || celebrate || defeated || modeRef.current === 'trial') return
-    // Board first: a sound or voice hiccup must never cost the undo itself.
-    const hist = undoMove(historyRef.current)
-    replaceBoard(hist)
-    try {
-      // Each undo costs points and breaks the combo
-      undosRef.current += 1
-      comboRef.current = comboMove(comboRef.current, 'undo', -1, Date.now()).combo
-      showToast(`Undo · −${UNDO_COST} pts`)
-      // Repeated undos: a voice tip about what undo costs (once the heckle, if any, has finished)
-      if (undosRef.current >= TIP_TRIGGERS.undoCount) window.setTimeout(() => fireTip('undo-spam', undefined, { quietMs: 800 }), 1400)
-    } catch {
-      /* scoring only */
-    }
-    // Without this the saved board kept the undone X's: Resume (or iOS reloading the tab) put them back.
-    saveBoardDraft(hist)
-    afterUndoRedo()
-  }
-
-  function afterUndoRedo() {
-    try {
-      sfxUndo()
-      noteUndoRedo()
-    } catch {
-      /* sound only */
-    }
-  }
-
-  function redo() {
-    if (historyRef.current.future.length === 0 || celebrate || defeated || modeRef.current === 'trial') return
-    const hist = redoMove(historyRef.current)
-    replaceBoard(hist)
-    saveBoardDraft(hist)
-    afterUndoRedo()
-  }
-
-  function onHint() {
-    if (!puzzle || celebrate || defeated) return
-    bumpAction()
-    const board = historyRef.current.present
-    const hint = findHint(puzzle, board)
-    if (!hint) {
-      showToast('No hint available')
-      return
-    }
-    let w = { ...wallet }
-    if (petFree.hints > 0) {
-      setPetFree((f) => ({ ...f, hints: f.hints - 1 }))
-      showToast(`Free hint from ${petById(runPetRef.current)?.name ?? 'your buddy'}`)
-    } else if (w.freeHints > 0) {
-      w = { ...w, freeHints: w.freeHints - 1 }
-    } else if (w.coins >= hintPrice(hintsUsed)) {
-      w = { ...w, coins: w.coins - hintPrice(hintsUsed) }
-      showToast(`−${hintPrice(hintsUsed)} coins`)
-    } else {
-      setShortfall({ action: 'hint', need: hintPrice(hintsUsed) })
-      return
-    }
-    persistWallet(w)
-    sfxHint()
-    pushBanter('hint')
-    tipMastery('stuck')
-    lastProgressRef.current = Date.now()
-    flawedRef.current = true
-    setHintIndex(hint.index)
-    setHintText(hint.explanation)
-    setHintsUsed((n) => n + 1)
-    onBoardChange(applyHint(board, hint), {
-      kind: hint.kind === 'stone' ? 'stone' : 'mark',
-      conflict: false,
-      index: hint.index,
-      assist: true,
-    })
-  }
-
-  /** Rare rescue: clear a buddy that does not belong (wrong spot / conflict) */
-  function onRescue() {
-    if (!puzzle || celebrate || defeated) return
-    bumpAction()
-    const board = historyRef.current.present
-    const hit = findMisplacedBuddy(puzzle, board)
-    if (!hit) {
-      showToast('No rescue needed — buddies look fine')
-      return
-    }
-    if (petFree.rescues > 0) {
-      setPetFree((f) => ({ ...f, rescues: f.rescues - 1 }))
-    } else if (wallet.coins < rescuePrice(rescuesUsed)) {
-      setShortfall({ action: 'rescue', need: rescuePrice(rescuesUsed) })
-      return
-    } else {
-      persistWallet({ ...wallet, coins: wallet.coins - rescuePrice(rescuesUsed) })
-    }
-    setRescuesUsed((n) => n + 1)
-    flawedRef.current = true
-    sfxHint()
-    pushBanter('rescue')
-    setHintIndex(hit.index)
-    setHintText(hit.explanation)
-    showToast(hit.explanation)
-    onBoardChange(clearBuddy(board, hit.index), {
-      kind: 'empty',
-      conflict: false,
-      index: hit.index,
-      assist: true,
-    })
   }
 
   function resetBoard() {
@@ -2773,31 +2553,6 @@ export default function App() {
     showToast(`${def?.title ?? badgeId} → Rank ${rank} · +${formatBonusPercent(totalCoinBonusPercent(result.wallet))} coins`)
   }
 
-  async function onBuyCoins(packId: CoinPackId) {
-    unlockAudio()
-    if (!isStoreBuild()) {
-      const { startWebCheckout } = await import('./game/webCheckout')
-      const started = await startWebCheckout(packId)
-      if (!started.ok) showToast(started.reason)
-      return
-    }
-    const result = await purchaseCoinPack(packId)
-    if (!result.ok) {
-      showToast(result.reason)
-      return
-    }
-    if (result.credited) setWallet(loadWallet())
-    else persistWallet({ ...wallet, coins: wallet.coins + result.coins })
-    sfxCoin()
-    showToast(`+${result.coins} coins · ${result.pack.label}`)
-  }
-
-  async function onRestorePurchases() {
-    const result = await restorePurchases()
-    if (result.ok) setWallet(loadWallet())
-    showToast(result.message)
-  }
-
   function challengeMailHref(url: string): string | undefined {
     const to = challengeEmail.trim()
     if (!shareChallenge && !to) return undefined
@@ -3050,7 +2805,6 @@ export default function App() {
   }
   const trialLeftMs = puzzle && mode === 'trial' ? Math.max(0, trialTimeLimitMs(targetsFor(puzzle)) - elapsedMs) : 0
 
-  keysRef.current = { undo, redo, hint: onHint }
 
   return (
     <div
@@ -3147,9 +2901,6 @@ export default function App() {
           setShortfall(null)
           setScreen('levels')
         }}
-        onBuyCoins={onBuyCoins}
-        webPacks={webPacks}
-        purchasesUnavailable={webShop === 'unavailable'}
       />
 
       {screen === 'home' && (
@@ -3500,31 +3251,6 @@ export default function App() {
 
           <div className="play-side">
           <div className="toolbar play-toolbar">
-            <TapButton className="btn tool" onTap={undo} disabled={!history.length || celebrate || defeated || mode === 'trial'}>
-              {mode === 'trial' ? 'No undo' : 'Undo'}
-              <kbd className="kbd" aria-hidden="true">Z</kbd>
-            </TapButton>
-            <TapButton className="btn tool" onTap={redo} disabled={!future.length || celebrate || defeated || mode === 'trial'}>
-              Redo
-              <kbd className="kbd" aria-hidden="true">Y</kbd>
-            </TapButton>
-            <button type="button" className="btn tool" onClick={onHint} disabled={celebrate || defeated}>
-              <span className="tool-label">Hint</span>
-              <span className="tool-cost">
-                {petFree.hints + wallet.freeHints > 0 ? `${petFree.hints + wallet.freeHints} free` : String(hintPrice(hintsUsed))}
-              </span>
-              <kbd className="kbd" aria-hidden="true">H</kbd>
-            </button>
-            <button
-              type="button"
-              className="btn tool"
-              onClick={onRescue}
-              disabled={celebrate || defeated}
-              title={`Clear a misplaced buddy · ${rescuePrice(rescuesUsed)} coins`}
-            >
-              <span className="tool-label">Rescue</span>
-              <span className="tool-cost">{petFree.rescues > 0 ? `${petFree.rescues} free` : rescuePrice(rescuesUsed)}</span>
-            </button>
             <button type="button" className="btn tool" onClick={resetBoard}>
               Reset
             </button>
@@ -3535,12 +3261,12 @@ export default function App() {
             const def = rp ? petById(rp) : undefined
             if (!rp || !def) {
               return (
-                <button type="button" className="buddy-spot is-solo" data-buddy-spot="solo" onClick={() => setScreen('stable')} title="Pick a buddy in The Stable">
+                <button type="button" className="buddy-spot is-solo" data-buddy-spot="solo" onClick={() => setScreen('stable')} title="Pick a Defender in The Stable">
                   <span className="buddy-spot-ring" aria-hidden="true">
                     <span className="buddy-spot-face" />
                   </span>
                   <strong>Solo run</strong>
-                  <small>No buddy this board. Pick one in The Stable.</small>
+                  <small>No Defender this board. Pick one in The Stable.</small>
                 </button>
               )
             }
@@ -3754,7 +3480,7 @@ export default function App() {
             </span>
             <span>
               <strong>The Stable</strong>
-              <small>Adopt a buddy with coins. Each one has a perk.</small>
+              <small>Adopt a Defender with coins. Each one guards its own boards.</small>
             </span>
             <span aria-hidden="true">›</span>
           </button>
@@ -3792,58 +3518,6 @@ export default function App() {
           >
             {wallet.spins > 0 ? `Use a spin (${wallet.spins})` : 'Catch 5 sparks for a spin (1 a day)'}
           </button>
-
-          {SHOP_ENABLED && (<>
-          <h3 className="ach-title">Coin shop</h3>
-          <p className="sub shop-note">
-            {isStoreBuild()
-              ? 'Prices come from the App Store / Google Play. Coins spend on hints, rescues, revives, and badge ranks.'
-              : webShop === 'unavailable'
-                ? 'Purchases are unavailable right now. You can still win coins by playing.'
-                : webShop === 'ready'
-                  ? 'Prices are in US dollars. Coins are added in this browser after you pay. You can still win coins by playing.'
-                  : 'Loading the coin shop.'}
-          </p>
-          <div className="coin-shop">
-            {isStoreBuild()
-              ? COIN_PACKS.map((pack) => (
-                  <CoinPackCard
-                    key={pack.id}
-                    pack={pack}
-                    onBuy={onBuyCoins}
-                    priceText={storePrices[pack.productId]}
-                  />
-                ))
-              : webShop === 'ready' && webPacks
-                ? webPacks.map((pack) => (
-                    <CoinPackCard
-                      key={pack.id}
-                      webBuy
-                      pack={{
-                        id: pack.id,
-                        productId: pack.productId,
-                        label: pack.label,
-                        coins: pack.coins,
-                        priceHint: pack.priceLabel,
-                      }}
-                      priceText={pack.priceLabel}
-                      onBuy={onBuyCoins}
-                    />
-                  ))
-                : null}
-          </div>
-          {isStoreBuild() && (
-            <>
-              <button type="button" className="btn ghost" onClick={() => void onRestorePurchases()}>
-                Restore unfinished purchases
-              </button>
-              <p className="sub restore-note">
-                Coin packs are consumable. A finished purchase is not restored. This only adds a payment
-                that was charged but not yet turned into coins.
-              </p>
-            </>
-          )}
-          </>)}
 
           <h3 className="ach-title">Badges · rank up</h3>
           <div className="ach-grid badge-grid">

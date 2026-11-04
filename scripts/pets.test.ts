@@ -25,14 +25,17 @@ test('economy: prices sit where the spec wants them, measured from the reward co
 test('perks: one small perk each, growing modestly with level', () => {
   assert.equal(P.perkFor('lupa', 1).coins, 6)
   assert.equal(P.perkFor('lupa', 10).coins, 15)
-  assert.equal(P.perkFor('aquila', 5).hints, 1)
-  assert.equal(P.perkFor('aquila', 6).hints, 2)
+  // 9.33-a: Aquila and Nox pay coins (the Hint/Rescue buttons are gone — Defenders do that work)
+  assert.equal(P.perkFor('aquila', 1).hints, 0)
+  assert.equal(P.perkFor('aquila', 1).coins, 5)
+  assert.equal(P.perkFor('aquila', 10).coins, 14)
   assert.equal(P.perkFor('leo', 1).hearts, 1)
   assert.equal(P.perkFor('leo', 4).coins, 0)
   assert.equal(P.perkFor('leo', 5).coins, 3)
   assert.equal(P.perkFor('invictus', 1).coinPct, 10)
   assert.equal(P.perkFor('invictus', 10).coinPct, 19)
-  assert.equal(P.perkFor('nox', 1).rescues, 1)
+  assert.equal(P.perkFor('nox', 1).rescues, 0)
+  assert.equal(P.perkFor('nox', 1).coins, 4)
   assert.equal(P.petWinCoins(250, P.perkFor('invictus', 1)), 25)
   assert.equal(P.petWinCoins(250, null), 0)
   for (const p of P.PETS) for (let l = 1; l <= 10; l++) assert.ok(P.perkFor(p.id, l).label.length > 5)
@@ -220,7 +223,7 @@ test('9.30-b: gift says what it is: label, note (60 max), ready-to-send message,
   assert.equal(P.giftLabel({ kind: 'pet', pet: 'aquila' }), 'Aquila the Eagle')
   assert.equal(P.giftLabel({ kind: 'coins', amount: 1500 }), '1,500 coins')
   assert.equal(P.giftLabel({ kind: 'coupon', pct: 30, pet: 'leo', days: 7 }), '30% off Leo the Lion Cub (7 days to use it)')
-  assert.equal(P.giftLabel({ kind: 'coupon', pct: 20, pet: null, days: 1 }), '20% off any buddy (1 day to use it)')
+  assert.equal(P.giftLabel({ kind: 'coupon', pct: 20, pet: null, days: 1 }), '20% off any Defender (1 day to use it)')
   assert.equal(P.cleanGiftNote('  Happy\nbirthday!\u0007 '), 'Happy birthday!')
   assert.equal(P.cleanGiftNote('x'.repeat(100)).length, P.GIFT_NOTE_MAX)
   assert.equal(P.cleanGiftNote(42), '')
@@ -246,12 +249,12 @@ test('9.30-b packs: All buddies pack (holiday optional), custom pack validation,
   const all = P.allBuddiesPack()
   assert.deepEqual(all.items.map((i) => (i.kind === 'pet' ? i.pet : i.kind)), ['lupa', 'aquila', 'leo', 'invictus'])
   assert.deepEqual(P.allBuddiesPack(true).items.length, 5)
-  assert.equal(P.giftLabel(all), 'All buddies pack: Lupa the Wolf Pup, Aquila the Eagle, Leo the Lion Cub and Invictus the War Horse')
+  assert.equal(P.giftLabel(all), 'All Defenders pack: Lupa the Wolf Pup, Aquila the Eagle, Leo the Lion Cub and Invictus the War Horse')
   const custom = { kind: 'pack', pack: 'custom', items: [{ kind: 'pet', pet: 'lupa' }, { kind: 'coins', amount: 1000 }, { kind: 'coupon', pct: 30, pet: null, days: 7 }] } as const
   assert.deepEqual(G.parseGift(custom), custom)
   assert.equal(
     P.giftShareMessage({ gift: custom as never, code: 'ROMA-7K2P', link: 'L', note: 'Happy birthday' }),
-    `Roman sent you a gift in Roman's Game: Gift pack: Lupa the Wolf Pup, 1,000 coins and 30% off any buddy (7 days to use it)! "Happy birthday" Tap to claim: L (code ROMA-7K2P, works once)`,
+    `Roman sent you a gift in Roman's Game: Gift pack: Lupa the Wolf Pup, 1,000 coins and 30% off any Defender (7 days to use it)! "Happy birthday" Tap to claim: L (code ROMA-7K2P, works once)`,
   )
   // bad packs are refused
   assert.equal(G.parseGift({ kind: 'pack', items: [] }), null)
@@ -280,7 +283,7 @@ test('9.30-b packs: All buddies pack (holiday optional), custom pack validation,
   assert.equal(out.message, 'Gift from Roman: Lupa, Leo and Invictus joined your Stable, +600 coins (you already had Aquila)! "For Roman"')
   assert.deepEqual(out.state.redeemed, [code])
   const c = P.applyGift(P.emptyPets(), 0, custom as never, 'ROMA-BBBB', NOW)
-  assert.equal(c.message, 'Gift from Roman: Lupa joined your Stable, +1,000 coins, 30% off any buddy!')
+  assert.equal(c.message, 'Gift from Roman: Lupa joined your Stable, +1,000 coins, 30% off any Defender!')
   assert.equal(c.coins, 1000)
   assert.equal(c.state.coupons[0].source, 'gift')
 })
