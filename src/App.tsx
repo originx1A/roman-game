@@ -2759,6 +2759,17 @@ export default function App() {
   }
   const trialLeftMs = puzzle && mode === 'trial' ? Math.max(0, trialTimeLimitMs(targetsFor(puzzle)) - elapsedMs) : 0
 
+  // 9.33-a5: one Play action, shared by Home and the bottom nav — resume the draft,
+  // else the next uncleared level, else today's Daily (9.33-a3 direct start).
+  const playNext = () => {
+    if (draftPuzzle) {
+      startPuzzle(draftPuzzle, true)
+      return
+    }
+    const uncleared = PUZZLES.find((p) => !done.has(p.id))
+    if (uncleared) startPuzzle(uncleared, false, { direct: true })
+    else startPuzzle(dailyBoard, false, { daily: true, direct: true })
+  }
 
   return (
     <div
@@ -2781,23 +2792,8 @@ export default function App() {
             <span className="brand-mark" />
             <span className="brand-name">Roman</span>
           </button>
-          <nav className="nav">
-            <button type="button" className={screen === 'levels' ? 'on' : ''} onClick={() => setScreen('levels')}>
-              Play
-            </button>
-            <button type="button" className={screen === 'rewards' ? 'on' : ''} onClick={() => setScreen('rewards')}>
-              Rewards
-            </button>
-            <button type="button" className={`nav-stable ${screen === 'stable' ? 'on' : ''}`} onClick={() => setScreen('stable')}>
-              Stable
-            </button>
-            <button type="button" className={screen === 'challenge' ? 'on' : ''} onClick={() => setScreen('challenge')}>
-              Share
-            </button>
-            <button type="button" className={screen === 'profile' ? 'on' : ''} onClick={() => setScreen('profile')}>
-              {profile ? profile.displayName.split(' ')[0] : 'Save'}
-            </button>
-          </nav>
+          {/* 9.33-a5: the wordy top nav (it wrapped to two lines on phones) is gone —
+              brand + coins up here, navigation lives in the bottom plaque nav. */}
           <div className="hud-pills">
             <div className="score-pill coin" title="Coins">
               {wallet.coins}
@@ -2822,7 +2818,7 @@ export default function App() {
               }}
             >
               <h3>What should we call you?</h3>
-              <p className="start-sheet-tip">Your name goes on the scores you share, like “{cleanPlayerName(nameDraft) || 'Sam'} scored 1,840 on Level 1”. It stays on this device. You can change it later in Save &amp; settings.</p>
+              <p className="start-sheet-tip">Your name goes on the scores you share, like “{cleanPlayerName(nameDraft) || 'Sam'} scored 1,840 on Level 1”. It stays on this device. You can change it later in More → Account.</p>
               <input
                 className="name-input"
                 type="text"
@@ -2858,7 +2854,7 @@ export default function App() {
       />
 
       {screen === 'home' && (
-        <main className="home scroll-pane has-atmo">
+        <main className="home fit-home has-atmo">
           <Atmosphere variant="home" />
           <section className="hero no-callout">
             <p className="eyebrow">Logic puzzle</p>
@@ -2866,34 +2862,18 @@ export default function App() {
               Roman
             </h1>
             <p className="lede">
-              Drop animated buddies — one per row, column, and region. They hate cuddling (even corners).
+              Drop animated Defenders — one per row, column, and region. They hate cuddling (even corners).
             </p>
-            <div className="cta-row">
-              {draftPuzzle ? (
-                <button type="button" className="btn primary" onClick={() => startPuzzle(draftPuzzle, true)}>
-                  Resume {draftPuzzle.name}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="btn primary"
-                  onClick={() => {
-                    // 9.33-a3: Play goes straight onto a board — the next uncleared level, or
-                    // today's Daily once everything is cleared (9.30-n sent all-cleared players
-                    // to the Levels list). No level list, no start sheet, no how-to detour.
-                    const uncleared = PUZZLES.find((p) => !done.has(p.id))
-                    if (uncleared) startPuzzle(uncleared, false, { direct: true })
-                    else startPuzzle(dailyBoard, false, { daily: true, direct: true })
-                  }}
-                >
-                  Play
-                </button>
-              )}
+            {/* 9.33-a5: ONE dominant action. Play/Resume takes the row; the secondaries
+                drop to a compact plate grid; Report a bug moved to More → About row. */}
+            <div className="cta-row home-cta">
+              <button type="button" className="btn primary home-play" onClick={playNext}>
+                {draftPuzzle ? `Resume ${draftPuzzle.name}` : 'Play'}
+              </button>
+            </div>
+            <div className="home-plates">
               <button type="button" className="btn ghost" onClick={() => setScreen('how')}>
                 How to play
-              </button>
-              <button type="button" className="btn ghost" onClick={() => setScreen('bug')}>
-                🐛 Report a bug
               </button>
               <CloudScoresButton suggestedName={playerName} />
               <UnseenCardTile records={records} />
@@ -2905,13 +2885,13 @@ export default function App() {
             <span>
               <strong>{pets.fieldTreats ?? 0}</strong> field treats
               {Object.keys(pets.owned).length === 0 ? (
-                <small>⚠️ no defenders — your treats are in danger! <button type="button" className="linklike" onClick={() => setScreen('stable')}>Claim your FREE pet</button> to protect them</small>
+                <small>⚠️ no Defenders — your treats are in danger! <button type="button" className="linklike" onClick={() => setScreen('stable')}>Claim your FREE Defender</button> to protect them</small>
               ) : (
-                <small>wild buddies want them — play a board to claim them safe</small>
+                <small>wild pets want them — play a board to claim them safe</small>
               )}
             </span>
           </section>
-          <section className="home-pet-row" aria-label="Your buddy">
+          <section className="home-pet-row" aria-label="Your Defender">
             <HomePet
               id={activePet(pets, petNow)}
               xp={(() => {
@@ -2950,12 +2930,76 @@ export default function App() {
               <span>win coins</span>
             </div>
           </section>
-          <div className="home-foot">
-            <button type="button" className="home-foot-link" onClick={() => setScreen('about')}>
-              About
+        </main>
+      )}
+
+      {screen === 'more' && (
+        <main className="panel more fit-screen">
+          <h2>More</h2>
+          <div className="more-grid">
+            <button type="button" className="more-row" onClick={() => setScreen('challenge')}>
+              <span className="more-icon" aria-hidden="true">⚔</span>
+              <span className="more-text">
+                <strong>Share &amp; challenge</strong>
+                <small>Send a board to a friend, beat their score</small>
+              </span>
+              <span className="more-go" aria-hidden="true">›</span>
             </button>
-            <a className="home-foot-link" href="./privacy.html">
-              Privacy
+            <button type="button" className="more-row" onClick={() => setScreen('account')}>
+              <span className="more-icon" aria-hidden="true">✦</span>
+              <span className="more-text">
+                <strong>Account</strong>
+                <small>{profile ? `Signed in as ${profile.displayName}` : 'Save your name and progress'}</small>
+              </span>
+              <span className="more-go" aria-hidden="true">›</span>
+            </button>
+            <button type="button" className="more-row" onClick={() => setScreen('settings')}>
+              <span className="more-icon" aria-hidden="true">⚙</span>
+              <span className="more-text">
+                <strong>Settings</strong>
+                <small>Sound, voice, motion and privacy</small>
+              </span>
+              <span className="more-go" aria-hidden="true">›</span>
+            </button>
+            <button type="button" className="more-row" onClick={() => setScreen('how')}>
+              <span className="more-icon" aria-hidden="true">?</span>
+              <span className="more-text">
+                <strong>How to play</strong>
+                <small>The rules, with moving demos</small>
+              </span>
+              <span className="more-go" aria-hidden="true">›</span>
+            </button>
+            <button type="button" className="more-row" onClick={() => setScreen('about')}>
+              <span className="more-icon" aria-hidden="true">❧</span>
+              <span className="more-text">
+                <strong>About</strong>
+                <small>The Defenders, the Unseen, and the fine print</small>
+              </span>
+              <span className="more-go" aria-hidden="true">›</span>
+            </button>
+            <button type="button" className="more-row" onClick={() => setScreen('bug')}>
+              <span className="more-icon" aria-hidden="true">🐛</span>
+              <span className="more-text">
+                <strong>Report a bug</strong>
+                <small>Something broken? Tell us what happened</small>
+              </span>
+              <span className="more-go" aria-hidden="true">›</span>
+            </button>
+            <a className="more-row" href="https://facebook.com/romansgame" target="_blank" rel="noopener noreferrer">
+              <span className="more-icon" aria-hidden="true">f</span>
+              <span className="more-text">
+                <strong>Follow on Facebook</strong>
+                <small>New puzzles and challenges, fresh on our page</small>
+              </span>
+              <span className="more-go" aria-hidden="true">›</span>
+            </a>
+            <a className="more-row" href="./privacy.html">
+              <span className="more-icon" aria-hidden="true">§</span>
+              <span className="more-text">
+                <strong>Privacy</strong>
+                <small>What we count, and what we never touch</small>
+              </span>
+              <span className="more-go" aria-hidden="true">›</span>
             </a>
           </div>
         </main>
@@ -2986,7 +3030,7 @@ export default function App() {
       )}
 
       {screen === 'bug' && (
-        <BugReport currentScreen={screen} onBack={() => setScreen('home')} />
+        <BugReport currentScreen={screen} onBack={() => setScreen('more')} />
       )}
 
       {screen === 'levels' && (
@@ -3435,7 +3479,7 @@ export default function App() {
       )}
 
       {screen === 'rewards' && (
-        <main className="panel scroll-pane">
+        <main className="panel rewards fit-screen">
           <h2>Rewards</h2>
           <p className="sub">
             Unlock badges by playing, then spend coins to rank them up forever — each rank boosts coins on every win.
@@ -3521,203 +3565,219 @@ export default function App() {
         </main>
       )}
 
-      {screen === 'profile' && (
-        <main className="panel profile scroll-pane">
-          <h2>Save & settings</h2>
+      {screen === 'account' && (
+        <main className="panel account fit-screen">
+          <h2>Account</h2>
           {profile ? (
-            <div className="profile-card">
-              <p className="profile-name">{profile.displayName}</p>
-              <p className="profile-email">{profile.email}</p>
-              <button
-                type="button"
-                className="btn ghost"
-                onClick={() => {
-                  signOutKeepDevice()
-                  setProfile(null)
-                  setProgress(getProgress())
-                }}
-              >
-                Sign out
-              </button>
-            </div>
+          <div className="profile-card">
+          <p className="profile-name">{profile.displayName}</p>
+          <p className="profile-email">{profile.email}</p>
+          <button
+          type="button"
+          className="btn ghost"
+          onClick={() => {
+          signOutKeepDevice()
+          setProfile(null)
+          setProgress(getProgress())
+          }}
+          >
+          Sign out
+          </button>
+          </div>
           ) : (
-            <form className="auth-form" onSubmit={handleSignIn}>
-              <label>
-                Email
-                <input type="email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} required />
-              </label>
-              <label>
-                Display name
-                <input type="text" value={nameInput} onChange={(e) => setNameInput(e.target.value)} />
-              </label>
-              <button type="submit" className="btn primary">Save with email</button>
-            </form>
+          <form className="auth-form" onSubmit={handleSignIn}>
+          <label>
+          Email
+          <input type="email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} required />
+          </label>
+          <label>
+          Display name
+          <input type="text" value={nameInput} onChange={(e) => setNameInput(e.target.value)} />
+          </label>
+          <button type="submit" className="btn primary">Save with email</button>
+          </form>
           )}
-          <section className="settings">
-            <h3>Settings</h3>
+          <section className="account-name">
             <label className="name-setting">
-              Your name on shared scores
-              <input
-                type="text"
-                value={settings.playerName ?? ''}
-                maxLength={PLAYER_NAME_MAX}
-                placeholder="Blank = “I scored…”"
-                aria-label="Your name on shared scores"
-                onChange={(e) => saveSettingsPatch({ playerName: e.target.value.slice(0, PLAYER_NAME_MAX), namePrompted: true })}
-                onBlur={(e) => saveSettingsPatch({ playerName: cleanPlayerName(e.target.value) })}
-              />
+            Your name on shared scores
+            <input
+            type="text"
+            value={settings.playerName ?? ''}
+            maxLength={PLAYER_NAME_MAX}
+            placeholder="Blank = “I scored…”"
+            aria-label="Your name on shared scores"
+            onChange={(e) => saveSettingsPatch({ playerName: e.target.value.slice(0, PLAYER_NAME_MAX), namePrompted: true })}
+            onBlur={(e) => saveSettingsPatch({ playerName: cleanPlayerName(e.target.value) })}
+            />
             </label>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={settings.sound}
-                onChange={(e) => {
-                  const next = { ...settings, sound: e.target.checked }
-                  setSettings(next)
-                  saveSettings(next)
-                  setMuted(!next.sound)
-                }}
-              />
-              Sound effects
-            </label>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={settings.voice}
-                onChange={(e) => {
-                  const next = { ...settings, voice: e.target.checked }
-                  setSettings(next)
-                  saveSettings(next)
-                  setVoiceEnabled(next.voice)
-                }}
-              />
-              Voice comments
-            </label>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={settings.voiceTips !== false}
-                onChange={(e) => saveSettingsPatch({ voiceTips: e.target.checked })}
-              />
-              Voice tips
-            </label>
-            <div className="heard-card" data-testid="heard-card">
-              <div className="heard-head">
-                Voice lines heard: <strong data-testid="heard-count">{heardInfo.heard} of {heardInfo.total}</strong>
-              </div>
-              <div className="heard-bar" aria-hidden>
-                <span style={{ width: `${heardInfo.total ? Math.round((heardInfo.heard / heardInfo.total) * 100) : 0}%` }} />
-              </div>
-              <ul className="heard-voices">
-                {heardInfo.voices.map((v) => (
-                  <li key={v.name}>
-                    {v.name}: {v.heard} of {v.total}
-                  </li>
-                ))}
-              </ul>
-              <button
-                type="button"
-                className="btn ghost heard-reset"
-                onClick={() => {
-                  if (window.confirm('Reset the voice lines heard counter? Every line counts as new again.')) {
-                    heardLog.reset()
-                    setHeardTick((n) => n + 1)
-                  }
-                }}
-              >
-                Reset heard lines
-              </button>
-            </div>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={settings.parade !== false}
-                onChange={(e) => saveSettingsPatch({ parade: e.target.checked })}
-              />
-              Buddy Parade (every 5-7 wins)
-            </label>
-            <div className="privacy-note" data-testid="privacy-note">
-              <strong>What we count</strong>
-              <p>{PRIVACY_NOTE}</p>
-              <label className="toggle">
-                <input type="checkbox" data-testid="analytics-toggle" checked={settings.analytics !== false} onChange={(e) => saveSettingsPatch({ analytics: e.target.checked })} />
-                Share anonymous play counts
-              </label>
-            </div>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={settings.reduceMotion}
-                onChange={(e) => {
-                  const next = { ...settings, reduceMotion: e.target.checked }
-                  setSettings(next)
-                  saveSettings(next)
-                }}
-              />
-              Reduce motion
-            </label>
-          </section>
-          <section className="follow-section" aria-label="Follow Roman's Game">
-            <h3>Follow Roman&rsquo;s Game</h3>
-            <p>New puzzles, remix boards, and challenges — fresh on our page.</p>
-            <a
-              className="btn primary fb-btn"
-              href="https://facebook.com/romansgame"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                <path
-                  fill="currentColor"
-                  d="M13.5 21v-7h2.4l.4-3h-2.8V9.1c0-.9.3-1.5 1.6-1.5h1.3V4.9c-.3 0-1.1-.1-2-.1-2 0-3.4 1.2-3.4 3.5V11H8.5v3H11v7h2.5z"
-                />
-              </svg>
-              Follow on Facebook
-            </a>
           </section>
           <section className="backup">
-            <h3>Backup</h3>
-            <div className="cta-row">
-              <button
-                type="button"
-                className="btn ghost"
-                onClick={() => {
-                  const blob = new Blob([exportSaveJson()], { type: 'application/json' })
-                  const a = document.createElement('a')
-                  a.href = URL.createObjectURL(blob)
-                  a.download = 'roman-save.json'
-                  a.click()
-                }}
-              >
-                Export
-              </button>
-              <label className="btn ghost file-btn">
-                Import
-                <input
-                  type="file"
-                  accept="application/json"
-                  hidden
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0]
-                    if (!file) return
-                    if (importSaveJson(await file.text())) {
-                      setProfile(loadProfile())
-                      setProgress(getProgress())
-                      setSettings(loadSettings())
-                      setWallet(loadWallet())
-                      setChallenges(loadChallenges())
-                      showToast('Imported')
-                    }
-                  }}
-                />
-              </label>
-            </div>
+          <h3>Backup</h3>
+          <div className="cta-row">
+          <button
+          type="button"
+          className="btn ghost"
+          onClick={() => {
+          const blob = new Blob([exportSaveJson()], { type: 'application/json' })
+          const a = document.createElement('a')
+          a.href = URL.createObjectURL(blob)
+          a.download = 'roman-save.json'
+          a.click()
+          }}
+          >
+          Export
+          </button>
+          <label className="btn ghost file-btn">
+          Import
+          <input
+          type="file"
+          accept="application/json"
+          hidden
+          onChange={async (e) => {
+          const file = e.target.files?.[0]
+          if (!file) return
+          if (importSaveJson(await file.text())) {
+          setProfile(loadProfile())
+          setProgress(getProgress())
+          setSettings(loadSettings())
+          setWallet(loadWallet())
+          setChallenges(loadChallenges())
+          showToast('Imported')
+          }
+          }}
+          />
+          </label>
+          </div>
+          </section>
+          <button type="button" className="more-row account-share" onClick={() => setScreen('challenge')}>
+            <span className="more-icon" aria-hidden="true">⚔</span>
+            <span className="more-text">
+              <strong>Share &amp; challenge</strong>
+              <small>Your scores, head-to-head with friends</small>
+            </span>
+            <span className="more-go" aria-hidden="true">›</span>
+          </button>
+          <section className="follow-section" aria-label="Follow Roman's Game">
+          <h3>Follow Roman&rsquo;s Game</h3>
+          <p>New puzzles, remix boards, and challenges — fresh on our page.</p>
+          <a
+          className="btn primary fb-btn"
+          href="https://facebook.com/romansgame"
+          target="_blank"
+          rel="noopener noreferrer"
+          >
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <path
+          fill="currentColor"
+          d="M13.5 21v-7h2.4l.4-3h-2.8V9.1c0-.9.3-1.5 1.6-1.5h1.3V4.9c-.3 0-1.1-.1-2-.1-2 0-3.4 1.2-3.4 3.5V11H8.5v3H11v7h2.5z"
+          />
+          </svg>
+          Follow on Facebook
+          </a>
+          </section>
+        </main>
+      )}
+
+      {screen === 'settings' && (
+        <main className="panel settings-screen fit-screen">
+          <h2>Settings</h2>
+          <section className="settings">
+            
+          <label className="toggle">
+          <input
+          type="checkbox"
+          checked={settings.sound}
+          onChange={(e) => {
+          const next = { ...settings, sound: e.target.checked }
+          setSettings(next)
+          saveSettings(next)
+          setMuted(!next.sound)
+          }}
+          />
+          Sound effects
+          </label>
+          <label className="toggle">
+          <input
+          type="checkbox"
+          checked={settings.voice}
+          onChange={(e) => {
+          const next = { ...settings, voice: e.target.checked }
+          setSettings(next)
+          saveSettings(next)
+          setVoiceEnabled(next.voice)
+          }}
+          />
+          Voice comments
+          </label>
+          <label className="toggle">
+          <input
+          type="checkbox"
+          checked={settings.voiceTips !== false}
+          onChange={(e) => saveSettingsPatch({ voiceTips: e.target.checked })}
+          />
+          Voice tips
+          </label>
+          <div className="heard-card" data-testid="heard-card">
+          <div className="heard-head">
+          Voice lines heard: <strong data-testid="heard-count">{heardInfo.heard} of {heardInfo.total}</strong>
+          </div>
+          <div className="heard-bar" aria-hidden>
+          <span style={{ width: `${heardInfo.total ? Math.round((heardInfo.heard / heardInfo.total) * 100) : 0}%` }} />
+          </div>
+          <ul className="heard-voices">
+          {heardInfo.voices.map((v) => (
+          <li key={v.name}>
+          {v.name}: {v.heard} of {v.total}
+          </li>
+          ))}
+          </ul>
+          <button
+          type="button"
+          className="btn ghost heard-reset"
+          onClick={() => {
+          if (window.confirm('Reset the voice lines heard counter? Every line counts as new again.')) {
+          heardLog.reset()
+          setHeardTick((n) => n + 1)
+          }
+          }}
+          >
+          Reset heard lines
+          </button>
+          </div>
+          <label className="toggle">
+          <input
+          type="checkbox"
+          checked={settings.parade !== false}
+          onChange={(e) => saveSettingsPatch({ parade: e.target.checked })}
+          />
+          Buddy Parade (every 5-7 wins)
+          </label>
+          <div className="privacy-note" data-testid="privacy-note">
+          <strong>What we count</strong>
+          <p>{PRIVACY_NOTE}</p>
+          <label className="toggle">
+          <input type="checkbox" data-testid="analytics-toggle" checked={settings.analytics !== false} onChange={(e) => saveSettingsPatch({ analytics: e.target.checked })} />
+          Share anonymous play counts
+          </label>
+          </div>
+          <label className="toggle">
+          <input
+          type="checkbox"
+          checked={settings.reduceMotion}
+          onChange={(e) => {
+          const next = { ...settings, reduceMotion: e.target.checked }
+          setSettings(next)
+          saveSettings(next)
+          }}
+          />
+          Reduce motion
+          </label>
           </section>
         </main>
       )}
 
       {screen === 'about' && (
-        <main className="panel about scroll-pane">
+        <main className="panel about fit-screen">
           <h2>About</h2>
           <section className="about-section" aria-label="About Roman's Game">
             <p className="about-line">
@@ -3758,7 +3818,7 @@ export default function App() {
       )}
 
       {screen === 'challenge' && (
-        <main className="panel challenge scroll-pane">
+        <main className="panel challenge fit-screen">
           <h2>Share &amp; challenge</h2>
           <p className="sub">
             Share your best time. Friends open the link, play the same board, then send a head-to-head score back.
@@ -3871,7 +3931,7 @@ export default function App() {
       )}
 
       {screen === 'duel' && duel && (
-        <main className="panel challenge scroll-pane">
+        <main className="panel challenge fit-screen">
           <h2>Head-to-head</h2>
           <p className="sub">
             {boardLabel(duel)} — both scores on the same board. Share so your friend sees the matchup too.
@@ -3933,6 +3993,37 @@ export default function App() {
             </button>
           </div>
         </main>
+      )}
+
+      {/* 9.33-a5: bottom plaque nav — one line on every phone and every PC.
+          Play starts a board immediately (same action as Home's Play). */}
+      {!hideChrome && (
+        <nav className="bottom-nav" aria-label="Main">
+          <button type="button" className="bottom-nav-item" onClick={playNext}>
+            <span className="bottom-nav-icon" aria-hidden="true">▶</span>
+            <span>Play</span>
+          </button>
+          <button type="button" className={`bottom-nav-item ${screen === 'levels' || screen === 'remix' ? 'on' : ''}`} onClick={() => setScreen('levels')}>
+            <span className="bottom-nav-icon" aria-hidden="true">▤</span>
+            <span>Levels</span>
+          </button>
+          <button type="button" className={`bottom-nav-item nav-stable ${screen === 'stable' ? 'on' : ''}`} onClick={() => setScreen('stable')}>
+            <span className="bottom-nav-icon" aria-hidden="true">♞</span>
+            <span>Stable</span>
+          </button>
+          <button type="button" className={`bottom-nav-item ${screen === 'rewards' ? 'on' : ''}`} onClick={() => setScreen('rewards')}>
+            <span className="bottom-nav-icon" aria-hidden="true">★</span>
+            <span>Rewards</span>
+          </button>
+          <button
+            type="button"
+            className={`bottom-nav-item ${['more', 'account', 'settings', 'about', 'how', 'bug', 'challenge', 'duel'].includes(screen) ? 'on' : ''}`}
+            onClick={() => setScreen('more')}
+          >
+            <span className="bottom-nav-icon" aria-hidden="true">☰</span>
+            <span>More</span>
+          </button>
+        </nav>
       )}
 
       <PrizeWheel
