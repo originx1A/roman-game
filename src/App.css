@@ -6445,6 +6445,20 @@ html[data-motion='reduce'] .td-invader {
 .cell.nox-lit { box-shadow: inset 0 0 0 2px #9d8cff, inset 0 0 18px rgba(157, 140, 255, 0.55); }
 .cell.roulette-hot { box-shadow: inset 0 0 0 3px #ffb03a, inset 0 0 22px rgba(255, 176, 58, 0.8); z-index: 2; }
 .cell.charge-cell { box-shadow: inset 0 0 0 2px rgba(226, 112, 58, 0.85), inset 0 0 16px rgba(226, 112, 58, 0.45); }
+/* 9.33-a6p: Concept C proof — Invictus charges for real: a subtle cinematic tilt on the
+   stage while he runs, then it settles flat for play; the sprite overlay lives inside
+   the board (ChargeHorse.tsx), inset by the board's own padding so its % geometry is
+   the cell grid's geometry. */
+.board-stage { transform-origin: 50% 62%; transition: transform 240ms ease-out; }
+.board-stage.is-charging { transform: perspective(1150px) rotateX(4.2deg) scale(1.012); }
+.charge-fx { position: absolute; inset: 0.45rem; z-index: 5; pointer-events: none; }
+.charge-flare { position: absolute; z-index: 1; border-radius: 8px; opacity: 0; background: radial-gradient(ellipse at center, rgba(255, 186, 84, 0.85), rgba(226, 112, 58, 0.38) 55%, rgba(226, 112, 58, 0) 72%); animation: chargeFlare 520ms ease-out both; }
+@keyframes chargeFlare { 0% { opacity: 0; } 16% { opacity: 0.55; } 100% { opacity: 0; } }
+.charge-fx-canvas { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; }
+.charge-horse { position: absolute; left: 0; top: 0; z-index: 3; overflow: hidden; filter: drop-shadow(0 12px 12px rgba(0, 0, 0, 0.5)); }
+.charge-horse img { display: block; max-width: none; user-select: none; }
+html[data-motion='reduce'] .board-stage { transition: none; }
+@media (prefers-reduced-motion: reduce) { .board-stage { transition: none; } }
 .feather-mark { position: absolute; inset: auto 2px 2px auto; font-size: 0.85em; pointer-events: none; animation: featherFade 5.6s ease forwards; }
 .paw-mark { position: absolute; inset: auto auto 2px 2px; font-size: 0.8em; pointer-events: none; opacity: 0.85; }
 @keyframes featherFade { 0% { opacity: 0; transform: translateY(-4px) rotate(-14deg); } 12% { opacity: 1; transform: none; } 78% { opacity: 1; } 100% { opacity: 0; } }
@@ -7896,3 +7910,71 @@ html[data-motion='reduce'] .press-burst { display: none; }
   .stable-bundles > h3 { display: none; }
   .stable-bundle .btn { min-height: 32px; }
 }
+
+   9.33-a6q — CONCEPT C BOARD FINISH (Tony, Nov 4): the playable board
+   takes the diorama's clothes. Tiles are real faceted GEMS, not flat
+   colour: a painted gem-facet master texture (silvery-champagne facets,
+   internal star light, baked sparkle glints, gilt corner filigree)
+   rides OVER each region's own hue via overlay blending, so themes.ts
+   still governs every hue and the colour-blind separation is untouched
+   — within each hue, saturation, facet contrast and internal glow are
+   pushed toward the C reference (Tony: RICH, not muted). The grid gaps
+   become brass filigree channels; the board sits in a carved dark-wood
+   tray (wood texture in the padding ring, gilt pinstripes inside and
+   out). The frame eats margin only: the board's outer box is unchanged
+   (border-box), so the a3/a5 never-exceed-stage guarantee is intact,
+   and .charge-fx inset tracks the new padding exactly as it tracked
+   the old, keeping the horse glued to his row.
+   ===================================================================== */
+.board {
+  --gap: 4px;
+  padding: 12px;
+  border-color: rgba(122, 84, 34, 0.9);
+  border-radius: 18px;
+  background:
+    url('/images/fx/brass-filigree.webp') center / 132px repeat content-box content-box,
+    url('/images/fx/frame-wood.webp') center / 360px repeat border-box border-box,
+    #17100a;
+  outline: 1px solid rgba(255, 209, 102, 0.28);
+  outline-offset: -6px;
+}
+/* gilt trim line where the tray meets the gems */
+.board::before {
+  content: '';
+  position: absolute;
+  inset: 12px;
+  border: 1px solid rgba(255, 213, 110, 0.5);
+  border-radius: 9px;
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  z-index: 4;
+}
+/* the charge overlay spans the gem field exactly (padding 12px now) */
+.charge-fx { inset: 12px; }
+
+.cell-fill {
+  background-image:
+    url('/images/fx/gem-facet.webp'),
+    linear-gradient(
+      155deg,
+      hsl(var(--hue) var(--sat, 72%) calc(var(--lit, 56%) + 13%) / 0.97) 0%,
+      hsl(var(--hue) var(--sat, 72%) var(--lit, 56%) / 0.95) 42%,
+      hsl(var(--hue) calc(var(--sat, 72%) - 2%) calc(var(--lit, 56%) - 19%) / 0.98) 100%
+    );
+  background-size: cover, cover;
+  background-blend-mode: overlay, normal;
+  filter: saturate(1.07) contrast(1.03);
+}
+.cell:hover .cell-fill { filter: saturate(1.07) contrast(1.03) brightness(1.06); }
+.cell.pressed .cell-fill {
+  filter: saturate(1.07) contrast(1.03) brightness(1.12);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 226, 160, 0.55),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.22),
+    0 8px 16px rgba(0, 0, 0, 0.38),
+    0 3px 6px rgba(0, 0, 0, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+/* a6q emblem halo: the gem's gilt corner work competes with the mark —
+   a soft dark halo keeps every region emblem readable on the facets */
+.tile-mark { filter: drop-shadow(0 0 2.5px rgba(12, 6, 0, 0.55)) drop-shadow(0 1px 1px rgba(12, 6, 0, 0.4)); }
