@@ -7524,3 +7524,72 @@ html[data-device='phone'] .play-fixed .board {
   .stable-detail .calls-btn { padding: 0.3rem 0.5rem; }
   .stable-detail .care-row .care-btn { flex: 1 1 0; padding: 0.25rem 0.3rem; font-size: 0.62rem; }
 }
+
+/* =====================================================================
+   9.33-a6q — CONCEPT C BOARD FINISH (Tony, Nov 4): the playable board
+   takes the diorama's clothes. Tiles are real faceted GEMS, not flat
+   colour: a painted gem-facet master texture (silvery-champagne facets,
+   internal star light, baked sparkle glints, gilt corner filigree)
+   rides OVER each region's own hue via overlay blending, so themes.ts
+   still governs every hue and the colour-blind separation is untouched
+   — within each hue, saturation, facet contrast and internal glow are
+   pushed toward the C reference (Tony: RICH, not muted). The grid gaps
+   become brass filigree channels; the board sits in a carved dark-wood
+   tray (wood texture in the padding ring, gilt pinstripes inside and
+   out). The frame eats margin only: the board's outer box is unchanged
+   (border-box), so the a3/a5 never-exceed-stage guarantee is intact,
+   and .charge-fx inset tracks the new padding exactly as it tracked
+   the old, keeping the horse glued to his row.
+   ===================================================================== */
+.board {
+  --gap: 4px;
+  padding: 12px;
+  border-color: rgba(122, 84, 34, 0.9);
+  border-radius: 18px;
+  background:
+    url('/images/fx/brass-filigree.webp') center / 132px repeat content-box content-box,
+    url('/images/fx/frame-wood.webp') center / 360px repeat border-box border-box,
+    #17100a;
+  outline: 1px solid rgba(255, 209, 102, 0.28);
+  outline-offset: -6px;
+}
+/* gilt trim line where the tray meets the gems */
+.board::before {
+  content: '';
+  position: absolute;
+  inset: 12px;
+  border: 1px solid rgba(255, 213, 110, 0.5);
+  border-radius: 9px;
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  z-index: 4;
+}
+/* the charge overlay spans the gem field exactly (padding 12px now) */
+.charge-fx { inset: 12px; }
+
+.cell-fill {
+  background-image:
+    url('/images/fx/gem-facet.webp'),
+    linear-gradient(
+      155deg,
+      hsl(var(--hue) var(--sat, 72%) calc(var(--lit, 56%) + 13%) / 0.97) 0%,
+      hsl(var(--hue) var(--sat, 72%) var(--lit, 56%) / 0.95) 42%,
+      hsl(var(--hue) calc(var(--sat, 72%) - 2%) calc(var(--lit, 56%) - 19%) / 0.98) 100%
+    );
+  background-size: cover, cover;
+  background-blend-mode: overlay, normal;
+  filter: saturate(1.07) contrast(1.03);
+}
+.cell:hover .cell-fill { filter: saturate(1.07) contrast(1.03) brightness(1.06); }
+.cell.pressed .cell-fill {
+  filter: saturate(1.07) contrast(1.03) brightness(1.12);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 226, 160, 0.55),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.22),
+    0 8px 16px rgba(0, 0, 0, 0.38),
+    0 3px 6px rgba(0, 0, 0, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+/* a6q emblem halo: the gem's gilt corner work competes with the mark —
+   a soft dark halo keeps every region emblem readable on the facets */
+.tile-mark { filter: drop-shadow(0 0 2.5px rgba(12, 6, 0, 0.55)) drop-shadow(0 1px 1px rgba(12, 6, 0, 0.4)); }
