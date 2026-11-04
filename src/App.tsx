@@ -3753,8 +3753,11 @@ export default function App() {
           Buddy Parade (every 5-7 wins)
           </label>
           <div className="privacy-note" data-testid="privacy-note">
-          <strong>What we count</strong>
+          {/* 9.33-a5: the full note lives behind a disclosure so Settings fits one screen; the toggle stays visible */}
+          <details className="privacy-details">
+          <summary><strong>What we count</strong></summary>
           <p>{PRIVACY_NOTE}</p>
+          </details>
           <label className="toggle">
           <input type="checkbox" data-testid="analytics-toggle" checked={settings.analytics !== false} onChange={(e) => saveSettingsPatch({ analytics: e.target.checked })} />
           Share anonymous play counts

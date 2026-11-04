@@ -6933,3 +6933,580 @@ html[data-motion='reduce'] .board::after { animation: none; }
 }
 /* the sheen anchors to the board itself, not the stage */
 .board { position: relative; }
+
+/* =====================================================================
+   9.33-a5 — GAME-WIDE FIT + REORDER (Tony, Nov 4): EVERY screen locks
+   to the viewport — 100dvh, no scrolling on any primary screen, phone
+   (390x844, and short 360x640) and PC alike. The a4 Levels pattern is
+   generalized: a screen is a dvh-budgeted flex column (flex:1 inside
+   the fixed shell, overflow hidden); content areas take leftover
+   height as fr-sized grids; type scales with clamp()/dvh; at short
+   heights decorative chrome sheds BEFORE interactive elements shrink;
+   touch targets stay >= 40px. Content that cannot fit becomes tabs or
+   sub-pages inside the screen (Stable tabs, How Watch/Rules panels),
+   never a scroll. Navigation is reordered: brand + coins up top, a
+   single-line plaque bottom nav (Play / Levels / Stable / Rewards /
+   More) below; Save & settings is split into Account + Settings.
+   ===================================================================== */
+
+/* ---------- the fit system ---------- */
+.fit-screen {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  gap: 0.55rem;
+  padding: 0.6rem max(0.75rem, env(safe-area-inset-right, 0px)) 0.7rem max(0.75rem, env(safe-area-inset-left, 0px));
+  box-sizing: border-box;
+  width: 100%;
+}
+.fit-screen h2 { margin: 0; font-size: clamp(1.35rem, 4.2dvh, 1.8rem); }
+.fit-screen .sub { margin: 0; }
+
+/* ---------- topbar: brand + coins only ---------- */
+.topbar { padding-top: 0.35rem; padding-bottom: 0.35rem; }
+.topbar .hud-pills { margin-left: auto; }
+
+/* ---------- bottom plaque nav (one line, phone + PC) ---------- */
+.bottom-nav {
+  flex-shrink: 0;
+  position: relative;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.4rem;
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 0.45rem 0.6rem calc(0.5rem + env(safe-area-inset-bottom, 0px));
+}
+.bottom-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.12rem;
+  min-height: 50px;
+  padding: 0.4rem 0.15rem;
+  border: 1px solid rgba(255, 209, 102, 0.28);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(56, 42, 22, 0.92), rgba(26, 19, 10, 0.94));
+  box-shadow: inset 0 1px 0 rgba(255, 232, 180, 0.12), 0 6px 16px rgba(0, 0, 0, 0.35);
+  color: rgba(244, 251, 255, 0.78);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+.bottom-nav-icon { font-size: 1.02rem; line-height: 1; color: #ecd28f; font-family: var(--font-display); }
+.bottom-nav-item.on {
+  border-color: var(--gold);
+  color: #ffe9a8;
+  background: linear-gradient(180deg, rgba(92, 68, 32, 0.95), rgba(40, 29, 15, 0.95));
+  box-shadow: inset 0 1px 0 rgba(255, 232, 180, 0.2), 0 0 0 1px var(--gold), 0 8px 18px rgba(0, 0, 0, 0.4);
+}
+.bottom-nav-item:active { transform: translateY(1px); }
+.shell-play .bottom-nav { display: none !important; }
+@media (min-width: 760px) {
+  .bottom-nav { gap: 0.6rem; padding-left: 1.25rem; padding-right: 1.25rem; }
+  .bottom-nav-item { flex-direction: row; gap: 0.5rem; min-height: 52px; font-size: 0.9rem; }
+}
+
+/* ---------- HOME: hero compressed to budget, one dominant action ---------- */
+.fit-home {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.35rem, 1.1dvh, 0.75rem);
+  padding: 0.35rem max(1rem, env(safe-area-inset-right, 0px)) 0.55rem max(1rem, env(safe-area-inset-left, 0px));
+  box-sizing: border-box;
+  width: 100%;
+}
+.fit-home .hero {
+  min-height: 0;
+  flex: 0 1 auto;
+  justify-content: flex-start;
+  padding: 0.35rem 0 0;
+  gap: clamp(0.3rem, 1dvh, 0.65rem);
+}
+.fit-home .eyebrow { margin: 0; }
+.fit-home .logo-hero { font-size: clamp(3rem, 15dvh, 6.2rem); line-height: 0.95; margin: 0; }
+.fit-home .lede { margin: 0; font-size: clamp(0.92rem, 2.1dvh, 1.05rem); line-height: 1.4; max-width: 36rem; }
+.fit-home .home-cta { margin: 0; flex-wrap: nowrap; }
+.home-play { flex: 1; min-height: 56px; font-size: 1.15rem; border-radius: 12px; }
+.home-plates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; align-items: stretch; }
+.home-plates > * { min-width: 0; }
+.home-plates .btn { width: 100%; height: 100%; padding: 0.5rem 0.35rem; border-radius: 10px; font-size: 0.84rem; }
+.fit-home .unseen-tile { margin: 0; max-width: none; height: 100%; padding: 0.3rem 0.5rem; gap: 8px; border-radius: 10px; box-sizing: border-box; }
+.fit-home .unseen-card { width: 26px; }
+.fit-home .unseen-tile-text b { font-size: 0.72rem; line-height: 1.2; }
+.fit-home .unseen-tile-text small { display: none; }
+.fit-home .treat-pile-widget { margin: 0 auto; width: 100%; box-sizing: border-box; }
+.fit-home .home-pet-row { margin: 0 auto; flex: 0 1 auto; min-height: 0; }
+.fit-home .home-pet-body svg { width: clamp(46px, 10dvh, 84px); height: auto; }
+.fit-home .daily-card { margin: 0; }
+.fit-home .stat-strip { margin: 0; flex-wrap: nowrap; padding: 0.45rem 0.1rem; }
+.fit-home .stat-strip div { flex: 1 1 0; padding: 0.3rem 0.45rem; }
+.fit-home .stat-strip strong { font-size: clamp(1rem, 3dvh, 1.35rem); }
+.fit-home .stat-strip span { font-size: 0.7rem; }
+@media (max-width: 640px) {
+  .fit-home .stat-strip, .fit-home .home-strip { flex-direction: row; }
+  .fit-home .stat-strip div, .fit-home .home-strip div { border-bottom: 0; border-right: 1px solid rgba(255, 255, 255, 0.08); }
+  .fit-home .stat-strip div:last-child, .fit-home .home-strip div:last-child { border-right: 0; }
+}
+/* short screens: hero text sheds before any button shrinks */
+@media (max-height: 700px) {
+  .fit-home .eyebrow, .fit-home .lede { display: none; }
+  .fit-home .logo-hero { font-size: clamp(2.6rem, 12dvh, 6.2rem); }
+  .fit-home .daily-card { padding: 0.5rem 0.65rem; }
+  .fit-home .daily-text .daily-status { display: none; }
+  .home-play { min-height: 50px; }
+}
+
+/* ---------- MORE: fit menu of plaque rows ---------- */
+.more-grid { flex: 1; min-height: 0; display: grid; grid-template-rows: repeat(8, 1fr); gap: 0.45rem; }
+.more-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid rgba(255, 209, 102, 0.25);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(56, 42, 22, 0.85), rgba(26, 19, 10, 0.9));
+  box-shadow: inset 0 1px 0 rgba(255, 232, 180, 0.1);
+  color: var(--foam);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.more-row:active { transform: translateY(1px); }
+.more-icon { flex: 0 0 auto; width: 1.6rem; text-align: center; font-size: 1.1rem; color: #ecd28f; font-family: var(--font-display); }
+.more-text { flex: 1; min-width: 0; display: grid; gap: 0.05rem; }
+.more-text strong { font-size: 0.98rem; }
+.more-text small { opacity: 0.65; font-size: 0.76rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.more-go { opacity: 0.6; font-size: 1.25rem; }
+@media (min-width: 760px) {
+  .more-grid { grid-template-columns: 1fr 1fr; grid-template-rows: repeat(4, 1fr); }
+}
+
+/* ---------- ACCOUNT + SETTINGS (the old Save & settings, split) ---------- */
+.account .profile-card { margin: 0; }
+.account .auth-form { margin: 0; gap: 0.5rem; }
+.account-name { display: grid; }
+.account .backup, .account .follow-section { margin: 0; }
+.account .follow-section p { margin: 0.2rem 0 0.5rem; }
+.account .backup .cta-row, .account .follow-section .btn { margin: 0; }
+.account-share { flex: 0 0 auto; }
+.settings-screen .settings { display: flex; flex-direction: column; gap: 0.45rem; min-height: 0; }
+.settings-screen .settings h3 { margin: 0; }
+.settings-screen .toggle { padding: 0.3rem 0.1rem; }
+.settings-screen .heard-card { margin: 0; }
+.settings-screen .heard-voices { display: flex; flex-wrap: wrap; gap: 0.2rem 0.9rem; margin: 0.3rem 0; padding: 0; list-style: none; font-size: 0.8rem; }
+.settings-screen .privacy-note { margin: 0; font-size: 0.8rem; }
+.settings-screen .privacy-note p { line-height: 1.35; }
+@media (max-height: 720px) {
+  .settings-screen .heard-voices { display: none; }
+  .account .follow-section p { display: none; }
+  .account .auth-form label { gap: 0.15rem; }
+}
+
+/* ---------- REWARDS: badge grid takes the leftover height ---------- */
+.rewards .sub { font-size: 0.84rem; line-height: 1.35; }
+.rewards .stable-entry { margin: 0; flex: 0 0 auto; }
+.rewards .wallet-strip { margin: 0; flex-wrap: nowrap; padding: 0.45rem 0.1rem; }
+.rewards .wallet-strip div { flex: 1 1 0; min-width: 0; padding: 0.3rem 0.35rem; }
+.rewards .wallet-strip strong { font-size: clamp(0.95rem, 2.6dvh, 1.25rem); }
+.rewards .wallet-strip span { font-size: 0.64rem; }
+.rewards .econ-card { margin: 0; font-size: 0.78rem; }
+.rewards .ach-title { margin: 0; }
+.rewards .badge-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 0.45rem;
+}
+.rewards .badge-card { min-height: 0; padding: 0.45rem 0.5rem; gap: 0.15rem; align-content: center; overflow: hidden; }
+.rewards .badge-card .ach-icon { font-size: 1rem; }
+.rewards .badge-card strong { font-size: 0.82rem; }
+.rewards .badge-card .product-value { font-size: 0.68rem; line-height: 1.25; }
+.rewards .badge-card .badge-upgrade { padding: 0.3rem 0.5rem; font-size: 0.72rem; min-height: 36px; }
+@media (min-width: 760px) {
+  .rewards .badge-grid { grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(2, 1fr); }
+}
+@media (max-height: 720px) {
+  .rewards .sub, .rewards .ach-title { display: none; }
+  .rewards .econ-card small, .rewards .econ-card [data-testid='parade-rewards-today'] { display: none; }
+  .rewards .badge-card .product-value { display: none; }
+  .rewards .stable-entry { padding: 0.45rem 0.6rem; }
+}
+
+/* ---------- STABLE: pick rows + detail, bundles/gifts on their own tab ---------- */
+.stable { gap: 0.45rem; }
+.stable .stable-head h2 { font-size: clamp(1.3rem, 4dvh, 1.7rem); }
+.stable-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; flex: 0 0 auto; }
+.stable-tab, .how-tab {
+  min-height: 44px;
+  padding: 0.45rem 0.5rem;
+  border: 1px solid rgba(255, 209, 102, 0.28);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(56, 42, 22, 0.85), rgba(26, 19, 10, 0.9));
+  color: rgba(244, 251, 255, 0.78);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.stable-tab.on, .how-tab.on { border-color: var(--gold); color: #ffe9a8; box-shadow: 0 0 0 1px var(--gold); }
+.stable .stable-now { margin: 0; flex-wrap: nowrap; }
+.stable .stable-stash { margin: 0; }
+.stable .stable-trial, .stable .stable-freepick { margin: 0; }
+.stable-pickrow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.4rem; flex: 0 0 auto; }
+.stable-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  min-height: 66px;
+  min-width: 0;
+  padding: 0.35rem 0.1rem 0.3rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  background: rgba(20, 13, 7, 0.55);
+  color: var(--foam);
+  font: inherit;
+  cursor: pointer;
+}
+.stable-pick.on { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+.stable-pick svg { width: clamp(28px, 5dvh, 40px); height: auto; }
+.stable-pick-name { font-family: var(--font-display); font-size: 0.78rem; color: #ecd28f; line-height: 1.1; }
+.stable-pick small { font-size: 0.64rem; font-weight: 700; opacity: 0.75; }
+.stable-detail { flex: 1; min-height: 0; display: flex; justify-content: center; }
+.stable-detail .stable-card {
+  flex: 1;
+  min-height: 0;
+  max-width: 560px;
+  overflow: hidden;
+  justify-content: center;
+  gap: clamp(0.08rem, 0.8dvh, 0.3rem);
+  padding: 0.5rem 0.6rem;
+  box-sizing: border-box;
+}
+.stable-detail .stable-art { width: clamp(52px, 11dvh, 92px); height: clamp(52px, 11dvh, 92px); }
+.stable-detail .stable-art svg { width: 100%; height: 100%; }
+.stable-detail .stable-next { margin: 0; }
+.stable-detail .stable-care { margin: 0; }
+.stable-detail .care-row { flex-wrap: nowrap; }
+.stable-detail .care-row .care-btn { min-width: 0; padding: 0.4rem 0.45rem; font-size: 0.72rem; }
+.stable-detail .stable-calls { margin: 0; }
+.stable .stable-bundles { margin: 0; }
+.stable .stable-redeem { margin: 0; }
+.stable .stable-note { margin: 0; }
+@media (max-height: 720px) {
+  .stable .stable-sub { display: none; }
+  .stable .stable-stash small { display: none; }
+  .stable-detail .stable-next, .stable-detail .stable-weapon, .stable-detail .stable-badges { display: none; }
+  .stable-detail .stable-treats { display: none; }
+  .stable-detail .stable-art { width: clamp(44px, 8dvh, 92px); height: clamp(44px, 8dvh, 92px); }
+  .stable-pick { min-height: 56px; }
+}
+
+/* ---------- SHARE & CHALLENGE / DUEL ---------- */
+.challenge .share-box code { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.challenge .incoming { margin: 0; }
+@media (max-height: 720px) {
+  .challenge .sub { display: none; }
+  .challenge label { display: grid; grid-template-columns: 8.5rem 1fr; align-items: center; gap: 0.5rem; margin: 0; }
+  .challenge input, .challenge select { min-height: 40px; }
+}
+
+/* ---------- ABOUT ---------- */
+.about .about-defenders { gap: 0.3rem; margin: 0.3rem 0; }
+.about .about-defender svg { width: 32px; height: 32px; }
+.about .about-line { font-size: 0.9rem; line-height: 1.45; }
+.about > .btn { align-self: flex-start; }
+@media (max-height: 720px) {
+  .about .about-line { font-size: 0.84rem; line-height: 1.35; }
+}
+
+/* ---------- HOW TO PLAY: Watch / Rules panels ---------- */
+.how-panel { gap: 0.5rem; }
+.how-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; flex: 0 0 auto; }
+.how-panel .how-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.7rem;
+  box-sizing: border-box;
+}
+.how-panel .how-demo { width: min(100%, clamp(190px, 36dvh, 320px)); }
+.how-panel .how-caption { text-align: center; }
+.how-panel .how-caption p { line-height: 1.35; }
+.how-panel .how-dots { flex: 0 0 auto; }
+.how-panel .how-rules {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.15rem;
+  font-size: clamp(0.72rem, 1.9dvh, 0.88rem);
+  line-height: 1.3;
+}
+.how-panel .how-rules li { margin: 0; }
+.how-panel .cta-row { flex: 0 0 auto; margin: 0; }
+@media (min-width: 760px) {
+  .how-panel .how-rules {
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: repeat(8, 1fr);
+    grid-template-columns: 1fr 1fr;
+    gap: 0.2rem 1.6rem;
+    align-items: center;
+  }
+}
+@media (max-height: 720px) {
+  .how-panel .how-sub { display: none; }
+}
+
+/* ---------- REMIX: same fit pattern as Levels ---------- */
+.remix-fit {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  gap: 0.5rem;
+  padding: 0.6rem max(0.75rem, env(safe-area-inset-right, 0px)) 0.7rem max(0.75rem, env(safe-area-inset-left, 0px));
+  box-sizing: border-box;
+  width: 100%;
+}
+.remix-fit h2 { margin: 0; font-size: clamp(1.35rem, 4.2dvh, 1.8rem); }
+.remix-fit .remix-countdown { margin: 0; display: grid; gap: 0.1rem; }
+.remix-fit .remix-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 0.5rem;
+}
+.remix-fit .level-card { height: 100%; align-content: center; }
+.remix-fit .endless-block { flex: 0 0 auto; margin: 0; }
+.remix-fit .endless-sizes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.45rem; }
+.remix-fit .endless-btn { min-height: 48px; }
+@media (min-width: 900px) {
+  .remix-fit .remix-grid { grid-template-columns: repeat(4, 1fr); grid-template-rows: 1fr; }
+}
+@media (max-height: 720px) {
+  .remix-fit .remix-note, .remix-fit .endless-block .sub { display: none; }
+}
+
+/* ---------- BUG REPORT: the form flexes, the page never scrolls ---------- */
+.bug-report {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 0.6rem max(0.75rem, env(safe-area-inset-right, 0px)) 0.7rem max(0.75rem, env(safe-area-inset-left, 0px));
+}
+.bug-report h1 { margin: 0; font-size: clamp(1.35rem, 4.2dvh, 1.8rem); font-family: var(--font-display); color: var(--sun); }
+.bug-report .card { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.bug-report textarea { flex: 1; min-height: 0; resize: none; }
+.bug-report .row { display: flex; gap: 0.5rem; justify-content: flex-end; flex: 0 0 auto; }
+.bug-report p { margin: 0; }
+
+/* ---------- overlays/sheets: capped to the viewport on short screens ---------- */
+.start-sheet-card { max-height: calc(var(--app-height, 100dvh) - 2rem); }
+.unseen-modal-body { max-height: calc(var(--app-height, 100dvh) - 2rem); overflow-y: auto; }
+.win-screen-card, .result-card, .shortfall-sheet { max-height: calc(var(--app-height, 100dvh) - 1.5rem); }
+.win-screen-body { max-height: calc(var(--app-height, 100dvh) - 7rem); }
+.parade-card { max-height: calc(var(--app-height, 100dvh) - 6rem); overflow-y: auto; }
+.buddy-hunt-card { max-height: calc(var(--app-height, 100dvh) - 1.5rem); overflow-y: auto; }
+.overlay-card { max-height: calc(var(--app-height, 100dvh) - 1.5rem); overflow-y: auto; }
+
+/* =====================================================================
+   9.33-a5 — BOARD HARD GUARANTEE + fit verification round (Tony defect
+   report Nov 4, 06:57: a HARD board on his iPhone rendered WIDER than
+   the screen, frame and all, rail pushed to the bottom edge; HUD fit).
+   Chromium (incl. iPhone emulation) measures the board at stage-12px
+   for sizes 5-8, branded or not — the blowout is WebKit-specific, in
+   the family of the 520px-cap track-sizing bug documented at the pin
+   rule above. So the fix is structural, not tuned: a complete
+   min-width:0 / minmax(0,1fr) chain from play column -> stage -> board
+   -> grid tracks -> cells means no min-content anywhere can force the
+   board wider than its box, and the box itself is capped by BOTH the
+   stage (max-width:100%) and the viewport (100vw - 1.25rem) at the
+   highest-specificity upright selectors, in every device cascade.
+   ===================================================================== */
+.play-fixed { min-width: 0; }
+.play-fixed .board-stage {
+  min-width: 0;
+  max-width: 100%;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+.play-fixed .board {
+  grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--n), minmax(0, 1fr));
+  min-width: 0;
+}
+.play-fixed .cell { min-width: 0; min-height: 0; }
+.play-fixed .cell > * { max-width: 100%; }
+html[data-layout='upright']:not([data-device='phone']) .play-fixed .board,
+html[data-device='phone'] .play-fixed .board {
+  width: min(100%, 520px, calc(100vw - 1.25rem)) !important;
+  max-width: 100% !important;
+}
+
+/* ---------- fit verification round: measured overflows, fixed ---------- */
+/* Levels: rows can now shrink below card min-content; cards clip-safe */
+.levels-fit .level-grid { grid-template-rows: repeat(5, minmax(0, 1fr)); }
+.levels-fit .level-card-wrap { min-height: 0; }
+.levels-fit .level-card { min-height: 0; overflow: hidden; padding: 0.35rem 0.6rem; }
+@media (min-width: 700px) { .levels-fit .level-grid { grid-template-rows: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1150px) { .levels-fit .level-grid { grid-template-rows: repeat(2, minmax(0, 1fr)); } }
+@media (max-height: 860px) {
+  .levels-fit .daily-text .daily-status { display: none; }
+  .levels-fit .sub { font-size: 0.74rem; line-height: 1.3; }
+}
+/* Rewards: compact chrome + one-line badge values on phones */
+.rewards .badge-card .product-value { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 760px) {
+  .rewards .sub { font-size: 0.78rem; line-height: 1.3; }
+  .rewards .econ-card { font-size: 0.74rem; padding: 8px 10px; }
+  .rewards .econ-card small, .rewards .econ-card [data-testid='parade-rewards-today'] { display: none; }
+  .rewards .badge-card .ach-icon { display: none; }
+  .rewards .stable-entry { padding: 0.5rem 0.6rem; }
+  .rewards > .btn.primary { padding: 0.55rem 1rem; }
+}
+@media (max-height: 720px) {
+  .rewards .wallet-strip span { display: none; }
+  .rewards .badge-card { padding: 0.35rem 0.45rem; }
+}
+/* Stable detail + extras compaction */
+.stable-detail .stable-art { width: clamp(48px, 9dvh, 80px); height: clamp(48px, 9dvh, 80px); }
+.stable-detail .stable-calls { padding: 4px 8px; }
+@media (max-height: 720px) {
+  .stable .stable-freepick-sub { display: none; }
+  .stable .stable-bundle { padding: 0.5rem; }
+  .stable .stable-redeem { padding: 0.55rem; }
+  .stable .stable-note { font-size: 0.74rem; }
+  .stable-detail .stable-btn { min-height: 38px; }
+}
+/* Account: follow/backup compress on short screens */
+@media (max-height: 720px) {
+  .account .follow-section h3 { display: none; }
+  .account .backup { display: flex; align-items: center; gap: 0.6rem; }
+  .account .backup h3 { margin: 0; }
+  .account .auth-form { gap: 0.35rem; }
+  .account .auth-form input, .account .name-setting input { padding: 0.5rem 0.6rem; }
+}
+/* Settings: tighter rows on short screens */
+@media (max-height: 720px) {
+  .settings-screen .settings { gap: 0.35rem; }
+  .settings-screen .toggle { padding: 0.18rem 0.1rem; font-size: 0.92rem; }
+  .settings-screen .heard-card { padding: 8px 10px; }
+  .settings-screen .privacy-note { padding: 8px 10px; }
+  .settings-screen .privacy-note p { font-size: 0.78rem; }
+}
+/* How rules + About: last pixels on short screens */
+@media (max-height: 720px) {
+  .how-panel .how-rules { font-size: 0.7rem; line-height: 1.25; gap: 0; }
+  .about > .btn { display: none; }
+  .about .about-line { line-height: 1.3; }
+}
+/* ---------- fit verification round 2 (360x640 stragglers) ---------- */
+.privacy-details summary { cursor: pointer; }
+.privacy-details p { margin: 4px 0 8px; line-height: 1.4; opacity: 0.9; }
+@media (max-height: 720px) {
+  .stable.fit-screen { gap: 0.35rem; }
+  .stable .stable-note { line-height: 1.25; }
+  .rewards .badge-card strong { font-size: 0.78rem; }
+  .rewards .badge-card .badge-rank { font-size: 0.62rem; }
+  .rewards .badge-card .badge-upgrade { min-height: 32px; padding: 0.2rem 0.4rem; }
+  .rewards .badge-card { gap: 0.1rem; }
+  .rewards .wallet-strip { padding: 0.3rem 0.1rem; }
+  .settings-screen .heard-reset { padding: 0.25rem 0.5rem; }
+}
+/* ---------- fit verification round 3 ---------- */
+.rewards .badge-card { min-height: 0; }
+@media (max-height: 720px) {
+  .stable .stable-redeem h3 { margin-bottom: 0.25rem; }
+  .stable .stable-bundles { gap: 0.4rem; padding: 0.6rem; }
+  .stable .stable-redeem-row input { padding: 0.5rem 0.6rem; }
+}
+/* ---------- fit verification round 4: clipped bottoms, fixed ---------- */
+.stable-detail .stable-card { gap: 0.12rem; }
+.stable-detail .stable-art { width: clamp(44px, 8dvh, 72px); height: clamp(44px, 8dvh, 72px); }
+.stable-detail .stable-card h3 { font-size: 1.05rem; }
+.stable-detail .stable-perk { font-size: 0.8rem; line-height: 1.25; }
+.stable-detail .stable-mood { font-size: 0.74rem; }
+.stable-detail .care-row .care-btn { padding: 0.3rem 0.4rem; font-size: 0.7rem; }
+.stable-detail .stable-calls span { font-size: 0.8rem; }
+.stable-detail .stable-btn { padding: 0.4rem 0.5rem; }
+@media (max-width: 760px) {
+  .rewards .stable-entry small { display: none; }
+  .rewards .stable-entry { padding: 0.4rem 0.6rem; }
+}
+/* ---------- fit verification round 5 ---------- */
+@media (max-width: 760px) {
+  .rewards .badge-card strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rewards .econ-card span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+}
+@media (max-height: 720px) {
+  .stable-detail .care-btn small { display: none; }
+  .stable-detail .stable-calls small { display: none; }
+  .stable-detail .stable-card-top { min-height: 0; }
+  .stable-detail .care-btn { font-size: 0.66rem; }
+}
+/* ---------- fit verification round 6: measured whales ---------- */
+.rewards .wallet-strip { flex-direction: row; }
+.stable-detail .calls-btn { min-width: 0; flex-direction: row; white-space: nowrap; }
+.stable-detail .stable-card h3 small { display: inline; }
+.stable-detail .stable-btn, .stable-detail .stable-calls { flex-shrink: 0; }
+@media (max-height: 720px) {
+  .stable-detail .stable-card { gap: 0.08rem; }
+}
+/* ---------- fit verification round 7 ---------- */
+.stable-detail .stable-calls small { display: none; }
+@media (max-height: 720px) {
+  .stable-detail .stable-care { gap: 3px; }
+  .stable-detail .stable-art { width: 44px; height: 44px; }
+}
+@media (max-height: 720px) {
+  .stable-detail .stable-card { padding-top: 0.35rem; padding-bottom: 0.35rem; }
+}
+@media (max-height: 720px) {
+  .stable-pick { min-height: 52px; padding-top: 0.25rem; padding-bottom: 0.2rem; }
+  .stable .stable-stash { padding-top: 0.3rem; padding-bottom: 0.3rem; }
+  .stable .stable-now { padding-top: 0.3rem; padding-bottom: 0.3rem; }
+}
+@media (max-height: 720px) {
+  .stable .stable-now .btn.tool { padding: 0.3rem 0.6rem; min-height: 40px; }
+  .stable .stable-now > span { font-size: 0.86rem; }
+  .stable-detail .stable-calls { padding: 2px 6px; }
+  .stable-detail .calls-btn { padding: 0.3rem 0.5rem; }
+  .stable-detail .care-row .care-btn { flex: 1 1 0; padding: 0.25rem 0.3rem; font-size: 0.62rem; }
+}
