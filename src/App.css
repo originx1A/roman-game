@@ -6445,6 +6445,20 @@ html[data-motion='reduce'] .td-invader {
 .cell.nox-lit { box-shadow: inset 0 0 0 2px #9d8cff, inset 0 0 18px rgba(157, 140, 255, 0.55); }
 .cell.roulette-hot { box-shadow: inset 0 0 0 3px #ffb03a, inset 0 0 22px rgba(255, 176, 58, 0.8); z-index: 2; }
 .cell.charge-cell { box-shadow: inset 0 0 0 2px rgba(226, 112, 58, 0.85), inset 0 0 16px rgba(226, 112, 58, 0.45); }
+/* 9.33-a6p: Concept C proof — Invictus charges for real: a subtle cinematic tilt on the
+   stage while he runs, then it settles flat for play; the sprite overlay lives inside
+   the board (ChargeHorse.tsx), inset by the board's own padding so its % geometry is
+   the cell grid's geometry. */
+.board-stage { transform-origin: 50% 62%; transition: transform 240ms ease-out; }
+.board-stage.is-charging { transform: perspective(1150px) rotateX(4.2deg) scale(1.012); }
+.charge-fx { position: absolute; inset: 0.45rem; z-index: 5; pointer-events: none; }
+.charge-flare { position: absolute; z-index: 1; border-radius: 8px; opacity: 0; background: radial-gradient(ellipse at center, rgba(255, 186, 84, 0.85), rgba(226, 112, 58, 0.38) 55%, rgba(226, 112, 58, 0) 72%); animation: chargeFlare 520ms ease-out both; }
+@keyframes chargeFlare { 0% { opacity: 0; } 16% { opacity: 0.55; } 100% { opacity: 0; } }
+.charge-fx-canvas { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; }
+.charge-horse { position: absolute; left: 0; top: 0; z-index: 3; overflow: hidden; filter: drop-shadow(0 12px 12px rgba(0, 0, 0, 0.5)); }
+.charge-horse img { display: block; max-width: none; user-select: none; }
+html[data-motion='reduce'] .board-stage { transition: none; }
+@media (prefers-reduced-motion: reduce) { .board-stage { transition: none; } }
 .feather-mark { position: absolute; inset: auto 2px 2px auto; font-size: 0.85em; pointer-events: none; animation: featherFade 5.6s ease forwards; }
 .paw-mark { position: absolute; inset: auto auto 2px 2px; font-size: 0.8em; pointer-events: none; opacity: 0.85; }
 @keyframes featherFade { 0% { opacity: 0; transform: translateY(-4px) rotate(-14deg); } 12% { opacity: 1; transform: none; } 78% { opacity: 1; } 100% { opacity: 0; } }

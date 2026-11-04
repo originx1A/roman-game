@@ -20,6 +20,7 @@ import {
   type ConflictKind,
 } from '../game/logic'
 import { sfxError, sfxGiggle, sfxMark, sfxPlace, sfxTap, unlockAudio } from '../game/sound'
+import { ChargeHorse } from './ChargeHorse'
 import { LONG_PRESS_MS, hasLeftTap, swipeModeFor, swipeTarget, type GestureStart, type SwipeMode } from '../game/gesture'
 
 interface Props {
@@ -45,6 +46,8 @@ interface Props {
   rouletteIndex?: number | null
   /** 9.33-a: the row Invictus is charging across */
   chargeRow?: number | null
+  /** 9.33-a6p: a live Concept C charge run (sprite + wake) on this row; while set, it replaces the abstract charge-cell row flash */
+  chargeFx?: { run: number; row: number } | null
   /** 9.33-a: Lupa's paw-print trail cells */
   pawIndices?: number[]
   giggleIndex?: number | null
@@ -150,6 +153,7 @@ export function Board({
   featherIndices,
   rouletteIndex = null,
   chargeRow = null,
+  chargeFx = null,
   pawIndices,
   giggleIndex = null,
   disabled,
@@ -479,7 +483,7 @@ export function Board({
               featherIndices?.includes(i) ? 'aquila-feather' : '',
               pawIndices?.includes(i) ? 'paw-cell' : '',
               rouletteIndex === i ? 'roulette-hot' : '',
-              chargeRow != null && rowOf(i, size) === chargeRow ? 'charge-cell' : '',
+              chargeRow != null && !chargeFx && rowOf(i, size) === chargeRow ? 'charge-cell' : '',
               pressed === i ? 'pressed' : '',
             ]
               .filter(Boolean)
@@ -513,6 +517,7 @@ export function Board({
           </div>
         )
       })}
+      {chargeFx ? <ChargeHorse key={chargeFx.run} row={chargeFx.row} size={size} /> : null}
     </div>
   )
 }

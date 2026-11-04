@@ -4,6 +4,7 @@ import { OWNER_PATH, OWNER_TAP_WINDOW_MS, OWNER_TAPS } from './game/ownerDoor'
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Board } from './components/Board'
+import { chargeFxAllowed, chargePassMs, CHARGE_MS, preloadChargeAtlas } from './components/ChargeHorse'
 import { HowToPlay, HOW_NEW_START } from './components/HowToPlay'
 import { BugReport } from './components/BugReport'
 import { PrizeWheel } from './components/PrizeWheel'
@@ -509,6 +510,9 @@ export default function App() {
   /** Invictus: the roulette's flashing square, then the row he charges */
   const [rouletteIdx, setRouletteIdx] = useState<number | null>(null)
   const [chargeRow, setChargeRow] = useState<number | null>(null)
+  /** 9.33-a6p: the live Concept C charge (sprite run) on the board, if one is playing */
+  const [chargeFx, setChargeFx] = useState<{ run: number; row: number } | null>(null)
+  const chargeRunRef = useRef(0)
   /** Lupa's paw-print trail */
   const [pawCells, setPawCells] = useState<number[]>([])
   /** Leo's armed shield: roars off the first mistake on his board */
@@ -1344,6 +1348,9 @@ export default function App() {
     if (!spent) return
     persistPets(spent)
     brandFiredRef.current = true
+    // 9.33-a6p: an Invictus board is coming — warm the charge sprite now (lazy asset;
+    // reduced-motion players never fetch it and keep the abstract charge)
+    if (b === 'invictus' && chargeFxAllowed()) preloadChargeAtlas()
     window.setTimeout(() => {
       if (brandRunRef.current !== run || boardOverRef.current) return
       fireDefender(b, p)
@@ -1439,7 +1446,22 @@ export default function App() {
           setRouletteIdx(target)
           window.setTimeout(() => {
             setRouletteIdx(null)
-            setChargeRow(rowOf(target, size))
+            const row = rowOf(target, size)
+            setChargeRow(row)
+            if (chargeFxAllowed()) {
+              // 9.33-a6p Concept C: the real charge — sprite, dust wake and stage tilt.
+              // The buddy is revealed the moment the horse crosses its square, and the
+              // stage settles flat again when the run ends.
+              setChargeFx({ run: ++chargeRunRef.current, row })
+              window.setTimeout(() => {
+                if (!boardOverRef.current) defenderPlaceBuddy(target)
+              }, chargePassMs(colOf(target, size), size))
+              window.setTimeout(() => {
+                setChargeRow(null)
+                setChargeFx(null)
+              }, CHARGE_MS + 250)
+              return
+            }
             window.setTimeout(() => {
               defenderPlaceBuddy(target)
               window.setTimeout(() => setChargeRow(null), 900)
@@ -3234,7 +3256,7 @@ export default function App() {
             })()}
 
           <div
-            className={`board-stage ${brand ? `is-branded brand-${brand}` : ''}`}
+            className={`board-stage ${brand ? `is-branded brand-${brand}` : ''} ${chargeFx ? 'is-charging' : ''}`}
             style={brand ? ({ '--brand-deep': DEFENDER_THEME[brand].deep } as CSSProperties) : undefined}
           >
             <Board
@@ -3248,6 +3270,7 @@ export default function App() {
               featherIndices={featherCells}
               rouletteIndex={rouletteIdx}
               chargeRow={chargeRow}
+              chargeFx={chargeFx}
               pawIndices={pawCells}
               giggleIndex={giggleIndex}
               celebrate={celebrate}
