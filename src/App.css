@@ -6654,3 +6654,40 @@ input[type='email']:focus, input[type='text']:focus, select:focus {
 .about-defender { display: flex; align-items: center; gap: 0.6rem; text-align: left; }
 .about-defender p { margin: 0; font-size: 0.86rem; }
 .about-defender strong { color: #ecd28f; font-family: var(--font-display); letter-spacing: 0.04em; }
+
+/* =====================================================================
+   9.33-a2 PHONE BOARD FIT (Tony QA, Nov 4): the Defender banner + rail
+   ate the board's height — the fixed play column sizes the board by the
+   stage's smaller dimension, so tall chrome = tiny board. Slim the new
+   chrome on phones so the board is width-bound again and fills the
+   width of the screen.
+   ===================================================================== */
+html[data-device='phone'] .brand-banner {
+  padding: 5px 10px 5px 6px;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 0.8rem;
+  width: 100%;
+}
+html[data-device='phone'] .brand-banner svg { width: 30px; height: 30px; flex: none; }
+html[data-device='phone'] .brand-banner span {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+html[data-device='phone'] .defender-rail {
+  flex-wrap: nowrap;
+  gap: 5px;
+  margin-top: 8px;
+  width: 100%;
+}
+html[data-device='phone'] .defender-plate {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 4px 2px 3px;
+  gap: 0;
+}
+html[data-device='phone'] .defender-plate svg { width: 30px; height: 30px; }
+html[data-device='phone'] .defender-plate-name { font-size: 0.58rem; }
+html[data-device='phone'] .board-stage.is-branded { padding: 6px; }
