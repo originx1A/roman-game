@@ -1607,7 +1607,7 @@ export default function App() {
     // Before the board: what to beat
     const best = onCatalog ? hasBest(rec, p.id, runMode) : undefined
     const intro = [
-      runMode === 'trial' ? `Roman's Trial: ${TRIAL_HEARTS} hearts, no undo, beat the clock` : '',
+      runMode === 'trial' ? `Roman's Trial: ${TRIAL_HEARTS} hearts, beat the clock` : '',
       dailyKey ? 'Daily Challenge: only this first try counts' : practice ? "Daily practice: today's score is already in" : '',
       best ? `Best ${formatMs(best.bestMs!)} · ${best.bestScore ?? 0} pts` : '',
     ].filter(Boolean).join(' · ')
@@ -2708,7 +2708,7 @@ export default function App() {
                 <ul className="start-sheet-goals">
                   <li className={(sheetRec?.stars ?? 0) >= 1 ? 'done' : ''}>★ Finish the board</li>
                   <li className={(sheetRec?.stars ?? 0) >= 2 ? 'done' : ''}>★★ Under {formatMs(sheetTargets.timeMs)}</li>
-                  <li className={(sheetRec?.stars ?? 0) >= 3 ? 'done' : ''}>★★★ Under {formatMs(sheetTargets.timeMs)}, {sheetTargets.score3}+ pts, no undos</li>
+                  <li className={(sheetRec?.stars ?? 0) >= 3 ? 'done' : ''}>★★★ Under {formatMs(sheetTargets.timeMs)}, {sheetTargets.score3}+ pts, no mistakes</li>
                 </ul>
                 <p className="start-sheet-tip">Quick good moves build a combo. Each undo costs {UNDO_COST} pts.</p>
                 <button type="button" className="btn primary" onClick={() => startPuzzle(startSheet)}>
@@ -2718,7 +2718,7 @@ export default function App() {
                   <button type="button" className="btn trial-btn" onClick={() => startPuzzle(startSheet, false, { mode: 'trial' })}>
                     ⚔ Roman's Trial
                     <small>
-                      {TRIAL_HEARTS} hearts · no undo · {formatMs(trialTimeLimitMs(sheetTargets))} clock · 2× coins
+                      {TRIAL_HEARTS} hearts · {formatMs(trialTimeLimitMs(sheetTargets))} on the clock · 2× coins
                       {sheetRec?.trial?.bestMs != null ? ` · best ${formatMs(sheetRec.trial.bestMs)}` : ''}
                     </small>
                   </button>
@@ -3027,7 +3027,7 @@ export default function App() {
       {screen === 'levels' && (
         <main className="panel levels scroll-pane">
           <h2>Levels</h2>
-          <p className="sub">Beat your best time and score on any board. ★ finish · ★★ beat the target time · ★★★ target time, a high score and no undos. 3 stars unlocks Roman's Trial.</p>
+          <p className="sub">Beat your best time and score on any board. ★ finish · ★★ beat the target time · ★★★ target time, a high score and a clean board. 3 stars unlocks Roman's Trial.</p>
           {dailyCard}
           {remixCard}
           <div className="level-tabs" role="tablist" aria-label="Difficulty">
@@ -3170,7 +3170,7 @@ export default function App() {
                   <ul>
                     <li className={have >= 1 ? 'done' : ''}>★ Finish</li>
                     <li className={have >= 2 ? 'done' : ''}>★★ Under {formatMs(tg.timeMs)}</li>
-                    <li className={have >= 3 ? 'done' : ''}>★★★ {tg.score3}+ pts, no undo</li>
+                    <li className={have >= 3 ? 'done' : ''}>★★★ {tg.score3}+ pts, no mistakes</li>
                   </ul>
                   <p className="hud-goal-best">
                     Best {best?.bestMs != null ? formatMs(best.bestMs) : '—'} · {best?.bestScore != null ? `${best.bestScore} pts` : '—'}
@@ -3749,6 +3749,24 @@ export default function App() {
             <h3>About</h3>
             <p className="about-line">
               Roman&rsquo;s Game <span className="build-tag">{BUILD_TAG}</span>
+            </p>
+            <p className="about-line">
+              Place one buddy in every row, column and coloured region — no two touching, not even at a corner.
+              Some boards wear a Defender&rsquo;s colours: if you hold calls for that Defender, they step in and help, once.
+              Calls are bought in The Stable with coins you win. Coins only — no real money, ever.
+            </p>
+            <div className="about-defenders">
+              {PETS.map((p) => (
+                <div key={p.id} className="about-defender">
+                  <PetArt id={p.id} size={40} />
+                  <p>
+                    <strong>{p.name}</strong> — {DEFENDER_THEME[p.id].job}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <p className="about-line">
+              And something watches from the smoke. The Unseen never helps and cannot be bought — he just mocks.
             </p>
             <p className="about-line">
               {!isStoreBuild() && settings.analytics !== false ? <FeedbackChip onSend={sendFeedback} /> : null}
