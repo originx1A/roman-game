@@ -7510,3 +7510,389 @@ html[data-device='phone'] .play-fixed .board {
   .stable-detail .calls-btn { padding: 0.3rem 0.5rem; }
   .stable-detail .care-row .care-btn { flex: 1 1 0; padding: 0.25rem 0.3rem; font-size: 0.62rem; }
 }
+
+/* =====================================================================
+   9.33-a7 — ONE SCREEN = ONE FUNCTION (Tony, Nov 4): every control fully
+   visible at 390x660, or the content becomes its own screen/step. Plus
+   the richness pass: per-screen colour identity, the Ember Reliquary
+   texture (Gris-style grain + lit gradients + depth), buttons that answer
+   a press visibly (ember burst + glow pulse) and audibly (sfxUiClick),
+   and Atmosphere on every screen. Board rules are NOT touched here.
+   ===================================================================== */
+
+/* ---------- per-screen colour identity (Monument Valley poster test) --- */
+.shell-home { --screen-accent: #ff9a3c; }
+.shell-levels { --screen-accent: #5b8cff; }
+.shell-stable { --screen-accent: #2fd4a7; }
+.shell-rewards { --screen-accent: #ffb52e; }
+.shell-more { --screen-accent: #b07fe8; }
+.shell-account { --screen-accent: #4f9dff; }
+.shell-settings { --screen-accent: #7fb2d9; }
+.shell-about { --screen-accent: #c084fc; }
+.shell-how { --screen-accent: #2fd4a7; }
+.shell-challenge { --screen-accent: #ff5d73; }
+.shell-duel { --screen-accent: #ff5d73; }
+.shell-remix { --screen-accent: #5b8cff; }
+.shell-bug { --screen-accent: #ff9a3c; }
+
+/* ---------- atmosphere on panel screens: positioned, content lifted ---- */
+.fit-screen.has-atmo, .levels-fit.has-atmo, .remix-fit.has-atmo, .bug-report.has-atmo { position: relative; }
+/* Panel screens only — the play screen has its own lift rule with overlay
+   exclusions; a general rule here would drag .win-screen/.result-overlay
+   into the flow. Home has its own rule from a4. */
+.panel.has-atmo > :not(.atmo), .bug-report.has-atmo > :not(.atmo) { position: relative; z-index: 1; }
+.atmo-panel .atmo-vignette { opacity: 0.55; }
+.atmo-panel .atmo-flame { opacity: 0.5; }
+
+/* panel screens breathe the screen's accent (mist + a whisper of depth) */
+.panel.has-atmo, .bug-report.has-atmo {
+  background-image:
+    radial-gradient(120% 55% at 50% -8%, color-mix(in srgb, var(--screen-accent, #b98a4a) 11%, transparent), transparent 62%),
+    linear-gradient(180deg, transparent 55%, rgba(8, 5, 2, 0.28));
+}
+.panel h2, .fit-screen h2, .bug-report h1 {
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35), 0 0 24px color-mix(in srgb, var(--screen-accent, #ffd166) 38%, transparent);
+}
+
+/* ---------- segmented tabs (Settings / About indexes) ------------------ */
+.seg-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; flex: 0 0 auto; }
+.seg-tab {
+  min-height: 40px;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid rgba(255, 209, 102, 0.28);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(56, 42, 22, 0.85), rgba(26, 19, 10, 0.9));
+  color: rgba(244, 251, 255, 0.78);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.seg-tab.on {
+  border-color: var(--screen-accent, var(--gold));
+  color: #ffe9a8;
+  box-shadow: 0 0 0 1px var(--screen-accent, var(--gold)), 0 0 16px color-mix(in srgb, var(--screen-accent, #ffd166) 30%, transparent);
+}
+.settings-linkrow {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+  width: 100%; padding: 0.55rem 0.2rem;
+  background: none; border: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--foam); font: inherit; font-weight: 700; text-align: left; cursor: pointer;
+}
+.settings-linkrow span { opacity: 0.6; font-size: 1.2rem; }
+.settings-note { gap: 0.6rem; }
+.settings-note p { line-height: 1.55; font-size: 0.92rem; margin: 0; }
+.settings-note h3 { margin: 0; }
+.settings-back { align-self: flex-start; }
+
+/* =====================================================================
+   HOME — hero is a SCENE, sections are flex-none rows on a dvh budget.
+   The a5 bug: .hero was flex-shrinkable, so its content spilled over the
+   sections below (Tony's overlap screenshots). Never again: sections
+   size to their content, sizes scale with dvh, nothing overlaps.
+   ===================================================================== */
+.fit-home { gap: clamp(0.3rem, 0.9dvh, 0.6rem); }
+.fit-home .hero {
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 209, 102, 0.22);
+  padding: clamp(0.5rem, 1.6dvh, 0.95rem) 0.9rem clamp(0.55rem, 1.5dvh, 0.85rem);
+  background-image:
+    radial-gradient(95% 60% at 50% -6%, rgba(255, 154, 60, 0.22), transparent 62%),
+    radial-gradient(55% 42% at 6% 92%, rgba(47, 212, 167, 0.10), transparent 65%),
+    radial-gradient(55% 42% at 96% 88%, rgba(91, 140, 255, 0.11), transparent 65%),
+    linear-gradient(178deg, rgba(74, 50, 22, 0.60), rgba(22, 14, 7, 0.30) 68%, rgba(12, 8, 4, 0.42));
+  box-shadow: inset 0 1px 0 rgba(255, 236, 190, 0.18), inset 0 -20px 32px rgba(0, 0, 0, 0.38), 0 12px 30px rgba(0, 0, 0, 0.35);
+}
+.fit-home .logo-hero {
+  font-size: clamp(2.5rem, 11.5dvh, 5.4rem);
+  filter: drop-shadow(0 3px 12px rgba(255, 154, 60, 0.35)) drop-shadow(0 2px 0 rgba(0, 0, 0, 0.45));
+}
+.fit-home .home-cta { flex: 0 0 auto; }
+.home-play { min-height: clamp(48px, 7.5dvh, 58px); }
+.home-plates { flex: 0 0 auto; }
+.home-plates .btn, .home-plates .unseen-tile { min-height: 44px; }
+
+/* companion strip: Defender + field treats, side by side, one row */
+.home-companion {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+.home-companion .home-pet, .home-companion > .home-pet.is-solo { flex: 1.12 1 0; min-width: 0; }
+.home-companion .treat-pile-widget {
+  flex: 1 1 0; min-width: 0; margin: 0; width: auto;
+  display: flex; align-items: center; gap: 0.45rem;
+  padding: 0.4rem 0.55rem; box-sizing: border-box;
+}
+.home-companion .treat-pile-widget small { display: block; line-height: 1.3; font-size: 0.68rem; }
+.fit-home .home-pet-row { display: none; }
+.fit-home .home-pet-body svg { width: clamp(40px, 8.5dvh, 64px); }
+.home-companion .home-pet-text small { white-space: normal; line-height: 1.25; }
+
+/* promo strip: Daily + Remix side by side (Home + foot of Levels) */
+.promo-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; flex: 0 0 auto; }
+.promo-card {
+  display: flex; align-items: center; gap: 0.5rem;
+  min-width: 0; box-sizing: border-box;
+  padding: 0.5rem 0.55rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 209, 102, 0.35);
+}
+.promo-text { flex: 1 1 auto; min-width: 0; display: grid; gap: 0.08rem; }
+.promo-text strong { font-size: 0.8rem; line-height: 1.2; }
+.promo-text > span { font-size: 0.66rem; opacity: 0.82; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.promo-status { color: #9fe8b1; font-weight: 700; }
+.promo-card .daily-streakbtn { justify-self: start; font-size: 0.68rem; padding: 0.14rem 0.45rem; }
+.promo-card > .btn { flex: 0 0 auto; padding: 0.5rem 0.55rem; font-size: 0.78rem; border-radius: 10px; }
+.promo-btns { flex: 0 0 auto; display: grid; gap: 0.3rem; }
+.promo-btns .btn { padding: 0.38rem 0.5rem; font-size: 0.72rem; border-radius: 9px; }
+.fit-home .stat-strip { flex: 0 0 auto; }
+@media (max-height: 700px) {
+  .fit-home .logo-hero { font-size: clamp(2.3rem, 10.5dvh, 5.4rem); }
+  .promo-card { padding: 0.42rem 0.5rem; }
+}
+
+/* =====================================================================
+   LEVELS — the picker leads; tabs + grid get the height, promos ride last
+   ===================================================================== */
+.levels-fit .level-tabs { margin: 0; }
+.levels-fit .level-tab { min-width: 0; }
+.levels-fit .diff-block { min-height: 0; }
+.levels-fit .level-card { overflow: hidden; min-height: 0; }
+.levels-fit .lv-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.levels-fit .promo-strip { margin-top: 0.1rem; }
+
+/* =====================================================================
+   STABLE — index of compact rows; the Defender screen carries the rest
+   ===================================================================== */
+.stable-tabs { flex: 0 0 auto; }
+.stable-tab { min-height: 40px; }
+.stable .stable-now { align-items: center; }
+.stable .stable-now > span { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stable .stable-now .btn { flex: 0 0 auto; }
+.stable-freepick { padding: 0.45rem 0.6rem; }
+.stable-freepick-title { font-size: 0.95rem; margin: 0; }
+.stable-freepick-sub { font-size: 0.72rem; line-height: 1.3; margin: 0.1rem 0 0; }
+.stable-picklist {
+  flex: 1; min-height: 0;
+  display: grid; grid-template-rows: repeat(5, 1fr); gap: 0.4rem;
+}
+.stable-pick {
+  display: flex; flex-direction: row; align-items: center; gap: 0.55rem;
+  min-height: 0; min-width: 0; width: 100%; box-sizing: border-box;
+  padding: 0.3rem 0.55rem; text-align: left;
+}
+.stable-pick svg { width: 42px; height: 42px; flex: 0 0 auto; }
+.stable-pick-main { flex: 1 1 auto; min-width: 0; display: grid; gap: 0.04rem; }
+.stable-pick-name { font-family: var(--font-display); font-size: 0.95rem; color: #ecd28f; line-height: 1.15; }
+.stable-pick-name small { font-family: inherit; font-size: 0.7rem; opacity: 0.65; }
+.stable-pick-perk { font-size: 0.7rem; font-weight: 600; opacity: 0.78; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stable-pick-status { flex: 0 0 auto; font-size: 0.78rem; font-weight: 800; color: var(--gold); }
+.stable-pick-go { flex: 0 0 auto; opacity: 0.55; font-size: 1.3rem; }
+.stable-calls { flex-wrap: wrap; }
+.stable-calls-note { flex: 1 1 100%; color: #ffb0a0; font-size: 0.7rem; }
+.stable-detail-screen .stable-detail { flex: 1; min-height: 0; display: flex; justify-content: center; }
+.stable-detail-screen .stable-sub { display: block; }
+@media (max-height: 700px) {
+  .stable-tab { min-height: 37px; }
+  .stable-pick svg { width: 36px; height: 36px; }
+  .stable-freepick-sub { display: none; }
+}
+
+/* =====================================================================
+   EMBER RELIQUARY — the flat-fill cure (Tony: "VIDEO quality, not flat
+   board-type fills"): a Gris-style texture pass — watercolour grain,
+   lit multi-stop gradients, ink edges, real depth — over every plate,
+   button and card. Backgrounds stay at least two value steps darker
+   than playable art; the board keeps its jewel identity untouched.
+   ===================================================================== */
+:root {
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+}
+/* dark plaques: nav, menu rows, tabs, picks, chips */
+.bottom-nav-item, .more-row, .seg-tab, .stable-tab, .how-tab, .stable-pick, .share-chip {
+  background-image: var(--grain), linear-gradient(168deg, rgba(104, 72, 32, 0.96), rgba(48, 32, 15, 0.97) 55%, rgba(22, 15, 7, 0.98));
+  background-blend-mode: overlay, normal;
+  background-size: 180px 180px, cover;
+  box-shadow: inset 0 1px 0 rgba(255, 236, 190, 0.22), inset 0 -8px 14px rgba(0, 0, 0, 0.35), 0 5px 14px rgba(0, 0, 0, 0.32);
+}
+/* gold surfaces: primary buttons, the Play action, active nav */
+.btn.primary, .home-play, .bottom-nav-item.on {
+  background-image: var(--grain), linear-gradient(165deg, #ffd977, #eaa93c 46%, #c07f1d 82%, #9c650f);
+  background-blend-mode: overlay, normal;
+  background-size: 180px 180px, cover;
+  box-shadow: inset 0 1px 0 rgba(255, 246, 214, 0.65), inset 0 -9px 15px rgba(120, 66, 0, 0.38), 0 7px 18px rgba(0, 0, 0, 0.38);
+}
+/* ghost buttons get the same painted depth, darker register */
+.btn.ghost {
+  background-image: var(--grain), linear-gradient(168deg, rgba(74, 53, 27, 0.94), rgba(31, 21, 11, 0.95));
+  background-blend-mode: overlay, normal;
+  background-size: 180px 180px, cover;
+  box-shadow: inset 0 1px 0 rgba(255, 236, 190, 0.16), inset 0 -7px 12px rgba(0, 0, 0, 0.32);
+}
+/* cards: deep multi-stop warmth tinted by the screen's accent */
+.level-card, .stable-card, .badge-card, .promo-card, .gift-preview, .stable-bundle, .heard-card, .incoming, .profile-card {
+  background-image: var(--grain), linear-gradient(158deg, color-mix(in srgb, var(--screen-accent, #b98a4a) 10%, rgba(60, 41, 20, 0.96)), rgba(31, 20, 10, 0.97) 58%, rgba(16, 10, 5, 0.98));
+  background-blend-mode: overlay, normal;
+  background-size: 180px 180px, cover;
+  box-shadow: inset 0 1px 0 rgba(255, 236, 190, 0.16), inset 0 -12px 22px rgba(0, 0, 0, 0.30), 0 8px 20px rgba(0, 0, 0, 0.30);
+}
+/* the home plates + companion cells carry the finish too */
+.home-plates .unseen-tile, .home-companion .home-pet, .home-companion .treat-pile-widget {
+  background-image: var(--grain), linear-gradient(165deg, rgba(88, 60, 28, 0.92), rgba(35, 24, 12, 0.95));
+  background-blend-mode: overlay, normal;
+  background-size: 180px 180px, cover;
+  box-shadow: inset 0 1px 0 rgba(255, 236, 190, 0.18), inset 0 -8px 14px rgba(0, 0, 0, 0.3);
+}
+
+/* =====================================================================
+   BUTTONS ANSWER A PRESS — ember burst (spawned by the App listener)
+   + a glow pulse on the pressed control. Off under reduced motion.
+   ===================================================================== */
+.btn, .bottom-nav-item, .more-row, .seg-tab, .stable-tab, .how-tab, .level-tab, .stable-pick, .level-card, .share-chip, .cloud-btn, .unseen-tile { position: relative; }
+.press-burst { position: absolute; width: 0; height: 0; pointer-events: none; z-index: 6; }
+.press-burst i {
+  position: absolute; left: -2px; top: -2px; width: 4px; height: 4px; border-radius: 50%;
+  background: radial-gradient(circle, #fff3c4, #ffb03a 68%, rgba(255, 154, 60, 0));
+  animation: burstFly 0.6s ease-out both;
+}
+@keyframes burstFly {
+  from { transform: rotate(var(--a)) translateX(2px) scale(1); opacity: 1; }
+  to { transform: rotate(var(--a)) translateX(var(--d)) scale(0.2); opacity: 0; }
+}
+.is-pressing { filter: brightness(1.15); box-shadow: 0 0 0 1px rgba(255, 209, 102, 0.55), 0 0 20px rgba(255, 154, 60, 0.4); }
+html[data-motion='reduce'] .press-burst { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .press-burst { display: none; }
+  .is-pressing { filter: none; }
+}
+
+/* =====================================================================
+   REMAINING SCREENS — budget fixes from the a7 audit
+   ===================================================================== */
+/* Rewards: the econ ledger is information, not controls — it sheds at
+   short heights so badge cards never clip their upgrade buttons. */
+@media (max-height: 720px) {
+  .rewards .econ-card { display: none; }
+  .rewards .badge-card { gap: 0.1rem; padding: 0.35rem 0.45rem; }
+  .rewards .badge-card .badge-upgrade { min-height: 32px; }
+}
+/* Branded-board banner: its text can never spill out of the plaque. */
+.brand-banner { overflow: hidden; flex: 0 0 auto; }
+.brand-banner span { line-height: 1.25; }
+/* How: the demo stage yields before the back/done row ever clips. */
+.how-panel .how-stage { min-height: 0; }
+.how-panel .how-demo { width: min(100%, clamp(170px, 33dvh, 320px)); }
+/* About: sections flex inside the lock; defender rows stay compact. */
+.about .about-section { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.about .about-defenders { flex: 0 1 auto; }
+/* Duel/Challenge: form rows keep their inputs inside the padded frame. */
+.challenge input, .challenge select { box-sizing: border-box; max-width: 100%; }
+.challenge label { min-width: 0; }
+
+/* ---- a7 fix round 2: 360x640 trims + desktop How margin (from the five-
+   viewport audit: home +3/+6/+35, duel +48, bundles +16, How 3px margin) -- */
+@media (max-height: 700px) {
+  .fit-home.hero { padding: 0.45rem 0.8rem 0.35rem; }
+  .home-logo { width: 132px; }
+  .home-companion { padding: 0.35rem 0.5rem; gap: 0.45rem; }
+  .promo-card { padding: 0.45rem 0.55rem; }
+  .home-plates { gap: 0.4rem; }
+  .home-plate { padding: 0.42rem 0.55rem; }
+  .unseen-tile { padding-top: 0.42rem; padding-bottom: 0.42rem; }
+  .home-stat-strip { padding-top: 0.28rem; padding-bottom: 0.28rem; }
+  .stable-bundles { gap: 0.35rem; }
+  .stable-bundle { padding: 0.45rem 0.55rem; }
+  .stable-note { display: none; }
+  .duel-board-tag { display: none; }
+  .duel-card { padding: 0.5rem 0.65rem; gap: 0.3rem; }
+  .duel-row { padding: 0.3rem 0.5rem; }
+  .duel-vs { margin: 0.05rem 0; }
+  .duel-verdict { margin: 0.15rem 0 0; }
+  .challenge .cta-row { margin-top: 0.5rem !important; }
+}
+@media (min-width: 1000px) {
+  .how-panel { padding-bottom: 1rem; }
+}
+
+/* ---- a7 fix round 3: home height at short viewports, measured section by
+   section at 360x640 (hero 208-226, companion 116-135, promo 102, stat-strip
+   80 against a 534px main). Selector fixes: the hero is a CHILD of .fit-home;
+   the strip is .stat-strip.home-strip. ---- */
+@media (max-height: 700px) {
+  .fit-home { gap: 0.25rem; }
+  .fit-home .hero { padding: 0.45rem 0.8rem 0.35rem; }
+  .home-logo { width: 118px; }
+  .home-plate { padding: 0.3rem 0.45rem; }
+  .home-companion .pet-art { width: 42px; height: 42px; }
+  .home-strip div { padding: 0.22rem 0.1rem; }
+  .home-strip strong { font-size: 0.92rem; }
+  .home-strip span { font-size: 0.62rem; }
+  .promo-text strong { font-size: 0.76rem; }
+  .promo-text span { font-size: 0.68rem; }
+  .promo-card .daily-streakbtn { font-size: 0.62rem; padding: 0.14rem 0.45rem; }
+  .treat-pile-widget strong { font-size: 0.8rem; }
+  .treat-pile-widget p { font-size: 0.72rem; }
+}
+
+/* ---- a7 fix round 4: pileup headroom at short heights (stat-strip padding,
+   companion ratio so the treats-danger line wraps less, smaller hero logo) -- */
+@media (max-height: 700px) {
+  .fit-home .home-strip { padding: 0.3rem 0.15rem; margin: 0; }
+  .fit-home .home-strip div { padding: 0.3rem 0.4rem; }
+  .home-logo { width: 104px; }
+  .home-companion { padding: 0.3rem 0.45rem; }
+  .home-companion > .home-pet, .home-companion > .home-pet.is-solo { flex-grow: 0.85; }
+  .home-companion .treat-pile-widget { flex-grow: 1.3; }
+  .home-companion .treat-pile-widget small { font-size: 0.64rem; line-height: 1.25; }
+  .home-plate { font-size: 0.74rem; }
+  .home-plate small { font-size: 0.62rem; }
+}
+
+/* ---- a7 fix round 5: last pileup pixels at short heights ---- */
+@media (max-height: 700px) {
+  .fit-home { padding-top: 0.35rem; padding-bottom: 0.35rem; }
+  .fit-home .home-strip div { padding: 0.18rem 0.3rem; }
+  .fit-home .home-strip strong { font-size: 0.88rem; line-height: 1.15; }
+  .fit-home .home-strip span { font-size: 0.6rem; line-height: 1.15; }
+  .home-plates { gap: 0.35rem; }
+  .home-plate { line-height: 1.15; }
+}
+
+/* ---- a7 fix round 6: promo strip headroom at short heights (the daily
+   card's board-name line repeats the strong's date label — shed the text,
+   keep every control; remix buttons keep a 32px+ target) ---- */
+@media (max-height: 700px) {
+  .promo-daily .promo-text span { display: none; }
+  .promo-actions { gap: 0.3rem; }
+  .promo-actions .btn { min-height: 32px; padding: 0.28rem 0.5rem; }
+}
+
+/* ---- a7 fix round 7: bundles tab at short heights — the missing-pets art
+   chips are decorative (the names stay as text); shed them so the redeem row
+   and every control sit above the lock at 640px too ---- */
+@media (max-height: 700px) {
+  .stable-bundle-art { display: none; }
+  .stable-bundle { gap: 0.4rem; }
+  .stable-redeem { margin-top: 0.4rem; }
+}
+
+/* ---- a7 fix round 8: bundles tab, final pixels at short heights ---- */
+@media (max-height: 700px) {
+  .stable-bundle { padding: 0.35rem 0.5rem; }
+  .stable-bundle-text small { font-size: 0.68rem; line-height: 1.25; }
+  .stable-coins { font-size: 0.8rem; padding: 0.2rem 0.5rem; }
+  .stable-redeem h3 { display: none; }
+}
+
+/* ---- a7 fix round 9: headroom for the redeem feedback line (it must appear
+   INSIDE the locked screen, not push the row past the fold) ---- */
+@media (max-height: 700px) {
+  .stable-bundles > h3 { display: none; }
+  .stable-bundle .btn { min-height: 32px; }
+}
