@@ -3271,6 +3271,10 @@ export default function App() {
             )
           })()}
 
+          {/* 9.33-a8: banner + stage travel as ONE column in the wide grid (.board-col in
+              App.css). Upright layouts give the wrapper display:contents, so phones see
+              the banner and the stage as direct flex children of .play-fixed, as before. */}
+          <div className="board-col">
           {brand &&
             (() => {
               const def = petById(brand)!
@@ -3326,6 +3330,7 @@ export default function App() {
               disabled={celebrate || defeated}
               themeId={puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)}
             />
+          </div>
           </div>
 
 
@@ -3570,7 +3575,6 @@ export default function App() {
           </button>
           <div className="stat-strip wallet-strip">
             <div><strong>{wallet.coins}</strong><span>coins</span></div>
-            <div><strong>{wallet.freeHints}</strong><span>free hints</span></div>
             <div><strong>{wallet.shields}</strong><span>shields</span></div>
             <div><strong>{wallet.spins}</strong><span>spins</span></div>
             <div><strong>{wallet.bonusHearts ?? 0}</strong><span>bonus hearts</span></div>

@@ -258,8 +258,8 @@ export function ParadeOverlay({
           </div>
           {readPotPct ? <div className="parade-pot-left" data-testid="parade-pot-left">Today's treasure left: <b>{readPotPct()}%</b></div> : null}
           <div className="parade-wallet" data-testid="parade-wallet">
-            Wallet now: <b>{now.coins}</b> coins · <b>{now.hints}</b> free hints · <b>{now.spins}</b> spins
-            {caughtList.length ? <small>(added {[gain.coins ? `+${gain.coins} coins` : '', gain.hints ? `+${gain.hints} hint` : '', gain.spins ? `+${gain.spins} spin` : ''].filter(Boolean).join(', ')})</small> : null}
+            Wallet now: <b>{now.coins}</b> coins · <b>{now.spins}</b> spins
+            {caughtList.length ? <small>(added {[gain.coins ? `+${gain.coins} coins` : '', gain.spins ? `+${gain.spins} spin` : ''].filter(Boolean).join(', ')})</small> : null}
           </div>
         </div>
         <div className="parade-day" data-testid="parade-day">
@@ -287,7 +287,7 @@ export function ParadeOverlay({
         Skip ›
       </TapButton>
       <div className="parade-wallet-chip" data-testid="parade-wallet-chip" ref={chipRef}>
-        🪙 <b>{wallet.coins}</b> · 💡 <b>{wallet.hints}</b>{wallet.spins ? <> · 🎡 <b>{wallet.spins}</b></> : null}
+        🪙 <b>{wallet.coins}</b>{wallet.spins ? <> · 🎡 <b>{wallet.spins}</b></> : null}
       </div>
       <div className="parade-title">Buddy Parade!</div>
       <div className="parade-prompt" data-testid="parade-prompt">

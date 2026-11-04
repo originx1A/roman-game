@@ -1,8 +1,10 @@
 /**
- * Parade treasure (9.30-l). A few small drops ride along with the marching buddies: coins, a free
- * hint, or (rarely) a spin token. Tap the buddy carrying one to catch it. Skipping the parade, or
+ * Parade treasure (9.30-l). A few small drops ride along with the marching buddies: coins, or
+ * (rarely) a spin token. Tap the buddy carrying one to catch it. Skipping the parade, or
  * letting it march off, forfeits whatever wasn't caught. Sized small against the economy
- * (about 4% of a normal day's coins per parade); one hint and one spin at most per parade.
+ * (about 4% of a normal day's coins per parade); one bonus drop and one spin at most per parade.
+ * 9.33-a8: the old 'hint' drop (worth 15) now pays out as a plain 15-coin drop — hints are not
+ * spendable in this design. The 'hint' kind stays in the type for save/ledger compatibility.
  */
 export type TreasureKind = 'coins' | 'hint' | 'spin'
 export interface Treasure {
@@ -58,7 +60,14 @@ export function makeTreasure(slots: number, rand: () => number = Math.random, bu
     amt[j]--
     over--
   }
-  return kinds.map((k, i) => (k === 'coins' ? { kind: 'coins' as const, amount: amt[coinIdx.indexOf(i)] } : { kind: k, amount: 0 }))
+  // 9.33-a8: a rolled 'hint' slot surfaces as a flat 15-coin drop (its old budget value)
+  return kinds.map((k, i) =>
+    k === 'coins'
+      ? { kind: 'coins' as const, amount: amt[coinIdx.indexOf(i)] }
+      : k === 'hint'
+        ? { kind: 'coins' as const, amount: 15 }
+        : { kind: k, amount: 0 },
+  )
 }
 
 /** Coin-equivalent worth of a drop (for sizing): a hint is 15, a spin about 38 */

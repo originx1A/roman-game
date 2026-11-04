@@ -4970,6 +4970,14 @@ html[data-layout='upright'][data-device='tablet'] .play-toolbar .btn.tool {
   font-size: 1.02rem;
 }
 
+/* 9.33-a8: the brand banner + board stage travel as one column (.board-col).
+   Outside the wide layout the wrapper is display:contents — phones and upright
+   tablets see the banner and the stage as direct flex children of .play-fixed,
+   laid out exactly as before a8. */
+.board-col {
+  display: contents;
+}
+
 /* ---- Wide play: HUD column | board | controls + buddy spot ---- */
 html[data-layout='wide'] .fixed-shell > main.play-fixed {
   --side-col: clamp(200px, 17vw, 320px);
@@ -4996,11 +5004,30 @@ html[data-layout='wide'] .fixed-shell > main.play-fixed {
   padding: max(1.25rem, env(safe-area-inset-top, 0px)) max(1rem, env(safe-area-inset-right, 0px))
     max(1.25rem, env(safe-area-inset-bottom, 0px)) max(1rem, env(safe-area-inset-left, 0px));
 }
-html[data-layout='wide'] .play-fixed .board-stage {
+html[data-layout='wide'] .play-fixed .board-col {
   grid-area: board;
-  width: var(--board-size);
-  height: var(--board-size);
-  align-self: center;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+html[data-layout='wide'] .play-fixed .board-col .brand-banner {
+  flex: 0 0 auto;
+}
+html[data-layout='wide'] .play-fixed .board-stage {
+  /* 9.33-a8: the stage no longer takes a fixed square sized off the FULL window
+     height (var(--board-size)) — the wide grid's rows are sized by the side
+     columns, so that square overflowed its grid area on short desktop windows
+     and the scroll-locked shell clipped the board's top row. The stage now
+     flexes inside .board-col under the banner, and the board inside keeps
+     itself square via min(100cqw, 100cqh): the board is capped by the height
+     actually left in the composition. */
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  height: auto;
+  align-self: stretch;
 }
 html[data-layout='wide'] .play-fixed .board {
   width: min(100cqw, 100cqh) !important;
