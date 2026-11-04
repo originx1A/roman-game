@@ -47,6 +47,8 @@ export function HowToPlay({
   doneLabel?: string
 }) {
   const [step, setStep] = useState(() => Math.max(0, Math.min(STEPS.length - 1, startAt)))
+  // 9.33-a5: fit-to-screen — the demo and the full rules list are two panels of one screen, never a scroll
+  const [panel, setPanel] = useState<'watch' | 'rules'>('watch')
   const current = STEPS[step]
 
   useEffect(() => {
@@ -56,7 +58,7 @@ export function HowToPlay({
   }, [step])
 
   return (
-    <main className="panel scroll-pane how-panel">
+    <main className="panel how-panel fit-screen">
       <div className="how-top">
         {onBack && (
           <button type="button" className="hud-back how-back" onClick={onBack} aria-label="Back">
@@ -66,6 +68,16 @@ export function HowToPlay({
         <h2>How to play</h2>
       </div>
       <p className="sub how-sub">Watch the demo, then jump in.</p>
+      <div className="how-tabs" role="tablist" aria-label="How to play sections">
+        <button type="button" role="tab" aria-selected={panel === 'watch'} className={`how-tab ${panel === 'watch' ? 'on' : ''}`} onClick={() => setPanel('watch')}>
+          Watch
+        </button>
+        <button type="button" role="tab" aria-selected={panel === 'rules'} className={`how-tab ${panel === 'rules' ? 'on' : ''}`} onClick={() => setPanel('rules')}>
+          The rules
+        </button>
+      </div>
+      {panel === 'watch' ? (
+      <>
       <div className="how-stage" data-demo={current.demo}>
         <HowDemo key={current.demo} demo={current.demo} />
         <div className="how-caption">
@@ -88,6 +100,8 @@ export function HowToPlay({
           />
         ))}
       </div>
+      </>
+      ) : (
       <ol className="rules how-rules">
         <li>One buddy in every colored region.</li>
         <li>One buddy in every row and column.</li>
@@ -106,6 +120,7 @@ export function HowToPlay({
         <li>Every win earns 5 treats. Treats feed and grow Defenders. Swap safe treats for coins anytime.</li>
         <li>No Defenders yet? Claim your FREE Defender in the Stable — without Defenders your treats are in danger.</li>
       </ol>
+      )}
       <div className="cta-row">
         <button type="button" className="btn primary" onClick={onDone}>
           {doneLabel}

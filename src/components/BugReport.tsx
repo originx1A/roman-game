@@ -42,12 +42,12 @@ export function BugReport({ currentScreen, onBack }: Props) {
 
   if (sent) {
     return (
-      <main className="page bug-report">
+      <main className="page bug-report fit-screen">
         <h1>🐛 Report a Bug</h1>
         <div className="card">
           <p>Thanks! Your report's been sent. We'll look into it.</p>
           <button type="button" className="btn" onClick={onBack}>
-            ← Back to game
+            ← Back
           </button>
         </div>
       </main>
@@ -55,7 +55,7 @@ export function BugReport({ currentScreen, onBack }: Props) {
   }
 
   return (
-    <main className="page bug-report">
+    <main className="page bug-report fit-screen">
       <h1>🐛 Report a Bug</h1>
       <div className="card">
         <p>Found something broken? Tell us what happened and we'll fix it.</p>

@@ -42,7 +42,7 @@ export function RemixScreen({
   onEndless: (d: Difficulty) => void
 }) {
   return (
-    <main className="panel levels remix-screen scroll-pane">
+    <main className="panel levels remix-screen remix-fit">
       <h2>Remix boards</h2>
       <section className="remix-countdown" aria-live="polite">
         <strong data-remix-countdown>
