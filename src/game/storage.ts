@@ -206,6 +206,25 @@ export function recordClear(input: {
   return next
 }
 
+/**
+ * The ONE player name, derived from every name store in priority order (9.33-b):
+ * the server's unique leaderboard name wins, then the server name as typed, then the
+ * device/share name (settings.playerName, already cleaned), then the local profile's name.
+ * Blank / whitespace-only values count as missing.
+ */
+export function deriveDisplayName(sources: {
+  publicName?: string | null
+  cloudName?: string | null
+  playerName?: string | null
+  profileName?: string | null
+}): string {
+  for (const v of [sources.publicName, sources.cloudName, sources.playerName, sources.profileName]) {
+    const s = typeof v === 'string' ? v.trim() : ''
+    if (s) return s
+  }
+  return ''
+}
+
 export function signInWithEmail(email: string, displayName?: string): Profile {
   const normalized = email.trim().toLowerCase()
   const guest = loadGuestProgress()
@@ -216,8 +235,12 @@ export function signInWithEmail(email: string, displayName?: string): Profile {
     return existing
   }
 
+  // 9.33-b: a name the player already chose on this device (settings.playerName) beats
+  // guessing one from the email address.
+  const settings = loadSettings()
   const name =
     displayName?.trim() ||
+    cleanPlayerName(settings.playerName) ||
     normalized.split('@')[0].replace(/[._]/g, ' ') ||
     'Player'
 
@@ -229,6 +252,11 @@ export function signInWithEmail(email: string, displayName?: string): Profile {
     clears: guest.clears,
   }
   saveProfile(profile)
+  // 9.33-b: if the device/share name was never set, backfill it from the new profile so
+  // share text and the profile agree from the first sign-in.
+  if (!cleanPlayerName(settings.playerName)) {
+    saveSettings({ ...settings, playerName: cleanPlayerName(profile.displayName) })
+  }
   return profile
 }
 

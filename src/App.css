@@ -6691,3 +6691,40 @@ html[data-device='phone'] .defender-plate {
 html[data-device='phone'] .defender-plate svg { width: 30px; height: 30px; }
 html[data-device='phone'] .defender-plate-name { font-size: 0.58rem; }
 html[data-device='phone'] .board-stage.is-branded { padding: 6px; }
+/* ---- 9.33-b: sign-in status chip, HUD player name, session-aware Save & settings ---- */
+.account-chip {
+  border: 1px solid rgba(217, 164, 65, 0.55);
+  background: linear-gradient(180deg, #3a2c17, #241a0e);
+  color: var(--foam);
+  border-radius: 6px;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.account-chip:active { transform: scale(0.97); }
+
+.hud-player {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #ecd28f;
+  white-space: nowrap;
+}
+.hud-cloud { color: var(--foam); opacity: 0.85; font-family: inherit; font-size: 0.85em; }
+.hud-cloud.is-waiting { color: #ffd166; opacity: 1; }
+
+.profile-note {
+  margin: 0.35rem 0 0.8rem;
+  opacity: 0.85;
+  font-weight: 550;
+  max-width: 34rem;
+}
+.name-form { margin-bottom: 1.25rem; }
+.name-note { color: #ffd166; opacity: 1; }
+.account-card .cta-row, .profile-card .cta-row { margin-top: 0.4rem; }

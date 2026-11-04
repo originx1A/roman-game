@@ -49,6 +49,8 @@ export type WinScreenProps = {
   replay?: WinReplay
   /** 9.32-b: this win added an Unseen card piece */
   cardGain?: { from: number; to: number }
+  /** 9.33-b: the player's one derived name — seeds the cloud name sheet */
+  playerName?: string
 }
 
 export function WinScreen({
@@ -78,6 +80,7 @@ export function WinScreen({
   onBuddyHunt,
   replay,
   cardGain,
+  playerName,
 }: WinScreenProps) {
   const [entered, setEntered] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -240,7 +243,7 @@ export function WinScreen({
             {nextLabel ?? 'Next board'}
           </button>
           {cardGain ? <UnseenCardGain from={cardGain.from} to={cardGain.to} /> : null}
-          <CloudScoresButton compact />
+          <CloudScoresButton compact suggestedName={playerName} />
           <div className="win-screen-row">
             <button type="button" className="btn ghost win-cta" onClick={onReplay}>
               Play again

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { isProfane } from './profanity'
 import { NAME_MAX, loadConsent, saveConsent, onCloud, savePlayerName, sendMagicLink, signOut, verifyEmailCode, type CloudState } from './cloud'
+import { loadProfile, signOutKeepDevice } from '../game/storage'
 
 /**
  * "Save my scores" button + sheets: email magic link or the code from that email, then a one-time name prompt.
@@ -18,14 +19,16 @@ type Sheet = null | 'email' | 'sent' | 'name' | 'account' | 'parent'
 export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: string; compact?: boolean }) {
   const cloud = useCloud()
   const [sheet, setSheet] = useState<Sheet>(null)
-  const [email, setEmail] = useState('')
+  // 9.33-b: a returning player's email is already on this device (the local profile) — prefill it
+  const [email, setEmail] = useState(() => loadProfile()?.email ?? '')
   const [code, setCode] = useState('')
   const [name, setName] = useState(suggestedName ?? '')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [age13, setAge13] = useState(() => loadConsent()?.age13 ?? false)
   const [optIn, setOptIn] = useState(() => loadConsent()?.optIn ?? false)
-  const [terms, setTerms] = useState(false)
+  // 9.33-b: the Terms box is remembered too, so re-authentication is just the emailed code
+  const [terms, setTerms] = useState(() => loadConsent()?.terms ?? false)
   const consentChecks = (
     <div className="cloud-checks">
       <label className="cloud-check">
@@ -60,6 +63,11 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
     else setSheet((s) => (s === 'sent' ? 'account' : s))
   }, [cloud.status, cloud.name])
 
+  // 9.33-b: when the name sheet opens empty, seed it with the player's one derived name
+  useEffect(() => {
+    if (sheet === 'name' && suggestedName) setName((cur) => (cur.trim() ? cur : suggestedName))
+  }, [sheet, suggestedName])
+
   const label =
     cloud.status === 'signed-in' && cloud.name
       ? `☁ Scores saving as ${cloud.publicName ?? cloud.name}${cloud.pending ? ` (${cloud.pending} waiting)` : ''}`
@@ -70,13 +78,15 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
   /** Families sharing a phone: sign this player out (their unsent scores stay theirs) and sign in someone else */
   async function switchPlayer() {
     await signOut()
+    // 9.33-b: also clear the device profile, or the next player inherits this one's name everywhere
+    signOutKeepDevice()
     setEmail('')
     setCode('')
     setName('')
     setAge13(false)
     setOptIn(false)
     setTerms(false)
-    saveConsent({ age13: false, optIn: false })
+    saveConsent({ age13: false, optIn: false, terms: false })
     setErr('')
     setSheet('email')
   }
@@ -90,6 +100,8 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
         className={`btn ghost cloud-btn${compact ? ' is-compact' : ''}`}
         onClick={() => {
           setErr('')
+          // 9.33-b: opening the email sheet with an empty field? Prefill from the device profile
+          setEmail((cur) => cur || loadProfile()?.email || '')
           setSheet(cloud.status === 'signed-in' ? (cloud.name ? 'account' : 'name') : 'email')
         }}
       >
@@ -112,7 +124,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                   if (!age13) return setSheet('parent')
                   if (!terms) return setErr('Please agree to the Terms and Privacy.')
                   if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setErr('Type a full email address.')
-                  saveConsent({ age13, optIn })
+                  saveConsent({ age13, optIn, terms })
                   setBusy(true)
                   const r = await sendMagicLink(email)
                   setBusy(false)
@@ -189,7 +201,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                   if (!age13) return setSheet('parent')
                   if (!loadConsent()?.age13 && !terms) return setErr('Please agree to the Terms and Privacy.')
                   setBusy(true)
-                  const r = await savePlayerName(name, { age13, optIn })
+                  const r = await savePlayerName(name, { age13, optIn, terms })
                   setBusy(false)
                   if (r.ok) setSheet(r.publicName && r.publicName !== name.trim() ? 'account' : null)
                   else setErr(r.error ?? 'Something went wrong.')

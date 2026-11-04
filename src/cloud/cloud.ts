@@ -50,12 +50,14 @@ export const KIT_FORM_URL = 'https://app.kit.com/forms/10053148/subscriptions'
 export interface Consent {
   age13: boolean
   optIn: boolean
+  /** 9.33-b: Terms/Privacy agreement, remembered like the other two boxes (absent in older saves = false) */
+  terms?: boolean
 }
 /** Choices made on the sign-in sheet, kept until the account row is created after the magic link */
 export function loadConsent(): Consent | null {
   try {
     const c = JSON.parse(localStorage.getItem(CONSENT_KEY) || 'null')
-    return c && typeof c.age13 === 'boolean' ? { age13: c.age13, optIn: !!c.optIn } : null
+    return c && typeof c.age13 === 'boolean' ? { age13: c.age13, optIn: !!c.optIn, terms: c.terms === true } : null
   } catch {
     return null
   }
@@ -100,6 +102,9 @@ export async function subscribeNews(email: string): Promise<boolean> {
 }
 const MAX_QUEUE = 200
 let clientP: Promise<SupabaseClient | null> | null = null
+// Declared before `state`: state's initializer reads the queue, whose key depends on
+// the owner (null at startup = the anonymous queue). Same value it always started with.
+let queueOwner: string | null = null
 let state: CloudState = { status: 'off', pending: readQueue().length }
 const listeners = new Set<(s: CloudState) => void>()
 
@@ -122,7 +127,6 @@ export function onCloud(fn: (s: CloudState) => void): () => void {
  * "Switch player" signs out, so player A's unsent scores stay under A's id and only send when A
  * signs in again; they are never mixed into player B.
  */
-let queueOwner: string | null = null
 function queueKey(owner: string | null = queueOwner): string {
   return owner ? `${QUEUE_KEY}.${owner}` : QUEUE_KEY
 }

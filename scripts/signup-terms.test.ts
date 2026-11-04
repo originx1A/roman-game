@@ -12,7 +12,9 @@ test('sign-up sheet requires Terms and Privacy, and leaves the news box unchecke
   assert.match(sheet, /Please agree to the Terms and Privacy\./)
   assert.match(sheet, /I'm 13 or older/)
   assert.match(sheet, /useState\(\(\) => loadConsent\(\)\?\.optIn \?\? false\)/)
-  assert.match(sheet, /const \[terms, setTerms\] = useState\(false\)/)
+  // 9.33-b: the Terms box is remembered with the other consent choices; a first-time
+  // player has no saved consent, so the box still starts unchecked for them
+  assert.match(sheet, /const \[terms, setTerms\] = useState\(\(\) => loadConsent\(\)\?\.terms \?\? false\)/)
   assert.doesNotMatch(sheet, /oelsglmfkpzbueqysvdm/)
   assert.match(cloud, /https:\/\/oelsglmfkpzbueqysvdm\.supabase\.co/)
 })

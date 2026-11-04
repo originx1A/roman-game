@@ -17,8 +17,9 @@ import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './componen
 import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
 import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
-import { CloudScoresButton } from './cloud/CloudScores'
-import { initCloud, saveScore } from './cloud/cloud'
+import { CloudScoresButton, useCloud } from './cloud/CloudScores'
+import { initCloud, loadConsent, savePlayerName, saveScore, signOut as cloudSignOut } from './cloud/cloud'
+import { isProfane } from './cloud/profanity'
 import { UnseenCardTile } from './components/UnseenCard'
 import { noteCardWin } from './game/unseenCard'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
@@ -227,6 +228,8 @@ import {
   loadSettings,
   loadWallet,
   cleanPlayerName,
+  deriveDisplayName,
+  saveProfile,
   PLAYER_NAME_MAX,
   loadBuddyMeter,
   loadPets,
@@ -423,6 +426,9 @@ export default function App() {
   const [profile, setProfile] = useState<Profile | null>(() => loadProfile())
   const [progress, setProgress] = useState(() => getProgress())
   const [settings, setSettings] = useState<Settings>(() => loadSettings())
+  // 9.33-b: the real cloud session, subscribed — Save & settings, the topbar status chip
+  // and the board HUD all read this one source instead of guessing from the device profile
+  const cloud = useCloud()
   // Level select difficulty tab — persisted so it survives reloads
   const [levelTab, setLevelTab] = useState<Difficulty>(() => {
     const saved = (() => {
@@ -442,6 +448,20 @@ export default function App() {
   useEffect(() => {
     void initCloud()
   }, [])
+  // 9.33-b bridge: a cloud sign-in also creates the matching device profile — through
+  // signInWithEmail itself, which merges the guest progress — so the game's two sign-in
+  // systems stop contradicting each other. Never overwrites a same-email profile.
+  // The profile state also re-reads storage whenever the cloud status flips: the
+  // CloudScores "Switch player" path clears the device profile outside this component.
+  useEffect(() => {
+    setProfile(loadProfile())
+    if (cloud.status !== 'signed-in' || !cloud.email) return
+    const current = loadProfile()
+    if (current && current.email === cloud.email) return
+    const p = signInWithEmail(cloud.email, cloud.name ?? undefined)
+    setProfile(p)
+    setProgress(getProgress())
+  }, [cloud.status, cloud.email, cloud.name])
   useEffect(() => {
     setGaEnabled(!isStoreBuild() && settingsRef.current.analytics !== false)
     if (isStoreBuild() || settingsRef.current.analytics === false) return
@@ -565,7 +585,6 @@ export default function App() {
   const [incoming, setIncoming] = useState<Challenge | null>(null)
   const [, setChallenges] = useState(() => loadChallenges())
   const [emailInput, setEmailInput] = useState('')
-  const [nameInput, setNameInput] = useState('Roman')
   const [challengeEmail, setChallengeEmail] = useState('')
   const [challengeMsg, setChallengeMsg] = useState('Can you beat me on this board?')
   const [shareLink, setShareLink] = useState('')
@@ -681,6 +700,18 @@ export default function App() {
   const [winReplay, setWinReplay] = useState<WinReplay | null>(null)
   // Player name for share cards (asked once: first share or first finished board)
   const playerName = cleanPlayerName(settings.playerName)
+  // 9.33-b: ONE name everywhere — leaderboard name (server), then the server name as typed,
+  // then the device/share name, then the device profile's name. Every surface reads this.
+  const displayName = deriveDisplayName({
+    publicName: cloud.publicName,
+    cloudName: cloud.name,
+    playerName,
+    profileName: profile?.displayName,
+  })
+  /** Draft of the single Save & settings name field (null = follow the derived name) */
+  const [yourNameDraft, setYourNameDraft] = useState<string | null>(null)
+  /** Plain-words result line under the name field (e.g. a leaderboard suffix explanation) */
+  const [nameNote, setNameNote] = useState('')
   const [namePrompt, setNamePrompt] = useState<null | { then?: () => void }>(null)
   const [nameDraft, setNameDraft] = useState('')
   const comboRef = useRef<ComboState>(newCombo())
@@ -1081,9 +1112,19 @@ export default function App() {
     })
   }
 
+  /** 9.33-b: write a name to both device stores at once, so they can never disagree */
+  function saveDeviceName(name: string) {
+    saveSettingsPatch({ playerName: name, namePrompted: true })
+    if (profile) {
+      const next = { ...profile, displayName: name }
+      saveProfile(next)
+      setProfile(next)
+    }
+  }
+
   /** Ask for a name once; `then` runs after Save or Skip */
   function askNameOnce(then?: () => void): boolean {
-    if (settings.namePrompted || playerName) return false
+    if (settings.namePrompted || displayName) return false
     setNameDraft('')
     setNamePrompt({ then })
     return true
@@ -1091,7 +1132,8 @@ export default function App() {
 
   function closeNamePrompt(save: boolean) {
     const name = save ? cleanPlayerName(nameDraft) : ''
-    saveSettingsPatch({ namePrompted: true, ...(name ? { playerName: name } : {}) })
+    if (name) saveDeviceName(name)
+    else saveSettingsPatch({ namePrompted: true })
     const then = namePrompt?.then
     setNamePrompt(null)
     if (then) window.setTimeout(then, 0)
@@ -1950,7 +1992,7 @@ export default function App() {
         activeChallenge.scoreMs != null &&
         activeChallenge.scorePts != null
       ) {
-        const myName = profile?.displayName || 'You'
+        const myName = displayName || 'You'
         const result = createDuelResult({
           code: activeChallenge.code,
           puzzleId: puzzle.id,
@@ -2103,7 +2145,7 @@ export default function App() {
       }
       if (shellRef.current) burstConfetti(shellRef.current)
       // First finished board: ask once what to call the player on share cards
-      if (!settings.namePrompted && !playerName) {
+      if (!settings.namePrompted && !displayName) {
         window.setTimeout(() => {
           // Only over the Victory card itself — never on top of Buddy Hunt or the prize wheel
           if (!document.querySelector('.win-screen') || document.querySelector('.buddy-hunt, .prize-overlay')) return
@@ -2278,11 +2320,50 @@ export default function App() {
       showToast('Enter a valid email')
       return
     }
-    const p = signInWithEmail(emailInput, nameInput)
+    // 9.33-b: no second name field — the device name (already chosen, or set below in
+    // "Your name") seeds the profile; the email prefix is only the last resort
+    const p = signInWithEmail(emailInput)
     setProfile(p)
     setProgress(getProgress())
     showToast(`Signed in as ${p.displayName}`)
     unlockAudio()
+  }
+
+  /** 9.33-b: one sign-out that clears BOTH sign-in systems (device profile + cloud session).
+   * The cloud sign-out keeps this player's unsent scores queued under their own id. */
+  function signOutEverywhere() {
+    signOutKeepDevice()
+    setProfile(null)
+    setProgress(getProgress())
+    void cloudSignOut()
+  }
+
+  /** 9.33-b: the ONE name field — one save writes every name store that applies */
+  async function saveYourName(e: FormEvent) {
+    e.preventDefault()
+    const name = cleanPlayerName(yourNameDraft ?? displayName)
+    if (!name) return setNameNote('Type a name first.')
+    if (isProfane(name)) return setNameNote("Let's pick a different name. Keep it friendly!")
+    saveDeviceName(name)
+    setYourNameDraft(null)
+    if (cloud.status !== 'signed-in') {
+      setNameNote('Saved.')
+      return
+    }
+    const consent = loadConsent()
+    if (!consent?.age13) {
+      // No saved consent on this device: never invent it — rename on the device only, and say so
+      setNameNote('Saved on this device. Your online name stays as it was.')
+      return
+    }
+    const r = await savePlayerName(name, consent)
+    if (!r.ok) {
+      setNameNote(`Saved on this device. Online name not changed: ${r.error ?? 'try again later.'}`)
+    } else if (r.publicName && r.publicName !== name) {
+      setNameNote(`Your leaderboard name is ${r.publicName} — ${name} was taken.`)
+    } else {
+      setNameNote('Saved everywhere.')
+    }
   }
 
   function handleCritterCatch(reward: CritterReward) {
@@ -2444,7 +2525,7 @@ export default function App() {
       puzzleName: target.name,
       difficulty: DIFFICULTY_LABEL[target.difficulty],
       fromEmail: senderEmail(profile?.email),
-      fromName: playerName || profile?.displayName || 'A friend',
+      fromName: displayName || 'A friend',
       message: challengeMsg,
       toEmail: challengeEmail || undefined,
       scoreMs: clear?.bestMs,
@@ -2462,7 +2543,7 @@ export default function App() {
     setShareText(
       clear
         ? scoreShareText({
-            name: playerName,
+            name: displayName,
             score: lv?.bestScore ?? clear.bestScore,
             levelLabel: levelLabelFor(target),
             stars: lv?.stars,
@@ -2484,13 +2565,13 @@ export default function App() {
     if (!puzzle || lastScore == null) return
     // First share: ask for a name (then share with it)
     if (nameOverride === undefined && askNameOnce(() => shareWinAsChallenge(cleanPlayerName(loadSettings().playerName)))) return
-    const who = nameOverride ?? playerName
+    const who = nameOverride ?? displayName
     const c = createChallenge({
       puzzleId: puzzle.id,
       puzzleName: puzzle.name,
       difficulty: DIFFICULTY_LABEL[puzzle.difficulty],
       fromEmail: senderEmail(profile?.email),
-      fromName: who || profile?.displayName || 'A friend',
+      fromName: who || 'A friend',
       scoreMs: elapsedMs,
       scorePts: lastScore,
       buddy: runPetRef.current,
@@ -2564,7 +2645,7 @@ export default function App() {
         puzzleName: board.name,
         difficulty: DIFFICULTY_LABEL[board.difficulty],
         fromEmail: senderEmail(profile?.email),
-        fromName: playerName || profile?.displayName || 'A friend',
+        fromName: displayName || 'A friend',
         message: challengeMsg,
         toEmail: to || undefined,
       })
@@ -2577,6 +2658,29 @@ export default function App() {
   const done = new Set(progress.clears.map((c) => c.puzzleId))
 
   const hideChrome = screen === 'play' || screen === 'how'
+
+  // 9.33-b: sign-in status at a glance (topbar chip + board HUD title).
+  // 'off'/'error' means "still checking" — never flash "Not signed in" at a signed-in player.
+  const accountChipText =
+    cloud.status === 'off' || cloud.status === 'error'
+      ? '☁ Checking…'
+      : cloud.pending > 0
+        ? `☁ ${cloud.pending} waiting`
+        : cloud.status === 'signed-in'
+          ? cloud.name
+            ? `☁ Saving as ${cloud.publicName ?? cloud.name}`
+            : '☁ Signed in'
+          : profile
+            ? 'On this device only'
+            : 'Not signed in'
+  const hudStatusText =
+    cloud.status === 'signed-in'
+      ? cloud.pending > 0
+        ? `${cloud.pending} score${cloud.pending === 1 ? '' : 's'} waiting to send`
+        : `Scores saving as ${cloud.publicName ?? cloud.name ?? 'you'}`
+      : profile
+        ? 'Scores stay on this device only'
+        : 'Not signed in — scores stay on this device'
 
   // Daily Challenge: same board for everyone on a Toronto date
   const todayKey = torontoDateKey()
@@ -2841,9 +2945,12 @@ export default function App() {
               Share
             </button>
             <button type="button" className={screen === 'profile' ? 'on' : ''} onClick={() => setScreen('profile')}>
-              {profile ? profile.displayName.split(' ')[0] : 'Save'}
+              {displayName ? displayName.split(' ')[0] : 'Save'}
             </button>
           </nav>
+          <button type="button" className="account-chip" onClick={() => setScreen('profile')} title="Account status — open Save & settings">
+            {accountChipText}
+          </button>
           <div className="hud-pills">
             <div className="score-pill coin" title="Coins">
               {wallet.coins}
@@ -2938,7 +3045,7 @@ export default function App() {
               <button type="button" className="btn ghost" onClick={() => setScreen('bug')}>
                 🐛 Report a bug
               </button>
-              <CloudScoresButton suggestedName={playerName} />
+              <CloudScoresButton suggestedName={displayName} />
               <UnseenCardTile records={records} />
             </div>
           </section>
@@ -3097,6 +3204,16 @@ export default function App() {
                       : `${DIFFICULTY_LABEL[puzzle.difficulty]} · ${THEMES[puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)].label}`}
               </span>
             </div>
+            {displayName ? (
+              <span className="hud-player" title={hudStatusText} aria-label={`Playing as ${displayName}. ${hudStatusText}`}>
+                {displayName.split(' ')[0]}
+                {cloud.status === 'signed-in' ? (
+                  <span className={`hud-cloud${cloud.pending ? ' is-waiting' : ''}`} aria-hidden="true">
+                    {cloud.pending ? `☁ ${cloud.pending}` : '☁'}
+                  </span>
+                ) : null}
+              </span>
+            ) : null}
             <div className={`hud-stats ${pace ? 'has-pace' : ''}`}>
               <span className="lives" aria-label={`${lives} lives`}>
                 {Array.from({ length: runMaxLives }, (_, i) => (
@@ -3335,6 +3452,7 @@ export default function App() {
               perfect={hintsUsed === 0}
               replay={winReplay ?? undefined}
               cardGain={cardGain ?? undefined}
+              playerName={displayName || undefined}
               nextLabel={endlessRef.current ? 'Next Endless board' : parseRemixId(puzzle.id) ? 'Next Remix board' : 'Next board'}
               paradeHint={settings.parade === false ? undefined : paradeHint(paradeRef.current).text}
               modeNote={endlessRef.current ? `Endless mode · ${endless.cleared} cleared. Levels list and Home are below.` : parseRemixId(puzzle.id) ? boardKindNote(puzzle.id) : undefined}
@@ -3556,49 +3674,91 @@ export default function App() {
       {screen === 'profile' && (
         <main className="panel profile scroll-pane">
           <h2>Save & settings</h2>
-          {profile ? (
+          {/* 9.33-b: this screen reads the REAL cloud session first, so it can never show a
+              sign-in form to a signed-in player (or a fake "signed in" with no session) */}
+          {cloud.status === 'signed-in' ? (
+            <div className="profile-card account-card">
+              <p className="profile-name">{displayName || 'Signed in'}</p>
+              <p className="profile-email">☁ {cloud.email}</p>
+              <p className="profile-note">
+                {cloud.name ? (
+                  <>
+                    Leaderboard name: <b>{cloud.publicName ?? cloud.name}</b>.
+                    {cloud.pending
+                      ? ` ${cloud.pending} score${cloud.pending === 1 ? '' : 's'} waiting to send — ${cloud.pending === 1 ? 'it goes' : 'they go'} when you're back online.`
+                      : ' Every finished game is saved to your account.'}
+                  </>
+                ) : (
+                  'Your scores start saving as soon as you pick your leaderboard name.'
+                )}
+              </p>
+              <div className="cta-row">
+                <CloudScoresButton suggestedName={displayName} />
+                <button type="button" className="btn ghost" onClick={signOutEverywhere}>
+                  Sign out
+                </button>
+              </div>
+            </div>
+          ) : profile ? (
             <div className="profile-card">
-              <p className="profile-name">{profile.displayName}</p>
+              <p className="profile-name">{displayName}</p>
               <p className="profile-email">{profile.email}</p>
-              <button
-                type="button"
-                className="btn ghost"
-                onClick={() => {
-                  signOutKeepDevice()
-                  setProfile(null)
-                  setProgress(getProgress())
-                }}
-              >
-                Sign out
-              </button>
+              <p className="profile-note">Saved on this device only. Save your scores online to keep them safe on any device.</p>
+              <div className="cta-row">
+                <CloudScoresButton suggestedName={displayName} />
+                <button type="button" className="btn ghost" onClick={signOutEverywhere}>
+                  Sign out
+                </button>
+              </div>
             </div>
           ) : (
-            <form className="auth-form" onSubmit={handleSignIn}>
-              <label>
-                Email
-                <input type="email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} required />
-              </label>
-              <label>
-                Display name
-                <input type="text" value={nameInput} onChange={(e) => setNameInput(e.target.value)} />
-              </label>
-              <button type="submit" className="btn primary">Save with email</button>
-            </form>
+            <>
+              <form className="auth-form" onSubmit={handleSignIn}>
+                <label>
+                  Email
+                  <input type="email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} required />
+                </label>
+                <button type="submit" className="btn primary">Save with email</button>
+              </form>
+              <p className="profile-note">…or save your scores online, so they follow you to any device:</p>
+              <div className="cta-row">
+                <CloudScoresButton suggestedName={displayName} />
+              </div>
+            </>
           )}
-          <section className="settings">
-            <h3>Settings</h3>
-            <label className="name-setting">
-              Your name on shared scores
+          {/* 9.33-b: ONE name field. One save writes the device name, the profile name and
+              (when signed in online) the leaderboard name — they can never disagree again */}
+          <form className="auth-form name-form" onSubmit={saveYourName}>
+            <label>
+              Your name
               <input
                 type="text"
-                value={settings.playerName ?? ''}
+                value={yourNameDraft ?? displayName}
                 maxLength={PLAYER_NAME_MAX}
-                placeholder="Blank = “I scored…”"
-                aria-label="Your name on shared scores"
-                onChange={(e) => saveSettingsPatch({ playerName: e.target.value.slice(0, PLAYER_NAME_MAX), namePrompted: true })}
-                onBlur={(e) => saveSettingsPatch({ playerName: cleanPlayerName(e.target.value) })}
+                placeholder="Your name"
+                aria-label="Your name"
+                autoComplete="nickname"
+                onChange={(e) => {
+                  setYourNameDraft(e.target.value.slice(0, PLAYER_NAME_MAX))
+                  setNameNote('')
+                }}
               />
             </label>
+            <p className="profile-note">
+              One name everywhere: on the game board, on the scores you share
+              {cloud.status === 'signed-in' ? ' and on the leaderboard' : ''}.
+            </p>
+            {nameNote && (
+              <p className="profile-note name-note" role="status">
+                {nameNote}
+              </p>
+            )}
+            <button type="submit" className="btn primary">
+              Save name
+            </button>
+          </form>
+          <section className="settings">
+            <h3>Settings</h3>
             <label className="toggle">
               <input
                 type="checkbox"
