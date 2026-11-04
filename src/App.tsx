@@ -1,7 +1,7 @@
 import { useTapCount } from './components/useTapCount'
 import { loadAnon, openEvents, sendPing, PRIVACY_NOTE, ANON_KEY, gaEvent, setGaEnabled } from './game/analytics'
 import { OWNER_PATH, OWNER_TAP_WINDOW_MS, OWNER_TAPS } from './game/ownerDoor'
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Board } from './components/Board'
 import { HowToPlay, HOW_NEW_START } from './components/HowToPlay'
@@ -81,7 +81,8 @@ import {
   MAX_FIELD_TREATS,
   swapTreatsToCoins,
   stealFieldTreats,} from './game/pets'
-import { buyCalls } from './game/defenders'
+import { aquilaFeatherCount, buyCalls, callsFor, DEFENDER_THEME, NOX_LIGHT_COUNT, rollBrand, spendCall } from './game/defenders'
+import { DefenderRail } from './components/DefenderRail'
 import {
   BUDDY_HUNT_PERFECT_WINS,
   applyHuntPrize,
@@ -120,11 +121,13 @@ import { amendMove, createHistory, pushMove, redoMove, restoreHistory, stepsToSa
 import {
   applyHint,
   clearBuddy,
+  colOf,
   emptyBoard,
   findHint,
   findConflicts,
   findMisplacedBuddy,
   isSolved,
+  rowOf,
 } from './game/logic'
 import {
   TRIAL_HEARTS,
@@ -500,6 +503,29 @@ export default function App() {
   const runPetRef = useRef<PetId | null>(null)
   /** Buddy freebies left on this board (free hints / free rescues) */
   const [petFree, setPetFree] = useState({ hints: 0, rescues: 0 })
+  // ---- 9.33-a: Defender Boards ----
+  /** This board's Defender brand (null = unbranded), rolled at a fresh board start */
+  const [brand, setBrand] = useState<PetId | null>(null)
+  const brandRef = useRef<PetId | null>(null)
+  /** Previous branded board's Defender: the same one never brands twice in a row */
+  const lastBrandRef = useRef<PetId | null>(null)
+  /** True once this board's Defender has fired (or Leo's shield is armed): max one activation per board */
+  const brandFiredRef = useRef(false)
+  /** Incremented on every board start so a late effect timer can't land on the wrong board */
+  const brandRunRef = useRef(0)
+  /** Nox's lit squares; they stay lit until the buddy among them is placed */
+  const [noxLit, setNoxLit] = useState<number[]>([])
+  const noxTargetRef = useRef<number | null>(null)
+  /** Aquila's feathered squares (fade after ~5 s) */
+  const [featherCells, setFeatherCells] = useState<number[]>([])
+  /** Invictus: the roulette's flashing square, then the row he charges */
+  const [rouletteIdx, setRouletteIdx] = useState<number | null>(null)
+  const [chargeRow, setChargeRow] = useState<number | null>(null)
+  /** Lupa's paw-print trail */
+  const [pawCells, setPawCells] = useState<number[]>([])
+  /** Leo's armed shield: roars off the first mistake on his board */
+  const [leoShield, setLeoShield] = useState(false)
+  const leoShieldRef = useRef(false)
   /** 9.30-m: hints and Rescues used on this board (each extra one costs a little more) */
   const [rescuesUsed, setRescuesUsed] = useState(0)
   /** 9.30-m: today's earn counters (wins paid, sparks, spins, hunts). Resets at midnight Toronto. */
@@ -1392,6 +1418,155 @@ export default function App() {
   /** Board builds every move on this, so it can never work from a board Undo already replaced. */
   const getLiveCells = useCallback(() => historyRef.current.present, [])
 
+  // ---- 9.33-a: Defender Boards ----
+  /** Clear every Defender effect visual/ref (new board, resume, reset). */
+  function clearDefenderFx() {
+    setNoxLit([])
+    noxTargetRef.current = null
+    setFeatherCells([])
+    setRouletteIdx(null)
+    setChargeRow(null)
+    setPawCells([])
+    leoShieldRef.current = false
+    setLeoShield(false)
+  }
+
+  /**
+   * Roll this fresh board's brand. When the branded Defender is in the Stable with calls
+   * in the bank, spend exactly one call and fire its one effect. Roman's Trial stays pure
+   * (no Defenders); a board whose Defender is missing or out of calls just shows the
+   * banner with the Defender asleep — nothing fires, nothing is spent.
+   */
+  function setupDefenderBoard(p: Puzzle, trialRun: boolean) {
+    clearDefenderFx()
+    brandFiredRef.current = false
+    const run = ++brandRunRef.current
+    const b = trialRun ? null : rollBrand(Math.random, lastBrandRef.current)
+    brandRef.current = b
+    setBrand(b)
+    if (!b) return
+    lastBrandRef.current = b
+    const now = Date.now()
+    const s = loadPets()
+    if (!hasPet(s, b, now) || callsFor(s, b) <= 0) return
+    const spent = spendCall(s, b)
+    if (!spent) return
+    persistPets(spent)
+    brandFiredRef.current = true
+    window.setTimeout(() => {
+      if (brandRunRef.current !== run || boardOverRef.current) return
+      fireDefender(b, p)
+    }, 1100)
+  }
+
+  /** Solution squares whose buddy is not placed yet */
+  function unrevealedBuddies(p: Puzzle): number[] {
+    const board = historyRef.current.present
+    return p.solution.filter((i) => board[i] !== 'stone')
+  }
+
+  /** Place a buddy on a solution square, the way a hint does (an assist move). */
+  function defenderPlaceBuddy(index: number) {
+    const board = historyRef.current.present
+    if (board[index] === 'stone') return
+    const next = [...board]
+    next[index] = 'stone'
+    flawedRef.current = true
+    onBoardChange(next, { kind: 'stone', conflict: false, index, assist: true })
+  }
+
+  function shuffled<T>(arr: T[]): T[] {
+    const a = [...arr]
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[a[i], a[j]] = [a[j], a[i]]
+    }
+    return a
+  }
+
+  /** The one thing each Defender does on its board. Fires once, after the banner moment. */
+  function fireDefender(b: PetId, p: Puzzle) {
+    const size = p.size
+    const board = historyRef.current.present
+    if (b === 'leo') {
+      leoShieldRef.current = true
+      setLeoShield(true)
+      showToast('🦁 Leo is watching. Your first mistake is his.')
+      return
+    }
+    if (b === 'lupa') {
+      const targets = unrevealedBuddies(p)
+      if (!targets.length) return
+      const target = targets[Math.floor(Math.random() * targets.length)]
+      // Paw prints walk the target's row from the left edge up to the buddy
+      const prints: number[] = []
+      for (let c = 0; c <= colOf(target, size); c++) prints.push(rowOf(target, size) * size + c)
+      setPawCells(prints.filter((i) => board[i] === 'empty'))
+      window.setTimeout(() => {
+        defenderPlaceBuddy(target)
+        window.setTimeout(() => setPawCells([]), 1200)
+      }, 750)
+      return
+    }
+    if (b === 'nox') {
+      const targets = unrevealedBuddies(p)
+      if (!targets.length) return
+      const target = targets[Math.floor(Math.random() * targets.length)]
+      const pool: number[] = []
+      for (let i = 0; i < board.length; i++) if (i !== target && board[i] === 'empty') pool.push(i)
+      noxTargetRef.current = target
+      setNoxLit([target, ...shuffled(pool).slice(0, NOX_LIGHT_COUNT - 1)])
+      return
+    }
+    if (b === 'aquila') {
+      const empties: number[] = []
+      for (let i = 0; i < board.length; i++) if (board[i] === 'empty' && !p.solution.includes(i)) empties.push(i)
+      setFeatherCells(shuffled(empties).slice(0, aquilaFeatherCount(size, empties.length)))
+      window.setTimeout(() => setFeatherCells([]), 5600)
+      return
+    }
+    if (b === 'invictus') {
+      const targets = unrevealedBuddies(p)
+      if (!targets.length) return
+      const target = targets[Math.floor(Math.random() * targets.length)]
+      let delay = 55
+      let steps = 0
+      const tick = () => {
+        if (boardOverRef.current) {
+          setRouletteIdx(null)
+          return
+        }
+        steps += 1
+        if (steps >= 16) {
+          // The roulette lands: a beat on the square, then the charge across its row
+          setRouletteIdx(target)
+          window.setTimeout(() => {
+            setRouletteIdx(null)
+            setChargeRow(rowOf(target, size))
+            window.setTimeout(() => {
+              defenderPlaceBuddy(target)
+              window.setTimeout(() => setChargeRow(null), 900)
+            }, 450)
+          }, 350)
+          return
+        }
+        setRouletteIdx(Math.floor(Math.random() * board.length))
+        delay *= 1.22
+        window.setTimeout(tick, delay)
+      }
+      tick()
+    }
+  }
+
+  // Nox's squares stay lit until the buddy among them is placed
+  useEffect(() => {
+    const t = noxTargetRef.current
+    if (t != null && cells[t] === 'stone') {
+      noxTargetRef.current = null
+      setNoxLit([])
+    }
+  }, [cells])
+
   /** Save the board with its undo/redo steps, so Resume shows what is on screen now. */
   function saveBoardDraft(hist: ReturnType<typeof createHistory>, extra?: { elapsedMs: number; hintsUsed: number }) {
     if (!puzzle) return
@@ -1598,6 +1773,11 @@ export default function App() {
         setElapsedMs(d.elapsedMs)
         setHintsUsed(d.hintsUsed)
         flawedRef.current = d.flawed === true || d.hintsUsed > 0
+        // 9.33-a: a resumed board carries no Defender brand
+        brandRef.current = null
+        setBrand(null)
+        clearDefenderFx()
+        brandRunRef.current += 1
         setRunning(true)
         setScreen('play')
         return
@@ -1620,6 +1800,8 @@ export default function App() {
       mode: runMode,
       daily: dailyKey ?? undefined,
     })
+    // 9.33-a: roll the Defender brand for this fresh board (may fire one Defender effect)
+    setupDefenderBoard({ ...p, theme: themeId }, trialRun)
   }
 
   function onBoardChange(
@@ -1687,8 +1869,14 @@ export default function App() {
       let nextLives = lives
       let w = { ...wallet, totalMistakes: wallet.totalMistakes + 1 }
       // One line per move: the losing move gets the lose line only, not a wrong-move line too
-      if (w.shields > 0 || lives > 1) pushBanter('place-bad', kind)
-      if (w.shields > 0) {
+      if (leoShieldRef.current || w.shields > 0 || lives > 1) pushBanter('place-bad', kind)
+      if (leoShieldRef.current) {
+        // 9.33-a: on Leo's board, Leo roars off the first mistake — no heart lost, once
+        leoShieldRef.current = false
+        setLeoShield(false)
+        showToast('🦁 Leo roared off your mistake!')
+        sfxCoin()
+      } else if (w.shields > 0) {
         w = { ...w, shields: w.shields - 1 }
         showToast('Shield blocked a mistake!')
         sfxCoin()
@@ -2147,6 +2335,9 @@ export default function App() {
 
   function resetBoard() {
     if (!puzzle) return
+    // 9.33-a: a restart keeps the brand banner but the Defender's one effect is spent
+    clearDefenderFx()
+    brandRunRef.current += 1
     sfxWhoosh()
     comboRef.current = newCombo()
     undosRef.current = 0
@@ -3250,7 +3441,42 @@ export default function App() {
             )
           })()}
 
-          <div className="board-stage">
+          {brand &&
+            (() => {
+              const def = petById(brand)!
+              const theme = DEFENDER_THEME[brand]
+              const owned = hasPet(pets, brand, petNow)
+              const calls = callsFor(pets, brand)
+              const awake = owned && calls > 0
+              return (
+                <div
+                  className={`brand-banner ${awake ? '' : 'is-asleep'}`}
+                  data-brand={brand}
+                  role="note"
+                  style={{ '--brand-accent': theme.accent, '--brand-deep': theme.deep } as CSSProperties}
+                >
+                  <PetArt id={brand} size={36} locked={!owned} />
+                  <strong>{def.name.toUpperCase()} BOARD</strong>
+                  {awake ? (
+                    <span>
+                      {calls} call{calls === 1 ? '' : 's'} left · {theme.job}
+                      {brand === 'leo' && leoShield ? ' Shield ready.' : ''}
+                    </span>
+                  ) : (
+                    <span>
+                      {owned
+                        ? `${def.name} has no calls left — stock up in The Stable.`
+                        : `Your ${def.species.toLowerCase()} sleeps. ${def.name} is waiting in The Stable.`}
+                    </span>
+                  )}
+                </div>
+              )
+            })()}
+
+          <div
+            className={`board-stage ${brand ? `is-branded brand-${brand}` : ''}`}
+            style={brand ? ({ '--brand-deep': DEFENDER_THEME[brand].deep } as CSSProperties) : undefined}
+          >
             <Board
               puzzle={puzzle}
               cells={cells}
@@ -3258,6 +3484,11 @@ export default function App() {
               getCells={getLiveCells}
               version={boardVersion}
               hintIndex={hintIndex}
+              litIndices={noxLit}
+              featherIndices={featherCells}
+              rouletteIndex={rouletteIdx}
+              chargeRow={chargeRow}
+              pawIndices={pawCells}
               giggleIndex={giggleIndex}
               celebrate={celebrate}
               defeated={defeated}
@@ -3326,6 +3557,8 @@ export default function App() {
               </div>
             )
           })()}
+          {/* 9.33-a: the Defender column — calls left at a glance, tap to open The Stable */}
+          <DefenderRail pets={pets} now={petNow} brand={brand} leoShield={leoShield} onOpenStable={() => setScreen('stable')} />
           </div>
           <p className="build-tag" data-build={BUILD_TAG}>{BUILD_TAG}</p>
 

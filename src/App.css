@@ -6413,3 +6413,24 @@ html[data-motion='reduce'] .td-invader {
 .stable-calls span { display: grid; gap: 1px; font-size: 0.85rem; text-align: left; }
 .stable-calls small { opacity: 0.75; font-size: 0.7rem; }
 .stable-calls .calls-btn { white-space: nowrap; }
+
+/* 9.33-a: Defender Boards — banner, branded stage, rail, cell effects */
+.brand-banner { display: flex; align-items: center; gap: 10px; margin: 0 auto 8px; max-width: 560px; padding: 7px 14px 7px 8px; border: 1px solid var(--brand-accent, #d9a441); border-radius: 6px; background: linear-gradient(180deg, var(--brand-deep, #2c2416), rgba(10, 8, 5, 0.88)); color: #f3e9d2; font-size: 0.85rem; box-shadow: 0 2px 14px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
+.brand-banner strong { letter-spacing: 0.08em; color: var(--brand-accent, #d9a441); white-space: nowrap; }
+.brand-banner span { opacity: 0.92; text-align: left; }
+.brand-banner.is-asleep { filter: saturate(0.35); opacity: 0.85; }
+.board-stage.is-branded { border-radius: 14px; padding: 10px; background: radial-gradient(120% 120% at 50% 0%, var(--brand-deep, transparent), rgba(8, 6, 4, 0.55) 78%); box-shadow: inset 0 0 42px rgba(0, 0, 0, 0.5); }
+.defender-rail { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+.defender-plate { position: relative; display: grid; justify-items: center; gap: 1px; min-width: 62px; padding: 6px 6px 5px; border: 1px solid rgba(217, 164, 65, 0.4); border-radius: 6px; background: linear-gradient(180deg, rgba(46, 38, 24, 0.95), rgba(20, 16, 10, 0.95)); color: #f3e9d2; cursor: pointer; }
+.defender-plate-name { font-size: 0.66rem; letter-spacing: 0.05em; text-transform: uppercase; }
+.defender-plate-count { position: absolute; top: -7px; right: -5px; min-width: 20px; padding: 1px 5px; border-radius: 999px; background: #d9a441; color: #1d1607; font-size: 0.7rem; font-weight: 700; text-align: center; }
+.defender-plate.is-asleep { filter: grayscale(0.85); opacity: 0.55; }
+.defender-plate.is-asleep .defender-plate-count { background: #6b6255; color: #e8e2d4; }
+.defender-plate.is-brand { border-color: var(--brand-accent, #d9a441); box-shadow: 0 0 0 1px var(--brand-accent, #d9a441), 0 0 16px rgba(217, 164, 65, 0.35); }
+.defender-plate-shield { position: absolute; left: -5px; top: -8px; font-size: 0.8rem; }
+.cell.nox-lit { box-shadow: inset 0 0 0 2px #9d8cff, inset 0 0 18px rgba(157, 140, 255, 0.55); }
+.cell.roulette-hot { box-shadow: inset 0 0 0 3px #ffb03a, inset 0 0 22px rgba(255, 176, 58, 0.8); z-index: 2; }
+.cell.charge-cell { box-shadow: inset 0 0 0 2px rgba(226, 112, 58, 0.85), inset 0 0 16px rgba(226, 112, 58, 0.45); }
+.feather-mark { position: absolute; inset: auto 2px 2px auto; font-size: 0.85em; pointer-events: none; animation: featherFade 5.6s ease forwards; }
+.paw-mark { position: absolute; inset: auto auto 2px 2px; font-size: 0.8em; pointer-events: none; opacity: 0.85; }
+@keyframes featherFade { 0% { opacity: 0; transform: translateY(-4px) rotate(-14deg); } 12% { opacity: 1; transform: none; } 78% { opacity: 1; } 100% { opacity: 0; } }
