@@ -2988,7 +2988,7 @@ export default function App() {
       )}
 
       {screen === 'levels' && (
-        <main className="panel levels scroll-pane">
+        <main className="panel levels levels-fit">
           <h2>Levels</h2>
           <p className="sub">Beat your best time and score on any board. ★ finish · ★★ beat the target time · ★★★ target time, a high score and a clean board. 3 stars unlocks Roman's Trial.</p>
           {dailyCard}

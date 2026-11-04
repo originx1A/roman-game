@@ -6784,3 +6784,58 @@ html[data-device='phone'] .play-fixed .board {
   touch-action: manipulation;
 }
 .lv-trial-chip:hover, .lv-trial-chip:focus-visible { border-color: #ffd166; color: #ffe9a8; }
+
+/* =====================================================================
+   9.33-a4 ITEM 2 — Levels is LOCKED TO THE SCREEN (Tony QA, Nov 4):
+   no scrolling to pick a difficulty or a level. The screen is a
+   dvh-budgeted flex column; the level grid takes whatever height is
+   left as equal 1fr rows (5 boards per difficulty), tile size scales
+   with the viewport. Sized for 390x844 phones and 1080p PCs; short
+   viewports shed chrome (legend line, daily status) before any tile
+   gets squeezed.
+   ===================================================================== */
+.levels-fit {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  gap: 0.45rem;
+  padding: 0.55rem 0.6rem 0.65rem;
+}
+.levels-fit h2 { font-size: 1.55rem; margin: 0; }
+.levels-fit .sub { font-size: 0.78rem; line-height: 1.35; margin: 0; max-width: none; }
+.levels-fit .daily-card { margin: 0; padding: 0.5rem 0.65rem; border-radius: 12px; }
+.levels-fit .daily-text { gap: 0.05rem; }
+.levels-fit .daily-text strong { font-size: 0.88rem; }
+.levels-fit .daily-text span { font-size: 0.74rem; }
+.levels-fit .daily-text .daily-status { font-size: 0.68rem; }
+.levels-fit .level-tabs { position: static; margin: 0; padding: 0; background: none; }
+.levels-fit .level-tab { padding: 0.38rem 0.2rem; border-radius: 8px; }
+.levels-fit .diff-block { flex: 1; min-height: 0; display: flex; flex-direction: column; margin: 0; }
+.levels-fit .diff-head { margin: 0 0 0.35rem; }
+.levels-fit .diff-block h3 { margin: 0; }
+.levels-fit .level-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: repeat(5, 1fr);
+  gap: 0.45rem;
+}
+.levels-fit .level-card { padding: 0.45rem 0.7rem; align-content: center; border-radius: 10px; }
+.levels-fit .lv-name { font-size: 0.98rem; margin-bottom: 0.1rem; }
+.levels-fit .lv-meta { font-size: 0.74rem; }
+@media (min-width: 700px) {
+  .levels-fit .level-grid { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(3, 1fr); }
+}
+@media (min-width: 1150px) {
+  .levels-fit .level-grid { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr); }
+}
+/* Short viewports: shed chrome first — legend and daily status go before tiles shrink */
+@media (max-height: 720px) {
+  .levels-fit .sub { display: none; }
+  .levels-fit .daily-text .daily-status { display: none; }
+  .levels-fit h2 { font-size: 1.3rem; }
+  .levels-fit .daily-card { padding: 0.4rem 0.6rem; }
+}
