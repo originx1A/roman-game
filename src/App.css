@@ -7981,3 +7981,15 @@ html[data-motion='reduce'] .press-burst { display: none; }
 /* a6q emblem halo: the gem's gilt corner work competes with the mark —
    a soft dark halo keeps every region emblem readable on the facets */
 .tile-mark { filter: drop-shadow(0 0 2.5px rgba(12, 6, 0, 0.55)) drop-shadow(0 1px 1px rgba(12, 6, 0, 0.4)); }
+
+/* ---- a7 fix round 10: Stable chrome compact at phone heights (<=900px) —
+   a partially-owned bundle makes the tab's text longer; the tab + redeem
+   feedback must fit at 844 too, not only at 660 ---- */
+@media (max-height: 900px) {
+  .stable-bundles > h3 { display: none; }
+  .stable-note { display: none; }
+  .stable-bundle { padding: 0.4rem 0.55rem; }
+  .stable .stable-now { padding-top: 0.3rem; padding-bottom: 0.3rem; }
+  .stable-tabs { min-height: 36px; }
+  .stable-tab { min-height: 36px; }
+}
