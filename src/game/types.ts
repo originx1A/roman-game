@@ -88,6 +88,7 @@ export type Screen =
   | 'home'
   | 'levels'
   | 'play'
+  | 'about'
   | 'profile'
   | 'challenge'
   | 'how'

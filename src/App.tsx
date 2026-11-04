@@ -2996,6 +2996,14 @@ export default function App() {
               <span>win coins</span>
             </div>
           </section>
+          <div className="home-foot">
+            <button type="button" className="home-foot-link" onClick={() => setScreen('about')}>
+              About
+            </button>
+            <a className="home-foot-link" href="./privacy.html">
+              Privacy
+            </a>
+          </div>
         </main>
       )}
 
@@ -3748,8 +3756,13 @@ export default function App() {
               </label>
             </div>
           </section>
+        </main>
+      )}
+
+      {screen === 'about' && (
+        <main className="panel about scroll-pane">
+          <h2>About</h2>
           <section className="about-section" aria-label="About Roman's Game">
-            <h3>About</h3>
             <p className="about-line">
               Roman&rsquo;s Game <span className="build-tag">{BUILD_TAG}</span>
             </p>
@@ -3781,6 +3794,9 @@ export default function App() {
               </a>
             </p>
           </section>
+          <button type="button" className="btn ghost" onClick={() => setScreen('home')}>
+            ← Home
+          </button>
         </main>
       )}
 
@@ -3971,8 +3987,8 @@ export default function App() {
       />
 
       {/* Footer bar removed 2026-10-22 (Tony): it was eating screen space on every menu screen.
-          Its contents live in Save & settings now — Sound effects toggle in Settings, and the
-          version, thumbs, Privacy and JRNY credit in the About section at the bottom. */}
+          Sound effects toggle lives in Settings; version, thumbs, Privacy and JRNY credit live
+          on the About screen (Home → About). 9.33-a4: About moved out of Save & settings. */}
       {/* Keep clear of Netlify “Powered by” badge */}
       <div className="netlify-safe" aria-hidden />
       {/* 10.06: Unseen heckler pop-up — visual only, never blocks input */}

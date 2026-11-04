@@ -6729,3 +6729,33 @@ html[data-device='phone'] .play-fixed .board {
   max-height: none !important;
   height: auto;
 }
+
+/* =====================================================================
+   9.33-a4 ITEM 1 — About is its own screen (Tony QA, Nov 4): it no
+   longer lives at the bottom of Save & settings. Home carries a slim
+   link row (a div, not a <footer> — the footer bar stays removed).
+   ===================================================================== */
+.home-foot {
+  display: flex;
+  gap: 1.1rem;
+  justify-content: center;
+  align-items: center;
+  margin-top: 0.9rem;
+  padding: 0.35rem 0 0.15rem;
+}
+.home-foot-link {
+  background: none;
+  border: none;
+  padding: 0.2rem 0.1rem;
+  color: rgba(236, 210, 143, 0.75);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+}
+.home-foot-link:hover, .home-foot-link:focus-visible { color: #ecd28f; }
+.about .about-section { border-top: none; padding-top: 0; margin-top: 0.2rem; }
+.about .about-line { font-size: 0.95rem; line-height: 1.55; }
