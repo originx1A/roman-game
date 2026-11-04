@@ -81,6 +81,7 @@ import {
   stealFieldTreats,} from './game/pets'
 import { aquilaFeatherCount, buyCalls, callsFor, DEFENDER_THEME, NOX_LIGHT_COUNT, rollBrand, spendCall } from './game/defenders'
 import { DefenderRail } from './components/DefenderRail'
+import { Atmosphere } from './components/Atmosphere'
 import {
   BUDDY_HUNT_PERFECT_WINS,
   applyHuntPrize,
@@ -2857,7 +2858,8 @@ export default function App() {
       />
 
       {screen === 'home' && (
-        <main className="home scroll-pane">
+        <main className="home scroll-pane has-atmo">
+          <Atmosphere variant="home" />
           <section className="hero no-callout">
             <p className="eyebrow">Logic puzzle</p>
             <h1 className="logo-hero no-callout" {...ownerDoor}>
@@ -3041,8 +3043,9 @@ export default function App() {
       )}
 
       {screen === 'play' && puzzle && (
-        <main className={`play play-fixed ${runPetRef.current ? 'has-hud-pet' : ''} ${THEMES[puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)].className}`}>
+        <main className={`play play-fixed has-atmo ${runPetRef.current ? 'has-hud-pet' : ''} ${THEMES[puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)].className}`}>
           <ThemeBackdrop themeId={puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)} />
+          <Atmosphere variant="play" tint={brand ? DEFENDER_THEME[brand].accent : undefined} />
           <div className="play-hud">
             <button type="button" className="hud-back" onClick={() => setScreen(parseRemixId(puzzle.id) || endlessRef.current ? 'remix' : 'levels')} aria-label="Back">
               ←

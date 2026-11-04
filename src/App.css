@@ -6839,3 +6839,97 @@ html[data-device='phone'] .play-fixed .board {
   .levels-fit h2 { font-size: 1.3rem; }
   .levels-fit .daily-card { padding: 0.4rem 0.6rem; }
 }
+
+/* =====================================================================
+   9.33-a4 ITEM 4 — CINEMATIC MOTION (Tony QA, Nov 4): the game moves
+   like the animated Collector's cards. The Atmosphere component paints
+   embers (canvas) + smoke + flame glow + vignette BEHIND a screen's
+   content; content is lifted above it by the .has-atmo rules (overlay
+   components keep their own positioning — they are excluded). All of
+   it dies under reduced motion: the component renders nothing, and the
+   CSS animations below are flattened by the data-motion rule + the
+   prefers-reduced-motion guard at the end of this block.
+   ===================================================================== */
+.atmo { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.atmo-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.atmo-smoke { position: absolute; border-radius: 50%; filter: blur(28px); }
+.atmo-smoke.s1 {
+  width: 72%; height: 46%; left: -14%; top: 4%;
+  background: radial-gradient(ellipse at center, rgba(150, 126, 96, 0.20), transparent 65%);
+  animation: smokeDrift1 52s ease-in-out infinite alternate;
+}
+.atmo-smoke.s2 {
+  width: 64%; height: 40%; right: -12%; top: 34%;
+  background: radial-gradient(ellipse at center, rgba(110, 92, 74, 0.16), transparent 65%);
+  animation: smokeDrift2 64s ease-in-out infinite alternate;
+}
+.atmo-smoke.s3 {
+  width: 58%; height: 36%; left: 12%; bottom: -8%;
+  background: radial-gradient(ellipse at center, rgba(150, 126, 96, 0.13), transparent 65%);
+  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--atmo-tint, #c8a165) 16%, transparent), transparent 65%);
+  animation: smokeDrift1 74s ease-in-out infinite alternate-reverse;
+}
+@keyframes smokeDrift1 {
+  from { transform: translate3d(-2%, 0, 0) scale(1); opacity: 0.75; }
+  to { transform: translate3d(3.5%, -2.5%, 0) scale(1.08); opacity: 1; }
+}
+@keyframes smokeDrift2 {
+  from { transform: translate3d(2.5%, 1%, 0) scale(1.05); opacity: 0.9; }
+  to { transform: translate3d(-3%, -2%, 0) scale(0.98); opacity: 0.7; }
+}
+.atmo-flame {
+  position: absolute; left: -8%; right: -8%; bottom: -12%; height: 46%;
+  background: radial-gradient(ellipse at 50% 100%, rgba(255, 110, 40, 0.26), rgba(255, 60, 10, 0.09) 48%, transparent 72%);
+  background:
+    radial-gradient(ellipse at 50% 100%, color-mix(in srgb, var(--atmo-tint, #ff6e28) 38%, transparent), transparent 62%),
+    radial-gradient(ellipse at 50% 100%, rgba(255, 110, 40, 0.20), rgba(255, 60, 10, 0.07) 48%, transparent 72%);
+  transform-origin: 50% 100%;
+  animation: flameFlicker 2.8s ease-in-out infinite;
+}
+.atmo-play .atmo-flame { opacity: 0.5; }
+@keyframes flameFlicker {
+  0%, 100% { transform: scaleY(1) skewX(0deg); opacity: 0.8; }
+  30% { transform: scaleY(1.05) skewX(0.6deg); opacity: 0.95; }
+  55% { transform: scaleY(0.97) skewX(-0.5deg); opacity: 0.72; }
+  78% { transform: scaleY(1.07) skewX(0.3deg); opacity: 1; }
+}
+.atmo-vignette {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 108% 92% at 50% 42%, transparent 58%, rgba(5, 3, 1, 0.44) 100%);
+}
+.atmo-home .atmo-vignette {
+  background: radial-gradient(ellipse 108% 92% at 50% 42%, transparent 50%, rgba(5, 3, 1, 0.58) 100%);
+}
+/* Content rides above the atmosphere; overlays keep their own positioning */
+.home.has-atmo > :not(.atmo) { position: relative; z-index: 1; }
+.play-fixed.has-atmo > :not(.atmo):not(.theme-backdrop):not(.overlay):not(.rotate-prompt):not(.buddy-flyby):not(.buddy-hunt):not(.win-screen):not(.parade):not(.result-overlay):not(.spark-critter) {
+  position: relative;
+  z-index: 1;
+}
+/* Living sheen: a slow specular sweep across the board's gilt edges */
+.board::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 6;
+  mix-blend-mode: screen;
+  background: linear-gradient(115deg, transparent 32%, rgba(255, 226, 160, 0.10) 47%, rgba(255, 255, 255, 0.13) 50%, rgba(255, 226, 160, 0.10) 53%, transparent 68%);
+  background-size: 260% 260%;
+  animation: boardSheen 9s ease-in-out infinite;
+}
+@keyframes boardSheen {
+  0% { background-position: 125% 0; }
+  55%, 100% { background-position: -125% 0; }
+}
+/* Screen entrances: menus already rise (.panel); home + play join them */
+.home, .play-fixed { animation: rise 0.45s ease both; }
+html[data-motion='reduce'] .atmo-smoke, html[data-motion='reduce'] .atmo-flame,
+html[data-motion='reduce'] .board::after { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .atmo-smoke, .atmo-flame, .board::after { animation: none; }
+  .home, .play-fixed { animation: none; }
+}
+/* the sheen anchors to the board itself, not the stage */
+.board { position: relative; }
