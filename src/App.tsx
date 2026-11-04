@@ -656,7 +656,7 @@ export default function App() {
   /** Difficulty while this run is an Endless board (Next makes another fresh one) */
   const endlessRef = useRef<Difficulty | null>(null)
   const screenNowRef = useRef<Screen>('home')
-  const startPuzzleRef = useRef<(p: Puzzle, resume?: boolean, opts?: { mode?: RunMode; daily?: boolean; endless?: boolean }) => void>(() => {})
+  const startPuzzleRef = useRef<(p: Puzzle, resume?: boolean, opts?: { mode?: RunMode; daily?: boolean; endless?: boolean; direct?: boolean }) => void>(() => {})
   screenNowRef.current = screen
   // The countdown ticks while off the board (every 30 s is plenty for "2d 5h" / "5h 12m")
   useEffect(() => {
@@ -1555,9 +1555,10 @@ export default function App() {
     return real
   }
 
-  function startPuzzle(p: Puzzle, resume = false, opts: { mode?: RunMode; daily?: boolean; endless?: boolean } = {}) {
-    // First board ever: How to play opens first (returning players start at the new cards)
-    if (!resume && !settingsRef.current.howSeen) {
+  function startPuzzle(p: Puzzle, resume = false, opts: { mode?: RunMode; daily?: boolean; endless?: boolean; direct?: boolean } = {}) {
+    // First board ever: How to play opens first (returning players start at the new cards).
+    // 9.33-a3: Home's Play button passes `direct` — it starts the board immediately, no detour.
+    if (!resume && !opts.direct && !settingsRef.current.howSeen) {
       pendingStartRef.current = { p, opts }
       setStartSheet(null)
       setHowStart(progress.clears.length > 0 ? HOW_NEW_START : 0)
@@ -2923,10 +2924,12 @@ export default function App() {
                   type="button"
                   className="btn primary"
                   onClick={() => {
-                    // 9.30-n: once every level is cleared, Play opens the Levels list (it used to make endless random boards)
+                    // 9.33-a3: Play goes straight onto a board — the next uncleared level, or
+                    // today's Daily once everything is cleared (9.30-n sent all-cleared players
+                    // to the Levels list). No level list, no start sheet, no how-to detour.
                     const uncleared = PUZZLES.find((p) => !done.has(p.id))
-                    if (uncleared) startPuzzle(uncleared)
-                    else setScreen('levels')
+                    if (uncleared) startPuzzle(uncleared, false, { direct: true })
+                    else startPuzzle(dailyBoard, false, { daily: true, direct: true })
                   }}
                 >
                   Play
