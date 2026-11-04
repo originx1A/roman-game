@@ -1,4 +1,5 @@
 import type { Difficulty, Puzzle } from '../game/types'
+import { Atmosphere } from './Atmosphere'
 import { REMIX_SIZES, remixCountdownLabel, remixId, type RemixSize } from '../game/remix'
 import type { EndlessStats } from '../game/storage'
 
@@ -42,7 +43,8 @@ export function RemixScreen({
   onEndless: (d: Difficulty) => void
 }) {
   return (
-    <main className="panel levels remix-screen remix-fit">
+    <main className="panel levels remix-screen remix-fit has-atmo">
+      <Atmosphere variant="panel" tint="#5b8cff" />
       <h2>Remix boards</h2>
       <section className="remix-countdown" aria-live="polite">
         <strong data-remix-countdown>

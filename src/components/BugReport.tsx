@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Atmosphere } from './Atmosphere'
 
 interface Props {
   currentScreen: string
@@ -42,7 +43,8 @@ export function BugReport({ currentScreen, onBack }: Props) {
 
   if (sent) {
     return (
-      <main className="page bug-report fit-screen">
+      <main className="page bug-report fit-screen has-atmo">
+        <Atmosphere variant="panel" tint="#ff9a3c" />
         <h1>🐛 Report a Bug</h1>
         <div className="card">
           <p>Thanks! Your report's been sent. We'll look into it.</p>
@@ -55,7 +57,8 @@ export function BugReport({ currentScreen, onBack }: Props) {
   }
 
   return (
-    <main className="page bug-report fit-screen">
+    <main className="page bug-report fit-screen has-atmo">
+        <Atmosphere variant="panel" tint="#ff9a3c" />
       <h1>🐛 Report a Bug</h1>
       <div className="card">
         <p>Found something broken? Tell us what happened and we'll fix it.</p>

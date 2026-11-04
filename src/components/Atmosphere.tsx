@@ -13,7 +13,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react'
  * Fully OFF under reduced motion — the OS setting or the game's Reduce motion
  * toggle (which flips data-motion='reduce' on <html>).
  */
-export function Atmosphere({ variant = 'home', tint }: { variant?: 'home' | 'play'; tint?: string }) {
+export function Atmosphere({ variant = 'home', tint }: { variant?: 'home' | 'play' | 'panel'; tint?: string }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [reduced, setReduced] = useState<boolean>(
     () =>
@@ -74,8 +74,9 @@ export function Atmosphere({ variant = 'home', tint }: { variant?: 'home' | 'pla
       canvas.width = Math.max(1, Math.round(w * dpr))
       canvas.height = Math.max(1, Math.round(h * dpr))
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      // Particle budget: ~1 per 26px of width, hard-capped (fewer over a live board)
-      const cap = variant === 'play' ? 34 : 60
+      // Particle budget: ~1 per 26px of width, hard-capped (fewer over a live
+      // board; fewest on the panel screens, where it is a whisper of ambience)
+      const cap = variant === 'play' ? 34 : variant === 'panel' ? 24 : 60
       const target = Math.max(12, Math.min(cap, Math.floor(w / 26)))
       embers = Array.from({ length: target }, () => spawn(true))
     }

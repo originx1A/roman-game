@@ -848,6 +848,14 @@ export function sfxTap() {
   noiseBurst(0.035, 0.04)
 }
 
+/** 9.33-a7: the general UI click — every button press in the menus is audible.
+ *  Softer and lower than the board tap so it sits under any action sfx the
+ *  button itself plays. Silent when Sound is off (tone() honours `muted`). */
+export function sfxUiClick() {
+  tone(540, 0.045, 'triangle', 0.05)
+  noiseBurst(0.02, 0.018)
+}
+
 export function sfxMark() {
   // Crisp “X” scratch — two crossing ticks
   tone(380, 0.07, 'square', 0.1, 0, 220)

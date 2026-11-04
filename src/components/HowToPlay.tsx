@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Atmosphere } from './Atmosphere'
 import { HowDemo, type HowDemoId } from './HowDemo'
 
 const STEPS = [
@@ -58,7 +59,8 @@ export function HowToPlay({
   }, [step])
 
   return (
-    <main className="panel how-panel fit-screen">
+    <main className="panel how-panel fit-screen has-atmo">
+      <Atmosphere variant="panel" tint="#2fd4a7" />
       <div className="how-top">
         {onBack && (
           <button type="button" className="hud-back how-back" onClick={onBack} aria-label="Back">
