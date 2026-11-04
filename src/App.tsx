@@ -3289,13 +3289,13 @@ export default function App() {
             const def = rp ? petById(rp) : undefined
             if (!rp || !def) {
               return (
-                <div className="buddy-spot is-solo" data-buddy-spot="solo">
+                <button type="button" className="buddy-spot is-solo" data-buddy-spot="solo" onClick={() => setScreen('stable')} title="Pick a buddy in The Stable">
                   <span className="buddy-spot-ring" aria-hidden="true">
                     <span className="buddy-spot-face" />
                   </span>
                   <strong>Solo run</strong>
                   <small>No buddy this board. Pick one in The Stable.</small>
-                </div>
+                </button>
               )
             }
             const lv = levelInfo(petXp(pets, rp)).level

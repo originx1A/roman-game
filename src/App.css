@@ -5188,6 +5188,8 @@ html[data-layout='wide'] .buddy-spot {
   background: rgba(5, 13, 31, 0.4);
   font-size: 0.8rem;
 }
+button.buddy-spot { font: inherit; color: inherit; cursor: pointer; }
+button.buddy-spot:hover { border-color: rgba(255, 214, 102, 0.7); }
 .buddy-spot strong {
   font-family: var(--font-display);
   color: var(--sun);

@@ -146,6 +146,9 @@ export function ParadeOverlay({
       if (readPotPct) setPotPct(readPotPct())
       setFlies((f) => f.filter((x) => x.id !== id))
     }, 850)
+    // 9.32-i (Tony, Nov 3): EVERY treasure caught ends the march — a short beat so the last
+    // catch's fly-to-wallet lands, then the summary. No waiting out the clock, no Skip needed.
+    if (total > 0 && caughtIdx.current.size >= total) window.setTimeout(toSummary, 900)
   }
 
   /**
