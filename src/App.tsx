@@ -259,6 +259,7 @@ import {
   sfxHeartLose,
   sfxLose,
   sfxRecord,
+  sfxUiClick,
   sfxWhoosh,
   sfxWin,
   resetVoiceQuietClock,
@@ -423,6 +424,11 @@ export default function App() {
   const [progress, setProgress] = useState(() => getProgress())
   const [settings, setSettings] = useState<Settings>(() => loadSettings())
   // Level select difficulty tab — persisted so it survives reloads
+  // 9.33-a7: Settings and About are indexes — each tab is one function, and
+  // the privacy note is its own step (no in-place expansion past the fit lock).
+  const [settingsTab, setSettingsTab] = useState<'sound' | 'play'>('sound')
+  const [showPrivacyNote, setShowPrivacyNote] = useState(false)
+  const [aboutTab, setAboutTab] = useState<'story' | 'feedback'>('story')
   const [levelTab, setLevelTab] = useState<Difficulty>(() => {
     const saved = (() => {
       try { return localStorage.getItem('rg-level-tab') } catch { return null }
@@ -440,6 +446,45 @@ export default function App() {
   // 9.32: player accounts + score saving (lazy, never blocks the game)
   useEffect(() => {
     void initCloud()
+  }, [])
+
+  // 9.33-a7 (Tony): buttons must FEEL alive — every press is VISIBLE (an ember
+  // burst at the fingertip + a glow pulse) and AUDIBLE (a soft UI click through
+  // the sound system; Sound off = silent). One delegated listener for the whole
+  // app; board cells are skipped (they play their own richer sfx), disabled
+  // controls stay silent, and the burst is skipped under reduced motion.
+  useEffect(() => {
+    const onPress = (e: PointerEvent) => {
+      const t = e.target as HTMLElement | null
+      if (!t || typeof t.closest !== 'function') return
+      const el = t.closest('button, a[href], [role="tab"], summary') as HTMLElement | null
+      if (!el || el.closest('.board')) return
+      if ((el as HTMLButtonElement).disabled || el.getAttribute('aria-disabled') === 'true') return
+      sfxUiClick()
+      const reduced =
+        document.documentElement.dataset.motion === 'reduce' ||
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      if (reduced) return
+      el.classList.add('is-pressing')
+      window.setTimeout(() => el.classList.remove('is-pressing'), 380)
+      const r = el.getBoundingClientRect()
+      if (r.width === 0 || r.height === 0) return
+      const burst = document.createElement('span')
+      burst.className = 'press-burst'
+      burst.setAttribute('aria-hidden', 'true')
+      for (let i = 0; i < 6; i++) {
+        const s = document.createElement('i')
+        s.style.setProperty('--a', `${Math.round((i / 6) * 360 + Math.random() * 28)}deg`)
+        s.style.setProperty('--d', `${Math.round(13 + Math.random() * 15)}px`)
+        burst.appendChild(s)
+      }
+      burst.style.left = `${Math.round(e.clientX - r.left)}px`
+      burst.style.top = `${Math.round(e.clientY - r.top)}px`
+      el.appendChild(burst)
+      window.setTimeout(() => burst.remove(), 680)
+    }
+    document.addEventListener('pointerdown', onPress, true)
+    return () => document.removeEventListener('pointerdown', onPress, true)
   }, [])
   useEffect(() => {
     setGaEnabled(!isStoreBuild() && settingsRef.current.analytics !== false)
@@ -2676,31 +2721,8 @@ export default function App() {
   startPuzzleRef.current = startPuzzle
 
   const remixClearedCount = REMIX_SIZES.filter((sz) => records.levels[remixId(remixSet, sz)]?.bestMs != null).length
-  const remixCard = (() => {
-    // NEW badge for the first 24h of each 3-day set so players notice fresh boards
-    const freshMs = (REMIX_DAYS - 1) * 24 * 3600 * 1000
-    const isFresh = remixMsLeft > freshMs
-    return (
-      <section className="daily-card remix-entry" aria-label="Remix boards">
-        <div className="daily-text">
-          <strong>
-            Remix boards
-            {isFresh ? <span className="new-badge" aria-label="New boards">NEW</span> : null}
-          </strong>
-          <span>New boards every 3 days · same for everyone{remixClearedCount ? ` · ${remixClearedCount}/4 cleared` : ''}</span>
-          <span className="daily-status">Next set in {remixCountdownLabel(remixMsLeft)} · plus Endless mode</span>
-        </div>
-        <div className="remix-entry-btns">
-          <button type="button" className={`btn ${isFresh ? 'primary' : 'ghost'} daily-btn`} data-open-remix onClick={() => setScreen('remix')}>
-            Remix
-          </button>
-          <button type="button" className="btn ghost daily-btn" onClick={mixItUp} disabled={endlessBusy != null} title="A fresh Endless board at a random size">
-            {endlessBusy ? 'Making…' : '🎲 Mix it up'}
-          </button>
-        </div>
-      </section>
-    )
-  })()
+  // NEW badge for the first 24h of each 3-day set so players notice fresh boards
+  const remixFresh = remixMsLeft > (REMIX_DAYS - 1) * 24 * 3600 * 1000
 
   // 9.32-f: stats-popup data — total daily wins + best daily time (from the daily-day records)
   const dailyWins = Object.values(records.daily.days).filter((d) => d.status === 'won').length
@@ -2709,44 +2731,65 @@ export default function App() {
     null,
   )
 
-  const dailyCard = (
-    <section className="daily-card" aria-label="Daily Challenge">
-      <div className="daily-text">
-        <strong>Daily Challenge · {dailyDateLabel}</strong>
-        <span>
-          {dailyBoard.name} · {dailyBoard.size}×{dailyBoard.size}
-        </span>
-        {/* 9.32-f: prominent streak — tap opens the stats popup (fixed overlay, no layout shift) */}
-        <button
-          type="button"
-          className="daily-streakbtn"
-          onClick={() => setShowStats(true)}
-          aria-label={`Open daily stats. ${dailyStreakNow}-day streak, best streak ${records.daily.bestStreak}.`}
-        >
-          🔥 {dailyStreakNow}-day streak · best {records.daily.bestStreak}
+  // 9.33-a7 (Tony): Daily + Remix stop leading screens as two TALL stacked
+  // cards — they share ONE compact side-by-side strip (his words: "put things
+  // side by side"). Home keeps it under the companion strip; on Levels it sits
+  // at the FOOT of the screen so the level picker always leads.
+  const promoStrip = (
+    <div className="promo-strip">
+      <section className="promo-card promo-daily" aria-label="Daily Challenge">
+        <div className="promo-text">
+          <strong>Daily · {dailyDateLabel}</strong>
+          <span>
+            {dailyBoard.name} · {dailyBoard.size}×{dailyBoard.size}
+          </span>
+          {/* 9.32-f: prominent streak — tap opens the stats popup (fixed overlay, no layout shift) */}
+          <button
+            type="button"
+            className="daily-streakbtn"
+            onClick={() => setShowStats(true)}
+            aria-label={`Open daily stats. ${dailyStreakNow}-day streak, best streak ${records.daily.bestStreak}.`}
+          >
+            🔥 {dailyStreakNow} · best {records.daily.bestStreak}
+          </button>
+          {dailyToday?.status === 'won' ? (
+            <span className="promo-status">Done today ✓ {formatMs(dailyToday.ms ?? 0)}</span>
+          ) : null}
+        </div>
+        <button type="button" className={`btn ${dailyToday ? 'ghost' : 'primary'} daily-btn`} onClick={() => startPuzzle(dailyBoard, false, { daily: true })}>
+          {dailyToday ? 'Practice' : 'Play daily'}
         </button>
-        <span className="daily-status">
-          {dailyToday?.status === 'won'
-            ? `Done today: ${formatMs(dailyToday.ms ?? 0)} · ${dailyToday.score ?? 0} pts. New board tomorrow.`
-            : dailyToday
-              ? 'First try used. Practice runs don’t score.'
-              : 'Only your first try counts. Clear it to grow your streak.'}
-        </span>
-      </div>
-      <button type="button" className={`btn ${dailyToday ? 'ghost' : 'primary'} daily-btn`} onClick={() => startPuzzle(dailyBoard, false, { daily: true })}>
-        {dailyToday ? 'Practice' : 'Play daily'}
-      </button>
-      {showStats ? (
-        <StatsPopup
-          streak={dailyStreakNow}
-          bestStreak={records.daily.bestStreak}
-          wins={dailyWins}
-          bestDailyMs={bestDailyMs}
-          formatMs={formatMs}
-          onClose={() => setShowStats(false)}
-        />
-      ) : null}
-    </section>
+        {showStats ? (
+          <StatsPopup
+            streak={dailyStreakNow}
+            bestStreak={records.daily.bestStreak}
+            wins={dailyWins}
+            bestDailyMs={bestDailyMs}
+            formatMs={formatMs}
+            onClose={() => setShowStats(false)}
+          />
+        ) : null}
+      </section>
+      <section className="promo-card promo-remix" aria-label="Remix boards">
+        <div className="promo-text">
+          <strong>
+            Remix boards
+            {remixFresh ? <span className="new-badge" aria-label="New boards">NEW</span> : null}
+          </strong>
+          <span>
+            {remixClearedCount ? `${remixClearedCount}/4 cleared · ` : ''}next set {remixCountdownLabel(remixMsLeft)}
+          </span>
+        </div>
+        <div className="promo-btns">
+          <button type="button" className={`btn ${remixFresh ? 'primary' : 'ghost'} daily-btn`} data-open-remix onClick={() => setScreen('remix')}>
+            Remix
+          </button>
+          <button type="button" className="btn ghost daily-btn" onClick={mixItUp} disabled={endlessBusy != null} title="A fresh Endless board at a random size">
+            {endlessBusy ? 'Making…' : '🎲 Mix it up'}
+          </button>
+        </div>
+      </section>
+    </div>
   )
 
   // Live ghost pace against your best (hidden until there is a best for this mode)
@@ -2879,19 +2922,9 @@ export default function App() {
               <UnseenCardTile records={records} />
             </div>
           </section>
-          {/* 10.06: treat defense — the vulnerable field pile. Claim only on the board screen. */}
-          <section className="treat-pile-widget" aria-label="Field treat pile">
-            <span aria-hidden="true">🍖</span>
-            <span>
-              <strong>{pets.fieldTreats ?? 0}</strong> field treats
-              {Object.keys(pets.owned).length === 0 ? (
-                <small>⚠️ no Defenders — your treats are in danger! <button type="button" className="linklike" onClick={() => setScreen('stable')}>Claim your FREE Defender</button> to protect them</small>
-              ) : (
-                <small>wild pets want them — play a board to claim them safe</small>
-              )}
-            </span>
-          </section>
-          <section className="home-pet-row" aria-label="Your Defender">
+          {/* 9.33-a7: Defender + field treats share ONE side-by-side strip —
+              two stacked widgets cost the height that made Home overlap. */}
+          <section className="home-companion" aria-label="Your Defender and field treats">
             <HomePet
               id={activePet(pets, petNow)}
               xp={(() => {
@@ -2909,9 +2942,20 @@ export default function App() {
               onTap={() => petGiggle()}
               onStable={() => setScreen('stable')}
             />
+            {/* 10.06: treat defense — the vulnerable field pile. Claim only on the board screen. */}
+            <div className="treat-pile-widget">
+              <span aria-hidden="true">🍖</span>
+              <span>
+                <strong>{pets.fieldTreats ?? 0}</strong> field treats
+                {Object.keys(pets.owned).length === 0 ? (
+                  <small>⚠️ no Defenders — treats in danger! <button type="button" className="linklike" onClick={() => setScreen('stable')}>Claim your FREE Defender</button></small>
+                ) : (
+                  <small>wild pets want them — play a board to claim them safe</small>
+                )}
+              </span>
+            </div>
           </section>
-          {dailyCard}
-          {remixCard}
+          {promoStrip}
           <section className="stat-strip home-strip">
             <div>
               <strong>{progress.clears.length}</strong>
@@ -2934,7 +2978,8 @@ export default function App() {
       )}
 
       {screen === 'more' && (
-        <main className="panel more fit-screen">
+        <main className="panel more fit-screen has-atmo">
+          <Atmosphere variant="panel" tint="#b07fe8" />
           <h2>More</h2>
           <div className="more-grid">
             <button type="button" className="more-row" onClick={() => setScreen('challenge')}>
@@ -3034,11 +3079,13 @@ export default function App() {
       )}
 
       {screen === 'levels' && (
-        <main className="panel levels levels-fit">
+        <main className="panel levels levels-fit has-atmo">
+          <Atmosphere variant="panel" tint="#5b8cff" />
           <h2>Levels</h2>
           <p className="sub">Beat your best time and score on any board. ★ finish · ★★ beat the target time · ★★★ target time, a high score and a clean board. 3 stars unlocks Roman's Trial.</p>
-          {dailyCard}
-          {remixCard}
+          {/* 9.33-a7 (Tony): the picker LEADS the screen — difficulty tabs and
+              the level grid are the screen's one function; Daily + Remix ride
+              in the compact strip at the foot, never ahead of the picker. */}
           <div className="level-tabs" role="tablist" aria-label="Difficulty">
             {(['easy', 'medium', 'hard', 'expert'] as const).map((diff) => (
               <button
@@ -3083,6 +3130,7 @@ export default function App() {
               {byDiff[levelTab].map((p) => levelCardFor(p))}
             </div>
           </section>
+          {promoStrip}
         </main>
       )}
 
@@ -3479,7 +3527,8 @@ export default function App() {
       )}
 
       {screen === 'rewards' && (
-        <main className="panel rewards fit-screen">
+        <main className="panel rewards fit-screen has-atmo">
+          <Atmosphere variant="panel" tint="#ffb52e" />
           <h2>Rewards</h2>
           <p className="sub">
             Unlock badges by playing, then spend coins to rank them up forever — each rank boosts coins on every win.
@@ -3566,7 +3615,8 @@ export default function App() {
       )}
 
       {screen === 'account' && (
-        <main className="panel account fit-screen">
+        <main className="panel account fit-screen has-atmo">
+          <Atmosphere variant="panel" tint="#4f9dff" />
           <h2>Account</h2>
           {profile ? (
           <div className="profile-card">
@@ -3679,10 +3729,28 @@ export default function App() {
       )}
 
       {screen === 'settings' && (
-        <main className="panel settings-screen fit-screen">
+        <main className="panel settings-screen fit-screen has-atmo">
+          <Atmosphere variant="panel" tint="#7fb2d9" />
           <h2>Settings</h2>
+          <div className="seg-tabs" role="tablist" aria-label="Settings sections">
+            <button type="button" role="tab" aria-selected={settingsTab === 'sound'} className={`seg-tab ${settingsTab === 'sound' ? 'on' : ''}`} onClick={() => { setSettingsTab('sound'); setShowPrivacyNote(false) }}>
+              Sound &amp; voice
+            </button>
+            <button type="button" role="tab" aria-selected={settingsTab === 'play'} className={`seg-tab ${settingsTab === 'play' ? 'on' : ''}`} onClick={() => setSettingsTab('play')}>
+              Play &amp; privacy
+            </button>
+          </div>
+          {showPrivacyNote ? (
+          <section className="settings settings-note" data-testid="privacy-note">
+            <button type="button" className="btn ghost settings-back" onClick={() => setShowPrivacyNote(false)}>
+              ← Back to settings
+            </button>
+            <h3>What we count</h3>
+            <p>{PRIVACY_NOTE}</p>
+          </section>
+          ) : (
           <section className="settings">
-            
+            {settingsTab === 'sound' ? (<>
           <label className="toggle">
           <input
           type="checkbox"
@@ -3744,6 +3812,7 @@ export default function App() {
           Reset heard lines
           </button>
           </div>
+            </>) : (<>
           <label className="toggle">
           <input
           type="checkbox"
@@ -3752,17 +3821,14 @@ export default function App() {
           />
           Buddy Parade (every 5-7 wins)
           </label>
-          <div className="privacy-note" data-testid="privacy-note">
-          {/* 9.33-a5: the full note lives behind a disclosure so Settings fits one screen; the toggle stays visible */}
-          <details className="privacy-details">
-          <summary><strong>What we count</strong></summary>
-          <p>{PRIVACY_NOTE}</p>
-          </details>
+          <button type="button" className="settings-linkrow" onClick={() => setShowPrivacyNote(true)}>
+            <strong>What we count</strong>
+            <span aria-hidden="true">›</span>
+          </button>
           <label className="toggle">
           <input type="checkbox" data-testid="analytics-toggle" checked={settings.analytics !== false} onChange={(e) => saveSettingsPatch({ analytics: e.target.checked })} />
           Share anonymous play counts
           </label>
-          </div>
           <label className="toggle">
           <input
           type="checkbox"
@@ -3775,13 +3841,25 @@ export default function App() {
           />
           Reduce motion
           </label>
+            </>)}
           </section>
+          )}
         </main>
       )}
 
       {screen === 'about' && (
-        <main className="panel about fit-screen">
+        <main className="panel about fit-screen has-atmo">
+          <Atmosphere variant="panel" tint="#c084fc" />
           <h2>About</h2>
+          <div className="seg-tabs" role="tablist" aria-label="About sections">
+            <button type="button" role="tab" aria-selected={aboutTab === 'story'} className={`seg-tab ${aboutTab === 'story' ? 'on' : ''}`} onClick={() => setAboutTab('story')}>
+              The Defenders
+            </button>
+            <button type="button" role="tab" aria-selected={aboutTab === 'feedback'} className={`seg-tab ${aboutTab === 'feedback' ? 'on' : ''}`} onClick={() => setAboutTab('feedback')}>
+              Feedback &amp; links
+            </button>
+          </div>
+          {aboutTab === 'story' ? (
           <section className="about-section" aria-label="About Roman's Game">
             <p className="about-line">
               Roman&rsquo;s Game <span className="build-tag">{BUILD_TAG}</span>
@@ -3804,6 +3882,9 @@ export default function App() {
             <p className="about-line">
               And something watches from the smoke. The Unseen never helps and cannot be bought — he just mocks.
             </p>
+          </section>
+          ) : (
+          <section className="about-section" aria-label="Feedback and links">
             <p className="about-line">
               {!isStoreBuild() && settings.analytics !== false ? <FeedbackChip onSend={sendFeedback} /> : null}
               <a className="about-link" href="./privacy.html">
@@ -3814,6 +3895,7 @@ export default function App() {
               </a>
             </p>
           </section>
+          )}
           <button type="button" className="btn ghost" onClick={() => setScreen('home')}>
             ← Home
           </button>
@@ -3821,7 +3903,8 @@ export default function App() {
       )}
 
       {screen === 'challenge' && (
-        <main className="panel challenge fit-screen">
+        <main className="panel challenge fit-screen has-atmo">
+          <Atmosphere variant="panel" tint="#ff5d73" />
           <h2>Share &amp; challenge</h2>
           <p className="sub">
             Share your best time. Friends open the link, play the same board, then send a head-to-head score back.
@@ -3892,33 +3975,39 @@ export default function App() {
               {linkBoardError ? <p className="link-board-error">{linkBoardError}</p> : null}
             </div>
           )}
-          <label>
-            Board
-            <select
-              value={puzzle?.id ?? PUZZLES[0].id}
-              onChange={(e) => {
-                const p = getPuzzle(e.target.value)
-                if (p) setPuzzle(p)
-              }}
-            >
-              {PUZZLES.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({DIFFICULTY_LABEL[p.difficulty]})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Friend email (optional)
-            <input type="email" value={challengeEmail} onChange={(e) => setChallengeEmail(e.target.value)} />
-          </label>
-          <label>
-            Message
-            <input type="text" value={challengeMsg} onChange={(e) => setChallengeMsg(e.target.value)} maxLength={120} />
-          </label>
-          <button type="button" className="btn primary" onClick={handleCreateChallenge}>
-            Make score challenge link
-          </button>
+          {/* 9.33-a7: making the link is a STEP — once the link exists, the
+              share box replaces the form instead of stacking past the lock. */}
+          {!shareLink && (
+            <>
+              <label>
+                Board
+                <select
+                  value={puzzle?.id ?? PUZZLES[0].id}
+                  onChange={(e) => {
+                    const p = getPuzzle(e.target.value)
+                    if (p) setPuzzle(p)
+                  }}
+                >
+                  {PUZZLES.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({DIFFICULTY_LABEL[p.difficulty]})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Friend email (optional)
+                <input type="email" value={challengeEmail} onChange={(e) => setChallengeEmail(e.target.value)} />
+              </label>
+              <label>
+                Message
+                <input type="text" value={challengeMsg} onChange={(e) => setChallengeMsg(e.target.value)} maxLength={120} />
+              </label>
+              <button type="button" className="btn primary" onClick={handleCreateChallenge}>
+                Make score challenge link
+              </button>
+            </>
+          )}
           {shareLink && (
             <div className="share-box">
               <code>{shareLink}</code>
@@ -3928,13 +4017,17 @@ export default function App() {
                 emailHref={challengeMailHref(shareLink)}
                 onCopied={() => showToast('Copied')}
               />
+              <button type="button" className="btn ghost" onClick={() => setShareLink('')}>
+                Make another link
+              </button>
             </div>
           )}
         </main>
       )}
 
       {screen === 'duel' && duel && (
-        <main className="panel challenge fit-screen">
+        <main className="panel challenge fit-screen has-atmo">
+          <Atmosphere variant="panel" tint="#ff5d73" />
           <h2>Head-to-head</h2>
           <p className="sub">
             {boardLabel(duel)} — both scores on the same board. Share so your friend sees the matchup too.

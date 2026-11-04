@@ -30,6 +30,7 @@ import {
   type PetState,
 } from '../game/pets'
 import { PetArt } from './PetArt'
+import { Atmosphere } from './Atmosphere'
 import { CALL_PACK_PRICE, CALL_PACK_SIZE, callsFor } from '../game/defenders'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -90,6 +91,10 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onBu
   // 9.33-a5: the Stable is fit-to-screen — five slim pick rows + one detail card,
   // and Bundles & gifts move to their own in-screen tab (nothing scrolls).
   const [tab, setTab] = useState<'defenders' | 'extras'>('defenders')
+  // 9.33-a7: the Stable is an INDEX — tapping a Defender NAVIGATES to
+  // that Defender's own screen, where every action lives whole. No in-place
+  // detail panel pushing buttons below the fit lock.
+  const [detail, setDetail] = useState(false)
   const [selId, setSelId] = useState<PetId>(() => active ?? PETS.find((p) => pets.owned[p.id])?.id ?? 'lupa')
   const sel = PETS.find((p) => p.id === selId) ?? PETS[0]
 
@@ -233,6 +238,9 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onBu
                     <button type="button" className="btn tool calls-btn" onClick={() => onBuyCalls(p.id)} disabled={coins < CALL_PACK_PRICE}>
                       Stock up +{CALL_PACK_SIZE} · {CALL_PACK_PRICE} 🪙
                     </button>
+                    {coins < CALL_PACK_PRICE ? (
+                      <small className="stable-calls-note">Not enough coins yet — win boards to earn more 🪙.</small>
+                    ) : null}
                   </div>
                   <button type="button" className={`btn ${isActive ? 'ghost' : 'primary'} stable-btn`} onClick={() => onEquip(p.id)} disabled={isActive}>
                     {isActive ? 'Riding ✓' : 'Ride with'}
@@ -288,8 +296,35 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onBu
           )
   }
 
+  // 9.33-a7: the Defender screen — one Defender, every action whole and
+  // reachable: claim free / ride with / calls + stock up / care + feeding /
+  // adopt. Back returns to the Stable index with its state preserved.
+  if (tab === 'defenders' && detail) {
+    return (
+      <main className="panel stable fit-screen has-atmo stable-detail-screen" data-screen="stable-detail">
+        <Atmosphere variant="panel" tint="#2fd4a7" />
+        <div className="stable-head">
+          <button type="button" className="hud-back stable-detail-back" onClick={() => setDetail(false)} aria-label="Back to The Stable">
+            ←
+          </button>
+          <div>
+            <h2>{sel.name}</h2>
+            <p className="stable-sub">
+              the {sel.species} · {sel.limited ? `Limited · ${sel.limited.label}` : TIER_LABEL[sel.tier]}
+            </p>
+          </div>
+          <span className="stable-coins" aria-label={`${coins} coins`}>
+            🪙 {coins}
+          </span>
+        </div>
+        <div className="stable-detail">{cardFor(sel)}</div>
+      </main>
+    )
+  }
+
   return (
-    <main className="panel stable fit-screen" data-screen="stable">
+    <main className="panel stable fit-screen has-atmo" data-screen="stable">
+      <Atmosphere variant="panel" tint="#2fd4a7" />
       <div className="stable-head">
         <button type="button" className="hud-back" onClick={onBack} aria-label="Back">
           ←
@@ -358,33 +393,43 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onBu
         </div>
       ) : null}
 
-          <div className="stable-pickrow" role="tablist" aria-label="Defenders">
+          <div className="stable-picklist" role="list" aria-label="Defenders">
             {PETS.map((p) => {
               const o = pets.owned[p.id]
               const t = !o && pets.trial?.id === p.id && pets.trial.until > now
+              const have = !!o || t
               const lv = levelInfo(petXp(pets, p.id))
+              const perk = perkFor(p.id, have ? lv.level : 1, have ? lv.stars : 0)
               return (
                 <button
                   key={p.id}
                   type="button"
-                  role="tab"
-                  aria-selected={selId === p.id}
-                  className={`stable-pick ${selId === p.id ? 'on' : ''} ${o || t ? 'is-owned' : 'is-locked'}`}
+                  className={`stable-pick ${selId === p.id ? 'on' : ''} ${have ? 'is-owned' : 'is-locked'}`}
                   data-pet={p.id}
-                  onClick={() => setSelId(p.id)}
+                  onClick={() => {
+                    setSelId(p.id)
+                    setDetail(true)
+                  }}
                 >
-                  <PetArt id={p.id} size={40} locked={!o && !t} level={lv.level} stars={lv.stars} />
-                  <span className="stable-pick-name">{p.name}</span>
-                  <small>{freePickMode ? 'FREE' : o ? `Lv ${lv.level}` : t ? 'Trial' : `${priceWith(p.price, couponFor(pets, p.id, now))} 🪙`}</small>
+                  <PetArt id={p.id} size={44} locked={!have} level={lv.level} stars={lv.stars} />
+                  <span className="stable-pick-main">
+                    <span className="stable-pick-name">
+                      {p.name} <small>the {p.species}</small>
+                    </span>
+                    <span className="stable-pick-perk">{perk.label}</span>
+                  </span>
+                  <span className="stable-pick-status">{freePickMode ? 'FREE' : o ? `Lv ${lv.level}` : t ? 'Trial' : `${priceWith(p.price, couponFor(pets, p.id, now))} 🪙`}</span>
+                  <span className="stable-pick-go" aria-hidden="true">›</span>
                 </button>
               )
             })}
           </div>
-          <div className="stable-detail">{cardFor(sel)}</div>
       </>
       ) : (
       <>
-      {BUNDLES.map((b) => bundleQuote(pets, b.id, now)).some((q) => q.available) ? (
+      {/* 9.33-a7: while a gift preview is open it IS the section's step —
+          the bundles list steps aside instead of stacking past the lock. */}
+      {!preview && BUNDLES.map((b) => bundleQuote(pets, b.id, now)).some((q) => q.available) ? (
         <section className="stable-bundles" aria-label="Bundles">
           <h3>Bundles</h3>
           {BUNDLES.map((b) => {
@@ -422,7 +467,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onBu
 
       <section className="stable-redeem" aria-label="Gift code">
         <h3>Got a gift code?</h3>
-        {giftsOnline ? (
+        {!preview && giftsOnline ? (
           <div className="stable-redeem-row">
             <input
               value={code}
@@ -437,9 +482,9 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onBu
               {busy && !preview ? '…' : 'Redeem'}
             </button>
           </div>
-        ) : (
+        ) : !preview ? (
           <p className="stable-note">Gift codes work on the website version.</p>
-        )}
+        ) : null}
         {preview ? (
           <div className="gift-preview" data-gift-preview={preview.gift.kind} role="dialog" aria-label={`${GIFT_TAG}: ${giftLabel(preview.gift)}`}>
             <span className={`gift-preview-art ${preview.gift.kind === 'pack' ? 'is-pack' : ''}`} aria-hidden="true">
@@ -483,10 +528,12 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onBu
         {msg ? <p className={`stable-msg ${msg.ok ? 'is-ok' : 'is-bad'}`}>{msg.text}</p> : null}
       </section>
 
+      {!preview ? (
       <p className="stable-note">
         Coins only, no random boxes. Win boards to earn coins — coins only, never real money. Coupons:
         20% off for a 7-day daily streak, 30% off for a Roman's Trial clear (one per adoption).
       </p>
+      ) : null}
       </>
       )}
     </main>
