@@ -6759,3 +6759,28 @@ html[data-device='phone'] .play-fixed .board {
 .home-foot-link:hover, .home-foot-link:focus-visible { color: #ecd28f; }
 .about .about-section { border-top: none; padding-top: 0; margin-top: 0.2rem; }
 .about .about-line { font-size: 0.95rem; line-height: 1.55; }
+
+/* =====================================================================
+   9.33-a4 ITEM 3 — picking a level PLAYS it: the start sheet is retired
+   for ready-made boards (Levels + Remix). Cards sit in a wrap so a
+   3-star card can carry its own Roman's Trial chip beside the main tap.
+   ===================================================================== */
+.level-card-wrap { position: relative; display: grid; min-width: 0; }
+.level-card-wrap > .level-card { width: 100%; height: 100%; }
+.lv-trial-chip {
+  position: absolute;
+  right: 0.45rem;
+  bottom: 0.45rem;
+  z-index: 2;
+  border: 1px solid rgba(255, 209, 102, 0.65);
+  background: linear-gradient(180deg, rgba(58, 44, 23, 0.96), rgba(36, 26, 14, 0.96));
+  color: #ffd166;
+  border-radius: 6px;
+  padding: 0.22rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.lv-trial-chip:hover, .lv-trial-chip:focus-visible { border-color: #ffd166; color: #ffe9a8; }

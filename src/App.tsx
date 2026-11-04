@@ -123,7 +123,6 @@ import {
 } from './game/logic'
 import {
   TRIAL_HEARTS,
-  UNDO_COST,
   comboMove,
   comboMult,
   dailyBoardForKey,
@@ -141,7 +140,6 @@ import {
   notePlay,
   paceDelta,
   recordRun,
-  resetBestTime,
   replayCoins,
   NEW_BEST_COINS,
   scoreRunV2,
@@ -640,7 +638,6 @@ export default function App() {
   /** Today's date key while this attempt is the scored (first) Daily try */
   const dailyRunRef = useRef<string | null>(null)
   const [dailyTag, setDailyTag] = useState<'' | 'scored' | 'practice'>('')
-  const [startSheet, setStartSheet] = useState<Puzzle | null>(null)
 
   // ---- 9.30-i: Remix boards (a new set of 4 every 3 days at midnight Toronto) + Endless mode ----
   const [clockNow, setClockNow] = useState(() => Date.now())
@@ -1560,7 +1557,6 @@ export default function App() {
     // 9.33-a3: Home's Play button passes `direct` — it starts the board immediately, no detour.
     if (!resume && !opts.direct && !settingsRef.current.howSeen) {
       pendingStartRef.current = { p, opts }
-      setStartSheet(null)
       setHowStart(progress.clears.length > 0 ? HOW_NEW_START : 0)
       setScreen('how')
       return
@@ -1569,7 +1565,6 @@ export default function App() {
     dropWaitingVoice()
     sfxWhoosh()
     resetPlayViewport()
-    setStartSheet(null)
     const resumeDraft = resume ? loadDraft() : null
     const resuming = !!resumeDraft && resumeDraft.puzzleId === p.id
     const onCatalog = hasRecords(p.id)
@@ -2606,13 +2601,14 @@ export default function App() {
       }
       saveRemixBoard(set, p)
       setRemixBoards((r) => (r.set === set ? { set, boards: { ...r.boards, [size]: p } } : r))
-      if (openAfter && screenNowRef.current === 'remix') setStartSheet(p)
+      // 9.33-a4: a built Remix board starts at once — no start sheet gate (Tony: pick = play)
+      if (openAfter && screenNowRef.current === 'remix') startPuzzleRef.current(p, false, { direct: true })
     })
   }
 
   function openRemix(size: RemixSize) {
     const p = liveRemix[size]
-    if (p) setStartSheet(p)
+    if (p) startPuzzle(p, false, { direct: true })
     else buildRemix(size, true)
   }
 
@@ -2634,28 +2630,45 @@ export default function App() {
     startEndless(diffs[Math.floor(Math.random() * diffs.length)])
   }
 
-  /** 9.32-f: shared level-card rendering — used by the difficulty tabs AND the Classic boards set */
+  /** 9.32-f: shared level-card rendering — used by the difficulty tabs AND the Classic boards set.
+      9.33-a4: tapping a card PLAYS the level immediately (same direct path as Home Play) —
+      no start sheet in between. A 3-star card also carries a Trial chip (the sheet used to
+      be the only door to Roman's Trial). Your record rides the start toast into the board. */
   const levelCardFor = (p: Puzzle) => {
     const rec = records.levels[p.id]
     const stars = rec?.stars ?? 0
+    const trial = trialUnlocked(records, p.id)
     return (
-      <button
-        key={p.id}
-        type="button"
-        className={`level-card ${rec?.bestMs != null ? 'cleared' : ''}`}
-        data-level={p.id}
-        onClick={() => setStartSheet(p)}
-      >
-        <span className="lv-name">
-          {p.name}
-          <span className={`lv-stars s${stars}`} aria-label={`${stars} of 3 stars`}>{starString(stars)}</span>
-        </span>
-        <span className="lv-meta">
-          {p.size}×{p.size} · {THEMES[themeForPuzzle(p.id, p.difficulty)].label}
-          {rec?.bestMs != null ? ` · best ${formatMs(rec.bestMs)}` : ''}
-          {trialUnlocked(records, p.id) ? ' · ⚔ Trial' : ''}
-        </span>
-      </button>
+      <div key={p.id} className="level-card-wrap">
+        <button
+          type="button"
+          className={`level-card ${rec?.bestMs != null ? 'cleared' : ''}`}
+          data-level={p.id}
+          onClick={() => startPuzzle(p, false, { direct: true })}
+        >
+          <span className="lv-name">
+            {p.name}
+            <span className={`lv-stars s${stars}`} aria-label={`${stars} of 3 stars`}>{starString(stars)}</span>
+          </span>
+          <span className="lv-meta">
+            {p.size}×{p.size} · {THEMES[themeForPuzzle(p.id, p.difficulty)].label}
+            {rec?.bestMs != null ? ` · best ${formatMs(rec.bestMs)}` : ''}
+            {trial ? ' · ⚔ Trial' : ''}
+          </span>
+        </button>
+        {trial ? (
+          <button
+            type="button"
+            className="lv-trial-chip"
+            data-trial={p.id}
+            aria-label={`Play ${p.name} as Roman's Trial`}
+            title="Roman's Trial — 3 hearts, beat the clock, 2× coins"
+            onClick={() => startPuzzle(p, false, { mode: 'trial', direct: true })}
+          >
+            ⚔ Trial
+          </button>
+        ) : null}
+      </div>
     )
   }
 
@@ -2687,67 +2700,6 @@ export default function App() {
       </section>
     )
   })()
-
-  const sheetTargets = startSheet ? targetsFor(startSheet) : null
-  const sheetRec = startSheet ? records.levels[startSheet.id] : undefined
-  const startSheetEl = startSheet && sheetTargets && createPortal(
-            <div className="start-sheet" role="dialog" aria-modal="true" aria-label={`${startSheet.name}: start`}>
-              <div className="start-sheet-scrim" onClick={() => setStartSheet(null)} />
-              <div className="start-sheet-card">
-                <h3>
-                  {startSheet.name} <span className="start-sheet-stars">{starString(sheetRec?.stars ?? 0)}</span>
-                </h3>
-                <p className="start-sheet-meta">{DIFFICULTY_LABEL[startSheet.difficulty]} · {startSheet.size}×{startSheet.size}</p>
-                <div className="start-sheet-bests">
-                  <div>
-                    <span>Best time</span>
-                    <strong>{sheetRec?.bestMs != null ? formatMs(sheetRec.bestMs) : '—'}</strong>
-                    {sheetRec?.bestMs != null ? <RunTag buddy={sheetRec.buddy ?? null} /> : null}
-                  </div>
-                  <div><span>Top score</span><strong>{sheetRec?.bestScore != null ? sheetRec.bestScore : '—'}</strong></div>
-                </div>
-                <ul className="start-sheet-goals">
-                  <li className={(sheetRec?.stars ?? 0) >= 1 ? 'done' : ''}>★ Finish the board</li>
-                  <li className={(sheetRec?.stars ?? 0) >= 2 ? 'done' : ''}>★★ Under {formatMs(sheetTargets.timeMs)}</li>
-                  <li className={(sheetRec?.stars ?? 0) >= 3 ? 'done' : ''}>★★★ Under {formatMs(sheetTargets.timeMs)}, {sheetTargets.score3}+ pts, no mistakes</li>
-                </ul>
-                <p className="start-sheet-tip">Quick good moves build a combo. Each undo costs {UNDO_COST} pts.</p>
-                <button type="button" className="btn primary" onClick={() => startPuzzle(startSheet)}>
-                  {sheetRec?.bestMs != null ? 'Play · beat your best' : 'Play'}
-                </button>
-                {trialUnlocked(records, startSheet.id) ? (
-                  <button type="button" className="btn trial-btn" onClick={() => startPuzzle(startSheet, false, { mode: 'trial' })}>
-                    ⚔ Roman's Trial
-                    <small>
-                      {TRIAL_HEARTS} hearts · {formatMs(trialTimeLimitMs(sheetTargets))} on the clock · 2× coins
-                      {sheetRec?.trial?.bestMs != null ? ` · best ${formatMs(sheetRec.trial.bestMs)}` : ''}
-                    </small>
-                  </button>
-                ) : (
-                  <p className="start-sheet-locked">⚔ Roman's Trial unlocks at 3 stars</p>
-                )}
-                {sheetRec?.bestMs != null ? (
-                  <button
-                    type="button"
-                    className="btn tool"
-                    data-testid="reset-best"
-                    onClick={() => {
-                      if (window.confirm(`Reset your best time on ${startSheet.name}? Your stars and top score stay.`)) {
-                        persistRecords(resetBestTime(records, startSheet.id))
-                        showToast('Best time reset. Set a new one!')
-                      }
-                    }}
-                  >
-                    Reset best time
-                  </button>
-                ) : null}
-                <button type="button" className="btn ghost" onClick={() => setStartSheet(null)}>
-                  Cancel
-                </button>
-              </div>
-            </div>,
-            document.body,
-          )
 
   // 9.32-f: stats-popup data — total daily wins + best daily time (from the daily-day records)
   const dailyWins = Object.values(records.daily.days).filter((d) => d.status === 'won').length
@@ -3085,7 +3037,6 @@ export default function App() {
               {byDiff[levelTab].map((p) => levelCardFor(p))}
             </div>
           </section>
-          {startSheetEl}
         </main>
       )}
 
@@ -3446,11 +3397,14 @@ export default function App() {
             formatMs={formatMs}
             starString={starString}
             onOpenBoard={openRemix}
+            onTrial={(size) => {
+              const p = liveRemix[size]
+              if (p) startPuzzle(p, false, { mode: 'trial', direct: true })
+            }}
             endless={endless}
             endlessBusy={endlessBusy}
             onEndless={startEndless}
           />
-          {startSheetEl}
         </>
       )}
 
