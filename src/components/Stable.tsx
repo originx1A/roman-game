@@ -29,6 +29,7 @@ import {
   type PetState,
 } from '../game/pets'
 import { PetArt } from './PetArt'
+import { CALL_PACK_PRICE, CALL_PACK_SIZE, callsFor } from '../game/defenders'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const md = (s: string) => `${MONTHS[Number(s.slice(0, 2)) - 1]} ${Number(s.slice(3))}`
@@ -56,6 +57,8 @@ export type StableProps = {
   onClaimFree: (id: PetId) => void
   /** 9.30-b coin bundles */
   onBuyBundle: (id: BundleId) => void
+  /** 9.33-a: stock up this Defender's calls (+10 for coins) */
+  onBuyCalls: (id: PetId) => void
   /** 9.30-m: the free daily pet, and feeding a treat */
   onCare: (id: PetId) => void
   onFeed: (id: PetId, treat: TreatId) => void
@@ -76,7 +79,7 @@ export type StableProps = {
   giftsOnline: boolean
 }
 
-export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCare, onFeed, onSwapTreats, today, onEquip, onPeek, onRedeem, onShop, onBack, giftCode, giftsOnline }: StableProps) {
+export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onBuyCalls, onCare, onFeed, onSwapTreats, today, onEquip, onPeek, onRedeem, onShop, onBack, giftCode, giftsOnline }: StableProps) {
   const [code, setCode] = useState(giftCode ?? '')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -276,6 +279,15 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
                       <small className="stable-treats">{care.maxed ? 'Fully grown!' : `${care.feedsLeft} of 3 treats left today${moodKind(care.mood) === 'happy' ? ' · happy: +coins on wins' : ''}`}</small>
                     </div>
                   ) : null}
+                  <div className="stable-calls" data-testid="pet-calls">
+                    <span>
+                      Calls left: <strong>{callsFor(pets, p.id)}</strong>
+                      <small>spent when {p.name}'s board comes up</small>
+                    </span>
+                    <button type="button" className="btn tool calls-btn" onClick={() => onBuyCalls(p.id)} disabled={coins < CALL_PACK_PRICE}>
+                      Stock up +{CALL_PACK_SIZE} · {CALL_PACK_PRICE} 🪙
+                    </button>
+                  </div>
                   <button type="button" className={`btn ${isActive ? 'ghost' : 'primary'} stable-btn`} onClick={() => onEquip(p.id)} disabled={isActive}>
                     {isActive ? 'Riding ✓' : 'Ride with'}
                   </button>

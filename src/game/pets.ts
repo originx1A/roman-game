@@ -286,6 +286,9 @@ export interface PetState {
   fieldTreats: number
   /** 10.06: consecutive successful defenses (catches/scares) without a steal — bonus treats scale with streak */
   defenseStreak: number
+  /** 9.33-a: Defender calls (activations) in the bank per Defender. Bought in packs of 10
+   *  with coins; one is spent when that Defender's branded board comes up. See defenders.ts. */
+  calls: Partial<Record<PetId, number>>
 }
 
 export const PETS_KEY = 'roman.pets.v1'
@@ -299,7 +302,7 @@ export const TRIAL_CLEAR_COUPON_PCT = 30
 export const TRIAL_END_COUPON_PCT = 25
 
 export function emptyPets(): PetState {
-  return { v: 1, owned: {}, active: null, freePickUsed: false, trial: null, coupons: [], redeemed: [], streakCouponAt: 0, treats: { snack: 0, feast: 0 }, fieldTreats: 0, defenseStreak: 0 }
+  return { v: 1, owned: {}, active: null, freePickUsed: false, trial: null, coupons: [], redeemed: [], streakCouponAt: 0, treats: { snack: 0, feast: 0 }, fieldTreats: 0, defenseStreak: 0, calls: {} }
 }
 
 const num = (x: unknown, d = 0) => (typeof x === 'number' && Number.isFinite(x) ? x : d)
@@ -346,6 +349,11 @@ export function sanitizePets(raw: unknown): PetState {
   out.treats = { snack: Math.max(0, Math.floor(num(tr.snack))), feast: Math.max(0, Math.floor(num(tr.feast))) }
   out.fieldTreats = Math.max(0, Math.min(MAX_FIELD_TREATS, Math.floor(num(r.fieldTreats))))
   out.defenseStreak = Math.max(0, Math.floor(num((r as Record<string, unknown>).defenseStreak)))
+  const callsRaw = (r.calls && typeof r.calls === 'object' ? r.calls : {}) as Record<string, unknown>
+  for (const p of PETS) {
+    const n = Math.floor(num(callsRaw[p.id]))
+    if (n > 0) out.calls[p.id] = Math.min(9999, n)
+  }
   const a = r.active
   out.active = a && (out.owned[a as PetId] || out.trial?.id === a) ? (a as PetId) : null
   return out
@@ -484,6 +492,8 @@ export function claimFreePet(s: PetState, id: PetId, now: number): { ok: true; s
     owned: { ...s.owned, [id]: { at: now, xp: 0, gift: true } },
     active: id,
     freePickUsed: true,
+    // 9.33-a: the free first Defender arrives with a starter bank of 10 calls
+    calls: { ...s.calls, [id]: (s.calls[id] ?? 0) + 10 },
     trial: s.trial?.id === id ? null : s.trial,
   }
   return { ok: true, state }

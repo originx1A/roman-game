@@ -81,6 +81,7 @@ import {
   MAX_FIELD_TREATS,
   swapTreatsToCoins,
   stealFieldTreats,} from './game/pets'
+import { buyCalls } from './game/defenders'
 import {
   BUDDY_HUNT_PERFECT_WINS,
   applyHuntPrize,
@@ -1265,6 +1266,20 @@ export default function App() {
     petGiggle()
     const names = r.got.map((p) => petById(p)!.name)
     showToast(`${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} joined your Stable!`)
+  }
+
+  /** 9.33-a: stock up a Defender's calls (+10 for coins) */
+  function onBuyCalls(id: PetId) {
+    const w = loadWallet()
+    const r = buyCalls(loadPets(), w.coins, id, Date.now())
+    if (!r.ok) {
+      showToast(r.reason)
+      return
+    }
+    persistWallet({ ...w, coins: r.coins })
+    persistPets(r.state)
+    sfxCoin()
+    showToast(`${petById(id)!.name}: ${r.calls} calls in the bank`)
   }
 
   /** 9.30-m: the free daily pet */
@@ -3477,6 +3492,7 @@ export default function App() {
           onBuy={onAdoptPet}
           onClaimFree={onClaimFreePet}
           onBuyBundle={onBuyBundle}
+          onBuyCalls={onBuyCalls}
           onCare={onCarePet}
           onFeed={onFeedPet}
           onSwapTreats={handleSwapTreats}
