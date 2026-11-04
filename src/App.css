@@ -7890,8 +7890,10 @@ html[data-motion='reduce'] .press-burst { display: none; }
 /* ---- a7 fix round 7: bundles tab at short heights — the missing-pets art
    chips are decorative (the names stay as text); shed them so the redeem row
    and every control sit above the lock at 640px too ---- */
-@media (max-height: 700px) {
+@media (max-height: 900px) {
   .stable-bundle-art { display: none; }
+}
+@media (max-height: 700px) {
   .stable-bundle { gap: 0.4rem; }
   .stable-redeem { margin-top: 0.4rem; }
 }
