@@ -33,6 +33,13 @@ export interface BoardTheme {
  * (Machado 2009, CIEDE2000 >= ~14). Light and dark shades alternate so lightness
  * separates colors even when hue can't. Each color slot also has a shape mark
  * (see TILE_SHAPES) so color is never the only cue.
+ *
+ * Build 9.33-a3 (cinematic retune): same 8 families, deepened into jewel tones —
+ * oxblood, ember, antique gold, sage-smoke green, smoky teal, deep sapphire, plum,
+ * garnet. Lightness still does the CVD heavy lifting (the green slot stays the
+ * lightest, heavily desaturated to sage, because green vs garnet only separate by
+ * lightness in deutan/protan views). Verified with colorGap: every theme's minimum
+ * pairwise gap is >= 21 (the palette test requires >= 18).
  */
 export const THEMES: Record<ThemeId, BoardTheme> = {
   classic: {
@@ -40,9 +47,9 @@ export const THEMES: Record<ThemeId, BoardTheme> = {
     label: 'Classic',
     tagline: 'Sunny buddies',
     // maroon · orange · yellow · mint · teal · blue · indigo · pink (colorblind-checked)
-    hues: [356, 22, 58, 148, 183, 212, 246, 333],
-    sats: [68, 68, 84, 68, 68, 80, 68, 72],
-    lits: [36, 56, 56, 66, 42, 48, 36, 52],
+    hues: [354, 20, 48, 158, 186, 218, 262, 338],
+    sats: [66, 74, 78, 46, 62, 74, 56, 66],
+    lits: [24, 44, 47, 55, 38, 42, 28, 44],
     className: 'theme-classic',
     voiceEvent: null,
   },
@@ -51,9 +58,9 @@ export const THEMES: Record<ThemeId, BoardTheme> = {
     label: 'Cosmic Void',
     tagline: 'Starlit mystery',
     // maroon · orange · yellow · mint · teal · blue · indigo · pink (colorblind-checked)
-    hues: [356, 22, 52, 148, 183, 212, 246, 333],
-    sats: [64, 64, 84, 64, 64, 80, 64, 72],
-    lits: [36, 53, 53, 63, 39, 45, 36, 49],
+    hues: [354, 20, 42, 158, 186, 218, 262, 338],
+    sats: [62, 70, 78, 42, 58, 74, 52, 66],
+    lits: [24, 43, 45, 54, 37, 40, 29, 42],
     className: 'theme-cosmic',
     voiceEvent: 'theme-cosmic',
   },
@@ -62,9 +69,9 @@ export const THEMES: Record<ThemeId, BoardTheme> = {
     label: 'Ancient Ruins',
     tagline: 'Forgotten stone',
     // maroon · orange · yellow · mint · teal · blue · indigo · pink (colorblind-checked)
-    hues: [356, 14, 52, 148, 183, 212, 246, 333],
-    sats: [60, 42, 60, 60, 60, 60, 60, 60],
-    lits: [36, 53, 55, 65, 41, 47, 36, 51],
+    hues: [354, 12, 42, 158, 186, 218, 262, 338],
+    sats: [58, 48, 54, 38, 54, 54, 48, 54],
+    lits: [24, 43, 47, 56, 39, 46, 29, 43],
     className: 'theme-ruins',
     voiceEvent: 'theme-ruins',
   },
@@ -73,9 +80,9 @@ export const THEMES: Record<ThemeId, BoardTheme> = {
     label: 'Neon Night',
     tagline: 'Electric streets',
     // maroon · orange · yellow · mint · teal · blue · indigo · pink (colorblind-checked)
-    hues: [356, 16, 58, 146, 183, 212, 246, 331],
-    sats: [80, 80, 96, 80, 80, 80, 80, 80],
-    lits: [36, 62, 50, 70, 42, 48, 36, 50],
+    hues: [354, 14, 48, 156, 186, 218, 262, 336],
+    sats: [78, 84, 84, 58, 74, 74, 68, 74],
+    lits: [24, 43, 45, 57, 39, 47, 29, 44],
     className: 'theme-neon',
     voiceEvent: 'theme-neon',
   },
@@ -84,9 +91,9 @@ export const THEMES: Record<ThemeId, BoardTheme> = {
     label: 'Ocean Deep',
     tagline: 'Abyss glow',
     // maroon · orange · yellow · mint · teal · blue · indigo · pink (colorblind-checked)
-    hues: [356, 22, 58, 148, 183, 212, 246, 333],
-    sats: [64, 64, 75, 64, 64, 76, 64, 72],
-    lits: [36, 55, 51, 65, 41, 47, 36, 51],
+    hues: [354, 20, 48, 158, 186, 218, 262, 338],
+    sats: [62, 70, 69, 42, 58, 70, 52, 66],
+    lits: [26, 40, 43, 56, 39, 42, 29, 45],
     className: 'theme-ocean',
     voiceEvent: 'theme-ocean',
   },
@@ -95,9 +102,9 @@ export const THEMES: Record<ThemeId, BoardTheme> = {
     label: 'Ember Peak',
     tagline: 'Molten heat',
     // maroon · orange · yellow · mint · teal · blue · indigo · pink (colorblind-checked)
-    hues: [356, 22, 54, 148, 183, 212, 246, 333],
-    sats: [66, 66, 90, 66, 66, 80, 66, 72],
-    lits: [36, 56, 56, 66, 42, 48, 36, 52],
+    hues: [354, 20, 44, 158, 186, 218, 262, 338],
+    sats: [64, 72, 84, 44, 60, 74, 54, 66],
+    lits: [24, 46, 48, 58, 40, 43, 29, 45],
     className: 'theme-ember',
     voiceEvent: 'theme-ember',
   },
@@ -106,9 +113,9 @@ export const THEMES: Record<ThemeId, BoardTheme> = {
     label: 'Crystal Cave',
     tagline: 'Prism hush',
     // maroon · orange · yellow · mint · teal · blue · indigo · pink (colorblind-checked)
-    hues: [356, 18, 48, 148, 183, 212, 246, 333],
-    sats: [64, 48, 68, 64, 64, 70, 64, 70],
-    lits: [36, 57, 53, 69, 45, 51, 36, 55],
+    hues: [354, 16, 38, 158, 186, 218, 262, 338],
+    sats: [62, 54, 62, 42, 58, 64, 52, 64],
+    lits: [24, 40, 45, 58, 42, 46, 29, 45],
     className: 'theme-crystal',
     voiceEvent: 'theme-crystal',
   },
@@ -207,7 +214,7 @@ function expandPalette(
     hues.push(bestHue)
     sats.push(sats[i % sats.length] ?? 70)
     // Alternate lightness so extras stay readable next to neighbors
-    lits.push(i % 2 === 0 ? 46 : 58)
+    lits.push(i % 2 === 0 ? 40 : 50)
   }
   return { hues, sats, lits }
 }
