@@ -6,6 +6,7 @@ const rd = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8')
 const ui = rd('../src/cloud/CloudScores.tsx')
 const cloud = rd('../src/cloud/cloud.ts')
 const tag = rd('../src/buildTag.ts')
+const css = rd('../src/App.css')
 
 /** Slice one sheet's JSX block: from its `sheet === '<name>'` marker to the next sheet marker (or the portal close). */
 function block(name: string): string {
@@ -69,4 +70,27 @@ test('9.32-j-dev: close is reachable on every sheet, including the account sheet
 
 test('9.32-j-dev: build tag bumped so a phone can tell the preview from live 9.32-i', () => {
   assert.match(tag, /build 9\.32-j-dev/)
+})
+
+test('9.32-j-dev round 2: the panel keeps the field being typed in above the phone keyboard', () => {
+  // Tony 2026-11-07, testing on his phone: the on-screen keyboard covered the email /
+  // code / name fields ("you can't see shit"). The sheet must follow the visual viewport
+  // and scroll the focused field into view inside the card.
+  assert.match(ui, /window\.visualViewport/, 'the sheet tracks the visual viewport')
+  assert.match(ui, /setProperty\('--rg-vv-height'/, 'sheet height follows the visible area')
+  assert.match(ui, /setProperty\('--rg-vv-top'/, 'sheet top follows the visible area')
+  assert.match(ui, /addEventListener\('focusin'/, 'focusing a field re-checks its visibility')
+  assert.match(ui, /scrollIntoView\(\{ block: 'center' \}\)/, 'the focused field is scrolled into view')
+  assert.match(css, /\.start-sheet\.cloud-sheet \{[^}]*--rg-vv-height/, 'CSS sizes the account sheet to the visible viewport')
+})
+
+test('9.32-j-dev round 2: every sheet in the box carries the link back to romansgame.com', () => {
+  // Tony 2026-11-07: "you need a button somewhere or a link on that page that takes you
+  // to romansgame.com" — a small footer link on the panel itself, on every sheet.
+  assert.match(ui, /href="https:\/\/romansgame\.com\/" target="_blank" rel="noopener"/)
+  assert.match(ui, />\s*Visit romansgame\.com\s*</)
+  const footers = (ui.match(/\{siteLink\}/g) ?? []).length
+  assert.ok(footers >= 7, `footer link rendered on every sheet (found ${footers})`)
+  for (const name of ['start', 'signin', 'create', 'sent', 'name', 'parent', 'account'])
+    assert.match(block(name), /\{siteLink\}/, `${name} sheet carries the footer link`)
 })

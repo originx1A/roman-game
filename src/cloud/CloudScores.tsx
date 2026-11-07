@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { isProfane } from './profanity'
 import { NAME_MAX, loadConsent, saveConsent, onCloud, savePlayerName, sendMagicLink, signOut, verifyEmailCode, type CloudState } from './cloud'
@@ -10,6 +10,11 @@ import { NAME_MAX, loadConsent, saveConsent, onCloud, savePlayerName, sendMagicL
  * 13-or-older / Terms / newsletter questions, which live on the create screen only, then the
  * same code step and a one-time name prompt. The whole chosen name is shown publicly (the
  * server adds 02, 03... if it's taken); bad words are rejected on the spot.
+ *
+ * Round 2 (Tony 2026-11-07, from testing on his phone): the on-screen keyboard covered the
+ * field being typed in, so the sheet now tracks the visual viewport (it lives entirely in
+ * the visible area above the keyboard) and keeps the focused field scrolled into view; and
+ * every sheet carries a footer link out to romansgame.com.
  */
 export function useCloud(): CloudState {
   const [s, setS] = useState<CloudState>({ status: 'off', pending: 0 })
@@ -65,6 +70,56 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
     if (cloud.name === null) setSheet((s) => (s === 'account' ? s : 'name'))
     else setSheet((s) => (s === 'sent' ? 'account' : s))
   }, [cloud.status, cloud.name])
+
+  // Phone keyboard (Tony 2026-11-07): the on-screen keyboard covers the lower half of the
+  // screen — including the field being typed in. So while the box is open, it is sized and
+  // positioned to the VISUAL viewport (the part of the screen still visible above the
+  // keyboard, via the --rg-vv-* properties in App.css) and the focused field is kept
+  // scrolled into view inside the card. Desktop is unaffected: no keyboard, full viewport.
+  const sheetRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!sheet) return
+    const el = sheetRef.current
+    if (!el) return
+    const vv = window.visualViewport
+    const keepFieldVisible = () => {
+      const a = document.activeElement
+      if (!(a instanceof HTMLInputElement || a instanceof HTMLTextAreaElement) || !el.contains(a)) return
+      const r = a.getBoundingClientRect()
+      const vh = vv?.height ?? window.innerHeight
+      if (r.top < 8 || r.bottom > vh - 8) a.scrollIntoView({ block: 'center' })
+    }
+    const syncViewport = () => {
+      if (vv) {
+        el.style.setProperty('--rg-vv-top', `${vv.offsetTop}px`)
+        el.style.setProperty('--rg-vv-height', `${vv.height}px`)
+      }
+      keepFieldVisible()
+    }
+    const onFocusIn = (e: FocusEvent) => {
+      if (!(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) return
+      // The keyboard takes a few hundred ms to slide in; re-check once it has settled.
+      window.setTimeout(keepFieldVisible, 350)
+    }
+    syncViewport()
+    vv?.addEventListener('resize', syncViewport)
+    vv?.addEventListener('scroll', syncViewport)
+    el.addEventListener('focusin', onFocusIn)
+    return () => {
+      vv?.removeEventListener('resize', syncViewport)
+      vv?.removeEventListener('scroll', syncViewport)
+      el.removeEventListener('focusin', onFocusIn)
+      el.style.removeProperty('--rg-vv-top')
+      el.style.removeProperty('--rg-vv-height')
+    }
+  }, [sheet])
+
+  // The way back to the main site, at the foot of every sheet in this box (Tony 2026-11-07).
+  const siteLink = (
+    <a className="cloud-site-link" href="https://romansgame.com/" target="_blank" rel="noopener">
+      Visit romansgame.com
+    </a>
+  )
 
   // One shared email field for both doors — switching screens never wipes what was typed.
   const emailField = (
@@ -129,7 +184,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
       )}
       {sheet &&
         createPortal(
-          <div className="start-sheet cloud-sheet" role="dialog" aria-modal="true" aria-label="Save my scores">
+          <div className="start-sheet cloud-sheet" role="dialog" aria-modal="true" aria-label="Save my scores" ref={sheetRef}>
             <div className="start-sheet-scrim" onClick={() => setSheet(null)} />
             {sheet === 'start' && (
               <div className="start-sheet-card">
@@ -160,6 +215,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 <button type="button" className="btn ghost" onClick={() => setSheet(null)}>
                   Not now
                 </button>
+                {siteLink}
               </div>
             )}
             {sheet === 'signin' && (
@@ -190,6 +246,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 <button type="button" className="btn ghost" onClick={() => setSheet(null)}>
                   Not now
                 </button>
+                {siteLink}
               </form>
             )}
             {sheet === 'create' && (
@@ -223,6 +280,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 <button type="button" className="btn ghost" onClick={() => setSheet(null)}>
                   Not now
                 </button>
+                {siteLink}
               </form>
             )}
             {sheet === 'sent' && (
@@ -268,6 +326,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 <button type="button" className="btn ghost" onClick={() => setSheet(null)}>
                   Not now
                 </button>
+                {siteLink}
               </form>
             )}
             {sheet === 'name' && (
@@ -295,6 +354,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 <button type="submit" className="btn primary" disabled={busy || !name.trim() || !!nameProblem}>
                   {busy ? 'Saving…' : 'Save name'}
                 </button>
+                {siteLink}
               </form>
             )}
             {sheet === 'parent' && (
@@ -311,6 +371,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                     Sign out
                   </button>
                 )}
+                {siteLink}
               </div>
             )}
             {sheet === 'account' && (
@@ -336,6 +397,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 <button type="button" className="btn ghost" onClick={() => { void signOut(); setSheet(null) }}>
                   Sign out
                 </button>
+                {siteLink}
               </div>
             )}
           </div>,

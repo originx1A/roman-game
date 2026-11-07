@@ -135,3 +135,57 @@ branch previews inherit the site env with `SECRETS_SCAN_OMIT_KEYS=SUPABASE_URL`)
 sign-in systems (this cloud box vs the unverified local "Save with email" form on Save & settings)
 remain independent — untouched here per scope; the repo's `SIGNIN-NAME-FIX-PLAN.md` already covers
 that unification as its own job.
+
+---
+
+## 4. Round 2 — Tony's corrections from testing on his phone (Nov 7, ~18:15 EST)
+
+Tony's priority note: the cleanup matters most **in the game** ("this is on the game, not
+romansgame.com"). Two defects, both fixed on this same branch, presentation/flow only —
+no auth calls, payloads, validation, or consent wording touched.
+
+### 4a. The on-screen keyboard covered the field being typed in
+
+On his phone, tapping the email field opened the keyboard over the lower half of the screen
+and the field disappeared under it ("you can't see shit"). The sheet was centred on the full
+screen height, so the keyboard — which only shrinks the *visual* viewport — covered it.
+
+Fix (`src/cloud/CloudScores.tsx` + `src/App.css`):
+- While the box is open, an effect tracks `window.visualViewport`: on every resize/scroll it
+  writes `--rg-vv-top` / `--rg-vv-height` onto the sheet element, and `.start-sheet.cloud-sheet`
+  is sized/positioned by those properties, so the whole panel lives inside the still-visible
+  area above the keyboard. (No keyboard → properties equal the full viewport; desktop and the
+  no-`visualViewport` fallback behave exactly as before.)
+- A `focusin` listener (plus the viewport sync itself) checks the focused input/textarea: if
+  it sits outside the visible strip, it is scrolled into view (centred) inside the
+  internally-scrolling card. This covers every typing screen the box has — sign-in email,
+  create email, code entry, and the one-time name step all live in the same sheet element.
+
+### 4b. A way back to romansgame.com on the panel itself
+
+"You need a button somewhere or a link on that page that takes you to romansgame.com." Every
+sheet in the box (chooser, sign in, create, code, name, parent, account) now ends with a small
+footer link: **Visit romansgame.com** → `https://romansgame.com/`, `target="_blank"`,
+`rel="noopener"` (`.cloud-site-link`, gold, centred). Panel-level only — the separate
+home-screen button on `cooper/site-return-link-2026-11-07` is untouched and unentangled.
+
+### Verification (round 2)
+
+- **Harness:** 254 tests, 244 pass, **10 fail — the failing-name list is byte-identical to the
+  pre-round-2 baseline** (252/10 on this branch before these commits; the +2 are the new
+  round-2 regression checks in `scripts/game-auth-chooser.test.ts`, both passing). `tsc -b`
+  clean, vite build green.
+- **Browser (`verify.mjs`, 18/18 PASS** — the 14 round-1 checks plus 4 new): the footer link
+  is present with the exact label/href/target/rel and *visible* on the chooser, and present on
+  the form screens. **Keyboard emulation:** with a field focused at 390×844, the visible area
+  was shrunk to **390×400** (the strip a phone keyboard leaves) and the focused field measured:
+  sign-in email field at y 110–154 of the 400px visible strip, whole card inside it
+  (y 18–382); create email field at y 104–147, card y 12–388. Screenshots:
+  `auth-keyboard-signin-390.png` and `auth-keyboard-create-390.png` (focused field, cursor in
+  it, fully inside the visible frame, footer link visible under the buttons on the sign-in
+  shot), plus `auth-chooser-phone390.png` (footer link under "Not now", visually inspected).
+  The code and name screens sit behind a real emailed code / an existing session, so they
+  can't be reached in a no-real-account test; they share the same sheet element, viewport
+  tracking, and focus handling, so the fix covers them by construction.
+- **Branch preview:** rebuilt on the same URL after the round-2 push (bundle content-checked
+  for the new footer-link strings) — see the commit list below.
