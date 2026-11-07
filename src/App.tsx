@@ -2983,6 +2983,29 @@ export default function App() {
               </button>
               <CloudScoresButton suggestedName={playerName} />
               <UnseenCardTile records={records} />
+              {/* 9.32-j: the way back to the main site, on the home screen itself (Tony 2026-11-07).
+                  Until now the only romansgame.com link in the game sat on the win screen, so a
+                  player who hadn't just won had no way out. Same globe-link pattern as the win
+                  screen's link (class home-site-link), styled as a home-row button. Web only:
+                  store builds keep players inside the app. */}
+              {!isStoreBuild() && (
+                <a
+                  className="btn ghost home-site-link"
+                  href="https://romansgame.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="home-site-link"
+                  aria-label="Visit romansgame.com — the main Roman's Game site"
+                >
+                  <svg className="home-site-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                    <path
+                      fill="currentColor"
+                      d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2c2.1 0 3.9 1.1 5 2.7H7c1.1-1.6 2.9-2.7 5-2.7zM4.2 12c0-1.2.3-2.4.8-3.4h14c.5 1 .8 2.2.8 3.4s-.3 2.4-.8 3.4H5c-.5-1-.8-2.2-.8-3.4zm7.8 8c-2.1 0-3.9-1.1-5-2.7h10c-1.1 1.6-2.9 2.7-5 2.7z"
+                    />
+                  </svg>
+                  Visit romansgame.com
+                </a>
+              )}
             </div>
           </section>
           {/* 10.06: treat defense — the vulnerable field pile. Claim only on the board screen. */}

@@ -3616,6 +3616,20 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
 .win-fb-icon {
   flex-shrink: 0;
 }
+/* 9.32-j: home-screen return link to romansgame.com — an <a> wearing the home
+   row's .btn ghost clothes, so it needs the anchor resets .btn (written for
+   <button>) doesn't carry: no underline, and flex centring for the globe icon. */
+.home-site-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.home-site-icon {
+  flex-shrink: 0;
+}
 .link-board-error {
   margin: 0.75rem 0 0;
   font-weight: 800;
