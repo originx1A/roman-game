@@ -187,5 +187,8 @@ home-screen button on `cooper/site-return-link-2026-11-07` is untouched and unen
   The code and name screens sit behind a real emailed code / an existing session, so they
   can't be reached in a no-real-account test; they share the same sheet element, viewport
   tracking, and focus handling, so the fix covers them by construction.
-- **Branch preview:** rebuilt on the same URL after the round-2 push (bundle content-checked
-  for the new footer-link strings) — see the commit list below.
+- **Branch preview:** rebuilt on the same URL after the round-2 push — the preview's served JS
+  bundle changed (new asset hash) and was content-checked: it contains `cloud-site-link`,
+  `--rg-vv-height`, and "Visit romansgame.com", so the preview really is the round-2 build.
+- **Commits:** `9ec212c` on top of round 1's `ab5b0e5` + `c9e625e`, pushed to origin
+  (`main` still `68f83655` — nothing merged, production untouched).
