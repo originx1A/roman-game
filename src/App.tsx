@@ -3076,6 +3076,7 @@ export default function App() {
         <HowToPlay
           key={`how-${howStart}`}
           startAt={howStart}
+          firstRun={progress.clears.length === 0}
           doneLabel={pendingStartRef.current ? "Let's play" : 'Choose a level'}
           onDone={() => {
             settingsRef.current = { ...settingsRef.current, howSeen: true }
