@@ -4,8 +4,12 @@ import { isProfane } from './profanity'
 import { NAME_MAX, loadConsent, saveConsent, onCloud, savePlayerName, sendMagicLink, signOut, verifyEmailCode, type CloudState } from './cloud'
 
 /**
- * "Save my scores" button + sheets: email magic link or the code from that email, then a one-time name prompt.
- * The whole chosen name is shown publicly (the server adds 02, 03... if it's taken); bad words are rejected on the spot.
+ * "Save my scores" button + sheets, chooser-first (Tony 2026-11-07): the box opens on two
+ * options only — Sign in or Create account. Picking one swaps in that job's own screen:
+ * sign-in is email + the code from that email (no password, no checkboxes); creating adds the
+ * 13-or-older / Terms / newsletter questions, which live on the create screen only, then the
+ * same code step and a one-time name prompt. The whole chosen name is shown publicly (the
+ * server adds 02, 03... if it's taken); bad words are rejected on the spot.
  */
 export function useCloud(): CloudState {
   const [s, setS] = useState<CloudState>({ status: 'off', pending: 0 })
@@ -13,11 +17,13 @@ export function useCloud(): CloudState {
   return s
 }
 
-type Sheet = null | 'email' | 'sent' | 'name' | 'account' | 'parent'
+type Sheet = null | 'start' | 'signin' | 'create' | 'sent' | 'name' | 'account' | 'parent'
 
 export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: string; compact?: boolean }) {
   const cloud = useCloud()
   const [sheet, setSheet] = useState<Sheet>(null)
+  /** Which door the code screen was reached from — its heading and switch link follow it. */
+  const [flow, setFlow] = useState<'signin' | 'create'>('signin')
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
   const [name, setName] = useState(suggestedName ?? '')
@@ -60,6 +66,27 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
     else setSheet((s) => (s === 'sent' ? 'account' : s))
   }, [cloud.status, cloud.name])
 
+  // One shared email field for both doors — switching screens never wipes what was typed.
+  const emailField = (
+    <input className="name-input" type="email" inputMode="email" autoComplete="email" placeholder="Email address" aria-label="Email address" value={email} onChange={(e) => setEmail(e.target.value)} />
+  )
+
+  /** Email step shared by both doors: validate, then send the same sign-in email as always. */
+  async function sendCode(from: 'signin' | 'create') {
+    if (from === 'create') {
+      if (!age13) return setSheet('parent')
+      if (!terms) return setErr('Please agree to the Terms and Privacy.')
+    }
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setErr('Type a full email address.')
+    if (from === 'create') saveConsent({ age13, optIn })
+    setFlow(from)
+    setBusy(true)
+    const r = await sendMagicLink(email)
+    setBusy(false)
+    if (r.ok) setSheet('sent')
+    else setErr(r.error ?? 'Something went wrong.')
+  }
+
   const label =
     cloud.status === 'signed-in' && cloud.name
       ? `☁ Scores saving as ${cloud.publicName ?? cloud.name}${cloud.pending ? ` (${cloud.pending} waiting)` : ''}`
@@ -78,7 +105,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
     setTerms(false)
     saveConsent({ age13: false, optIn: false })
     setErr('')
-    setSheet('email')
+    setSheet('start')
   }
 
   const nameProblem = !name.trim() ? '' : isProfane(name) ? "Let's pick a different name. Keep it friendly!" : ''
@@ -90,7 +117,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
         className={`btn ghost cloud-btn${compact ? ' is-compact' : ''}`}
         onClick={() => {
           setErr('')
-          setSheet(cloud.status === 'signed-in' ? (cloud.name ? 'account' : 'name') : 'email')
+          setSheet(cloud.status === 'signed-in' ? (cloud.name ? 'account' : 'name') : 'start')
         }}
       >
         {label}
@@ -104,31 +131,94 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
         createPortal(
           <div className="start-sheet cloud-sheet" role="dialog" aria-modal="true" aria-label="Save my scores">
             <div className="start-sheet-scrim" onClick={() => setSheet(null)} />
-            {sheet === 'email' && (
+            {sheet === 'start' && (
+              <div className="start-sheet-card">
+                <h3>Save your scores</h3>
+                <p className="start-sheet-tip">
+                  Get on the leaderboard and keep your scores on any device. No password — we email you a sign-in link and a code.
+                </p>
+                <button
+                  type="button"
+                  className="btn primary"
+                  onClick={() => {
+                    setErr('')
+                    setSheet('signin')
+                  }}
+                >
+                  Sign in
+                </button>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={() => {
+                    setErr('')
+                    setSheet('create')
+                  }}
+                >
+                  Create account
+                </button>
+                <button type="button" className="btn ghost" onClick={() => setSheet(null)}>
+                  Not now
+                </button>
+              </div>
+            )}
+            {sheet === 'signin' && (
               <form
                 className="start-sheet-card"
                 onSubmit={async (e) => {
                   e.preventDefault()
-                  if (!age13) return setSheet('parent')
-                  if (!terms) return setErr('Please agree to the Terms and Privacy.')
-                  if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setErr('Type a full email address.')
-                  saveConsent({ age13, optIn })
-                  setBusy(true)
-                  const r = await sendMagicLink(email)
-                  setBusy(false)
-                  if (r.ok) setSheet('sent')
-                  else setErr(r.error ?? 'Something went wrong.')
+                  await sendCode('signin')
                 }}
               >
-                <h3>Save your scores</h3>
+                <h3>Sign in</h3>
+                <p className="start-sheet-tip">We'll email you a sign-in link and a code. Enter the code here and you're in.</p>
+                {emailField}
+                {err && <p className="cloud-err" role="alert">{err}</p>}
+                <button type="submit" className="btn primary" disabled={busy}>
+                  {busy ? 'Sending…' : 'Email me my sign-in code'}
+                </button>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={() => {
+                    setErr('')
+                    setSheet('create')
+                  }}
+                >
+                  New here? Create account instead
+                </button>
+                <button type="button" className="btn ghost" onClick={() => setSheet(null)}>
+                  Not now
+                </button>
+              </form>
+            )}
+            {sheet === 'create' && (
+              <form
+                className="start-sheet-card"
+                onSubmit={async (e) => {
+                  e.preventDefault()
+                  await sendCode('create')
+                }}
+              >
+                <h3>Create your account</h3>
                 <p className="start-sheet-tip">
-                  Get on the leaderboard and keep your scores on any device. We'll email you a sign-in link and the code from your email. No password.
+                  We'll email you a sign-in link and a code. Enter the code, pick your leaderboard name, and your account is ready.
                 </p>
-                <input className="name-input" type="email" inputMode="email" autoComplete="email" placeholder="Email address" aria-label="Email address" value={email} onChange={(e) => setEmail(e.target.value)} />
+                {emailField}
                 {consentChecks}
                 {err && <p className="cloud-err" role="alert">{err}</p>}
                 <button type="submit" className="btn primary" disabled={busy}>
-                  {busy ? 'Sending…' : 'Email me a sign-in link'}
+                  {busy ? 'Sending…' : 'Email me my sign-in code'}
+                </button>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={() => {
+                    setErr('')
+                    setSheet('signin')
+                  }}
+                >
+                  Already have an account? Sign in instead
                 </button>
                 <button type="button" className="btn ghost" onClick={() => setSheet(null)}>
                   Not now
@@ -147,7 +237,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                   if (!r.ok) setErr(r.error ?? 'Something went wrong.')
                 }}
               >
-                <h3>Check your email</h3>
+                <h3>{flow === 'create' ? 'Enter your code to finish' : 'Check your email'}</h3>
                 <p className="start-sheet-tip">
                   We sent it to <b>{email.trim()}</b>. Tap the link in your email, or enter the code from your email.
                 </p>
@@ -173,7 +263,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 />
                 {err && <p className="cloud-err" role="alert">{err}</p>}
                 <button type="submit" className="btn primary" disabled={busy || code.length < 6}>
-                  {busy ? 'Checking…' : 'Sign in with code'}
+                  {busy ? 'Checking…' : flow === 'create' ? 'Create my account' : 'Sign in with code'}
                 </button>
                 <button type="button" className="btn ghost" onClick={() => setSheet(null)}>
                   Not now
@@ -231,6 +321,9 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                   {cloud.pending ? ` ${cloud.pending} score${cloud.pending === 1 ? '' : 's'} will send when you're back online.` : ' Every game you finish is saved.'}
                 </p>
                 <button type="button" className="btn primary" onClick={() => setSheet(null)}>
+                  Close
+                </button>
+                <button type="button" className="btn ghost" onClick={() => setSheet(null)}>
                   Done
                 </button>
                 <button
