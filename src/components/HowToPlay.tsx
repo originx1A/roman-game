@@ -1,6 +1,16 @@
 import { useEffect, useState } from 'react'
 import { HowDemo, type HowDemoId } from './HowDemo'
 
+/* RG03 (Tony Nov 7, hand-ported from 9d165d1): the first-run carousel leads
+   with the five core-rule cards ONLY — placing a buddy, rows/columns, no
+   touching, swipe & tap, hearts. Every other card stays in the deck (same
+   component, same order after the core five, nothing deleted) and is
+   presented as "More to discover" — secondary systems are introduced after
+   the first clear instead of competing with the rules on a brand-new
+   player's first screen. Returning players still start at the new-feature
+   cards. */
+export const HOW_CORE_COUNT = 5
+
 const STEPS = [
   { title: 'One per region', blurb: 'Each colored area gets exactly one buddy.', demo: 'region' },
   { title: 'Rows & columns', blurb: 'Every row and every column gets one buddy too.', demo: 'lines' },
@@ -40,20 +50,35 @@ export function HowToPlay({
   onBack,
   startAt = 0,
   doneLabel = 'Choose a level',
+  firstRun = false,
 }: {
   onDone: () => void
   onBack?: () => void
   startAt?: number
   doneLabel?: string
+  /** RG03: brand-new player's first pass — the carousel cycles the
+   *  core-rule cards only. "More to discover" opens the full deck. */
+  firstRun?: boolean
 }) {
   const [step, setStep] = useState(() => Math.max(0, Math.min(STEPS.length - 1, startAt)))
+  // RG03: a first-run player starts in core-only mode; tapping "More to
+  // discover" opens the full deck.
+  const [coreOnly, setCoreOnly] = useState(() => firstRun && startAt < HOW_CORE_COUNT)
   const current = STEPS[step]
 
   useEffect(() => {
     const s = STEPS[step] as { ms?: number }
-    const id = window.setTimeout(() => setStep((n) => (n + 1) % STEPS.length), s.ms ?? STEP_MS)
+    const id = window.setTimeout(
+      () =>
+        setStep((n) => {
+          const next = n + 1
+          if (coreOnly) return next >= HOW_CORE_COUNT ? 0 : next
+          return next % STEPS.length
+        }),
+      s.ms ?? STEP_MS,
+    )
     return () => window.clearTimeout(id)
-  }, [step])
+  }, [step, coreOnly])
 
   return (
     <main className="panel scroll-pane how-panel">
@@ -70,7 +95,7 @@ export function HowToPlay({
         <HowDemo key={current.demo} demo={current.demo} />
         <div className="how-caption">
           <p className="how-step-label">
-            {step + 1} / {STEPS.length}
+            {step + 1} / {coreOnly ? HOW_CORE_COUNT : STEPS.length}
             {'isNew' in current && current.isNew ? <span className="how-new-tag">New</span> : null}
           </p>
           <h3>{current.title}</h3>
@@ -78,16 +103,31 @@ export function HowToPlay({
         </div>
       </div>
       <div className="how-dots" role="tablist" aria-label="How to play steps">
-        {STEPS.map((s, i) => (
-          <button
-            key={s.title}
-            type="button"
-            className={i === step ? 'on' : ''}
-            aria-label={s.title}
-            onClick={() => setStep(i)}
-          />
-        ))}
+        {STEPS.map((s, i) => {
+          if (coreOnly && i >= HOW_CORE_COUNT) return null
+          return (
+            <button
+              key={s.title}
+              type="button"
+              className={i === step ? 'on' : ''}
+              aria-label={s.title}
+              onClick={() => setStep(i)}
+            />
+          )
+        })}
       </div>
+      {coreOnly && (
+        <button
+          type="button"
+          className="btn ghost how-more"
+          onClick={() => {
+            setCoreOnly(false)
+            setStep(HOW_CORE_COUNT)
+          }}
+        >
+          More to discover — hunts, stars, Defenders &amp; more
+        </button>
+      )}
       <ol className="rules how-rules">
         <li>One buddy in every colored region.</li>
         <li>One buddy in every row and column.</li>
@@ -109,7 +149,17 @@ export function HowToPlay({
         <button type="button" className="btn primary" onClick={onDone}>
           {doneLabel}
         </button>
-        <button type="button" className="btn ghost" onClick={() => setStep((s) => (s + 1) % STEPS.length)}>
+        <button
+          type="button"
+          className="btn ghost"
+          onClick={() =>
+            setStep((s) => {
+              const next = s + 1
+              if (coreOnly) return next >= HOW_CORE_COUNT ? 0 : next
+              return next % STEPS.length
+            })
+          }
+        >
           Next tip
         </button>
       </div>
