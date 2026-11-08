@@ -8020,3 +8020,132 @@ html[data-motion='reduce'] .press-burst { display: none; }
   .stable-tabs { min-height: 36px; }
   .stable-tab { min-height: 36px; }
 }
+
+/* =====================================================================
+   9.33-a9 — THE LOOK PREVIEW (Tony, Nov 8, direct order): the flat
+   brownie-gold is KILLED. The backdrop is a lore image from the story
+   world; surfaces move from warm brown to deep ink so the art, the gems
+   and the Defenders carry the colour; the board breathes a little more;
+   buttons trade pills for plaques and stay readable first. Look only —
+   no logic, mechanics, hues or colour-blind separations change.
+   ===================================================================== */
+
+/* ---- 1. LORE BACKDROP: one approved art per session, dim + soft ---- */
+.lore-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: #05070b;
+}
+.lore-bg img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 38%;
+  /* dimmed + softened: the art is a place, never a competitor */
+  filter: brightness(0.52) saturate(0.82) contrast(1.02);
+  transform: scale(1.03);
+}
+/* the old brownie-gold gradient stack becomes a readability scrim over
+   the art: cool ink washes + a vignette, warm only at the ember base */
+.atmosphere {
+  background:
+    radial-gradient(900px 600px at 12% -8%, rgba(70, 96, 140, 0.16), transparent 58%),
+    radial-gradient(760px 540px at 88% 6%, rgba(120, 52, 40, 0.12), transparent 55%),
+    radial-gradient(120% 90% at 50% 42%, transparent 55%, rgba(3, 5, 8, 0.55) 100%),
+    linear-gradient(168deg, rgba(5, 8, 13, 0.62) 0%, rgba(5, 8, 13, 0.48) 45%, rgba(4, 6, 10, 0.72) 100%);
+}
+body { background: #05070b; }
+
+/* ---- 2. COLLECTOR'S-CARD SURFACES: ink, not brownie ---- */
+/* dark plaques: nav, menu rows, tabs, picks, chips */
+.bottom-nav-item, .more-row, .seg-tab, .stable-tab, .how-tab, .stable-pick, .share-chip {
+  background-image: var(--grain), linear-gradient(168deg, rgba(38, 46, 62, 0.96), rgba(16, 20, 30, 0.97) 55%, rgba(7, 9, 14, 0.98));
+  box-shadow: inset 0 1px 0 rgba(214, 228, 255, 0.16), inset 0 -8px 14px rgba(0, 0, 0, 0.42), 0 5px 14px rgba(0, 0, 0, 0.36);
+}
+/* cards: deep ink tinted only a breath by the screen's accent */
+.level-card, .stable-card, .badge-card, .promo-card, .gift-preview, .stable-bundle, .heard-card, .incoming, .profile-card {
+  background-image: var(--grain), linear-gradient(158deg, color-mix(in srgb, var(--screen-accent, #7d8aa5) 7%, rgba(30, 36, 50, 0.96)), rgba(14, 17, 26, 0.97) 58%, rgba(6, 8, 13, 0.98));
+  box-shadow: inset 0 1px 0 rgba(214, 228, 255, 0.12), inset 0 -12px 22px rgba(0, 0, 0, 0.36), 0 8px 20px rgba(0, 0, 0, 0.34);
+}
+/* home plates + companion cells */
+.home-plates .unseen-tile, .home-companion .home-pet, .home-companion .treat-pile-widget {
+  background-image: var(--grain), linear-gradient(165deg, rgba(40, 48, 66, 0.93), rgba(13, 16, 24, 0.96));
+  box-shadow: inset 0 1px 0 rgba(214, 228, 255, 0.13), inset 0 -8px 14px rgba(0, 0, 0, 0.36);
+}
+/* ghost buttons: same ink register, never brown */
+.btn.ghost {
+  background-image: var(--grain), linear-gradient(168deg, rgba(43, 51, 70, 0.94), rgba(13, 16, 24, 0.96));
+  box-shadow: inset 0 1px 0 rgba(214, 228, 255, 0.14), inset 0 -7px 12px rgba(0, 0, 0, 0.38);
+}
+/* primary stays the one lit jewel — antique gold with INK text (contrast
+   first), a touch brighter at the crest so it reads as light, not mud */
+.btn.primary, .home-play, .bottom-nav-item.on {
+  background-image: var(--grain), linear-gradient(165deg, #ffe9a3, #f0b93e 48%, #cf8f1e 84%, #a96f10);
+  box-shadow: inset 0 1px 0 rgba(255, 250, 220, 0.7), inset 0 -9px 15px rgba(122, 70, 0, 0.35), 0 7px 18px rgba(0, 0, 0, 0.42);
+}
+
+/* ---- 4. FEWER PILLS: plaques, not lozenges (labels untouched) ---- */
+.btn, .bottom-nav-item, .more-row, .seg-tab, .stable-tab, .how-tab, .stable-pick, .share-chip, .level-tab {
+  border-radius: 11px;
+}
+.btn.tool { border-radius: 11px; }
+
+/* ---- 3. THE BOARD BREATHES: wider channels, deeper gems ---- */
+.board {
+  --gap: 5px;
+  padding: 14px;
+}
+.board::before { inset: 14px; }
+.charge-fx { inset: 14px; }
+.cell-fill {
+  background-image:
+    url('/images/fx/gem-facet.webp'),
+    linear-gradient(
+      155deg,
+      hsl(var(--hue) var(--sat, 72%) calc(var(--lit, 56%) + 10%) / 0.97) 0%,
+      hsl(var(--hue) var(--sat, 72%) calc(var(--lit, 56%) - 3%) / 0.95) 42%,
+      hsl(var(--hue) calc(var(--sat, 72%) - 2%) calc(var(--lit, 56%) - 22%) / 0.98) 100%
+    );
+  filter: saturate(1.04) contrast(1.05);
+}
+.cell:hover .cell-fill { filter: saturate(1.04) contrast(1.05) brightness(1.07); }
+.cell.pressed .cell-fill {
+  filter: saturate(1.04) contrast(1.05) brightness(1.13);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 226, 160, 0.5),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.26),
+    0 8px 16px rgba(0, 0, 0, 0.4),
+    0 3px 6px rgba(0, 0, 0, 0.24),
+    0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+/* ---- 5. DEFENDER PRESENCE + PRESS LIFE (motion-safe) ---- */
+/* a branded board wears its Defender's colour on the tray rim */
+.board-stage.is-branded .board {
+  outline: 1px solid color-mix(in srgb, var(--brand-deep, #888) 55%, rgba(255, 213, 110, 0.35));
+  box-shadow: 0 0 34px color-mix(in srgb, var(--brand-deep, #888) 34%, transparent), 0 18px 44px rgba(0, 0, 0, 0.45);
+}
+/* the banner breathes with a slow accent glow */
+.brand-banner {
+  animation: a9BannerGlow 3.6s ease-in-out infinite;
+}
+@keyframes a9BannerGlow {
+  0%, 100% { box-shadow: 0 0 10px color-mix(in srgb, var(--brand-accent, #ffd166) 22%, transparent), inset 0 1px 0 rgba(255, 240, 200, 0.18); }
+  50% { box-shadow: 0 0 22px color-mix(in srgb, var(--brand-accent, #ffd166) 42%, transparent), inset 0 1px 0 rgba(255, 240, 200, 0.24); }
+}
+/* the big Play action carries a slow ember breathing glow */
+.home-play {
+  animation: a9PlayGlow 3.2s ease-in-out infinite;
+}
+@keyframes a9PlayGlow {
+  0%, 100% { box-shadow: inset 0 1px 0 rgba(255, 250, 220, 0.7), inset 0 -9px 15px rgba(122, 70, 0, 0.35), 0 7px 18px rgba(0, 0, 0, 0.42), 0 0 14px rgba(255, 176, 58, 0.22); }
+  50% { box-shadow: inset 0 1px 0 rgba(255, 250, 220, 0.7), inset 0 -9px 15px rgba(122, 70, 0, 0.35), 0 7px 18px rgba(0, 0, 0, 0.42), 0 0 26px rgba(255, 176, 58, 0.42); }
+}
+html[data-motion='reduce'] .brand-banner,
+html[data-motion='reduce'] .home-play { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .brand-banner, .home-play { animation: none; }
+}

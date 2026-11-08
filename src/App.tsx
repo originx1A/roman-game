@@ -83,6 +83,7 @@ import {
 import { aquilaFeatherCount, buyCalls, callsFor, DEFENDER_THEME, NOX_LIGHT_COUNT, rollBrand, spendCall } from './game/defenders'
 import { DefenderRail } from './components/DefenderRail'
 import { Atmosphere } from './components/Atmosphere'
+import { LoreBackdrop } from './components/LoreBackdrop'
 import {
   BUDDY_HUNT_PERFECT_WINS,
   applyHuntPrize,
@@ -2842,6 +2843,7 @@ export default function App() {
       ref={shellRef}
       onPointerDown={unlockAudio}
     >
+      <LoreBackdrop />
       <div className="atmosphere" aria-hidden />
       <style>{MENU_CSS}</style>
       {!hideChrome && (
