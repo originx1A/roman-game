@@ -307,9 +307,54 @@ function syncAppHeight() {
   // whole play screen jump. Use the layout viewport then, and ignore sub-pixel jitter.
   const zoomed = !!vv && vv.scale > 1.01
   const h = Math.round(zoomed ? window.innerHeight : (vv?.height ?? window.innerHeight))
+  // 9.33-a11: publish the VISUAL height as tier classes on <html>. CSS media queries see the
+  // layout viewport, which in an app webview (host chrome drawn over the page) can be much
+  // taller than the band the player can actually see — the a10 tiers keyed off media queries
+  // alone under-engaged on Tony's phone. These classes key off the same visual height that
+  // sizes the shell, so the compression tiers and the board cap follow the visible area.
+  const rootEl = document.documentElement
+  rootEl.classList.toggle('vvh-s', h > 0 && h <= 760)
+  rootEl.classList.toggle('vvh-xs', h > 0 && h <= 640)
+  rootEl.classList.toggle('vvh-b', h > 0 && h <= 720)
   if (h <= 0 || Math.abs(h - lastAppHeight) < 2) return
   lastAppHeight = h
   document.documentElement.style.setProperty('--app-height', `${h}px`)
+}
+
+// 9.33-a11: measured fit — the shell-wide guarantee. Menu screens are overflow:hidden flex
+// columns sized by --app-height; when a webview renders type larger than the design budget
+// (Tony's Muse-app webview does), a stack silently amputates its own bottom — Home's promo
+// row, the board tray, the Challenge submit button. Instead of guessing breakpoints, MEASURE
+// the live screen: if its content is taller than its box, step the shell's compression
+// classes (fit-s1..s3, CSS in App.css) up until it fits whole. Runs on screen change, on
+// resize / visualViewport changes, and again once webfonts land (metrics move when they do).
+let fitRaf = 0
+let fitTimer = 0
+function fitShellScreens() {
+  if (typeof window === 'undefined') return
+  cancelAnimationFrame(fitRaf)
+  fitRaf = requestAnimationFrame(() => {
+    const rootEl = document.documentElement
+    const shell = document.querySelector('.fixed-shell')
+    const main = shell?.querySelector(':scope > main')
+    if (!shell || !main || shell.classList.contains('shell-play')) {
+      rootEl.classList.remove('fit-s1', 'fit-s2', 'fit-s3')
+      return
+    }
+    rootEl.classList.remove('fit-s1', 'fit-s2', 'fit-s3')
+    void main.clientHeight
+    let step = 0
+    while (step < 3 && main.scrollHeight > main.clientHeight + 1) {
+      step += 1
+      rootEl.classList.add(`fit-s${step}`)
+      void main.clientHeight
+    }
+  })
+}
+function scheduleFit() {
+  fitShellScreens()
+  window.clearTimeout(fitTimer)
+  fitTimer = window.setTimeout(fitShellScreens, 350)
 }
 
 function resetPlayViewport() {
@@ -682,6 +727,9 @@ export default function App() {
   const [cardGain, setCardGain] = useState<{ from: number; to: number } | null>(null)
   /** 9.32-f: the stats popup over the daily card (streak tap) */
   const [showStats, setShowStats] = useState(false)
+  // 9.33-a11 (Tony): the coin balance is a button — it opens the "Your coins" panel.
+  // The panel is an overlay, so closing it returns the player to exactly where they were.
+  const [showCoins, setShowCoins] = useState(false)
   /** 9.32-f: the last daily win — drives the Wordle-style daily share text */
   const [lastDailyWin, setLastDailyWin] = useState<{ key: string; streak: number } | null>(null)
   const [mode, setMode] = useState<RunMode>('normal')
@@ -742,7 +790,11 @@ export default function App() {
 
   useEffect(() => {
     syncAppHeight()
-    const onResize = () => syncAppHeight()
+    scheduleFit()
+    const onResize = () => {
+      syncAppHeight()
+      scheduleFit()
+    }
     window.addEventListener('resize', onResize)
     window.visualViewport?.addEventListener('resize', onResize)
     window.visualViewport?.addEventListener('scroll', onResize)
@@ -752,6 +804,13 @@ export default function App() {
       window.visualViewport?.removeEventListener('scroll', onResize)
     }
   }, [])
+
+  // 9.33-a11: re-measure the shell fit on every screen change, and again once
+  // the webfonts land (their metrics are part of the real rendered height).
+  useEffect(() => {
+    scheduleFit()
+    document.fonts?.ready.then(() => fitShellScreens()).catch(() => {})
+  }, [screen])
 
   // Play screen stays still on iPhone: lock the document (no rubber-band, no scroll, no pinch)
   // while a board is up. Only real scrollers inside overlays (win card body, sheets) may pan.
@@ -2862,10 +2921,19 @@ export default function App() {
           {/* 9.33-a5: the wordy top nav (it wrapped to two lines on phones) is gone —
               brand + coins up here, navigation lives in the bottom plaque nav. */}
           <div className="hud-pills">
-            <div className="score-pill coin" title="Coins">
+            {/* 9.33-a11 (Tony): the coin amount is clickable — it opens "Your coins".
+                NOT Rewards (there is no wallet panel there); the panel explains the
+                balance and closing it lands the player right back here. */}
+            <button
+              type="button"
+              className="score-pill coin"
+              title="Your coins — how they work"
+              aria-label={`${wallet.coins} coins. Open Your coins.`}
+              onClick={() => setShowCoins(true)}
+            >
               {wallet.coins}
               <span>¢</span>
-            </div>
+            </button>
           </div>
         </header>
       )}
@@ -3002,6 +3070,9 @@ export default function App() {
             <a className="home-foot-link" href="https://romansgame.com" target="_blank" rel="noopener">
               ⊖ Visit romansgame.com
             </a>
+            {/* 9.33-a11: the build tag lives on Home too — Tony must be able to read
+                which build he is looking at without entering a board. */}
+            <div className="home-build">{BUILD_TAG}</div>
           </div>
         </main>
       )}
@@ -3561,6 +3632,7 @@ export default function App() {
           onPeek={onPeekGift}
           onRedeem={onRedeemGift}
           onShop={() => setScreen('rewards')}
+          onCoins={() => setShowCoins(true)}
           onBack={() => setScreen('home')}
           giftCode={giftPrefill}
           giftsOnline={!isStoreBuild()}
@@ -4169,6 +4241,55 @@ export default function App() {
         onDone={handlePrize}
         onClose={() => setShowWheel(false)}
       />
+
+      {/* 9.33-a11 (Tony): "Your coins" — the coin balance's own panel. Opened by tapping
+          any coin pill (topbar, Stable). It is an OVERLAY: the screen underneath never
+          unmounts, so the Back button returns the player to exactly where they were
+          (same screen, same tab, same Defender detail). Copy verified against
+          src/game/dailyEconomy.ts + pets.ts, Nov 8 2026. */}
+      {showCoins && (
+        <div className="coins-overlay" role="dialog" aria-modal="true" aria-label="Your coins">
+          <div className="coins-scrim" onClick={() => setShowCoins(false)} />
+          <div className="coins-panel">
+            <div className="coins-head">
+              <h3>Your coins</h3>
+              <button type="button" className="coins-close" onClick={() => setShowCoins(false)} aria-label="Back to where you were">
+                ← Back
+              </button>
+            </div>
+            <p className="coins-balance">
+              <b>{wallet.coins}</b> <span>¢</span>
+            </p>
+            <section className="coins-sec">
+              <h4>Earn them</h4>
+              <ul>
+                <li>Win boards. The first 5 wins each day pay in full — after that, wins pay a bit less until tomorrow.</li>
+                <li>Beat your best on a board: new bests pay bonus coins. Replays pay for improving, not for repeating.</li>
+                <li>Catch spark critters, join the parade, hunt with your Defender — and swap spare snacks for coins in the Stable.</li>
+              </ul>
+            </section>
+            <section className="coins-sec">
+              <h4>Spend them</h4>
+              <ul>
+                <li>Adopt Defenders in the Stable — bundles there save coins over adopting one by one.</li>
+                <li>Top up a Defender&rsquo;s calls and feed them in the Stable.</li>
+                <li>Hints and rescues while you play, and ranking up your badges in Rewards.</li>
+              </ul>
+            </section>
+            <button
+              type="button"
+              className="btn primary coins-stable-btn"
+              onClick={() => {
+                setShowCoins(false)
+                setScreen('stable')
+              }}
+            >
+              Go to the Stable
+            </button>
+            <p className="coins-note">Coins are earned by playing and spent inside the game. They are never sold.</p>
+          </div>
+        </div>
+      )}
 
       {/* Footer bar removed 2026-10-22 (Tony): it was eating screen space on every menu screen.
           Sound effects toggle lives in Settings; version, thumbs, Privacy and JRNY credit live

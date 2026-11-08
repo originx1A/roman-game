@@ -74,6 +74,8 @@ export type StableProps = {
   /** Claim it (uses the code) */
   onRedeem: (code: string) => Promise<{ ok: boolean; message: string }>
   onShop: () => void
+  /** 9.33-a11: the coin pill is a button — opens the "Your coins" panel */
+  onCoins: () => void
   onBack: () => void
   /** Redeem link (?gift=CODE) prefill */
   giftCode?: string
@@ -81,7 +83,7 @@ export type StableProps = {
   giftsOnline: boolean
 }
 
-export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onBuyCalls, onCare, onFeed, onSwapTreats, today, onEquip, onPeek, onRedeem, onShop, onBack, giftCode, giftsOnline }: StableProps) {
+export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onBuyCalls, onCare, onFeed, onSwapTreats, today, onEquip, onPeek, onRedeem, onShop, onCoins, onBack, giftCode, giftsOnline }: StableProps) {
   const [code, setCode] = useState(giftCode ?? '')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -313,9 +315,9 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onBu
               the {sel.species} · {sel.limited ? `Limited · ${sel.limited.label}` : TIER_LABEL[sel.tier]}
             </p>
           </div>
-          <span className="stable-coins" aria-label={`${coins} coins`}>
+          <button type="button" className="stable-coins" onClick={onCoins} aria-label={`${coins} coins. Open Your coins.`} title="Your coins — how they work">
             🪙 {coins}
-          </span>
+          </button>
         </div>
         <div className="stable-detail">{cardFor(sel)}</div>
       </main>
@@ -333,9 +335,9 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onBu
           <h2>The Stable</h2>
           <p className="stable-sub">Roman's Defenders. Choose wisely — ride with one.</p>
         </div>
-        <span className="stable-coins" aria-label={`${coins} coins`}>
+        <button type="button" className="stable-coins" onClick={onCoins} aria-label={`${coins} coins. Open Your coins.`} title="Your coins — how they work">
           🪙 {coins}
-        </span>
+        </button>
       </div>
 
       <div className="stable-tabs" role="tablist" aria-label="Stable sections">
