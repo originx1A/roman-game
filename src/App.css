@@ -6373,6 +6373,13 @@ html[data-motion='reduce'] .td-invader {
 }
 
 /* 9.32: Save my scores (Supabase) */
+/* The account sheet follows the visual viewport while a phone keyboard is open
+   (CloudScores.tsx sets --rg-vv-top / --rg-vv-height from window.visualViewport), so the
+   panel — and the field being typed in — stays in the visible area above the keyboard
+   instead of under it. With no keyboard (desktop), the properties are unset and the
+   sheet fills the screen exactly as before. */
+.start-sheet.cloud-sheet { top: var(--rg-vv-top, 0); height: var(--rg-vv-height, auto); }
+.cloud-site-link { justify-self: center; margin-top: 0.3rem; font-size: 0.8rem; font-weight: 700; color: #ffd166; opacity: 0.85; text-decoration: underline; text-underline-offset: 0.18em; }
 .cloud-btn.is-compact { font-size: 0.8rem; padding: 0.35rem 0.7rem; min-height: 0; }
 .cloud-err { margin: 0.25rem 0 0; color: #ff8a8a; font-size: 0.82rem; font-weight: 600; }
 .cloud-sheet .name-input { width: 100%; }
@@ -6383,6 +6390,9 @@ html[data-motion='reduce'] .td-invader {
 .cloud-check input { width: 1.15rem; height: 1.15rem; flex-shrink: 0; margin-top: 0.12rem; accent-color: #f5c84c; }
 .cloud-check a { color: #ffd166; font-weight: 800; text-underline-offset: 0.12em; }
 .cloud-switch { font-size: 0.8rem; padding: 0.35rem 0.75rem; min-height: 0; opacity: 0.9; }
+.cloud-captcha { display: grid; gap: 0.35rem; justify-items: center; margin-top: 0.6rem; }
+.cloud-field-label { margin: 0.55rem 0 0.15rem; font-size: 0.82rem; font-weight: 700; opacity: 0.9; text-align: left; }
+.cloud-note { margin: 0.25rem 0 0; color: #b8e6a0; font-size: 0.85rem; font-weight: 600; }
 
 /* 9.32-d: exclusive Unseen card, back while locked, flips to the animated front when earned */
 .unseen-card { position: relative; width: 44px; aspect-ratio: 2 / 3; flex: none; perspective: 900px; }
