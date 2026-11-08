@@ -25,10 +25,13 @@ import {
   priceWith,
   TIER_LABEL,
   type Coupon,
+  type PetDef,
   type PetId,
   type PetState,
 } from '../game/pets'
 import { PetArt } from './PetArt'
+import { Atmosphere } from './Atmosphere'
+import { CALL_PACK_PRICE, CALL_PACK_SIZE, callsFor } from '../game/defenders'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const md = (s: string) => `${MONTHS[Number(s.slice(0, 2)) - 1]} ${Number(s.slice(3))}`
@@ -56,6 +59,8 @@ export type StableProps = {
   onClaimFree: (id: PetId) => void
   /** 9.30-b coin bundles */
   onBuyBundle: (id: BundleId) => void
+  /** 9.33-a: stock up this Defender's calls (+10 for coins) */
+  onBuyCalls: (id: PetId) => void
   /** 9.30-m: the free daily pet, and feeding a treat */
   onCare: (id: PetId) => void
   onFeed: (id: PetId, treat: TreatId) => void
@@ -69,6 +74,8 @@ export type StableProps = {
   /** Claim it (uses the code) */
   onRedeem: (code: string) => Promise<{ ok: boolean; message: string }>
   onShop: () => void
+  /** 9.33-a11: the coin pill is a button — opens the "Your coins" panel */
+  onCoins: () => void
   onBack: () => void
   /** Redeem link (?gift=CODE) prefill */
   giftCode?: string
@@ -76,13 +83,22 @@ export type StableProps = {
   giftsOnline: boolean
 }
 
-export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCare, onFeed, onSwapTreats, today, onEquip, onPeek, onRedeem, onShop, onBack, giftCode, giftsOnline }: StableProps) {
+export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onBuyCalls, onCare, onFeed, onSwapTreats, today, onEquip, onPeek, onRedeem, onShop, onCoins, onBack, giftCode, giftsOnline }: StableProps) {
   const [code, setCode] = useState(giftCode ?? '')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const active = pets.active && hasPet(pets, pets.active, now) ? pets.active : null
   /** 10.06: new player hasn't claimed their free buddy yet */
   const freePickMode = Object.keys(pets.owned).length === 0 && !pets.freePickUsed
+  // 9.33-a5: the Stable is fit-to-screen — five slim pick rows + one detail card,
+  // and Bundles & gifts move to their own in-screen tab (nothing scrolls).
+  const [tab, setTab] = useState<'defenders' | 'extras'>('defenders')
+  // 9.33-a7: the Stable is an INDEX — tapping a Defender NAVIGATES to
+  // that Defender's own screen, where every action lives whole. No in-place
+  // detail panel pushing buttons below the fit lock.
+  const [detail, setDetail] = useState(false)
+  const [selId, setSelId] = useState<PetId>(() => active ?? PETS.find((p) => pets.owned[p.id])?.id ?? 'lupa')
+  const sel = PETS.find((p) => p.id === selId) ?? PETS[0]
 
   const [preview, setPreview] = useState<{ code: string; gift: Gift; note: string } | null>(null)
   const autoPeeked = useRef(false)
@@ -125,67 +141,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [giftCode, giftsOnline])
 
-  return (
-    <main className="panel scroll-pane stable" data-screen="stable">
-      <div className="stable-head">
-        <button type="button" className="hud-back" onClick={onBack} aria-label="Back">
-          ←
-        </button>
-        <div>
-          <h2>The Stable</h2>
-          <p className="stable-sub">Roman's buddies. Keep them forever, ride with one.</p>
-        </div>
-        <span className="stable-coins" aria-label={`${coins} coins`}>
-          🪙 {coins}
-        </span>
-      </div>
-
-      <div className="stable-now">
-        <span>
-          {active ? (
-            <>
-              Riding with <strong>{PETS.find((p) => p.id === active)?.name}</strong>
-            </>
-          ) : (
-            <>
-              <strong>Solo</strong>: no buddy on your runs
-            </>
-          )}
-        </span>
-        <button type="button" className={`btn tool stable-solo ${active ? '' : 'on'}`} onClick={() => onEquip(null)} disabled={!active}>
-          {active ? 'Go Solo' : 'Solo ✓'}
-        </button>
-        <button type="button" className="btn tool" onClick={onShop}>
-          Shop
-        </button>
-      </div>
-
-      {/* 10.06: treat defense — safe stash (never stealable) + swap snacks for coins */}
-      <div className="stable-stash" aria-label="Treat stash">
-        <span>
-          🍖 Stash: <strong>{pets.treats.snack}</strong> snacks · <strong>{pets.treats.feast}</strong> feasts
-          <small>safe from wild buddies · field pile: {pets.fieldTreats ?? 0}</small>
-        </span>
-        <button type="button" className="btn tool" onClick={onSwapTreats} disabled={(pets.treats.snack ?? 0) <= 0}>
-          Swap snacks → coins <small>1 🍖 = {SNACK_COIN_RATE} 🪙</small>
-        </button>
-      </div>
-
-      {pets.trial && pets.trial.until > now ? (
-        <p className="stable-trial">
-          🎁 Free trial: <strong>{PETS.find((p) => p.id === pets.trial!.id)?.name}</strong> · {leftLabel(pets.trial.until - now)}. When it ends you get a coupon for it.
-        </p>
-      ) : null}
-
-      {Object.keys(pets.owned).length === 0 && !pets.freePickUsed ? (
-        <div className="stable-freepick" role="region" aria-label="Pick your free buddy">
-          <p className="stable-freepick-title">🎉 Pick your buddy — FREE!</p>
-          <p className="stable-freepick-sub">Choose one buddy to join you forever. Each has a special perk.</p>
-        </div>
-      ) : null}
-
-      <div className="stable-grid">
-        {PETS.map((p) => {
+  const cardFor = (p: PetDef) => {
           const owned = pets.owned[p.id]
           const trial = !owned && pets.trial?.id === p.id && pets.trial.until > now
           const have = !!owned || trial
@@ -252,7 +208,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
                   ) : null}
                   {care ? (
                     <div className="stable-care" data-testid="care">
-                      <div className={`stable-mood is-${care.kind}`} title="A happy buddy adds a few coins to each win. A hungry one still gives its normal perk.">
+                      <div className={`stable-mood is-${care.kind}`} title="A happy Defender adds a few coins to each win. A hungry one still gives its normal perk.">
                         <span>{care.kind === 'happy' ? '😊 Happy' : care.kind === 'okay' ? '🙂 Okay' : '🥺 Hungry'}</span>
                         <span className="stable-bar"><i style={{ width: `${care.mood}%` }} /></span>
                       </div>
@@ -276,6 +232,18 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
                       <small className="stable-treats">{care.maxed ? 'Fully grown!' : `${care.feedsLeft} of 3 treats left today${moodKind(care.mood) === 'happy' ? ' · happy: +coins on wins' : ''}`}</small>
                     </div>
                   ) : null}
+                  <div className="stable-calls" data-testid="pet-calls">
+                    <span>
+                      Calls left: <strong>{callsFor(pets, p.id)}</strong>
+                      <small>spent when {p.name}'s board comes up</small>
+                    </span>
+                    <button type="button" className="btn tool calls-btn" onClick={() => onBuyCalls(p.id)} disabled={coins < CALL_PACK_PRICE}>
+                      Stock up +{CALL_PACK_SIZE} · {CALL_PACK_PRICE} 🪙
+                    </button>
+                    {coins < CALL_PACK_PRICE ? (
+                      <small className="stable-calls-note">Not enough coins yet — win boards to earn more 🪙.</small>
+                    ) : null}
+                  </div>
                   <button type="button" className={`btn ${isActive ? 'ghost' : 'primary'} stable-btn`} onClick={() => onEquip(p.id)} disabled={isActive}>
                     {isActive ? 'Riding ✓' : 'Ride with'}
                   </button>
@@ -291,7 +259,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
                   {freePickMode ? (
                     <>
                       <p className="stable-price is-free">
-                        <strong>FREE</strong> 🎉 <small>your first buddy</small>
+                        <strong>FREE</strong> 🎉 <small>your first Defender</small>
                       </p>
                       <button type="button" className="btn primary stable-btn stable-free-btn" onClick={() => onClaimFree(p.id)}>
                         Pick {p.name}!
@@ -312,7 +280,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
                 <>
                   <p className="stable-next">{p.blurb}</p>
                   <p className="stable-price is-free">
-                    <strong>FREE</strong> 🎉 <small>your first buddy</small>
+                    <strong>FREE</strong> 🎉 <small>your first Defender</small>
                   </p>
                   <button type="button" className="btn primary stable-btn stable-free-btn" onClick={() => onClaimFree(p.id)}>
                     Pick {p.name}!
@@ -328,10 +296,142 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
               )}
             </article>
           )
-        })}
+  }
+
+  // 9.33-a7: the Defender screen — one Defender, every action whole and
+  // reachable: claim free / ride with / calls + stock up / care + feeding /
+  // adopt. Back returns to the Stable index with its state preserved.
+  if (tab === 'defenders' && detail) {
+    return (
+      <main className="panel stable fit-screen has-atmo stable-detail-screen" data-screen="stable-detail">
+        <Atmosphere variant="panel" tint="#2fd4a7" />
+        <div className="stable-head">
+          <button type="button" className="hud-back stable-detail-back" onClick={() => setDetail(false)} aria-label="Back to The Stable">
+            ←
+          </button>
+          <div>
+            <h2>{sel.name}</h2>
+            <p className="stable-sub">
+              the {sel.species} · {sel.limited ? `Limited · ${sel.limited.label}` : TIER_LABEL[sel.tier]}
+            </p>
+          </div>
+          <button type="button" className="stable-coins" onClick={onCoins} aria-label={`${coins} coins. Open Your coins.`} title="Your coins — how they work">
+            🪙 {coins}
+          </button>
+        </div>
+        <div className="stable-detail">{cardFor(sel)}</div>
+      </main>
+    )
+  }
+
+  return (
+    <main className="panel stable fit-screen has-atmo" data-screen="stable">
+      <Atmosphere variant="panel" tint="#2fd4a7" />
+      <div className="stable-head">
+        <button type="button" className="hud-back" onClick={onBack} aria-label="Back">
+          ←
+        </button>
+        <div>
+          <h2>The Stable</h2>
+          <p className="stable-sub">Roman's Defenders. Choose wisely — ride with one.</p>
+        </div>
+        <button type="button" className="stable-coins" onClick={onCoins} aria-label={`${coins} coins. Open Your coins.`} title="Your coins — how they work">
+          🪙 {coins}
+        </button>
       </div>
 
-      {BUNDLES.map((b) => bundleQuote(pets, b.id, now)).some((q) => q.available) ? (
+      <div className="stable-tabs" role="tablist" aria-label="Stable sections">
+        <button type="button" role="tab" aria-selected={tab === 'defenders'} className={`stable-tab ${tab === 'defenders' ? 'on' : ''}`} onClick={() => setTab('defenders')}>
+          Defenders
+        </button>
+        <button type="button" role="tab" aria-selected={tab === 'extras'} className={`stable-tab ${tab === 'extras' ? 'on' : ''}`} onClick={() => setTab('extras')}>
+          Bundles &amp; gifts
+        </button>
+      </div>
+
+      {tab === 'defenders' ? (
+      <>
+      <div className="stable-now">
+        <span>
+          {active ? (
+            <>
+              Riding with <strong>{PETS.find((p) => p.id === active)?.name}</strong>
+            </>
+          ) : (
+            <>
+              <strong>Solo</strong>: no Defender on your runs
+            </>
+          )}
+        </span>
+        <button type="button" className={`btn tool stable-solo ${active ? '' : 'on'}`} onClick={() => onEquip(null)} disabled={!active}>
+          {active ? 'Go Solo' : 'Solo ✓'}
+        </button>
+        <button type="button" className="btn tool" onClick={onShop}>
+          Shop
+        </button>
+      </div>
+
+      {/* 10.06: treat defense — safe stash (never stealable) + swap snacks for coins */}
+      <div className="stable-stash" aria-label="Treat stash">
+        <span>
+          🍖 Stash: <strong>{pets.treats.snack}</strong> snacks · <strong>{pets.treats.feast}</strong> feasts
+          <small>safe from wild pets · field pile: {pets.fieldTreats ?? 0}</small>
+        </span>
+        <button type="button" className="btn tool" onClick={onSwapTreats} disabled={(pets.treats.snack ?? 0) <= 0}>
+          Swap snacks → coins <small>1 🍖 = {SNACK_COIN_RATE} 🪙</small>
+        </button>
+      </div>
+
+      {pets.trial && pets.trial.until > now ? (
+        <p className="stable-trial">
+          🎁 Free trial: <strong>{PETS.find((p) => p.id === pets.trial!.id)?.name}</strong> · {leftLabel(pets.trial.until - now)}. When it ends you get a coupon for it.
+        </p>
+      ) : null}
+
+      {Object.keys(pets.owned).length === 0 && !pets.freePickUsed ? (
+        <div className="stable-freepick" role="region" aria-label="Pick your free Defender">
+          <p className="stable-freepick-title">🎉 Pick your Defender — FREE!</p>
+          <p className="stable-freepick-sub">Choose one Defender to ride with you. Choose wisely — this one is free, with 10 calls in the bank.</p>
+        </div>
+      ) : null}
+
+          <div className="stable-picklist" role="list" aria-label="Defenders">
+            {PETS.map((p) => {
+              const o = pets.owned[p.id]
+              const t = !o && pets.trial?.id === p.id && pets.trial.until > now
+              const have = !!o || t
+              const lv = levelInfo(petXp(pets, p.id))
+              const perk = perkFor(p.id, have ? lv.level : 1, have ? lv.stars : 0)
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  className={`stable-pick ${selId === p.id ? 'on' : ''} ${have ? 'is-owned' : 'is-locked'}`}
+                  data-pet={p.id}
+                  onClick={() => {
+                    setSelId(p.id)
+                    setDetail(true)
+                  }}
+                >
+                  <PetArt id={p.id} size={44} locked={!have} level={lv.level} stars={lv.stars} />
+                  <span className="stable-pick-main">
+                    <span className="stable-pick-name">
+                      {p.name} <small>the {p.species}</small>
+                    </span>
+                    <span className="stable-pick-perk">{perk.label}</span>
+                  </span>
+                  <span className="stable-pick-status">{freePickMode ? 'FREE' : o ? `Lv ${lv.level}` : t ? 'Trial' : `${priceWith(p.price, couponFor(pets, p.id, now))} 🪙`}</span>
+                  <span className="stable-pick-go" aria-hidden="true">›</span>
+                </button>
+              )
+            })}
+          </div>
+      </>
+      ) : (
+      <>
+      {/* 9.33-a7: while a gift preview is open it IS the section's step —
+          the bundles list steps aside instead of stacking past the lock. */}
+      {!preview && BUNDLES.map((b) => bundleQuote(pets, b.id, now)).some((q) => q.available) ? (
         <section className="stable-bundles" aria-label="Bundles">
           <h3>Bundles</h3>
           {BUNDLES.map((b) => {
@@ -369,7 +469,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
 
       <section className="stable-redeem" aria-label="Gift code">
         <h3>Got a gift code?</h3>
-        {giftsOnline ? (
+        {!preview && giftsOnline ? (
           <div className="stable-redeem-row">
             <input
               value={code}
@@ -384,9 +484,9 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
               {busy && !preview ? '…' : 'Redeem'}
             </button>
           </div>
-        ) : (
+        ) : !preview ? (
           <p className="stable-note">Gift codes work on the website version.</p>
-        )}
+        ) : null}
         {preview ? (
           <div className="gift-preview" data-gift-preview={preview.gift.kind} role="dialog" aria-label={`${GIFT_TAG}: ${giftLabel(preview.gift)}`}>
             <span className={`gift-preview-art ${preview.gift.kind === 'pack' ? 'is-pack' : ''}`} aria-hidden="true">
@@ -404,7 +504,7 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
               <small>🎁 {GIFT_TAG}</small>
               {preview.gift.kind === 'pack' ? (
                 <>
-                  <strong>{preview.gift.pack === 'all' ? 'All buddies pack' : 'Gift pack'}</strong>
+                  <strong>{preview.gift.pack === 'all' ? 'All Defenders pack' : 'Gift pack'}</strong>
                   <ul className="gift-preview-items">
                     {preview.gift.items.map((it, i) => (
                       <li key={i}>{giftLabel(it)}</li>
@@ -430,10 +530,14 @@ export function Stable({ pets, coins, now, onBuy, onClaimFree, onBuyBundle, onCa
         {msg ? <p className={`stable-msg ${msg.ok ? 'is-ok' : 'is-bad'}`}>{msg.text}</p> : null}
       </section>
 
+      {!preview ? (
       <p className="stable-note">
-        Coins only, no random boxes. Win boards to earn coins, or grab more in the <button type="button" className="linkish" onClick={onShop}>Shop</button>. Coupons:
+        Coins only, no random boxes. Win boards to earn coins — coins only, never real money. Coupons:
         20% off for a 7-day daily streak, 30% off for a Roman's Trial clear (one per adoption).
       </p>
+      ) : null}
+      </>
+      )}
     </main>
   )
 }

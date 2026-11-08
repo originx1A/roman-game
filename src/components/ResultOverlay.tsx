@@ -64,6 +64,11 @@ export function ResultOverlay({
           ) : null}
           {extra}
         </div>
+        {kind === 'lose' ? (
+          <a className="result-site-link" href="https://romansgame.com" target="_blank" rel="noopener">
+            ⊖ Visit romansgame.com
+          </a>
+        ) : null}
       </div>
     </div>
   )

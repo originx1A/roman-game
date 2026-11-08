@@ -36,5 +36,5 @@ test('9.32-j: home return link introduces no footer bar and no new pill chrome',
 })
 
 test('9.32-j: build tag bumped so a phone can tell the preview from live 9.32-i', () => {
-  assert.match(tag, /build 9\.32-k/)
+  assert.match(tag, /build 9\.33-a13/)
 })

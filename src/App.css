@@ -1,16 +1,17 @@
 :root {
-  --ink: #07122a;
-  --navy: #07122a;
-  --foam: #f4fbff;
-  --sky: #1a6dff;
-  --sun: #ffd166;
-  --gold: #ffd166;
-  --mint: #3dffa8;
-  --coral: #ff6b6b;
-  --panel: rgba(244, 251, 255, 0.06);
-  --shadow: 0 22px 60px rgba(3, 10, 30, 0.45);
-  --radius: 16px;
-  --font-display: 'Titan One', 'Fredoka', system-ui, sans-serif;
+  /* 9.33-a collector palette: warm ink, parchment, antique gold (was bright navy/sky) */
+  --ink: #17110a;
+  --navy: #17110a;
+  --foam: #f3ead8;
+  --sky: #c9973f;
+  --sun: #e3b34e;
+  --gold: #d9a441;
+  --mint: #57b06a;
+  --coral: #d96a4e;
+  --panel: rgba(243, 234, 216, 0.05);
+  --shadow: 0 22px 60px rgba(0, 0, 0, 0.55);
+  --radius: 12px;
+  --font-display: 'Cinzel', 'Times New Roman', serif;
   --font-body: 'Nunito', system-ui, sans-serif;
   --app-height: 100svh;
 }
@@ -38,7 +39,7 @@ body {
   margin: 0;
   font-family: var(--font-body);
   color: var(--foam);
-  background: #050d1f;
+  background: #0d0a06;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -59,10 +60,10 @@ select {
   inset: 0;
   z-index: 0;
   background:
-    radial-gradient(900px 600px at 12% -8%, rgba(26, 109, 255, 0.55), transparent 58%),
-    radial-gradient(700px 500px at 88% 8%, rgba(255, 209, 102, 0.32), transparent 52%),
-    radial-gradient(800px 520px at 50% 110%, rgba(61, 255, 168, 0.22), transparent 48%),
-    linear-gradient(168deg, #07122a 0%, #0a1a3d 45%, #10285a 100%);
+    radial-gradient(900px 600px at 12% -8%, rgba(217, 164, 65, 0.28), transparent 58%),
+    radial-gradient(700px 500px at 88% 8%, rgba(142, 59, 47, 0.3), transparent 52%),
+    radial-gradient(800px 520px at 50% 110%, rgba(87, 176, 106, 0.1), transparent 48%),
+    linear-gradient(168deg, #17110a 0%, #241a10 45%, #2e2113 100%);
   pointer-events: none;
 }
 
@@ -87,9 +88,19 @@ select {
   inset: auto -10% -18% -10%;
   height: 42%;
   background:
-    radial-gradient(ellipse at 50% 0%, rgba(26, 109, 255, 0.25), transparent 60%),
-    linear-gradient(to top, rgba(5, 13, 31, 0.9), transparent);
+    radial-gradient(ellipse at 50% 0%, rgba(255, 110, 40, 0.16), transparent 60%),
+    linear-gradient(to top, rgba(20, 13, 7, 0.9), transparent);
   pointer-events: none;
+  /* 9.33-a3: the ember glow breathes very slowly (smoke over coals); off under reduced motion */
+  animation: emberDrift 26s ease-in-out infinite alternate;
+}
+@keyframes emberDrift {
+  from { transform: translate3d(-1.5%, 0, 0) scale(1); opacity: 0.85; }
+  to { transform: translate3d(1.5%, -1.5%, 0) scale(1.05); opacity: 1; }
+}
+html[data-motion='reduce'] .atmosphere::after { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .atmosphere::after { animation: none; }
 }
 
 .topbar,
@@ -183,7 +194,7 @@ main,
 
 .nav button.on,
 .nav button:hover {
-  color: #07122a;
+  color: #17110a;
   background: var(--sun);
 }
 
@@ -300,7 +311,7 @@ main,
 }
 
 .btn.tool {
-  background: rgba(7, 18, 42, 0.65);
+  background: rgba(23, 17, 10, 0.65);
   color: var(--foam);
   border: 1px solid rgba(255, 255, 255, 0.12);
   padding: 0.55rem 0.85rem;
@@ -439,12 +450,12 @@ main,
   top: 0;
   z-index: 5;
   padding: 0.35rem 0;
-  background: linear-gradient(#07122a 82%, rgba(7, 18, 42, 0));
+  background: linear-gradient(#17110a 82%, rgba(23, 17, 10, 0));
 }
 
 .level-tab {
   border: 1px solid rgba(255, 209, 102, 0.22);
-  background: rgba(4, 10, 28, 0.72);
+  background: rgba(16, 10, 5, 0.72);
   color: var(--foam);
   border-radius: 12px;
   padding: 0.55rem 0.25rem;
@@ -594,7 +605,7 @@ main,
   margin: 0 auto;
   padding: 0.45rem;
   border-radius: 16px;
-  background: rgba(4, 10, 28, 0.72);
+  background: rgba(16, 10, 5, 0.72);
   border: 2px solid rgba(255, 209, 102, 0.22);
   box-shadow: var(--shadow);
   aspect-ratio: 1;
@@ -625,17 +636,20 @@ main,
   position: absolute;
   inset: 0;
   border-radius: 3px;
+  /* 9.33-a3: cinematic jewel finish — deep gradient fall, gilt inner edge, smoky base
+     (was the bright candy gloss: +10% white top highlight, shallow -12% fall) */
   background:
     linear-gradient(
       155deg,
-      hsl(var(--hue) var(--sat, 72%) calc(var(--lit, 56%) + 10%) / 0.95) 0%,
-      hsl(var(--hue) var(--sat, 72%) var(--lit, 56%) / 0.88) 42%,
-      hsl(var(--hue) calc(var(--sat, 72%) - 6%) calc(var(--lit, 56%) - 12%) / 0.92) 100%
+      hsl(var(--hue) var(--sat, 72%) calc(var(--lit, 56%) + 9%) / 0.97) 0%,
+      hsl(var(--hue) var(--sat, 72%) var(--lit, 56%) / 0.94) 42%,
+      hsl(var(--hue) calc(var(--sat, 72%) - 4%) calc(var(--lit, 56%) - 15%) / 0.97) 100%
     );
   box-shadow:
-    inset 0 1.5px 0 rgba(255, 255, 255, 0.38),
-    inset 0 -2px 5px rgba(0, 0, 0, 0.18),
-    0 1px 2px rgba(0, 0, 0, 0.18);
+    inset 0 1px 0 rgba(255, 226, 160, 0.42),
+    inset 0 0 0 1px rgba(217, 164, 65, 0.16),
+    inset 0 -3px 7px rgba(10, 4, 0, 0.38),
+    0 1px 2px rgba(0, 0, 0, 0.3);
   transition:
     filter 0.14s ease,
     box-shadow 0.14s ease,
@@ -655,23 +669,23 @@ main,
 .cell.pressed .cell-fill {
   filter: brightness(1.1);
   box-shadow:
-    inset 0 2px 0 rgba(255, 255, 255, 0.5),
+    inset 0 2px 0 rgba(255, 226, 160, 0.55),
     inset 0 -3px 6px rgba(0, 0, 0, 0.22),
     0 8px 16px rgba(0, 0, 0, 0.38),
     0 3px 6px rgba(0, 0, 0, 0.22),
     0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
-.cell.edge-t { box-shadow: inset 0 2px 0 rgba(7, 18, 42, 0.65); }
-.cell.edge-b { box-shadow: inset 0 -2px 0 rgba(7, 18, 42, 0.65); }
-.cell.edge-l { box-shadow: inset 2px 0 0 rgba(7, 18, 42, 0.65); }
-.cell.edge-r { box-shadow: inset -2px 0 0 rgba(7, 18, 42, 0.65); }
+.cell.edge-t { box-shadow: inset 0 2px 0 rgba(23, 17, 10, 0.65); }
+.cell.edge-b { box-shadow: inset 0 -2px 0 rgba(23, 17, 10, 0.65); }
+.cell.edge-l { box-shadow: inset 2px 0 0 rgba(23, 17, 10, 0.65); }
+.cell.edge-r { box-shadow: inset -2px 0 0 rgba(23, 17, 10, 0.65); }
 
 /* Region edges stack on the fill so borders stay readable */
-.cell.edge-t .cell-fill { border-top: 2px solid rgba(7, 18, 42, 0.45); }
-.cell.edge-b .cell-fill { border-bottom: 2px solid rgba(7, 18, 42, 0.45); }
-.cell.edge-l .cell-fill { border-left: 2px solid rgba(7, 18, 42, 0.45); }
-.cell.edge-r .cell-fill { border-right: 2px solid rgba(7, 18, 42, 0.45); }
+.cell.edge-t .cell-fill { border-top: 2px solid rgba(23, 17, 10, 0.45); }
+.cell.edge-b .cell-fill { border-bottom: 2px solid rgba(23, 17, 10, 0.45); }
+.cell.edge-l .cell-fill { border-left: 2px solid rgba(23, 17, 10, 0.45); }
+.cell.edge-r .cell-fill { border-right: 2px solid rgba(23, 17, 10, 0.45); }
 
 .mark-x {
   position: relative;
@@ -679,7 +693,7 @@ main,
   width: 46%;
   height: 46%;
   color: rgba(255, 248, 230, 0.92);
-  filter: drop-shadow(0 1px 2px rgba(7, 18, 42, 0.45));
+  filter: drop-shadow(0 1px 2px rgba(23, 17, 10, 0.45));
   pointer-events: none;
 }
 
@@ -726,7 +740,7 @@ main,
   display: grid;
   place-items: center;
   overflow: hidden;
-  box-shadow: inset 0 0 0 1px rgba(7, 18, 42, 0.15);
+  box-shadow: inset 0 0 0 1px rgba(23, 17, 10, 0.15);
 }
 
 .buddy-eye.left { left: 22%; }
@@ -736,7 +750,7 @@ main,
   width: 48%;
   height: 48%;
   border-radius: 50%;
-  background: #07122a;
+  background: #17110a;
   animation: pupilWander 3.8s ease-in-out infinite;
 }
 
@@ -962,7 +976,7 @@ html[data-motion='reduce'] .cell.pressed .cell-fill {
   top: max(0.75rem, env(safe-area-inset-top, 0px));
   bottom: auto;
   transform: translateX(-50%);
-  background: rgba(7, 18, 42, 0.92);
+  background: rgba(23, 17, 10, 0.92);
   color: var(--foam);
   padding: 0.45rem 0.9rem;
   border-radius: 12px;
@@ -1129,7 +1143,7 @@ html[data-motion='reduce'] *::after {
   flex-shrink: 0;
   position: relative;
   z-index: 4;
-  background: #050d1f;
+  background: #0c0704;
   padding-bottom: max(0.85rem, env(safe-area-inset-bottom, 0px));
 }
 
@@ -1804,7 +1818,7 @@ body > div > a[href*="netlify"] {
   width: min(100%, 380px);
   padding: 1.25rem;
   border-radius: 22px;
-  background: linear-gradient(165deg, #10285a, #07122a);
+  background: linear-gradient(165deg, #2e2113, #17110a);
   border: 1px solid rgba(255, 209, 102, 0.35);
   text-align: center;
   display: grid;
@@ -1850,7 +1864,7 @@ body > div > a[href*="netlify"] {
   transform-origin: left center;
   font-size: 0.62rem;
   font-weight: 800;
-  color: #07122a;
+  color: #17110a;
   text-align: left;
   padding-left: 1.1rem;
   pointer-events: none;
@@ -1888,7 +1902,7 @@ body > div > a[href*="netlify"] {
   display: grid;
   place-items: center;
   font-weight: 900;
-  color: #07122a;
+  color: #17110a;
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
   border-bottom: 1px solid rgba(0, 0, 0, 0.12);
 }
@@ -1906,11 +1920,11 @@ body > div > a[href*="netlify"] {
 }
 .reel-shade.top {
   top: 0;
-  background: linear-gradient(to bottom, rgba(7, 18, 42, 0.75), transparent);
+  background: linear-gradient(to bottom, rgba(23, 17, 10, 0.75), transparent);
 }
 .reel-shade.bot {
   bottom: 0;
-  background: linear-gradient(to top, rgba(7, 18, 42, 0.75), transparent);
+  background: linear-gradient(to top, rgba(23, 17, 10, 0.75), transparent);
 }
 .reel-pointer {
   position: absolute;
@@ -2001,7 +2015,7 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
   gap: 3px;
   padding: 6px;
   border-radius: 14px;
-  background: rgba(7, 18, 42, 0.7);
+  background: rgba(23, 17, 10, 0.7);
   overflow: hidden;
 }
 
@@ -2048,7 +2062,7 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
   top: 36%;
   width: 18%;
   height: 22%;
-  background: #07122a;
+  background: #17110a;
   border-radius: 50%;
 }
 .mini-eye.l { left: 26%; }
@@ -2171,7 +2185,7 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
   flex-direction: column;
   padding: 0.45rem;
   border-radius: 16px;
-  background: rgba(4, 10, 28, 0.72);
+  background: rgba(16, 10, 5, 0.72);
   border: 2px solid rgba(255, 209, 102, 0.22);
   box-shadow: var(--shadow);
 }
@@ -2847,7 +2861,7 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
   top: 34%;
   width: 16%;
   height: 20%;
-  background: #07122a;
+  background: #17110a;
   border-radius: 50%;
 }
 .critter-eye.l { left: 28%; }
@@ -2909,7 +2923,7 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
   font-size: 0.72rem;
   font-weight: 900;
   letter-spacing: 0.02em;
-  color: #07122a;
+  color: #17110a;
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
   pointer-events: none;
 }
@@ -2937,7 +2951,7 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
   place-items: center;
   gap: 0.5rem;
   border-radius: 14px;
-  background: rgba(7, 18, 42, 0.7);
+  background: rgba(23, 17, 10, 0.7);
 }
 .mini-hearts-demo {
   grid-auto-flow: column;
@@ -3275,7 +3289,7 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
   margin: 0 auto;
   padding: 1.35rem 1.35rem calc(1.35rem + env(safe-area-inset-bottom, 0px));
   border-radius: var(--radius) var(--radius) 0 0;
-  background: linear-gradient(165deg, #0e1f45 0%, var(--navy) 55%, #050d1f 100%);
+  background: linear-gradient(165deg, #241407 0%, var(--navy) 55%, #0c0704 100%);
   border: 1px solid rgba(255, 209, 102, 0.28);
   border-bottom: 0;
   box-shadow: 0 -18px 48px rgba(0, 0, 0, 0.45);
@@ -3391,7 +3405,7 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
   background:
     radial-gradient(ellipse 80% 55% at 50% 18%, #ffd16655, transparent 55%),
     radial-gradient(ellipse 70% 50% at 50% 100%, #3dffa838, transparent 50%),
-    #030a1ef2;
+    #0a0502f2;
   opacity: 0;
   transform: scale(1.04);
   transition: opacity 0.45s ease, transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
@@ -3479,7 +3493,7 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
   text-align: center;
   padding: 1.35rem 1.25rem 1.2rem;
   border-radius: 28px;
-  background: linear-gradient(165deg, #0d1f44f5 0%, #07122af7 55%, #0a1838f5 100%);
+  background: linear-gradient(165deg, #2a1a0bf5 0%, #17110af7 55%, #120a05f5 100%);
   border: 1px solid #ffd16655;
   box-shadow:
     0 0 0 1px #3dffa822 inset,
@@ -4022,7 +4036,7 @@ html.play-locked #root {
   overscroll-behavior: none;
   background:
     radial-gradient(ellipse 80% 55% at 50% 18%, #3dffa833, transparent 55%),
-    #030a1ef5;
+    #0a0502f5;
 }
 @supports (height: 100dvh) {
   .buddy-hunt { --hunt-vh: 100dvh; }
@@ -4040,7 +4054,7 @@ html.play-locked #root {
   padding: 0.8rem 0.9rem;
   border-radius: 24px;
   text-align: center;
-  background: linear-gradient(165deg, #0d1f44f5 0%, #07122af7 55%, #0a1838f5 100%);
+  background: linear-gradient(165deg, #2a1a0bf5 0%, #17110af7 55%, #120a05f5 100%);
   border: 1px solid #3dffa866;
   box-shadow: 0 28px 60px #000000a6;
   animation: 0.45s cubic-bezier(0.22, 1, 0.36, 1) both winCardIn;
@@ -4406,7 +4420,7 @@ html.play-locked #root {
   gap: 0.5rem;
   padding: 1rem 1.1rem;
   border-radius: 20px;
-  background: #0d1f45;
+  background: #241407;
   border: 1px solid rgba(255, 209, 102, 0.4);
   color: var(--foam);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
@@ -4724,7 +4738,7 @@ html.play-locked #root {
   grid-area: 1 / 1;
   padding: 0.15rem 0.5rem;
   border-radius: 999px;
-  background: rgba(4, 10, 28, 0.85);
+  background: rgba(16, 10, 5, 0.85);
   color: var(--sun);
   font-size: 0.85rem;
   font-weight: 900;
@@ -4892,7 +4906,7 @@ html.play-locked #root {
 .how-demo-pace { z-index: 6; }
 .how-demo-combo b { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); }
 .how-demo-undo-btn { background: rgba(10, 22, 44, 0.9); }
-.how-demo-ghost { background: rgba(4, 10, 28, 0.7); }
+.how-demo-ghost { background: rgba(16, 10, 5, 0.7); }
 
 /* =====================================================================================
  * 9.29-a LAYOUTS PASS
@@ -4970,6 +4984,14 @@ html[data-layout='upright'][data-device='tablet'] .play-toolbar .btn.tool {
   font-size: 1.02rem;
 }
 
+/* 9.33-a8: the brand banner + board stage travel as one column (.board-col).
+   Outside the wide layout the wrapper is display:contents — phones and upright
+   tablets see the banner and the stage as direct flex children of .play-fixed,
+   laid out exactly as before a8. */
+.board-col {
+  display: contents;
+}
+
 /* ---- Wide play: HUD column | board | controls + buddy spot ---- */
 html[data-layout='wide'] .fixed-shell > main.play-fixed {
   --side-col: clamp(200px, 17vw, 320px);
@@ -4996,11 +5018,30 @@ html[data-layout='wide'] .fixed-shell > main.play-fixed {
   padding: max(1.25rem, env(safe-area-inset-top, 0px)) max(1rem, env(safe-area-inset-right, 0px))
     max(1.25rem, env(safe-area-inset-bottom, 0px)) max(1rem, env(safe-area-inset-left, 0px));
 }
-html[data-layout='wide'] .play-fixed .board-stage {
+html[data-layout='wide'] .play-fixed .board-col {
   grid-area: board;
-  width: var(--board-size);
-  height: var(--board-size);
-  align-self: center;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+html[data-layout='wide'] .play-fixed .board-col .brand-banner {
+  flex: 0 0 auto;
+}
+html[data-layout='wide'] .play-fixed .board-stage {
+  /* 9.33-a8: the stage no longer takes a fixed square sized off the FULL window
+     height (var(--board-size)) — the wide grid's rows are sized by the side
+     columns, so that square overflowed its grid area on short desktop windows
+     and the scroll-locked shell clipped the board's top row. The stage now
+     flexes inside .board-col under the banner, and the board inside keeps
+     itself square via min(100cqw, 100cqh): the board is capped by the height
+     actually left in the composition. */
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  height: auto;
+  align-self: stretch;
 }
 html[data-layout='wide'] .play-fixed .board {
   width: min(100cqw, 100cqh) !important;
@@ -5020,7 +5061,7 @@ html[data-layout='wide'] .play-fixed .play-hud {
   gap: 0.7rem;
   padding: 0.9rem 1rem 1rem;
   border-radius: 18px;
-  background: rgba(5, 13, 31, 0.55);
+  background: rgba(20, 13, 7, 0.55);
   border: 1px solid rgba(255, 214, 102, 0.22);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
   box-sizing: border-box;
@@ -5199,9 +5240,11 @@ html[data-layout='wide'] .buddy-spot {
   padding: 1.1rem 0.9rem;
   border-radius: 18px;
   border: 2px dashed rgba(255, 214, 102, 0.35);
-  background: rgba(5, 13, 31, 0.4);
+  background: rgba(20, 13, 7, 0.4);
   font-size: 0.8rem;
 }
+button.buddy-spot { font: inherit; color: inherit; cursor: pointer; }
+button.buddy-spot:hover { border-color: rgba(255, 214, 102, 0.7); }
 .buddy-spot strong {
   font-family: var(--font-display);
   color: var(--sun);
@@ -5254,7 +5297,7 @@ html[data-layout='wide'] .play-fixed > .build-tag {
   place-items: center;
   padding: max(0.75rem, env(safe-area-inset-top, 0px)) max(1rem, env(safe-area-inset-right, 0px))
     max(0.75rem, env(safe-area-inset-bottom, 0px)) max(1rem, env(safe-area-inset-left, 0px));
-  background: radial-gradient(ellipse at 50% 30%, rgba(40, 28, 8, 0.96), rgba(5, 13, 31, 0.98) 70%);
+  background: radial-gradient(ellipse at 50% 30%, rgba(40, 28, 8, 0.96), rgba(20, 13, 7, 0.98) 70%);
   touch-action: none;
 }
 .rotate-card {
@@ -5379,7 +5422,7 @@ html[data-layout='wide'] .cta-row .btn {
   gap: 0.6rem;
   padding: 0.45rem 1rem 0.45rem 0.55rem;
   border-radius: 999px;
-  background: rgba(5, 13, 31, 0.45);
+  background: rgba(20, 13, 7, 0.45);
   border: 2px solid rgba(255, 214, 102, 0.3);
 }
 .home-pet-tap {
@@ -5516,7 +5559,7 @@ html[data-layout='wide'] .cta-row .btn {
   gap: 0.25rem;
   padding: 0.6rem 0.6rem 0.7rem;
   border-radius: 18px;
-  background: rgba(5, 13, 31, 0.5);
+  background: rgba(20, 13, 7, 0.5);
   border: 2px solid rgba(244, 251, 255, 0.1);
 }
 .stable-card.is-active { border-color: var(--mint); box-shadow: 0 0 0 3px rgba(61, 255, 168, 0.15); }
@@ -5571,7 +5614,7 @@ html[data-layout='wide'] .cta-row .btn {
 .stable-price s { opacity: 0.55; margin-right: 0.2rem; }
 .stable-price.is-off { font-size: 0.78rem; color: #ffc38a; }
 .stable-card .stable-btn, .stable-card .stable-keep { width: 100%; min-height: 0; padding: 0.45rem 0.5rem; font-size: 0.85rem; margin-top: 0.2rem; }
-.stable-redeem { margin-top: 1.1rem; padding: 0.8rem; border-radius: 16px; background: rgba(5, 13, 31, 0.45); }
+.stable-redeem { margin-top: 1.1rem; padding: 0.8rem; border-radius: 16px; background: rgba(20, 13, 7, 0.45); }
 .stable-redeem h3 { margin: 0 0 0.45rem; font-size: 1rem; }
 .stable-redeem-row { display: flex; gap: 0.5rem; }
 .stable-redeem-row input {
@@ -5601,7 +5644,7 @@ html[data-layout='wide'] .cta-row .btn {
   padding: 0.6rem 0.9rem;
   border-radius: 16px;
   border: 2px solid rgba(255, 214, 102, 0.35);
-  background: rgba(5, 13, 31, 0.5);
+  background: rgba(20, 13, 7, 0.5);
   color: var(--foam);
   text-align: left;
   cursor: pointer;
@@ -5675,10 +5718,10 @@ html[data-layout='wide'] .buddy-spot.has-pet { border-style: solid; border-color
 /* ---- Owner gift page (hidden route) ---- */
 .owner-page { max-width: 640px; margin: 0 auto; padding: 1.5rem 1.2rem 4rem; color: var(--foam); font-family: var(--font-body); }
 .owner-page h1 { font-family: var(--font-display); font-weight: 400; color: var(--sun); font-size: 1.6rem; }
-.owner-card { display: flex; flex-direction: column; gap: 0.8rem; padding: 1rem; border-radius: 18px; background: rgba(5, 13, 31, 0.55); border: 2px solid rgba(255, 214, 102, 0.25); }
+.owner-card { display: flex; flex-direction: column; gap: 0.8rem; padding: 1rem; border-radius: 18px; background: rgba(20, 13, 7, 0.55); border: 2px solid rgba(255, 214, 102, 0.25); }
 .owner-card label { display: flex; flex-direction: column; gap: 0.3rem; font-weight: 800; }
 .owner-card input, .owner-card select { padding: 0.55rem 0.7rem; border-radius: 10px; border: 2px solid rgba(244, 251, 255, 0.2); background: rgba(244, 251, 255, 0.06); color: var(--foam); font: inherit; }
-.owner-card select option { color: #07122a; }
+.owner-card select option { color: #17110a; }
 .owner-kinds, .owner-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .owner-kinds .btn.on { background: var(--sun); color: var(--ink); }
 .owner-pets { display: flex; gap: 0.5rem; flex-wrap: wrap; }
@@ -5712,7 +5755,7 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
   background: linear-gradient(135deg, rgba(61, 255, 168, 0.12), rgba(255, 214, 102, 0.1));
   animation: rise 0.25s ease both;
 }
-.gift-preview-art { display: grid; place-items: center; width: 76px; height: 76px; border-radius: 50%; background: rgba(5, 13, 31, 0.5); }
+.gift-preview-art { display: grid; place-items: center; width: 76px; height: 76px; border-radius: 50%; background: rgba(20, 13, 7, 0.5); }
 .gift-preview-icon { font-size: 2.4rem; }
 .gift-preview-text { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
 .gift-preview-text small { color: var(--mint); font-weight: 900; font-size: 0.8rem; }
@@ -5727,7 +5770,7 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 .gift-preview-art.is-pack { width: auto; height: auto; max-width: 96px; border-radius: 14px; padding: 0.3rem; display: flex; flex-wrap: wrap; justify-content: center; gap: 0.1rem; }
 .gift-preview-art.is-pack .gift-preview-icon { font-size: 1.6rem; }
 .gift-preview-items { margin: 0.1rem 0 0.2rem; padding-left: 1.1rem; font-weight: 800; font-size: 0.9rem; line-height: 1.35; }
-.stable-bundles { margin-top: 1.1rem; padding: 0.8rem; border-radius: 16px; background: rgba(5, 13, 31, 0.45); display: flex; flex-direction: column; gap: 0.6rem; }
+.stable-bundles { margin-top: 1.1rem; padding: 0.8rem; border-radius: 16px; background: rgba(20, 13, 7, 0.45); display: flex; flex-direction: column; gap: 0.6rem; }
 .stable-bundles h3 { margin: 0; font-size: 1rem; }
 .stable-bundles .stable-note { margin: 0; }
 .stable-bundle { display: grid; grid-template-columns: auto 1fr; gap: 0.5rem 0.7rem; align-items: center; padding: 0.6rem; border-radius: 14px; border: 1px solid rgba(255, 214, 102, 0.35); background: rgba(255, 214, 102, 0.06); }
@@ -5740,7 +5783,7 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 .owner-pack { display: flex; flex-direction: column; gap: 0.6rem; }
 .owner-check { display: flex !important; flex-direction: row !important; align-items: center; gap: 0.5rem; font-weight: 700; }
 .owner-check input { width: auto !important; }
-.owner-card select { -webkit-appearance: none; appearance: none; background-color: #13213f; min-width: 8rem; }
+.owner-card select { -webkit-appearance: none; appearance: none; background-color: #241708; min-width: 8rem; }
 /* 9.30-d: the home title doubles as the hidden owner door (7 quick taps): no iOS callout, no text selection, no double-tap zoom */
 .no-callout, .no-callout * { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
 .owner-back { display: inline-block; margin: 0 0 0.6rem; color: var(--mint); font-weight: 800; text-decoration: none; }
@@ -5835,7 +5878,7 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
   font-size: 1.7rem;
   font-weight: 800;
   color: #ffd166;
-  text-shadow: 0 2px 0 #07122a;
+  text-shadow: 0 2px 0 #17110a;
   letter-spacing: 0.02em;
 }
 .parade-lane {
@@ -5902,7 +5945,7 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 .parade-loot {
   display: inline-flex; align-items: center; gap: 4px;
   min-width: 56px; min-height: 44px; padding: 4px 10px;
-  border-radius: 999px; border: 2px solid #ffd166; background: rgba(7, 18, 42, 0.85);
+  border-radius: 999px; border: 2px solid #ffd166; background: rgba(23, 17, 10, 0.85);
   color: #fff6cf; font-size: 0.9rem; cursor: pointer; touch-action: manipulation;
 }
 .parade-loot b { font-weight: 800; }
@@ -5930,7 +5973,7 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 .stable-stars { color: #ffd166; letter-spacing: 1px; }
 .stable-treats { font-size: 0.75rem; opacity: 0.85; }
 .home-pet-mood { font-size: 0.72rem; opacity: 0.9; }
-.home-pet-dot { position: absolute; top: 2px; right: 2px; width: 12px; height: 12px; border-radius: 50%; background: #ff5d73; border: 2px solid #07122a; }
+.home-pet-dot { position: absolute; top: 2px; right: 2px; width: 12px; height: 12px; border-radius: 50%; background: #ff5d73; border: 2px solid #17110a; }
 .home-pet-tap { position: relative; }
 .econ-card { margin: 10px 0; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,0.06); font-size: 0.85rem; display: grid; gap: 4px; }
 .econ-card b { color: #ffe08a; }
@@ -5940,11 +5983,11 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 .parade-skip-btn {
   position: absolute; top: max(10px, env(safe-area-inset-top)); right: 12px; z-index: 3;
   min-width: 72px; min-height: 44px; padding: 8px 16px; border-radius: 999px;
-  border: 2px solid rgba(255, 246, 207, 0.7); background: rgba(7, 18, 42, 0.8); color: #fff6cf;
+  border: 2px solid rgba(255, 246, 207, 0.7); background: rgba(23, 17, 10, 0.8); color: #fff6cf;
   font-size: 1rem; font-weight: 700; touch-action: manipulation;
 }
 .parade-prompt {
-  font-size: 1.1rem; font-weight: 800; color: #07122a; background: #ffd166; padding: 8px 16px; border-radius: 999px;
+  font-size: 1.1rem; font-weight: 800; color: #17110a; background: #ffd166; padding: 8px 16px; border-radius: 999px;
   animation: parade-nudge 1.1s ease-in-out infinite; text-align: center; max-width: 92vw;
 }
 @keyframes parade-nudge { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
@@ -5952,7 +5995,7 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 @keyframes parade-glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 209, 102, 0.9); } 50% { box-shadow: 0 0 0 10px rgba(255, 209, 102, 0); } }
 .parade-pop {
   position: absolute; left: 50%; top: 0; transform: translateX(-50%); white-space: nowrap; pointer-events: none;
-  font-size: 1.3rem; font-weight: 900; color: #3dffa8; text-shadow: 0 2px 0 #07122a, 0 0 12px rgba(61, 255, 168, 0.8);
+  font-size: 1.3rem; font-weight: 900; color: #3dffa8; text-shadow: 0 2px 0 #17110a, 0 0 12px rgba(61, 255, 168, 0.8);
   animation: parade-pop 1.3s ease-out both;
 }
 @keyframes parade-pop { 0% { opacity: 0; transform: translate(-50%, 10px) scale(0.6); } 20% { opacity: 1; transform: translate(-50%, -16px) scale(1.3); } 100% { opacity: 0; transform: translate(-50%, -70px) scale(1); } }
@@ -5972,10 +6015,10 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 .parade-loot {
   flex-direction: column; gap: 0; min-width: 84px; min-height: 84px; padding: 6px 12px; border-radius: 26px;
   border: 3px solid #ffd166; background: radial-gradient(circle at 50% 30%, #fff3b0, #ffb703 70%);
-  color: #07122a; box-shadow: 0 0 22px 6px rgba(255, 209, 102, 0.85); touch-action: manipulation;
+  color: #17110a; box-shadow: 0 0 22px 6px rgba(255, 209, 102, 0.85); touch-action: manipulation;
 }
-.parade-loot .parade-loot-icon { font-size: 2.6rem; line-height: 1.05; filter: drop-shadow(0 2px 0 rgba(7, 18, 42, 0.5)); }
-.parade-loot b { font-size: 1.05rem; color: #07122a; }
+.parade-loot .parade-loot-icon { font-size: 2.6rem; line-height: 1.05; filter: drop-shadow(0 2px 0 rgba(23, 17, 10, 0.5)); }
+.parade-loot b { font-size: 1.05rem; color: #17110a; }
 .parade-loot.is-live { animation: parade-bob 0.8s ease-in-out infinite, parade-glow2 1s ease-in-out infinite; }
 @keyframes parade-bob { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-8px) scale(1.08); } }
 @keyframes parade-glow2 { 0%, 100% { box-shadow: 0 0 16px 4px rgba(255, 209, 102, 0.8); } 50% { box-shadow: 0 0 34px 12px rgba(255, 236, 160, 1); } }
@@ -5983,7 +6026,7 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 .parade-prompt { font-size: 1.25rem; padding: 10px 18px; }
 .parade-wallet-chip {
   position: absolute; top: max(10px, env(safe-area-inset-top)); left: 12px; z-index: 3; min-height: 44px; display: inline-flex; align-items: center;
-  padding: 6px 14px; border-radius: 999px; background: rgba(7, 18, 42, 0.85); border: 2px solid #ffd166; color: #fff6cf; font-size: 1rem;
+  padding: 6px 14px; border-radius: 999px; background: rgba(23, 17, 10, 0.85); border: 2px solid #ffd166; color: #fff6cf; font-size: 1rem;
 }
 .parade-wallet-chip b { color: #ffd166; }
 .parade-fly {
@@ -6020,7 +6063,7 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 .fb-chip, .fb-form, .fb-thanks { display: inline-flex; align-items: center; gap: 6px; margin-right: 8px; font-size: 0.8rem; }
 .fb-btn { min-width: 34px; min-height: 34px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.06); font-size: 1rem; color: inherit; opacity: 0.8; touch-action: manipulation; }
 .fb-form input { width: 9.5rem; max-width: 40vw; min-height: 34px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.08); color: inherit; padding: 0 8px; font-size: 16px; }
-.fb-send { min-height: 34px; padding: 0 12px; border-radius: 999px; border: 0; background: #ffd166; color: #07122a; font-weight: 800; }
+.fb-send { min-height: 34px; padding: 0 12px; border-radius: 999px; border: 0; background: #ffd166; color: #17110a; font-weight: 800; }
 .privacy-note { margin: 10px 0; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,0.06); font-size: 0.85rem; }
 .privacy-note p { margin: 4px 0 8px; line-height: 1.4; opacity: 0.9; }
 .owner-stats { display: grid; gap: 10px; margin-top: 14px; }
@@ -6422,10 +6465,2303 @@ html[data-motion='reduce'] .td-invader {
 .unseen-tile-text { display: flex; flex-direction: column; gap: 2px; }
 .unseen-tile-text small, .unseen-gain small { opacity: .75; font-size: .8rem; }
 .unseen-modal { position: fixed; inset: 0; z-index: 2000; overflow-y: auto; display: grid; place-items: center; background: rgba(0,0,0,.88); padding: 16px; }
-.unseen-modal-body { max-width: 340px; width: 100%; background: #0d1020; color: #f3e6c4; border: 1px solid rgba(201,162,77,.5); border-radius: 16px; padding: 18px; text-align: center; }
+.unseen-modal-body { max-width: 340px; width: 100%; background: #171008; color: #f3e6c4; border: 1px solid rgba(201,162,77,.5); border-radius: 16px; padding: 18px; text-align: center; }
 .unseen-modal-body ul { text-align: left; padding-left: 18px; margin: 8px 0; font-size: .9rem; }
 .unseen-modal-body h3 { margin: 4px 0 6px; }
 .unseen-note { font-size: .8rem; opacity: .7; }
 .unseen-gain { display: flex; align-items: center; gap: 12px; margin: 8px auto; padding: 8px 12px; border-radius: 12px; background: rgba(10,12,24,.8); border: 1px solid rgba(255,160,60,.55); color: #f3e6c4; animation: unseen-pop .5s ease-out; max-width: 340px; text-align: left; }
 .unseen-gain span { display: flex; flex-direction: column; }
 @keyframes unseen-pop { from { transform: scale(.9); opacity: 0 } to { transform: none; opacity: 1 } }
+
+/* 9.33-a: Defender calls row in The Stable */
+.stable-calls { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0; padding: 6px 8px; border: 1px solid rgba(217, 164, 65, 0.35); border-radius: 10px; background: rgba(0, 0, 0, 0.18); }
+.stable-calls span { display: grid; gap: 1px; font-size: 0.85rem; text-align: left; }
+.stable-calls small { opacity: 0.75; font-size: 0.7rem; }
+.stable-calls .calls-btn { white-space: nowrap; }
+
+/* 9.33-a: Defender Boards — banner, branded stage, rail, cell effects */
+.brand-banner { display: flex; align-items: center; gap: 10px; margin: 0 auto 8px; max-width: 560px; padding: 7px 14px 7px 8px; border: 1px solid var(--brand-accent, #d9a441); border-radius: 6px; background: linear-gradient(180deg, var(--brand-deep, #2c2416), rgba(10, 8, 5, 0.88)); color: #f3e9d2; font-size: 0.85rem; box-shadow: 0 2px 14px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
+.brand-banner strong { letter-spacing: 0.08em; color: var(--brand-accent, #d9a441); white-space: nowrap; }
+.brand-banner span { opacity: 0.92; text-align: left; }
+.brand-banner.is-asleep { filter: saturate(0.35); opacity: 0.85; }
+.board-stage.is-branded { border-radius: 14px; padding: 10px; background: radial-gradient(120% 120% at 50% 0%, var(--brand-deep, transparent), rgba(8, 6, 4, 0.55) 78%); box-shadow: inset 0 0 42px rgba(0, 0, 0, 0.5); }
+.defender-rail { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+.defender-plate { position: relative; display: grid; justify-items: center; gap: 1px; min-width: 62px; padding: 6px 6px 5px; border: 1px solid rgba(217, 164, 65, 0.4); border-radius: 6px; background: linear-gradient(180deg, rgba(46, 38, 24, 0.95), rgba(20, 16, 10, 0.95)); color: #f3e9d2; cursor: pointer; }
+.defender-plate-name { font-size: 0.66rem; letter-spacing: 0.05em; text-transform: uppercase; }
+.defender-plate-count { position: absolute; top: -7px; right: -5px; min-width: 20px; padding: 1px 5px; border-radius: 999px; background: #d9a441; color: #1d1607; font-size: 0.7rem; font-weight: 700; text-align: center; }
+.defender-plate.is-asleep { filter: grayscale(0.85); opacity: 0.55; }
+.defender-plate.is-asleep .defender-plate-count { background: #6b6255; color: #e8e2d4; }
+.defender-plate.is-brand { border-color: var(--brand-accent, #d9a441); box-shadow: 0 0 0 1px var(--brand-accent, #d9a441), 0 0 16px rgba(217, 164, 65, 0.35); }
+.defender-plate-shield { position: absolute; left: -5px; top: -8px; font-size: 0.8rem; }
+.cell.nox-lit { box-shadow: inset 0 0 0 2px #9d8cff, inset 0 0 18px rgba(157, 140, 255, 0.55); }
+.cell.roulette-hot { box-shadow: inset 0 0 0 3px #ffb03a, inset 0 0 22px rgba(255, 176, 58, 0.8); z-index: 2; }
+.cell.charge-cell { box-shadow: inset 0 0 0 2px rgba(226, 112, 58, 0.85), inset 0 0 16px rgba(226, 112, 58, 0.45); }
+/* 9.33-a6p: Concept C proof — Invictus charges for real: a subtle cinematic tilt on the
+   stage while he runs, then it settles flat for play; the sprite overlay lives inside
+   the board (ChargeHorse.tsx), inset by the board's own padding so its % geometry is
+   the cell grid's geometry. */
+.board-stage { transform-origin: 50% 62%; transition: transform 240ms ease-out; }
+.board-stage.is-charging { transform: perspective(1150px) rotateX(4.2deg) scale(1.012); }
+.charge-fx { position: absolute; inset: 0.45rem; z-index: 5; pointer-events: none; }
+.charge-flare { position: absolute; z-index: 1; border-radius: 8px; opacity: 0; background: radial-gradient(ellipse at center, rgba(255, 186, 84, 0.85), rgba(226, 112, 58, 0.38) 55%, rgba(226, 112, 58, 0) 72%); animation: chargeFlare 520ms ease-out both; }
+@keyframes chargeFlare { 0% { opacity: 0; } 16% { opacity: 0.55; } 100% { opacity: 0; } }
+.charge-fx-canvas { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; }
+.charge-horse { position: absolute; left: 0; top: 0; z-index: 3; overflow: hidden; filter: drop-shadow(0 12px 12px rgba(0, 0, 0, 0.5)); }
+.charge-horse img { display: block; max-width: none; user-select: none; }
+html[data-motion='reduce'] .board-stage { transition: none; }
+@media (prefers-reduced-motion: reduce) { .board-stage { transition: none; } }
+.feather-mark { position: absolute; inset: auto 2px 2px auto; font-size: 0.85em; pointer-events: none; animation: featherFade 5.6s ease forwards; }
+.paw-mark { position: absolute; inset: auto auto 2px 2px; font-size: 0.8em; pointer-events: none; opacity: 0.85; }
+@keyframes featherFade { 0% { opacity: 0; transform: translateY(-4px) rotate(-14deg); } 12% { opacity: 1; transform: none; } 78% { opacity: 1; } 100% { opacity: 0; } }
+
+/* =====================================================================
+   9.33-a COLLECTOR THEME — the whole game dressed like the Collector's cards:
+   deep warm ink, parchment, antique gold; framed plaque plates instead of
+   pill/pillbox shapes; painterly panels with a gilt edge. This block comes
+   last on purpose: it re-skins the chrome game-wide (home, board, Stable,
+   rewards, profile/sign-in, parade, prize wheel, sheets and modals).
+   ===================================================================== */
+
+/* ---- plaque system: capsules become framed plates ---- */
+.btn, .nav button, .score-pill, .hud-back, .hud-time, .hud-treats, .hud-mode,
+.share-chip, .new-badge, .win-record, .how-new-tag, .stable-coins, .stable-tier,
+.stable-gift, .stable-badge, .stable-bundle-off, .run-tag, .fb-btn, .fb-send,
+.win-fb-follow, .parade-loot, .parade-skip-btn, .defender-plate-count, .kbd,
+.tool-cost, .toast, .stable-coupon, .unseen-name {
+  border-radius: 6px;
+}
+
+/* ---- buttons: gilt plaque plates ---- */
+.btn {
+  border: 1px solid rgba(217, 164, 65, 0.55);
+  background: linear-gradient(180deg, #3a2c17, #241a0e);
+  color: var(--foam);
+  box-shadow: inset 0 1px 0 rgba(255, 232, 180, 0.18), 0 4px 14px rgba(0, 0, 0, 0.4);
+  letter-spacing: 0.01em;
+}
+.btn.primary {
+  background: linear-gradient(160deg, #f2cd72, #d9a441 55%, #a8742a);
+  border-color: #8a5f1d;
+  color: #221503;
+  box-shadow: inset 0 1px 0 rgba(255, 246, 214, 0.75), inset 0 -2px 0 rgba(90, 58, 10, 0.45), 0 8px 22px rgba(217, 164, 65, 0.25);
+}
+.btn.primary:hover { box-shadow: inset 0 1px 0 rgba(255, 246, 214, 0.8), inset 0 -2px 0 rgba(90, 58, 10, 0.45), 0 10px 26px rgba(217, 164, 65, 0.35); }
+.btn.ghost {
+  background: rgba(23, 17, 10, 0.55);
+  border: 1px solid rgba(217, 164, 65, 0.4);
+  color: var(--foam);
+}
+.btn.tool {
+  background: linear-gradient(180deg, rgba(58, 44, 23, 0.92), rgba(30, 22, 12, 0.92));
+  border: 1px solid rgba(217, 164, 65, 0.45);
+  color: var(--foam);
+}
+.btn:disabled { filter: saturate(0.4) brightness(0.75); }
+
+/* ---- panels & cards: framed collector plates ---- */
+.panel {
+  background: linear-gradient(175deg, rgba(43, 32, 18, 0.88), rgba(20, 14, 8, 0.92));
+  border: 1px solid rgba(217, 164, 65, 0.28);
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 rgba(255, 232, 180, 0.08), var(--shadow);
+  padding-top: 0.9rem;
+  padding-bottom: 0.9rem;
+}
+.panel h2, .panel h3, .how-panel h2 {
+  font-family: var(--font-display);
+  letter-spacing: 0.06em;
+  color: #ecd28f;
+  text-transform: uppercase;
+}
+.stable-card, .product-card, .econ-card, .incoming, .gift-preview, .heard-card,
+.profile-card, .stable-bundle, .challenge-card, .level-card, .remix-card {
+  background: linear-gradient(170deg, rgba(56, 42, 22, 0.92), rgba(26, 19, 11, 0.95));
+  border: 1px solid rgba(217, 164, 65, 0.38);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgba(255, 232, 180, 0.1), inset 0 0 0 3px rgba(0, 0, 0, 0.18), 0 10px 26px rgba(0, 0, 0, 0.42);
+}
+.stable-card.is-active { border-color: var(--gold); box-shadow: inset 0 1px 0 rgba(255, 232, 180, 0.14), 0 0 0 1px var(--gold), 0 10px 26px rgba(0, 0, 0, 0.45); }
+
+/* ---- home / start ---- */
+.logo-hero {
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+  background: linear-gradient(175deg, #f7dd96 15%, #d9a441 55%, #9c6f24 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+  filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.55));
+}
+.home .hero { padding-top: 0.7rem; padding-bottom: 0.4rem; }
+.eyebrow { color: #c9973f; letter-spacing: 0.22em; }
+
+/* ---- top bar & HUD chips ---- */
+.score-pill, .hud-time, .hud-treats, .hud-mode, .stable-coins {
+  background: rgba(23, 17, 10, 0.82);
+  border: 1px solid rgba(217, 164, 65, 0.5);
+  color: #ffe9ad;
+}
+.hud-back {
+  background: linear-gradient(180deg, #3a2c17, #241a0e);
+  border: 1px solid rgba(217, 164, 65, 0.5);
+  color: #ffe9ad;
+}
+.toast {
+  background: linear-gradient(180deg, #33270f, #1d1408);
+  border: 1px solid rgba(217, 164, 65, 0.65);
+  color: #ffedb8;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+}
+
+/* ---- play screen ---- */
+.buddy-spot {
+  background: linear-gradient(170deg, rgba(56, 42, 22, 0.92), rgba(26, 19, 11, 0.95));
+  border: 1px solid rgba(217, 164, 65, 0.38);
+  border-radius: 10px;
+}
+.board-stage { border-radius: 12px; }
+.play-caption { color: #e8d9b0; }
+
+/* ---- sheets, modals, overlays ---- */
+.overlay-card, .win-screen, .shortfall-sheet, .rotate-card, .start-sheet,
+.result-card, .stats-popup, .name-sheet {
+  background: linear-gradient(172deg, #2e2110, #17100a 70%);
+  border: 1px solid rgba(217, 164, 65, 0.5);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 232, 180, 0.12), inset 0 0 0 4px rgba(0, 0, 0, 0.22), 0 26px 60px rgba(0, 0, 0, 0.6);
+}
+.shortfall-accent { background: linear-gradient(90deg, transparent, var(--gold), transparent); border-radius: 2px; }
+
+/* ---- forms: sign-in, settings, redeem ---- */
+.auth-form input, .name-setting input, .stable-redeem input, .settings input[type='text'],
+.profile input, input[type='email'], input[type='text'], select {
+  border-radius: 6px;
+  border: 1px solid rgba(217, 164, 65, 0.45);
+  background: rgba(13, 9, 5, 0.85);
+  color: var(--foam);
+}
+.auth-form input:focus, .name-setting input:focus, .stable-redeem input:focus,
+input[type='email']:focus, input[type='text']:focus, select:focus {
+  outline: 2px solid rgba(217, 164, 65, 0.75);
+  outline-offset: 1px;
+}
+.about-section { border-top: 1px solid rgba(217, 164, 65, 0.3); }
+.about-link { color: #ecd28f; }
+
+/* ---- prize wheel: gilt frame, joyful colours stay ---- */
+.prize-card {
+  background: linear-gradient(172deg, #33240f, #17100a 72%);
+  border: 1px solid rgba(255, 209, 102, 0.65);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 240, 200, 0.16), 0 0 44px rgba(255, 190, 60, 0.22), 0 26px 60px rgba(0, 0, 0, 0.6);
+}
+.reel-window { border: 2px solid rgba(255, 209, 102, 0.7); border-radius: 10px; box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.55); }
+.prize-result { color: #ffe9ad; font-family: var(--font-display); letter-spacing: 0.04em; }
+
+/* ---- Buddy Parade: celebration stays bright; the dress is gilt ---- */
+.parade-card, .parade-summary {
+  background: linear-gradient(172deg, rgba(64, 46, 20, 0.96), rgba(28, 20, 11, 0.97));
+  border: 1px solid rgba(255, 209, 102, 0.55);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 240, 200, 0.14), 0 22px 50px rgba(0, 0, 0, 0.55);
+}
+.parade-title { font-family: var(--font-display); letter-spacing: 0.05em; color: #ffe9ad; }
+.parade-loot { background: rgba(23, 17, 10, 0.88); border: 2px solid var(--gold); color: #fff3cf; }
+.parade-got-list li { border-color: rgba(217, 164, 65, 0.35); }
+
+/* ---- The Stable tightening ---- */
+.stable-grid { gap: 0.6rem; }
+.stable-card { padding: 0.7rem; }
+.stable-calls { border-radius: 6px; }
+
+/* ---- The Unseen: NO frame. He stands in the scene, in drifting smoke. ---- */
+.unseen-pop::before, .unseen-pop::after {
+  content: '';
+  position: absolute;
+  right: -30px;
+  bottom: -24px;
+  width: 300px;
+  height: 240px;
+  border-radius: 50%;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 60% 45% at 65% 70%, rgba(38, 32, 54, 0.75), transparent 70%),
+    radial-gradient(ellipse 45% 35% at 40% 55%, rgba(20, 16, 34, 0.65), transparent 70%);
+  filter: blur(14px);
+  animation: unseenSmoke 7s ease-in-out infinite alternate;
+}
+.unseen-pop::after { animation-duration: 11s; animation-delay: -4s; opacity: 0.7; transform: scaleX(-1); }
+@keyframes unseenSmoke {
+  from { transform: translate(0, 0) scale(1); opacity: 0.75; }
+  50% { transform: translate(-16px, -10px) scale(1.07); opacity: 1; }
+  to { transform: translate(10px, -22px) scale(1.12); opacity: 0.85; }
+}
+.unseen-art {
+  position: relative;
+  z-index: 1;
+  filter: drop-shadow(0 0 18px rgba(24, 18, 44, 0.85)) drop-shadow(0 10px 22px rgba(0, 0, 0, 0.7));
+  animation: unseenFloat 5.5s ease-in-out infinite;
+}
+@keyframes unseenFloat {
+  0%, 100% { transform: rotate(12deg) translateY(0); }
+  50% { transform: rotate(11deg) translateY(-7px); }
+}
+.unseen-bubble {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  color: #efe6cf;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 14px rgba(10, 6, 24, 0.9), 0 0 2px #000;
+}
+.unseen-bubble::after { display: none; }
+.unseen-name { font-family: var(--font-display); color: #b7a6e8; background: none; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9); }
+
+/* ---- How to play: framed demo stage ---- */
+.how-stage {
+  border: 1px solid rgba(217, 164, 65, 0.45);
+  border-radius: 12px;
+  background: linear-gradient(172deg, rgba(56, 42, 22, 0.9), rgba(24, 17, 10, 0.95));
+  box-shadow: inset 0 1px 0 rgba(255, 232, 180, 0.1), 0 14px 34px rgba(0, 0, 0, 0.45);
+}
+.how-dots button { border-radius: 3px; }
+.about-defenders { display: grid; gap: 0.45rem; margin: 0.6rem 0; }
+.about-defender { display: flex; align-items: center; gap: 0.6rem; text-align: left; }
+.about-defender p { margin: 0; font-size: 0.86rem; }
+.about-defender strong { color: #ecd28f; font-family: var(--font-display); letter-spacing: 0.04em; }
+
+/* =====================================================================
+   9.33-a2 PHONE BOARD FIT (Tony QA, Nov 4): the Defender banner + rail
+   ate the board's height — the fixed play column sizes the board by the
+   stage's smaller dimension, so tall chrome = tiny board. Slim the new
+   chrome on phones so the board is width-bound again and fills the
+   width of the screen.
+   ===================================================================== */
+html[data-device='phone'] .brand-banner {
+  padding: 5px 10px 5px 6px;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 0.8rem;
+  width: 100%;
+}
+html[data-device='phone'] .brand-banner svg { width: 30px; height: 30px; flex: none; }
+html[data-device='phone'] .brand-banner span {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+html[data-device='phone'] .defender-rail {
+  flex-wrap: nowrap;
+  gap: 5px;
+  margin-top: 8px;
+  width: 100%;
+}
+html[data-device='phone'] .defender-plate {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 4px 2px 3px;
+  gap: 0;
+}
+html[data-device='phone'] .defender-plate svg { width: 30px; height: 30px; }
+html[data-device='phone'] .defender-plate-name { font-size: 0.58rem; }
+html[data-device='phone'] .board-stage.is-branded { padding: 6px; }
+
+/* =====================================================================
+   9.33-a3 PHONE BOARD SIZE (Tony QA round 2, Nov 4): some boards still
+   rendered smaller than others. The stage was container-type: size with
+   flex-grow, so the board took the stage's LEFTOVER height (banner or
+   not, caption wrap, --app-height jitter) and width followed height.
+   Now the phone board is WIDTH-DRIVEN and uniform: the stage sizes to
+   the board (flex 0 0 auto, no size containment), the board is always
+   min(100%, 520px) of the stage, and branded/unbranded stages share the
+   same 6px padding — every board on a phone renders at the same full
+   width. Desktop/wide and tablet sizing are untouched (a phone is never
+   in the wide layout: readLayout gives phones upright/phone-sideways).
+   ===================================================================== */
+html[data-device='phone'] .play-fixed .board-stage {
+  flex: 0 0 auto;
+  container-type: normal;
+  padding: 6px;
+  box-sizing: border-box;
+}
+html[data-device='phone'] .play-fixed .board {
+  width: min(100%, 520px) !important;
+  max-width: 100% !important;
+  max-height: none !important;
+  height: auto;
+}
+
+/* =====================================================================
+   9.33-a4 ITEM 1 — About is its own screen (Tony QA, Nov 4): it no
+   longer lives at the bottom of Save & settings. Home carries a slim
+   link row (a div, not a <footer> — the footer bar stays removed).
+   ===================================================================== */
+.home-foot {
+  display: flex;
+  gap: 1.1rem;
+  justify-content: center;
+  align-items: center;
+  margin-top: 0.9rem;
+  padding: 0.35rem 0 0.15rem;
+}
+.home-foot-link {
+  background: none;
+  border: none;
+  padding: 0.2rem 0.1rem;
+  color: rgba(236, 210, 143, 0.75);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+}
+.home-foot-link:hover, .home-foot-link:focus-visible { color: #ecd28f; }
+.about .about-section { border-top: none; padding-top: 0; margin-top: 0.2rem; }
+.about .about-line { font-size: 0.95rem; line-height: 1.55; }
+
+/* =====================================================================
+   9.33-a4 ITEM 3 — picking a level PLAYS it: the start sheet is retired
+   for ready-made boards (Levels + Remix). Cards sit in a wrap so a
+   3-star card can carry its own Roman's Trial chip beside the main tap.
+   ===================================================================== */
+.level-card-wrap { position: relative; display: grid; min-width: 0; }
+.level-card-wrap > .level-card { width: 100%; height: 100%; }
+.lv-trial-chip {
+  position: absolute;
+  right: 0.45rem;
+  bottom: 0.45rem;
+  z-index: 2;
+  border: 1px solid rgba(255, 209, 102, 0.65);
+  background: linear-gradient(180deg, rgba(58, 44, 23, 0.96), rgba(36, 26, 14, 0.96));
+  color: #ffd166;
+  border-radius: 6px;
+  padding: 0.22rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.lv-trial-chip:hover, .lv-trial-chip:focus-visible { border-color: #ffd166; color: #ffe9a8; }
+
+/* =====================================================================
+   9.33-a4 ITEM 2 — Levels is LOCKED TO THE SCREEN (Tony QA, Nov 4):
+   no scrolling to pick a difficulty or a level. The screen is a
+   dvh-budgeted flex column; the level grid takes whatever height is
+   left as equal 1fr rows (5 boards per difficulty), tile size scales
+   with the viewport. Sized for 390x844 phones and 1080p PCs; short
+   viewports shed chrome (legend line, daily status) before any tile
+   gets squeezed.
+   ===================================================================== */
+.levels-fit {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  gap: 0.45rem;
+  padding: 0.55rem 0.6rem 0.65rem;
+}
+.levels-fit h2 { font-size: 1.55rem; margin: 0; }
+.levels-fit .sub { font-size: 0.78rem; line-height: 1.35; margin: 0; max-width: none; }
+.levels-fit .daily-card { margin: 0; padding: 0.5rem 0.65rem; border-radius: 12px; }
+.levels-fit .daily-text { gap: 0.05rem; }
+.levels-fit .daily-text strong { font-size: 0.88rem; }
+.levels-fit .daily-text span { font-size: 0.74rem; }
+.levels-fit .daily-text .daily-status { font-size: 0.68rem; }
+.levels-fit .level-tabs { position: static; margin: 0; padding: 0; background: none; }
+.levels-fit .level-tab { padding: 0.38rem 0.2rem; border-radius: 8px; }
+.levels-fit .diff-block { flex: 1; min-height: 0; display: flex; flex-direction: column; margin: 0; }
+.levels-fit .diff-head { margin: 0 0 0.35rem; }
+.levels-fit .diff-block h3 { margin: 0; }
+.levels-fit .level-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: repeat(5, 1fr);
+  gap: 0.45rem;
+}
+.levels-fit .level-card { padding: 0.45rem 0.7rem; align-content: center; border-radius: 10px; }
+.levels-fit .lv-name { font-size: 0.98rem; margin-bottom: 0.1rem; }
+.levels-fit .lv-meta { font-size: 0.74rem; }
+@media (min-width: 700px) {
+  .levels-fit .level-grid { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(3, 1fr); }
+}
+@media (min-width: 1150px) {
+  .levels-fit .level-grid { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr); }
+}
+/* Short viewports: shed chrome first — legend and daily status go before tiles shrink */
+@media (max-height: 720px) {
+  .levels-fit .sub { display: none; }
+  .levels-fit .daily-text .daily-status { display: none; }
+  .levels-fit h2 { font-size: 1.3rem; }
+  .levels-fit .daily-card { padding: 0.4rem 0.6rem; }
+}
+
+/* =====================================================================
+   9.33-a4 ITEM 4 — CINEMATIC MOTION (Tony QA, Nov 4): the game moves
+   like the animated Collector's cards. The Atmosphere component paints
+   embers (canvas) + smoke + flame glow + vignette BEHIND a screen's
+   content; content is lifted above it by the .has-atmo rules (overlay
+   components keep their own positioning — they are excluded). All of
+   it dies under reduced motion: the component renders nothing, and the
+   CSS animations below are flattened by the data-motion rule + the
+   prefers-reduced-motion guard at the end of this block.
+   ===================================================================== */
+.atmo { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.atmo-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.atmo-smoke { position: absolute; border-radius: 50%; filter: blur(28px); }
+.atmo-smoke.s1 {
+  width: 72%; height: 46%; left: -14%; top: 4%;
+  background: radial-gradient(ellipse at center, rgba(150, 126, 96, 0.20), transparent 65%);
+  animation: smokeDrift1 52s ease-in-out infinite alternate;
+}
+.atmo-smoke.s2 {
+  width: 64%; height: 40%; right: -12%; top: 34%;
+  background: radial-gradient(ellipse at center, rgba(110, 92, 74, 0.16), transparent 65%);
+  animation: smokeDrift2 64s ease-in-out infinite alternate;
+}
+.atmo-smoke.s3 {
+  width: 58%; height: 36%; left: 12%; bottom: -8%;
+  background: radial-gradient(ellipse at center, rgba(150, 126, 96, 0.13), transparent 65%);
+  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--atmo-tint, #c8a165) 16%, transparent), transparent 65%);
+  animation: smokeDrift1 74s ease-in-out infinite alternate-reverse;
+}
+@keyframes smokeDrift1 {
+  from { transform: translate3d(-2%, 0, 0) scale(1); opacity: 0.75; }
+  to { transform: translate3d(3.5%, -2.5%, 0) scale(1.08); opacity: 1; }
+}
+@keyframes smokeDrift2 {
+  from { transform: translate3d(2.5%, 1%, 0) scale(1.05); opacity: 0.9; }
+  to { transform: translate3d(-3%, -2%, 0) scale(0.98); opacity: 0.7; }
+}
+.atmo-flame {
+  position: absolute; left: -8%; right: -8%; bottom: -12%; height: 46%;
+  background: radial-gradient(ellipse at 50% 100%, rgba(255, 110, 40, 0.26), rgba(255, 60, 10, 0.09) 48%, transparent 72%);
+  background:
+    radial-gradient(ellipse at 50% 100%, color-mix(in srgb, var(--atmo-tint, #ff6e28) 38%, transparent), transparent 62%),
+    radial-gradient(ellipse at 50% 100%, rgba(255, 110, 40, 0.20), rgba(255, 60, 10, 0.07) 48%, transparent 72%);
+  transform-origin: 50% 100%;
+  animation: flameFlicker 2.8s ease-in-out infinite;
+}
+.atmo-play .atmo-flame { opacity: 0.5; }
+@keyframes flameFlicker {
+  0%, 100% { transform: scaleY(1) skewX(0deg); opacity: 0.8; }
+  30% { transform: scaleY(1.05) skewX(0.6deg); opacity: 0.95; }
+  55% { transform: scaleY(0.97) skewX(-0.5deg); opacity: 0.72; }
+  78% { transform: scaleY(1.07) skewX(0.3deg); opacity: 1; }
+}
+.atmo-vignette {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 108% 92% at 50% 42%, transparent 58%, rgba(5, 3, 1, 0.44) 100%);
+}
+.atmo-home .atmo-vignette {
+  background: radial-gradient(ellipse 108% 92% at 50% 42%, transparent 50%, rgba(5, 3, 1, 0.58) 100%);
+}
+/* Content rides above the atmosphere; overlays keep their own positioning */
+.home.has-atmo > :not(.atmo) { position: relative; z-index: 1; }
+.play-fixed.has-atmo > :not(.atmo):not(.theme-backdrop):not(.overlay):not(.rotate-prompt):not(.buddy-flyby):not(.buddy-hunt):not(.win-screen):not(.parade):not(.result-overlay):not(.spark-critter) {
+  position: relative;
+  z-index: 1;
+}
+/* Living sheen: a slow specular sweep across the board's gilt edges */
+.board::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 6;
+  mix-blend-mode: screen;
+  background: linear-gradient(115deg, transparent 32%, rgba(255, 226, 160, 0.10) 47%, rgba(255, 255, 255, 0.13) 50%, rgba(255, 226, 160, 0.10) 53%, transparent 68%);
+  background-size: 260% 260%;
+  animation: boardSheen 9s ease-in-out infinite;
+}
+@keyframes boardSheen {
+  0% { background-position: 125% 0; }
+  55%, 100% { background-position: -125% 0; }
+}
+/* Screen entrances: menus already rise (.panel); home + play join them */
+.home, .play-fixed { animation: rise 0.45s ease both; }
+html[data-motion='reduce'] .atmo-smoke, html[data-motion='reduce'] .atmo-flame,
+html[data-motion='reduce'] .board::after { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .atmo-smoke, .atmo-flame, .board::after { animation: none; }
+  .home, .play-fixed { animation: none; }
+}
+/* the sheen anchors to the board itself, not the stage */
+.board { position: relative; }
+
+/* =====================================================================
+   9.33-a5 — GAME-WIDE FIT + REORDER (Tony, Nov 4): EVERY screen locks
+   to the viewport — 100dvh, no scrolling on any primary screen, phone
+   (390x844, and short 360x640) and PC alike. The a4 Levels pattern is
+   generalized: a screen is a dvh-budgeted flex column (flex:1 inside
+   the fixed shell, overflow hidden); content areas take leftover
+   height as fr-sized grids; type scales with clamp()/dvh; at short
+   heights decorative chrome sheds BEFORE interactive elements shrink;
+   touch targets stay >= 40px. Content that cannot fit becomes tabs or
+   sub-pages inside the screen (Stable tabs, How Watch/Rules panels),
+   never a scroll. Navigation is reordered: brand + coins up top, a
+   single-line plaque bottom nav (Play / Levels / Stable / Rewards /
+   More) below; Save & settings is split into Account + Settings.
+   ===================================================================== */
+
+/* ---------- the fit system ---------- */
+.fit-screen {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  gap: 0.55rem;
+  padding: 0.6rem max(0.75rem, env(safe-area-inset-right, 0px)) 0.7rem max(0.75rem, env(safe-area-inset-left, 0px));
+  box-sizing: border-box;
+  width: 100%;
+}
+.fit-screen h2 { margin: 0; font-size: clamp(1.35rem, 4.2dvh, 1.8rem); }
+.fit-screen .sub { margin: 0; }
+
+/* ---------- topbar: brand + coins only ---------- */
+.topbar { padding-top: 0.35rem; padding-bottom: 0.35rem; }
+.topbar .hud-pills { margin-left: auto; }
+
+/* ---------- bottom plaque nav (one line, phone + PC) ---------- */
+.bottom-nav {
+  flex-shrink: 0;
+  position: relative;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.4rem;
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 0.45rem 0.6rem calc(0.5rem + env(safe-area-inset-bottom, 0px));
+}
+.bottom-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.12rem;
+  min-height: 50px;
+  padding: 0.4rem 0.15rem;
+  border: 1px solid rgba(255, 209, 102, 0.28);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(56, 42, 22, 0.92), rgba(26, 19, 10, 0.94));
+  box-shadow: inset 0 1px 0 rgba(255, 232, 180, 0.12), 0 6px 16px rgba(0, 0, 0, 0.35);
+  color: rgba(244, 251, 255, 0.78);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+.bottom-nav-icon { font-size: 1.02rem; line-height: 1; color: #ecd28f; font-family: var(--font-display); }
+.bottom-nav-item.on {
+  border-color: var(--gold);
+  color: #ffe9a8;
+  background: linear-gradient(180deg, rgba(92, 68, 32, 0.95), rgba(40, 29, 15, 0.95));
+  box-shadow: inset 0 1px 0 rgba(255, 232, 180, 0.2), 0 0 0 1px var(--gold), 0 8px 18px rgba(0, 0, 0, 0.4);
+}
+.bottom-nav-item:active { transform: translateY(1px); }
+.shell-play .bottom-nav { display: none !important; }
+@media (min-width: 760px) {
+  .bottom-nav { gap: 0.6rem; padding-left: 1.25rem; padding-right: 1.25rem; }
+  .bottom-nav-item { flex-direction: row; gap: 0.5rem; min-height: 52px; font-size: 0.9rem; }
+}
+
+/* ---------- HOME: hero compressed to budget, one dominant action ---------- */
+.fit-home {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.35rem, 1.1dvh, 0.75rem);
+  padding: 0.35rem max(1rem, env(safe-area-inset-right, 0px)) 0.55rem max(1rem, env(safe-area-inset-left, 0px));
+  box-sizing: border-box;
+  width: 100%;
+}
+.fit-home .hero {
+  min-height: 0;
+  flex: 0 1 auto;
+  justify-content: flex-start;
+  padding: 0.35rem 0 0;
+  gap: clamp(0.3rem, 1dvh, 0.65rem);
+}
+.fit-home .eyebrow { margin: 0; }
+.fit-home .logo-hero { font-size: clamp(3rem, 15dvh, 6.2rem); line-height: 0.95; margin: 0; }
+.fit-home .lede { margin: 0; font-size: clamp(0.92rem, 2.1dvh, 1.05rem); line-height: 1.4; max-width: 36rem; }
+.fit-home .home-cta { margin: 0; flex-wrap: nowrap; }
+.home-play { flex: 1; min-height: 56px; font-size: 1.15rem; border-radius: 12px; }
+.home-plates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; align-items: stretch; }
+.home-plates > * { min-width: 0; }
+.home-plates .btn { width: 100%; height: 100%; padding: 0.5rem 0.35rem; border-radius: 10px; font-size: 0.84rem; }
+.fit-home .unseen-tile { margin: 0; max-width: none; height: 100%; padding: 0.3rem 0.5rem; gap: 8px; border-radius: 10px; box-sizing: border-box; }
+.fit-home .unseen-card { width: 26px; }
+.fit-home .unseen-tile-text b { font-size: 0.72rem; line-height: 1.2; }
+.fit-home .unseen-tile-text small { display: none; }
+.fit-home .treat-pile-widget { margin: 0 auto; width: 100%; box-sizing: border-box; }
+.fit-home .home-pet-row { margin: 0 auto; flex: 0 1 auto; min-height: 0; }
+.fit-home .home-pet-body svg { width: clamp(46px, 10dvh, 84px); height: auto; }
+.fit-home .daily-card { margin: 0; }
+.fit-home .stat-strip { margin: 0; flex-wrap: nowrap; padding: 0.45rem 0.1rem; }
+.fit-home .stat-strip div { flex: 1 1 0; padding: 0.3rem 0.45rem; }
+.fit-home .stat-strip strong { font-size: clamp(1rem, 3dvh, 1.35rem); }
+.fit-home .stat-strip span { font-size: 0.7rem; }
+@media (max-width: 640px) {
+  .fit-home .stat-strip, .fit-home .home-strip { flex-direction: row; }
+  .fit-home .stat-strip div, .fit-home .home-strip div { border-bottom: 0; border-right: 1px solid rgba(255, 255, 255, 0.08); }
+  .fit-home .stat-strip div:last-child, .fit-home .home-strip div:last-child { border-right: 0; }
+}
+/* short screens: hero text sheds before any button shrinks */
+@media (max-height: 700px) {
+  .fit-home .eyebrow, .fit-home .lede { display: none; }
+  .fit-home .logo-hero { font-size: clamp(2.6rem, 12dvh, 6.2rem); }
+  .fit-home .daily-card { padding: 0.5rem 0.65rem; }
+  .fit-home .daily-text .daily-status { display: none; }
+  .home-play { min-height: 50px; }
+}
+
+/* ---------- MORE: fit menu of plaque rows ---------- */
+.more-grid { flex: 1; min-height: 0; display: grid; grid-template-rows: repeat(8, 1fr); gap: 0.45rem; }
+.more-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid rgba(255, 209, 102, 0.25);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(56, 42, 22, 0.85), rgba(26, 19, 10, 0.9));
+  box-shadow: inset 0 1px 0 rgba(255, 232, 180, 0.1);
+  color: var(--foam);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.more-row:active { transform: translateY(1px); }
+.more-icon { flex: 0 0 auto; width: 1.6rem; text-align: center; font-size: 1.1rem; color: #ecd28f; font-family: var(--font-display); }
+.more-text { flex: 1; min-width: 0; display: grid; gap: 0.05rem; }
+.more-text strong { font-size: 0.98rem; }
+.more-text small { opacity: 0.65; font-size: 0.76rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.more-go { opacity: 0.6; font-size: 1.25rem; }
+@media (min-width: 760px) {
+  .more-grid { grid-template-columns: 1fr 1fr; grid-template-rows: repeat(4, 1fr); }
+}
+
+/* ---------- ACCOUNT + SETTINGS (the old Save & settings, split) ---------- */
+.account .profile-card { margin: 0; }
+.account .auth-form { margin: 0; gap: 0.5rem; }
+.account-name { display: grid; }
+.account .backup, .account .follow-section { margin: 0; }
+.account .follow-section p { margin: 0.2rem 0 0.5rem; }
+.account .backup .cta-row, .account .follow-section .btn { margin: 0; }
+.account-share { flex: 0 0 auto; }
+.settings-screen .settings { display: flex; flex-direction: column; gap: 0.45rem; min-height: 0; }
+.settings-screen .settings h3 { margin: 0; }
+.settings-screen .toggle { padding: 0.3rem 0.1rem; }
+.settings-screen .heard-card { margin: 0; }
+.settings-screen .heard-voices { display: flex; flex-wrap: wrap; gap: 0.2rem 0.9rem; margin: 0.3rem 0; padding: 0; list-style: none; font-size: 0.8rem; }
+.settings-screen .privacy-note { margin: 0; font-size: 0.8rem; }
+.settings-screen .privacy-note p { line-height: 1.35; }
+@media (max-height: 720px) {
+  .settings-screen .heard-voices { display: none; }
+  .account .follow-section p { display: none; }
+  .account .auth-form label { gap: 0.15rem; }
+}
+
+/* ---------- REWARDS: badge grid takes the leftover height ---------- */
+.rewards .sub { font-size: 0.84rem; line-height: 1.35; }
+.rewards .stable-entry { margin: 0; flex: 0 0 auto; }
+.rewards .wallet-strip { margin: 0; flex-wrap: nowrap; padding: 0.45rem 0.1rem; }
+.rewards .wallet-strip div { flex: 1 1 0; min-width: 0; padding: 0.3rem 0.35rem; }
+.rewards .wallet-strip strong { font-size: clamp(0.95rem, 2.6dvh, 1.25rem); }
+.rewards .wallet-strip span { font-size: 0.64rem; }
+.rewards .econ-card { margin: 0; font-size: 0.78rem; }
+.rewards .ach-title { margin: 0; }
+.rewards .badge-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 0.45rem;
+}
+.rewards .badge-card { min-height: 0; padding: 0.45rem 0.5rem; gap: 0.15rem; align-content: center; overflow: hidden; }
+.rewards .badge-card .ach-icon { font-size: 1rem; }
+.rewards .badge-card strong { font-size: 0.82rem; }
+.rewards .badge-card .product-value { font-size: 0.68rem; line-height: 1.25; }
+.rewards .badge-card .badge-upgrade { padding: 0.3rem 0.5rem; font-size: 0.72rem; min-height: 36px; }
+@media (min-width: 760px) {
+  .rewards .badge-grid { grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(2, 1fr); }
+}
+@media (max-height: 720px) {
+  .rewards .sub, .rewards .ach-title { display: none; }
+  .rewards .econ-card small, .rewards .econ-card [data-testid='parade-rewards-today'] { display: none; }
+  .rewards .badge-card .product-value { display: none; }
+  .rewards .stable-entry { padding: 0.45rem 0.6rem; }
+}
+
+/* ---------- STABLE: pick rows + detail, bundles/gifts on their own tab ---------- */
+.stable { gap: 0.45rem; }
+.stable .stable-head h2 { font-size: clamp(1.3rem, 4dvh, 1.7rem); }
+.stable-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; flex: 0 0 auto; }
+.stable-tab, .how-tab {
+  min-height: 44px;
+  padding: 0.45rem 0.5rem;
+  border: 1px solid rgba(255, 209, 102, 0.28);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(56, 42, 22, 0.85), rgba(26, 19, 10, 0.9));
+  color: rgba(244, 251, 255, 0.78);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.stable-tab.on, .how-tab.on { border-color: var(--gold); color: #ffe9a8; box-shadow: 0 0 0 1px var(--gold); }
+.stable .stable-now { margin: 0; flex-wrap: nowrap; }
+.stable .stable-stash { margin: 0; }
+.stable .stable-trial, .stable .stable-freepick { margin: 0; }
+.stable-pickrow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.4rem; flex: 0 0 auto; }
+.stable-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  min-height: 66px;
+  min-width: 0;
+  padding: 0.35rem 0.1rem 0.3rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  background: rgba(20, 13, 7, 0.55);
+  color: var(--foam);
+  font: inherit;
+  cursor: pointer;
+}
+.stable-pick.on { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+.stable-pick svg { width: clamp(28px, 5dvh, 40px); height: auto; }
+.stable-pick-name { font-family: var(--font-display); font-size: 0.78rem; color: #ecd28f; line-height: 1.1; }
+.stable-pick small { font-size: 0.64rem; font-weight: 700; opacity: 0.75; }
+.stable-detail { flex: 1; min-height: 0; display: flex; justify-content: center; }
+.stable-detail .stable-card {
+  flex: 1;
+  min-height: 0;
+  max-width: 560px;
+  overflow: hidden;
+  justify-content: center;
+  gap: clamp(0.08rem, 0.8dvh, 0.3rem);
+  padding: 0.5rem 0.6rem;
+  box-sizing: border-box;
+}
+.stable-detail .stable-art { width: clamp(52px, 11dvh, 92px); height: clamp(52px, 11dvh, 92px); }
+.stable-detail .stable-art svg { width: 100%; height: 100%; }
+.stable-detail .stable-next { margin: 0; }
+.stable-detail .stable-care { margin: 0; }
+.stable-detail .care-row { flex-wrap: nowrap; }
+.stable-detail .care-row .care-btn { min-width: 0; padding: 0.4rem 0.45rem; font-size: 0.72rem; }
+.stable-detail .stable-calls { margin: 0; }
+.stable .stable-bundles { margin: 0; }
+.stable .stable-redeem { margin: 0; }
+.stable .stable-note { margin: 0; }
+@media (max-height: 720px) {
+  .stable .stable-sub { display: none; }
+  .stable .stable-stash small { display: none; }
+  .stable-detail .stable-next, .stable-detail .stable-weapon, .stable-detail .stable-badges { display: none; }
+  .stable-detail .stable-treats { display: none; }
+  .stable-detail .stable-art { width: clamp(44px, 8dvh, 92px); height: clamp(44px, 8dvh, 92px); }
+  .stable-pick { min-height: 56px; }
+}
+
+/* ---------- SHARE & CHALLENGE / DUEL ---------- */
+.challenge .share-box code { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.challenge .incoming { margin: 0; }
+@media (max-height: 720px) {
+  .challenge .sub { display: none; }
+  .challenge label { display: grid; grid-template-columns: 8.5rem 1fr; align-items: center; gap: 0.5rem; margin: 0; }
+  .challenge input, .challenge select { min-height: 40px; }
+}
+
+/* ---------- ABOUT ---------- */
+.about .about-defenders { gap: 0.3rem; margin: 0.3rem 0; }
+.about .about-defender svg { width: 32px; height: 32px; }
+.about .about-line { font-size: 0.9rem; line-height: 1.45; }
+.about > .btn { align-self: flex-start; }
+@media (max-height: 720px) {
+  .about .about-line { font-size: 0.84rem; line-height: 1.35; }
+}
+
+/* ---------- HOW TO PLAY: Watch / Rules panels ---------- */
+.how-panel { gap: 0.5rem; }
+.how-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; flex: 0 0 auto; }
+.how-panel .how-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.7rem;
+  box-sizing: border-box;
+}
+.how-panel .how-demo { width: min(100%, clamp(190px, 36dvh, 320px)); }
+.how-panel .how-caption { text-align: center; }
+.how-panel .how-caption p { line-height: 1.35; }
+.how-panel .how-dots { flex: 0 0 auto; }
+.how-panel .how-rules {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.15rem;
+  font-size: clamp(0.72rem, 1.9dvh, 0.88rem);
+  line-height: 1.3;
+}
+.how-panel .how-rules li { margin: 0; }
+.how-panel .cta-row { flex: 0 0 auto; margin: 0; }
+@media (min-width: 760px) {
+  .how-panel .how-rules {
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: repeat(8, 1fr);
+    grid-template-columns: 1fr 1fr;
+    gap: 0.2rem 1.6rem;
+    align-items: center;
+  }
+}
+@media (max-height: 720px) {
+  .how-panel .how-sub { display: none; }
+}
+
+/* ---------- REMIX: same fit pattern as Levels ---------- */
+.remix-fit {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  gap: 0.5rem;
+  padding: 0.6rem max(0.75rem, env(safe-area-inset-right, 0px)) 0.7rem max(0.75rem, env(safe-area-inset-left, 0px));
+  box-sizing: border-box;
+  width: 100%;
+}
+.remix-fit h2 { margin: 0; font-size: clamp(1.35rem, 4.2dvh, 1.8rem); }
+.remix-fit .remix-countdown { margin: 0; display: grid; gap: 0.1rem; }
+.remix-fit .remix-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 0.5rem;
+}
+.remix-fit .level-card { height: 100%; align-content: center; }
+.remix-fit .endless-block { flex: 0 0 auto; margin: 0; }
+.remix-fit .endless-sizes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.45rem; }
+.remix-fit .endless-btn { min-height: 48px; }
+@media (min-width: 900px) {
+  .remix-fit .remix-grid { grid-template-columns: repeat(4, 1fr); grid-template-rows: 1fr; }
+}
+@media (max-height: 720px) {
+  .remix-fit .remix-note, .remix-fit .endless-block .sub { display: none; }
+}
+
+/* ---------- BUG REPORT: the form flexes, the page never scrolls ---------- */
+.bug-report {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 0.6rem max(0.75rem, env(safe-area-inset-right, 0px)) 0.7rem max(0.75rem, env(safe-area-inset-left, 0px));
+}
+.bug-report h1 { margin: 0; font-size: clamp(1.35rem, 4.2dvh, 1.8rem); font-family: var(--font-display); color: var(--sun); }
+.bug-report .card { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.bug-report textarea { flex: 1; min-height: 0; resize: none; }
+.bug-report .row { display: flex; gap: 0.5rem; justify-content: flex-end; flex: 0 0 auto; }
+.bug-report p { margin: 0; }
+
+/* ---------- overlays/sheets: capped to the viewport on short screens ---------- */
+.start-sheet-card { max-height: calc(var(--app-height, 100dvh) - 2rem); }
+.unseen-modal-body { max-height: calc(var(--app-height, 100dvh) - 2rem); overflow-y: auto; }
+.win-screen-card, .result-card, .shortfall-sheet { max-height: calc(var(--app-height, 100dvh) - 1.5rem); }
+.win-screen-body { max-height: calc(var(--app-height, 100dvh) - 7rem); }
+.parade-card { max-height: calc(var(--app-height, 100dvh) - 6rem); overflow-y: auto; }
+.buddy-hunt-card { max-height: calc(var(--app-height, 100dvh) - 1.5rem); overflow-y: auto; }
+.overlay-card { max-height: calc(var(--app-height, 100dvh) - 1.5rem); overflow-y: auto; }
+
+/* =====================================================================
+   9.33-a5 — BOARD HARD GUARANTEE + fit verification round (Tony defect
+   report Nov 4, 06:57: a HARD board on his iPhone rendered WIDER than
+   the screen, frame and all, rail pushed to the bottom edge; HUD fit).
+   Chromium (incl. iPhone emulation) measures the board at stage-12px
+   for sizes 5-8, branded or not — the blowout is WebKit-specific, in
+   the family of the 520px-cap track-sizing bug documented at the pin
+   rule above. So the fix is structural, not tuned: a complete
+   min-width:0 / minmax(0,1fr) chain from play column -> stage -> board
+   -> grid tracks -> cells means no min-content anywhere can force the
+   board wider than its box, and the box itself is capped by BOTH the
+   stage (max-width:100%) and the viewport (100vw - 1.25rem) at the
+   highest-specificity upright selectors, in every device cascade.
+   ===================================================================== */
+.play-fixed { min-width: 0; }
+.play-fixed .board-stage {
+  min-width: 0;
+  max-width: 100%;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+.play-fixed .board {
+  grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--n), minmax(0, 1fr));
+  min-width: 0;
+}
+.play-fixed .cell { min-width: 0; min-height: 0; }
+.play-fixed .cell > * { max-width: 100%; }
+html[data-layout='upright']:not([data-device='phone']) .play-fixed .board,
+html[data-device='phone'] .play-fixed .board {
+  width: min(100%, 520px, calc(100vw - 1.25rem)) !important;
+  max-width: 100% !important;
+}
+
+/* ---------- fit verification round: measured overflows, fixed ---------- */
+/* Levels: rows can now shrink below card min-content; cards clip-safe */
+.levels-fit .level-grid { grid-template-rows: repeat(5, minmax(0, 1fr)); }
+.levels-fit .level-card-wrap { min-height: 0; }
+.levels-fit .level-card { min-height: 0; overflow: hidden; padding: 0.35rem 0.6rem; }
+@media (min-width: 700px) { .levels-fit .level-grid { grid-template-rows: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1150px) { .levels-fit .level-grid { grid-template-rows: repeat(2, minmax(0, 1fr)); } }
+@media (max-height: 860px) {
+  .levels-fit .daily-text .daily-status { display: none; }
+  .levels-fit .sub { font-size: 0.74rem; line-height: 1.3; }
+}
+/* Rewards: compact chrome + one-line badge values on phones */
+.rewards .badge-card .product-value { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 760px) {
+  .rewards .sub { font-size: 0.78rem; line-height: 1.3; }
+  .rewards .econ-card { font-size: 0.74rem; padding: 8px 10px; }
+  .rewards .econ-card small, .rewards .econ-card [data-testid='parade-rewards-today'] { display: none; }
+  .rewards .badge-card .ach-icon { display: none; }
+  .rewards .stable-entry { padding: 0.5rem 0.6rem; }
+  .rewards > .btn.primary { padding: 0.55rem 1rem; }
+}
+@media (max-height: 720px) {
+  .rewards .wallet-strip span { display: none; }
+  .rewards .badge-card { padding: 0.35rem 0.45rem; }
+}
+/* Stable detail + extras compaction */
+.stable-detail .stable-art { width: clamp(48px, 9dvh, 80px); height: clamp(48px, 9dvh, 80px); }
+.stable-detail .stable-calls { padding: 4px 8px; }
+@media (max-height: 720px) {
+  .stable .stable-freepick-sub { display: none; }
+  .stable .stable-bundle { padding: 0.5rem; }
+  .stable .stable-redeem { padding: 0.55rem; }
+  .stable .stable-note { font-size: 0.74rem; }
+  .stable-detail .stable-btn { min-height: 38px; }
+}
+/* Account: follow/backup compress on short screens */
+@media (max-height: 720px) {
+  .account .follow-section h3 { display: none; }
+  .account .backup { display: flex; align-items: center; gap: 0.6rem; }
+  .account .backup h3 { margin: 0; }
+  .account .auth-form { gap: 0.35rem; }
+  .account .auth-form input, .account .name-setting input { padding: 0.5rem 0.6rem; }
+}
+/* Settings: tighter rows on short screens */
+@media (max-height: 720px) {
+  .settings-screen .settings { gap: 0.35rem; }
+  .settings-screen .toggle { padding: 0.18rem 0.1rem; font-size: 0.92rem; }
+  .settings-screen .heard-card { padding: 8px 10px; }
+  .settings-screen .privacy-note { padding: 8px 10px; }
+  .settings-screen .privacy-note p { font-size: 0.78rem; }
+}
+/* How rules + About: last pixels on short screens */
+@media (max-height: 720px) {
+  .how-panel .how-rules { font-size: 0.7rem; line-height: 1.25; gap: 0; }
+  .about > .btn { display: none; }
+  .about .about-line { line-height: 1.3; }
+}
+/* ---------- fit verification round 2 (360x640 stragglers) ---------- */
+.privacy-details summary { cursor: pointer; }
+.privacy-details p { margin: 4px 0 8px; line-height: 1.4; opacity: 0.9; }
+@media (max-height: 720px) {
+  .stable.fit-screen { gap: 0.35rem; }
+  .stable .stable-note { line-height: 1.25; }
+  .rewards .badge-card strong { font-size: 0.78rem; }
+  .rewards .badge-card .badge-rank { font-size: 0.62rem; }
+  .rewards .badge-card .badge-upgrade { min-height: 32px; padding: 0.2rem 0.4rem; }
+  .rewards .badge-card { gap: 0.1rem; }
+  .rewards .wallet-strip { padding: 0.3rem 0.1rem; }
+  .settings-screen .heard-reset { padding: 0.25rem 0.5rem; }
+}
+/* ---------- fit verification round 3 ---------- */
+.rewards .badge-card { min-height: 0; }
+@media (max-height: 720px) {
+  .stable .stable-redeem h3 { margin-bottom: 0.25rem; }
+  .stable .stable-bundles { gap: 0.4rem; padding: 0.6rem; }
+  .stable .stable-redeem-row input { padding: 0.5rem 0.6rem; }
+}
+/* ---------- fit verification round 4: clipped bottoms, fixed ---------- */
+.stable-detail .stable-card { gap: 0.12rem; }
+.stable-detail .stable-art { width: clamp(44px, 8dvh, 72px); height: clamp(44px, 8dvh, 72px); }
+.stable-detail .stable-card h3 { font-size: 1.05rem; }
+.stable-detail .stable-perk { font-size: 0.8rem; line-height: 1.25; }
+.stable-detail .stable-mood { font-size: 0.74rem; }
+.stable-detail .care-row .care-btn { padding: 0.3rem 0.4rem; font-size: 0.7rem; }
+.stable-detail .stable-calls span { font-size: 0.8rem; }
+.stable-detail .stable-btn { padding: 0.4rem 0.5rem; }
+@media (max-width: 760px) {
+  .rewards .stable-entry small { display: none; }
+  .rewards .stable-entry { padding: 0.4rem 0.6rem; }
+}
+/* ---------- fit verification round 5 ---------- */
+@media (max-width: 760px) {
+  .rewards .badge-card strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rewards .econ-card span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+}
+@media (max-height: 720px) {
+  .stable-detail .care-btn small { display: none; }
+  .stable-detail .stable-calls small { display: none; }
+  .stable-detail .stable-card-top { min-height: 0; }
+  .stable-detail .care-btn { font-size: 0.66rem; }
+}
+/* ---------- fit verification round 6: measured whales ---------- */
+.rewards .wallet-strip { flex-direction: row; }
+.stable-detail .calls-btn { min-width: 0; flex-direction: row; white-space: nowrap; }
+.stable-detail .stable-card h3 small { display: inline; }
+.stable-detail .stable-btn, .stable-detail .stable-calls { flex-shrink: 0; }
+@media (max-height: 720px) {
+  .stable-detail .stable-card { gap: 0.08rem; }
+}
+/* ---------- fit verification round 7 ---------- */
+.stable-detail .stable-calls small { display: none; }
+@media (max-height: 720px) {
+  .stable-detail .stable-care { gap: 3px; }
+  .stable-detail .stable-art { width: 44px; height: 44px; }
+}
+@media (max-height: 720px) {
+  .stable-detail .stable-card { padding-top: 0.35rem; padding-bottom: 0.35rem; }
+}
+@media (max-height: 720px) {
+  .stable-pick { min-height: 52px; padding-top: 0.25rem; padding-bottom: 0.2rem; }
+  .stable .stable-stash { padding-top: 0.3rem; padding-bottom: 0.3rem; }
+  .stable .stable-now { padding-top: 0.3rem; padding-bottom: 0.3rem; }
+}
+@media (max-height: 720px) {
+  .stable .stable-now .btn.tool { padding: 0.3rem 0.6rem; min-height: 40px; }
+  .stable .stable-now > span { font-size: 0.86rem; }
+  .stable-detail .stable-calls { padding: 2px 6px; }
+  .stable-detail .calls-btn { padding: 0.3rem 0.5rem; }
+  .stable-detail .care-row .care-btn { flex: 1 1 0; padding: 0.25rem 0.3rem; font-size: 0.62rem; }
+}
+
+/* =====================================================================
+   9.33-a7 — ONE SCREEN = ONE FUNCTION (Tony, Nov 4): every control fully
+   visible at 390x660, or the content becomes its own screen/step. Plus
+   the richness pass: per-screen colour identity, the Ember Reliquary
+   texture (Gris-style grain + lit gradients + depth), buttons that answer
+   a press visibly (ember burst + glow pulse) and audibly (sfxUiClick),
+   and Atmosphere on every screen. Board rules are NOT touched here.
+   ===================================================================== */
+
+/* ---------- per-screen colour identity (Monument Valley poster test) --- */
+.shell-home { --screen-accent: #ff9a3c; }
+.shell-levels { --screen-accent: #5b8cff; }
+.shell-stable { --screen-accent: #2fd4a7; }
+.shell-rewards { --screen-accent: #ffb52e; }
+.shell-more { --screen-accent: #b07fe8; }
+.shell-account { --screen-accent: #4f9dff; }
+.shell-settings { --screen-accent: #7fb2d9; }
+.shell-about { --screen-accent: #c084fc; }
+.shell-how { --screen-accent: #2fd4a7; }
+.shell-challenge { --screen-accent: #ff5d73; }
+.shell-duel { --screen-accent: #ff5d73; }
+.shell-remix { --screen-accent: #5b8cff; }
+.shell-bug { --screen-accent: #ff9a3c; }
+
+/* ---------- atmosphere on panel screens: positioned, content lifted ---- */
+.fit-screen.has-atmo, .levels-fit.has-atmo, .remix-fit.has-atmo, .bug-report.has-atmo { position: relative; }
+/* Panel screens only — the play screen has its own lift rule with overlay
+   exclusions; a general rule here would drag .win-screen/.result-overlay
+   into the flow. Home has its own rule from a4. */
+.panel.has-atmo > :not(.atmo), .bug-report.has-atmo > :not(.atmo) { position: relative; z-index: 1; }
+.atmo-panel .atmo-vignette { opacity: 0.55; }
+.atmo-panel .atmo-flame { opacity: 0.5; }
+
+/* panel screens breathe the screen's accent (mist + a whisper of depth) */
+.panel.has-atmo, .bug-report.has-atmo {
+  background-image:
+    radial-gradient(120% 55% at 50% -8%, color-mix(in srgb, var(--screen-accent, #b98a4a) 11%, transparent), transparent 62%),
+    linear-gradient(180deg, transparent 55%, rgba(8, 5, 2, 0.28));
+}
+.panel h2, .fit-screen h2, .bug-report h1 {
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35), 0 0 24px color-mix(in srgb, var(--screen-accent, #ffd166) 38%, transparent);
+}
+
+/* ---------- segmented tabs (Settings / About indexes) ------------------ */
+.seg-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; flex: 0 0 auto; }
+.seg-tab {
+  min-height: 40px;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid rgba(255, 209, 102, 0.28);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(56, 42, 22, 0.85), rgba(26, 19, 10, 0.9));
+  color: rgba(244, 251, 255, 0.78);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.seg-tab.on {
+  border-color: var(--screen-accent, var(--gold));
+  color: #ffe9a8;
+  box-shadow: 0 0 0 1px var(--screen-accent, var(--gold)), 0 0 16px color-mix(in srgb, var(--screen-accent, #ffd166) 30%, transparent);
+}
+.settings-linkrow {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+  width: 100%; padding: 0.55rem 0.2rem;
+  background: none; border: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--foam); font: inherit; font-weight: 700; text-align: left; cursor: pointer;
+}
+.settings-linkrow span { opacity: 0.6; font-size: 1.2rem; }
+.settings-note { gap: 0.6rem; }
+.settings-note p { line-height: 1.55; font-size: 0.92rem; margin: 0; }
+.settings-note h3 { margin: 0; }
+.settings-back { align-self: flex-start; }
+
+/* =====================================================================
+   HOME — hero is a SCENE, sections are flex-none rows on a dvh budget.
+   The a5 bug: .hero was flex-shrinkable, so its content spilled over the
+   sections below (Tony's overlap screenshots). Never again: sections
+   size to their content, sizes scale with dvh, nothing overlaps.
+   ===================================================================== */
+.fit-home { gap: clamp(0.3rem, 0.9dvh, 0.6rem); }
+.fit-home .hero {
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 209, 102, 0.22);
+  padding: clamp(0.5rem, 1.6dvh, 0.95rem) 0.9rem clamp(0.55rem, 1.5dvh, 0.85rem);
+  background-image:
+    radial-gradient(95% 60% at 50% -6%, rgba(255, 154, 60, 0.22), transparent 62%),
+    radial-gradient(55% 42% at 6% 92%, rgba(47, 212, 167, 0.10), transparent 65%),
+    radial-gradient(55% 42% at 96% 88%, rgba(91, 140, 255, 0.11), transparent 65%),
+    linear-gradient(178deg, rgba(74, 50, 22, 0.60), rgba(22, 14, 7, 0.30) 68%, rgba(12, 8, 4, 0.42));
+  box-shadow: inset 0 1px 0 rgba(255, 236, 190, 0.18), inset 0 -20px 32px rgba(0, 0, 0, 0.38), 0 12px 30px rgba(0, 0, 0, 0.35);
+}
+.fit-home .logo-hero {
+  font-size: clamp(2.5rem, 11.5dvh, 5.4rem);
+  filter: drop-shadow(0 3px 12px rgba(255, 154, 60, 0.35)) drop-shadow(0 2px 0 rgba(0, 0, 0, 0.45));
+}
+.fit-home .home-cta { flex: 0 0 auto; }
+.home-play { min-height: clamp(48px, 7.5dvh, 58px); }
+.home-plates { flex: 0 0 auto; }
+.home-plates .btn, .home-plates .unseen-tile { min-height: 44px; }
+
+/* companion strip: Defender + field treats, side by side, one row */
+.home-companion {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+.home-companion .home-pet, .home-companion > .home-pet.is-solo { flex: 1.12 1 0; min-width: 0; }
+.home-companion .treat-pile-widget {
+  flex: 1 1 0; min-width: 0; margin: 0; width: auto;
+  display: flex; align-items: center; gap: 0.45rem;
+  padding: 0.4rem 0.55rem; box-sizing: border-box;
+}
+.home-companion .treat-pile-widget small { display: block; line-height: 1.3; font-size: 0.68rem; }
+.fit-home .home-pet-row { display: none; }
+.fit-home .home-pet-body svg { width: clamp(40px, 8.5dvh, 64px); }
+.home-companion .home-pet-text small { white-space: normal; line-height: 1.25; }
+
+/* promo strip: Daily + Remix side by side (Home + foot of Levels) */
+.promo-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; flex: 0 0 auto; }
+.promo-card {
+  display: flex; align-items: center; gap: 0.5rem;
+  min-width: 0; box-sizing: border-box;
+  padding: 0.5rem 0.55rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 209, 102, 0.35);
+}
+.promo-text { flex: 1 1 auto; min-width: 0; display: grid; gap: 0.08rem; }
+.promo-text strong { font-size: 0.8rem; line-height: 1.2; }
+.promo-text > span { font-size: 0.66rem; opacity: 0.82; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.promo-status { color: #9fe8b1; font-weight: 700; }
+.promo-card .daily-streakbtn { justify-self: start; font-size: 0.68rem; padding: 0.14rem 0.45rem; }
+.promo-card > .btn { flex: 0 0 auto; padding: 0.5rem 0.55rem; font-size: 0.78rem; border-radius: 10px; }
+.promo-btns { flex: 0 0 auto; display: grid; gap: 0.3rem; }
+.promo-btns .btn { padding: 0.38rem 0.5rem; font-size: 0.72rem; border-radius: 9px; }
+.fit-home .stat-strip { flex: 0 0 auto; }
+@media (max-height: 700px) {
+  .fit-home .logo-hero { font-size: clamp(2.3rem, 10.5dvh, 5.4rem); }
+  .promo-card { padding: 0.42rem 0.5rem; }
+}
+
+/* =====================================================================
+   LEVELS — the picker leads; tabs + grid get the height, promos ride last
+   ===================================================================== */
+.levels-fit .level-tabs { margin: 0; }
+.levels-fit .level-tab { min-width: 0; }
+.levels-fit .diff-block { min-height: 0; }
+.levels-fit .level-card { overflow: hidden; min-height: 0; }
+.levels-fit .lv-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.levels-fit .promo-strip { margin-top: 0.1rem; }
+
+/* =====================================================================
+   STABLE — index of compact rows; the Defender screen carries the rest
+   ===================================================================== */
+.stable-tabs { flex: 0 0 auto; }
+.stable-tab { min-height: 40px; }
+.stable .stable-now { align-items: center; }
+.stable .stable-now > span { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stable .stable-now .btn { flex: 0 0 auto; }
+.stable-freepick { padding: 0.45rem 0.6rem; }
+.stable-freepick-title { font-size: 0.95rem; margin: 0; }
+.stable-freepick-sub { font-size: 0.72rem; line-height: 1.3; margin: 0.1rem 0 0; }
+.stable-picklist {
+  flex: 1; min-height: 0;
+  display: grid; grid-template-rows: repeat(5, 1fr); gap: 0.4rem;
+}
+.stable-pick {
+  display: flex; flex-direction: row; align-items: center; gap: 0.55rem;
+  min-height: 0; min-width: 0; width: 100%; box-sizing: border-box;
+  padding: 0.3rem 0.55rem; text-align: left;
+}
+.stable-pick svg { width: 42px; height: 42px; flex: 0 0 auto; }
+.stable-pick-main { flex: 1 1 auto; min-width: 0; display: grid; gap: 0.04rem; }
+.stable-pick-name { font-family: var(--font-display); font-size: 0.95rem; color: #ecd28f; line-height: 1.15; }
+.stable-pick-name small { font-family: inherit; font-size: 0.7rem; opacity: 0.65; }
+.stable-pick-perk { font-size: 0.7rem; font-weight: 600; opacity: 0.78; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stable-pick-status { flex: 0 0 auto; font-size: 0.78rem; font-weight: 800; color: var(--gold); }
+.stable-pick-go { flex: 0 0 auto; opacity: 0.55; font-size: 1.3rem; }
+.stable-calls { flex-wrap: wrap; }
+.stable-calls-note { flex: 1 1 100%; color: #ffb0a0; font-size: 0.7rem; }
+.stable-detail-screen .stable-detail { flex: 1; min-height: 0; display: flex; justify-content: center; }
+.stable-detail-screen .stable-sub { display: block; }
+@media (max-height: 700px) {
+  .stable-tab { min-height: 37px; }
+  .stable-pick svg { width: 36px; height: 36px; }
+  .stable-freepick-sub { display: none; }
+}
+
+/* =====================================================================
+   EMBER RELIQUARY — the flat-fill cure (Tony: "VIDEO quality, not flat
+   board-type fills"): a Gris-style texture pass — watercolour grain,
+   lit multi-stop gradients, ink edges, real depth — over every plate,
+   button and card. Backgrounds stay at least two value steps darker
+   than playable art; the board keeps its jewel identity untouched.
+   ===================================================================== */
+:root {
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+}
+/* dark plaques: nav, menu rows, tabs, picks, chips */
+.bottom-nav-item, .more-row, .seg-tab, .stable-tab, .how-tab, .stable-pick, .share-chip {
+  background-image: var(--grain), linear-gradient(168deg, rgba(104, 72, 32, 0.96), rgba(48, 32, 15, 0.97) 55%, rgba(22, 15, 7, 0.98));
+  background-blend-mode: overlay, normal;
+  background-size: 180px 180px, cover;
+  box-shadow: inset 0 1px 0 rgba(255, 236, 190, 0.22), inset 0 -8px 14px rgba(0, 0, 0, 0.35), 0 5px 14px rgba(0, 0, 0, 0.32);
+}
+/* gold surfaces: primary buttons, the Play action, active nav */
+.btn.primary, .home-play, .bottom-nav-item.on {
+  background-image: var(--grain), linear-gradient(165deg, #ffd977, #eaa93c 46%, #c07f1d 82%, #9c650f);
+  background-blend-mode: overlay, normal;
+  background-size: 180px 180px, cover;
+  box-shadow: inset 0 1px 0 rgba(255, 246, 214, 0.65), inset 0 -9px 15px rgba(120, 66, 0, 0.38), 0 7px 18px rgba(0, 0, 0, 0.38);
+}
+/* ghost buttons get the same painted depth, darker register */
+.btn.ghost {
+  background-image: var(--grain), linear-gradient(168deg, rgba(74, 53, 27, 0.94), rgba(31, 21, 11, 0.95));
+  background-blend-mode: overlay, normal;
+  background-size: 180px 180px, cover;
+  box-shadow: inset 0 1px 0 rgba(255, 236, 190, 0.16), inset 0 -7px 12px rgba(0, 0, 0, 0.32);
+}
+/* cards: deep multi-stop warmth tinted by the screen's accent */
+.level-card, .stable-card, .badge-card, .promo-card, .gift-preview, .stable-bundle, .heard-card, .incoming, .profile-card {
+  background-image: var(--grain), linear-gradient(158deg, color-mix(in srgb, var(--screen-accent, #b98a4a) 10%, rgba(60, 41, 20, 0.96)), rgba(31, 20, 10, 0.97) 58%, rgba(16, 10, 5, 0.98));
+  background-blend-mode: overlay, normal;
+  background-size: 180px 180px, cover;
+  box-shadow: inset 0 1px 0 rgba(255, 236, 190, 0.16), inset 0 -12px 22px rgba(0, 0, 0, 0.30), 0 8px 20px rgba(0, 0, 0, 0.30);
+}
+/* the home plates + companion cells carry the finish too */
+.home-plates .unseen-tile, .home-companion .home-pet, .home-companion .treat-pile-widget {
+  background-image: var(--grain), linear-gradient(165deg, rgba(88, 60, 28, 0.92), rgba(35, 24, 12, 0.95));
+  background-blend-mode: overlay, normal;
+  background-size: 180px 180px, cover;
+  box-shadow: inset 0 1px 0 rgba(255, 236, 190, 0.18), inset 0 -8px 14px rgba(0, 0, 0, 0.3);
+}
+
+/* =====================================================================
+   BUTTONS ANSWER A PRESS — ember burst (spawned by the App listener)
+   + a glow pulse on the pressed control. Off under reduced motion.
+   ===================================================================== */
+.btn, .bottom-nav-item, .more-row, .seg-tab, .stable-tab, .how-tab, .level-tab, .stable-pick, .level-card, .share-chip, .cloud-btn, .unseen-tile { position: relative; }
+.press-burst { position: absolute; width: 0; height: 0; pointer-events: none; z-index: 6; }
+.press-burst i {
+  position: absolute; left: -2px; top: -2px; width: 4px; height: 4px; border-radius: 50%;
+  background: radial-gradient(circle, #fff3c4, #ffb03a 68%, rgba(255, 154, 60, 0));
+  animation: burstFly 0.6s ease-out both;
+}
+@keyframes burstFly {
+  from { transform: rotate(var(--a)) translateX(2px) scale(1); opacity: 1; }
+  to { transform: rotate(var(--a)) translateX(var(--d)) scale(0.2); opacity: 0; }
+}
+.is-pressing { filter: brightness(1.15); box-shadow: 0 0 0 1px rgba(255, 209, 102, 0.55), 0 0 20px rgba(255, 154, 60, 0.4); }
+html[data-motion='reduce'] .press-burst { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .press-burst { display: none; }
+  .is-pressing { filter: none; }
+}
+
+/* =====================================================================
+   REMAINING SCREENS — budget fixes from the a7 audit
+   ===================================================================== */
+/* Rewards: the econ ledger is information, not controls — it sheds at
+   short heights so badge cards never clip their upgrade buttons. */
+@media (max-height: 720px) {
+  .rewards .econ-card { display: none; }
+  .rewards .badge-card { gap: 0.1rem; padding: 0.35rem 0.45rem; }
+  .rewards .badge-card .badge-upgrade { min-height: 32px; }
+}
+/* Branded-board banner: its text can never spill out of the plaque. */
+.brand-banner { overflow: hidden; flex: 0 0 auto; }
+.brand-banner span { line-height: 1.25; }
+/* How: the demo stage yields before the back/done row ever clips. */
+.how-panel .how-stage { min-height: 0; }
+.how-panel .how-demo { width: min(100%, clamp(170px, 33dvh, 320px)); }
+/* About: sections flex inside the lock; defender rows stay compact. */
+.about .about-section { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.about .about-defenders { flex: 0 1 auto; }
+/* Duel/Challenge: form rows keep their inputs inside the padded frame. */
+.challenge input, .challenge select { box-sizing: border-box; max-width: 100%; }
+.challenge label { min-width: 0; }
+
+/* ---- a7 fix round 2: 360x640 trims + desktop How margin (from the five-
+   viewport audit: home +3/+6/+35, duel +48, bundles +16, How 3px margin) -- */
+@media (max-height: 700px) {
+  .fit-home.hero { padding: 0.45rem 0.8rem 0.35rem; }
+  .home-logo { width: 132px; }
+  .home-companion { padding: 0.35rem 0.5rem; gap: 0.45rem; }
+  .promo-card { padding: 0.45rem 0.55rem; }
+  .home-plates { gap: 0.4rem; }
+  .home-plate { padding: 0.42rem 0.55rem; }
+  .unseen-tile { padding-top: 0.42rem; padding-bottom: 0.42rem; }
+  .home-stat-strip { padding-top: 0.28rem; padding-bottom: 0.28rem; }
+  .stable-bundles { gap: 0.35rem; }
+  .stable-bundle { padding: 0.45rem 0.55rem; }
+  .stable-note { display: none; }
+  .duel-board-tag { display: none; }
+  .duel-card { padding: 0.5rem 0.65rem; gap: 0.3rem; }
+  .duel-row { padding: 0.3rem 0.5rem; }
+  .duel-vs { margin: 0.05rem 0; }
+  .duel-verdict { margin: 0.15rem 0 0; }
+  .challenge .cta-row { margin-top: 0.5rem !important; }
+}
+@media (min-width: 1000px) {
+  .how-panel { padding-bottom: 1rem; }
+}
+
+/* ---- a7 fix round 3: home height at short viewports, measured section by
+   section at 360x640 (hero 208-226, companion 116-135, promo 102, stat-strip
+   80 against a 534px main). Selector fixes: the hero is a CHILD of .fit-home;
+   the strip is .stat-strip.home-strip. ---- */
+@media (max-height: 700px) {
+  .fit-home { gap: 0.25rem; }
+  .fit-home .hero { padding: 0.45rem 0.8rem 0.35rem; }
+  .home-logo { width: 118px; }
+  .home-plate { padding: 0.3rem 0.45rem; }
+  .home-companion .pet-art { width: 42px; height: 42px; }
+  .home-strip div { padding: 0.22rem 0.1rem; }
+  .home-strip strong { font-size: 0.92rem; }
+  .home-strip span { font-size: 0.62rem; }
+  .promo-text strong { font-size: 0.76rem; }
+  .promo-text span { font-size: 0.68rem; }
+  .promo-card .daily-streakbtn { font-size: 0.62rem; padding: 0.14rem 0.45rem; }
+  .treat-pile-widget strong { font-size: 0.8rem; }
+  .treat-pile-widget p { font-size: 0.72rem; }
+}
+
+/* ---- a7 fix round 4: pileup headroom at short heights (stat-strip padding,
+   companion ratio so the treats-danger line wraps less, smaller hero logo) -- */
+@media (max-height: 700px) {
+  .fit-home .home-strip { padding: 0.3rem 0.15rem; margin: 0; }
+  .fit-home .home-strip div { padding: 0.3rem 0.4rem; }
+  .home-logo { width: 104px; }
+  .home-companion { padding: 0.3rem 0.45rem; }
+  .home-companion > .home-pet, .home-companion > .home-pet.is-solo { flex-grow: 0.85; }
+  .home-companion .treat-pile-widget { flex-grow: 1.3; }
+  .home-companion .treat-pile-widget small { font-size: 0.64rem; line-height: 1.25; }
+  .home-plate { font-size: 0.74rem; }
+  .home-plate small { font-size: 0.62rem; }
+}
+
+/* ---- a7 fix round 5: last pileup pixels at short heights ---- */
+@media (max-height: 700px) {
+  .fit-home { padding-top: 0.35rem; padding-bottom: 0.35rem; }
+  .fit-home .home-strip div { padding: 0.18rem 0.3rem; }
+  .fit-home .home-strip strong { font-size: 0.88rem; line-height: 1.15; }
+  .fit-home .home-strip span { font-size: 0.6rem; line-height: 1.15; }
+  .home-plates { gap: 0.35rem; }
+  .home-plate { line-height: 1.15; }
+}
+
+/* ---- a7 fix round 6: promo strip headroom at short heights (the daily
+   card's board-name line repeats the strong's date label — shed the text,
+   keep every control; remix buttons keep a 32px+ target) ---- */
+@media (max-height: 700px) {
+  .promo-daily .promo-text span { display: none; }
+  .promo-actions { gap: 0.3rem; }
+  .promo-actions .btn { min-height: 32px; padding: 0.28rem 0.5rem; }
+}
+
+/* ---- a7 fix round 7: bundles tab at short heights — the missing-pets art
+   chips are decorative (the names stay as text); shed them so the redeem row
+   and every control sit above the lock at 640px too ---- */
+@media (max-height: 900px) {
+  .stable-bundle-art { display: none; }
+}
+@media (max-height: 700px) {
+  .stable-bundle { gap: 0.4rem; }
+  .stable-redeem { margin-top: 0.4rem; }
+}
+
+/* ---- a7 fix round 8: bundles tab, final pixels at short heights ---- */
+@media (max-height: 700px) {
+  .stable-bundle { padding: 0.35rem 0.5rem; }
+  .stable-bundle-text small { font-size: 0.68rem; line-height: 1.25; }
+  .stable-coins { font-size: 0.8rem; padding: 0.2rem 0.5rem; }
+  .stable-redeem h3 { display: none; }
+}
+
+/* ---- a7 fix round 9: headroom for the redeem feedback line (it must appear
+   INSIDE the locked screen, not push the row past the fold) ---- */
+@media (max-height: 700px) {
+  .stable-bundles > h3 { display: none; }
+  .stable-bundle .btn { min-height: 32px; }
+}
+
+/* =====================================================================
+   9.33-a6q — CONCEPT C BOARD FINISH (Tony, Nov 4): the playable board
+   takes the diorama's clothes. Tiles are real faceted GEMS, not flat
+   colour: a painted gem-facet master texture (silvery-champagne facets,
+   internal star light, baked sparkle glints, gilt corner filigree)
+   rides OVER each region's own hue via overlay blending, so themes.ts
+   still governs every hue and the colour-blind separation is untouched
+   — within each hue, saturation, facet contrast and internal glow are
+   pushed toward the C reference (Tony: RICH, not muted). The grid gaps
+   become brass filigree channels; the board sits in a carved dark-wood
+   tray (wood texture in the padding ring, gilt pinstripes inside and
+   out). The frame eats margin only: the board's outer box is unchanged
+   (border-box), so the a3/a5 never-exceed-stage guarantee is intact,
+   and .charge-fx inset tracks the new padding exactly as it tracked
+   the old, keeping the horse glued to his row.
+   ===================================================================== */
+.board {
+  --gap: 4px;
+  padding: 12px;
+  border-color: rgba(122, 84, 34, 0.9);
+  border-radius: 18px;
+  background:
+    url('/images/fx/brass-filigree.webp') center / 132px repeat content-box content-box,
+    url('/images/fx/frame-wood.webp') center / 360px repeat border-box border-box,
+    #17100a;
+  outline: 1px solid rgba(255, 209, 102, 0.28);
+  outline-offset: -6px;
+}
+/* gilt trim line where the tray meets the gems */
+.board::before {
+  content: '';
+  position: absolute;
+  inset: 12px;
+  border: 1px solid rgba(255, 213, 110, 0.5);
+  border-radius: 9px;
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  z-index: 4;
+}
+/* the charge overlay spans the gem field exactly (padding 12px now) */
+.charge-fx { inset: 12px; }
+
+.cell-fill {
+  background-image:
+    url('/images/fx/gem-facet.webp'),
+    linear-gradient(
+      155deg,
+      hsl(var(--hue) var(--sat, 72%) calc(var(--lit, 56%) + 13%) / 0.97) 0%,
+      hsl(var(--hue) var(--sat, 72%) var(--lit, 56%) / 0.95) 42%,
+      hsl(var(--hue) calc(var(--sat, 72%) - 2%) calc(var(--lit, 56%) - 19%) / 0.98) 100%
+    );
+  background-size: cover, cover;
+  background-blend-mode: overlay, normal;
+  filter: saturate(1.07) contrast(1.03);
+}
+.cell:hover .cell-fill { filter: saturate(1.07) contrast(1.03) brightness(1.06); }
+.cell.pressed .cell-fill {
+  filter: saturate(1.07) contrast(1.03) brightness(1.12);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 226, 160, 0.55),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.22),
+    0 8px 16px rgba(0, 0, 0, 0.38),
+    0 3px 6px rgba(0, 0, 0, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+/* a6q emblem halo: the gem's gilt corner work competes with the mark —
+   a soft dark halo keeps every region emblem readable on the facets */
+.tile-mark { filter: drop-shadow(0 0 2.5px rgba(12, 6, 0, 0.55)) drop-shadow(0 1px 1px rgba(12, 6, 0, 0.4)); }
+
+/* ---- a7 fix round 10: Stable chrome compact at phone heights (<=900px) —
+   a partially-owned bundle makes the tab's text longer; the tab + redeem
+   feedback must fit at 844 too, not only at 660 ---- */
+@media (max-height: 900px) {
+  .stable-bundles > h3 { display: none; }
+  .stable-note { display: none; }
+  .stable-bundle { padding: 0.4rem 0.55rem; }
+  .stable .stable-now { padding-top: 0.3rem; padding-bottom: 0.3rem; }
+  .stable-tabs { min-height: 36px; }
+  .stable-tab { min-height: 36px; }
+}
+
+/* =====================================================================
+   9.33-a9 — THE LOOK PREVIEW (Tony, Nov 8, direct order): the flat
+   brownie-gold is KILLED. The backdrop is a lore image from the story
+   world; surfaces move from warm brown to deep ink so the art, the gems
+   and the Defenders carry the colour; the board breathes a little more;
+   buttons trade pills for plaques and stay readable first. Look only —
+   no logic, mechanics, hues or colour-blind separations change.
+   ===================================================================== */
+
+/* ---- 1. LORE BACKDROP: one approved art per session, dim + soft ---- */
+.lore-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: #05070b;
+}
+.lore-bg img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 38%;
+  /* dimmed + softened: the art is a place, never a competitor */
+  filter: brightness(0.52) saturate(0.82) contrast(1.02);
+  transform: scale(1.03);
+}
+/* the old brownie-gold gradient stack becomes a readability scrim over
+   the art: cool ink washes + a vignette, warm only at the ember base */
+.atmosphere {
+  background:
+    radial-gradient(900px 600px at 12% -8%, rgba(70, 96, 140, 0.16), transparent 58%),
+    radial-gradient(760px 540px at 88% 6%, rgba(120, 52, 40, 0.12), transparent 55%),
+    radial-gradient(120% 90% at 50% 42%, transparent 55%, rgba(3, 5, 8, 0.55) 100%),
+    linear-gradient(168deg, rgba(5, 8, 13, 0.62) 0%, rgba(5, 8, 13, 0.48) 45%, rgba(4, 6, 10, 0.72) 100%);
+}
+body { background: #05070b; }
+
+/* ---- 2. COLLECTOR'S-CARD SURFACES: ink, not brownie ---- */
+/* dark plaques: nav, menu rows, tabs, picks, chips */
+.bottom-nav-item, .more-row, .seg-tab, .stable-tab, .how-tab, .stable-pick, .share-chip {
+  background-image: var(--grain), linear-gradient(168deg, rgba(38, 46, 62, 0.96), rgba(16, 20, 30, 0.97) 55%, rgba(7, 9, 14, 0.98));
+  box-shadow: inset 0 1px 0 rgba(214, 228, 255, 0.16), inset 0 -8px 14px rgba(0, 0, 0, 0.42), 0 5px 14px rgba(0, 0, 0, 0.36);
+}
+/* cards: deep ink tinted only a breath by the screen's accent */
+.level-card, .stable-card, .badge-card, .promo-card, .gift-preview, .stable-bundle, .heard-card, .incoming, .profile-card {
+  background-image: var(--grain), linear-gradient(158deg, color-mix(in srgb, var(--screen-accent, #7d8aa5) 7%, rgba(30, 36, 50, 0.96)), rgba(14, 17, 26, 0.97) 58%, rgba(6, 8, 13, 0.98));
+  box-shadow: inset 0 1px 0 rgba(214, 228, 255, 0.12), inset 0 -12px 22px rgba(0, 0, 0, 0.36), 0 8px 20px rgba(0, 0, 0, 0.34);
+}
+/* home plates + companion cells */
+.home-plates .unseen-tile, .home-companion .home-pet, .home-companion .treat-pile-widget {
+  background-image: var(--grain), linear-gradient(165deg, rgba(40, 48, 66, 0.93), rgba(13, 16, 24, 0.96));
+  box-shadow: inset 0 1px 0 rgba(214, 228, 255, 0.13), inset 0 -8px 14px rgba(0, 0, 0, 0.36);
+}
+/* ghost buttons: same ink register, never brown */
+.btn.ghost {
+  background-image: var(--grain), linear-gradient(168deg, rgba(43, 51, 70, 0.94), rgba(13, 16, 24, 0.96));
+  box-shadow: inset 0 1px 0 rgba(214, 228, 255, 0.14), inset 0 -7px 12px rgba(0, 0, 0, 0.38);
+}
+/* primary stays the one lit jewel — antique gold with INK text (contrast
+   first), a touch brighter at the crest so it reads as light, not mud */
+.btn.primary, .home-play, .bottom-nav-item.on {
+  background-image: var(--grain), linear-gradient(165deg, #ffe9a3, #f0b93e 48%, #cf8f1e 84%, #a96f10);
+  box-shadow: inset 0 1px 0 rgba(255, 250, 220, 0.7), inset 0 -9px 15px rgba(122, 70, 0, 0.35), 0 7px 18px rgba(0, 0, 0, 0.42);
+}
+
+/* ---- 4. FEWER PILLS: plaques, not lozenges (labels untouched) ---- */
+.btn, .bottom-nav-item, .more-row, .seg-tab, .stable-tab, .how-tab, .stable-pick, .share-chip, .level-tab {
+  border-radius: 11px;
+}
+.btn.tool { border-radius: 11px; }
+
+/* ---- 3. THE BOARD BREATHES: wider channels, deeper gems ---- */
+.board {
+  --gap: 5px;
+  padding: 14px;
+}
+.board::before { inset: 14px; }
+.charge-fx { inset: 14px; }
+.cell-fill {
+  background-image:
+    url('/images/fx/gem-facet.webp'),
+    linear-gradient(
+      155deg,
+      hsl(var(--hue) var(--sat, 72%) calc(var(--lit, 56%) + 10%) / 0.97) 0%,
+      hsl(var(--hue) var(--sat, 72%) calc(var(--lit, 56%) - 3%) / 0.95) 42%,
+      hsl(var(--hue) calc(var(--sat, 72%) - 2%) calc(var(--lit, 56%) - 22%) / 0.98) 100%
+    );
+  filter: saturate(1.04) contrast(1.05);
+}
+.cell:hover .cell-fill { filter: saturate(1.04) contrast(1.05) brightness(1.07); }
+.cell.pressed .cell-fill {
+  filter: saturate(1.04) contrast(1.05) brightness(1.13);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 226, 160, 0.5),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.26),
+    0 8px 16px rgba(0, 0, 0, 0.4),
+    0 3px 6px rgba(0, 0, 0, 0.24),
+    0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+/* ---- 5. DEFENDER PRESENCE + PRESS LIFE (motion-safe) ---- */
+/* a branded board wears its Defender's colour on the tray rim */
+.board-stage.is-branded .board {
+  outline: 1px solid color-mix(in srgb, var(--brand-deep, #888) 55%, rgba(255, 213, 110, 0.35));
+  box-shadow: 0 0 34px color-mix(in srgb, var(--brand-deep, #888) 34%, transparent), 0 18px 44px rgba(0, 0, 0, 0.45);
+}
+/* the banner breathes with a slow accent glow */
+.brand-banner {
+  animation: a9BannerGlow 3.6s ease-in-out infinite;
+}
+@keyframes a9BannerGlow {
+  0%, 100% { box-shadow: 0 0 10px color-mix(in srgb, var(--brand-accent, #ffd166) 22%, transparent), inset 0 1px 0 rgba(255, 240, 200, 0.18); }
+  50% { box-shadow: 0 0 22px color-mix(in srgb, var(--brand-accent, #ffd166) 42%, transparent), inset 0 1px 0 rgba(255, 240, 200, 0.24); }
+}
+/* the big Play action carries a slow ember breathing glow */
+.home-play {
+  animation: a9PlayGlow 3.2s ease-in-out infinite;
+}
+@keyframes a9PlayGlow {
+  0%, 100% { box-shadow: inset 0 1px 0 rgba(255, 250, 220, 0.7), inset 0 -9px 15px rgba(122, 70, 0, 0.35), 0 7px 18px rgba(0, 0, 0, 0.42), 0 0 14px rgba(255, 176, 58, 0.22); }
+  50% { box-shadow: inset 0 1px 0 rgba(255, 250, 220, 0.7), inset 0 -9px 15px rgba(122, 70, 0, 0.35), 0 7px 18px rgba(0, 0, 0, 0.42), 0 0 26px rgba(255, 176, 58, 0.42); }
+}
+html[data-motion='reduce'] .brand-banner,
+html[data-motion='reduce'] .home-play { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .brand-banner, .home-play { animation: none; }
+}
+
+/* ================= 9.33-a10 — SHORT-VIEWPORT FIT + DE-CROWD =================
+   Tony's real iPhone webview (Muse app) gives the game a much shorter stage
+   than a full-height phone browser, and renders type larger — the a9 stacks
+   fit headless 390x844 but clipped on his phone (Home promo row behind the
+   bottom nav; the Defender tray pushed off the board screen). a10 makes the
+   stacks HEIGHT-AWARE: below 760px the big pieces compress in tiers, the
+   board is capped by the height that is actually left (not width alone),
+   and crowded sections get bigger targets + roomier type instead of being
+   miniaturised. Tall screens keep the a9 look untouched. */
+
+/* ---------- HOME: compression tiers + the romansgame.com foot link ---------- */
+.home-foot { flex: 0 0 auto; text-align: center; line-height: 1; }
+.home-foot-link {
+  font-size: 0.82rem; font-weight: 600; color: #cdb271; text-decoration: none;
+  border-bottom: 1px dotted rgba(205, 178, 113, 0.55); padding: 0.1rem 0.25rem;
+}
+.more-foot { flex: 0 0 auto; text-align: center; margin: 0; line-height: 1.2; }
+.more-foot a {
+  font-size: 0.82rem; font-weight: 600; color: #cdb271; text-decoration: none;
+  border-bottom: 1px dotted rgba(205, 178, 113, 0.55); padding: 0.1rem 0.25rem;
+}
+.result-site-link {
+  display: block; margin-top: 0.65rem; text-align: center;
+  font-size: 0.82rem; font-weight: 600; color: #cdb271; text-decoration: none;
+}
+@media (max-height: 760px) {
+  .fit-home { gap: 0.45rem; padding-top: 0.45rem; padding-bottom: 0.4rem; }
+  .fit-home .hero { padding: 0.55rem 0.7rem 0.6rem; gap: 0.45rem; }
+  .fit-home .logo-hero { font-size: clamp(2.5rem, 11dvh, 3.4rem); }
+  .home-play { padding: 0.6rem 1rem; font-size: 1.16rem; }
+  .home-plates .btn { padding: 0.5rem 0.4rem; }
+  .home-companion { padding: 0.45rem 0.6rem; }
+  .promo-strip { gap: 0.45rem; }
+  .promo-card { padding: 0.46rem 0.55rem; }
+  /* the Remix blurb wraps to a second line instead of truncating mid-word */
+  .promo-text > span { white-space: normal; }
+  .promo-card .daily-streakbtn { white-space: nowrap; font-size: 0.66rem; }
+  .fit-home .stat-strip { padding-top: 0.38rem; padding-bottom: 0.38rem; }
+}
+@media (max-height: 640px) {
+  .fit-home { gap: 0.3rem; padding-bottom: 0.25rem; }
+  .fit-home .hero { padding: 0.34rem 0.6rem 0.42rem; gap: 0.33rem; }
+  .fit-home .logo-hero { font-size: clamp(1.85rem, 10dvh, 2.9rem); }
+  .home-play { padding: 0.48rem 1rem; font-size: 1.08rem; }
+  .home-plates .btn { padding: 0.4rem 0.35rem; font-size: 0.86rem; }
+  .home-companion { padding: 0.3rem 0.55rem; }
+  .promo-card { padding: 0.4rem 0.5rem; }
+  .promo-btns .btn { padding: 0.34rem 0.5rem; }
+  .fit-home .stat-strip b, .fit-home .stat-strip strong { font-size: 0.98rem; }
+}
+
+/* ---------- BOARD: height-aware cap (phone portrait) ----------
+   The board used to be sized by width alone (~359px at 390 wide). At short
+   heights the fixed stack around it (HUD + caption + banner + Reset + tray)
+   needs ~280px, so the tray fell off the bottom. The cap below reserves
+   that stack out of the REAL shell height: the board shrinks only when
+   height is the tight dimension, and every short height keeps ~50px of
+   slack under the tray. Width still rules on tall screens (a3 uniformity:
+   at any given height every board size gets the same square). */
+@media (max-height: 720px) {
+  html[data-device='phone'][data-layout='upright'] .play-fixed {
+    gap: 0.3rem; padding-top: 0.35rem; padding-bottom: 0.3rem;
+  }
+  html[data-device='phone'][data-layout='upright'] .play-fixed .board {
+    width: min(100%, max(15rem, calc(var(--app-height, 100svh) - 19.5rem))) !important;
+    max-height: min(100%, max(15rem, calc(var(--app-height, 100svh) - 19.5rem))) !important;
+  }
+  html[data-device='phone'][data-layout='upright'] .play-caption {
+    min-height: 1.85rem; max-height: 1.85rem; margin-top: 0.1rem; margin-bottom: 0.1rem;
+  }
+  html[data-device='phone'][data-layout='upright'] .brand-banner {
+    margin-bottom: 0.3rem; padding-top: 0.3rem; padding-bottom: 0.3rem;
+  }
+  html[data-device='phone'][data-layout='upright'] .defender-rail { margin-top: 0.35rem; }
+}
+/* mode line + banner copy: fit the words instead of ellipsising them */
+@media (max-width: 430px) {
+  .hud-title { flex: 1 1 auto; min-width: 0; }
+  .hud-title span { font-size: 0.63rem; letter-spacing: 0.01em; }
+  .brand-banner .banner-line { font-size: 0.79rem; line-height: 1.25; }
+  .defender-plate .def-name { font-size: 0.64rem; }
+}
+
+/* ---------- LEVELS: all seven cards on screen, tabs at a readable size ---------- */
+@media (max-width: 699px) {
+  /* every difficulty has 5-6 boards; implicit rows take the same 1fr share
+     as the five templated ones, so the 6th card gets a full row instead of
+     spilling past the grid (a9 behaviour on Medium/Hard/Expert) */
+  .levels-fit .level-grid { grid-auto-rows: minmax(0, 1fr); }
+  .levels-fit .level-card { align-content: center; padding: 0.4rem 0.75rem; gap: 0.05rem; }
+  .levels-fit .level-card strong { font-size: 0.98rem; }
+}
+@media (max-height: 760px) {
+  .level-tab { font-size: 0.84rem; }
+  /* the Daily/Remix strip also lives on Home — at very short heights it
+     steps aside on Levels so all seven boards stay visible whole */
+}
+@media (max-height: 620px) {
+  .levels-fit .promo-strip { display: none; }
+}
+
+/* ---------- STABLE: de-crowd — bigger targets, wrapping label, airier rows ---------- */
+.stable-tab, .how-tab { min-height: 44px; }
+.stable .stable-now .btn { min-height: 42px; }
+/* the "Solo: no Defender on your runs" label wraps instead of truncating */
+.stable .stable-now > span { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.2; }
+.stable-pick { padding-top: 0.55rem; padding-bottom: 0.55rem; }
+.stable-pick-name { font-size: 0.97rem; }
+.stable-pick-perk { font-size: 0.73rem; }
+@media (max-height: 700px) {
+  .stable-tab, .how-tab { min-height: 44px; }
+  .stable-pick { padding-top: 0.46rem; padding-bottom: 0.46rem; }
+  .stable .stable-head h2 { font-size: 1.32rem; }
+}
+
+/* ---------- MORE: rows breathe a little tighter so all eight + the site
+   link fit at short heights (targets stay 48px+) ---------- */
+@media (max-height: 760px) {
+  .more .more-list { gap: 0.42rem; }
+  .more-row { padding: 0.34rem 0.75rem; }
+  .more-row small { font-size: 0.72rem; }
+}
+
+/* ---------- REWARDS: wallet labels + badge titles up a step ---------- */
+.rewards .wallet-strip span { font-size: 0.7rem; }
+.rewards .badge-card strong { font-size: 0.83rem; letter-spacing: 0; }
+.rewards .econ-card { font-size: 0.82rem; line-height: 1.4; }
+@media (min-height: 721px) {
+  .rewards .badge-card .product-value { font-size: 0.74rem; }
+}
+
+/* ---------- CHALLENGE: share buttons to a comfortable tap height ---------- */
+.challenge .btn { min-height: 40px; }
+
+/* ================= 9.33-a11 — VISUAL-VIEWPORT FIT + MEASURED FIT + YOUR COINS =================
+   a10 keyed its compression tiers off @media (max-height) — the LAYOUT viewport.
+   In Tony's Muse-app webview the host chrome is drawn OVER the page, so the
+   layout viewport is taller than the band he can actually see: the tiers
+   under-engaged, type rendered larger than the design budget, and three
+   screens amputated their own bottoms on his phone (Home promo row, board
+   tray, Challenge submit) while headless Chromium passed them all. a11:
+   (a) the same tiers re-keyed to classes syncAppHeight sets from the VISUAL
+       viewport height (vvh-s ≤760, vvh-xs ≤640, vvh-b ≤720) — the height
+       that already sizes the shell via --app-height;
+   (b) a MEASURED fit (fitShellScreens in App.tsx): if the live screen's
+       content is taller than its box, fit-s1..s3 compress it until it fits
+       whole. Breakpoints advise; measurement decides.
+   (c) the coin balance is a button everywhere it appears, opening the
+       "Your coins" panel (an overlay — Back returns to exactly where the
+       player was). Board HUD treats stay a plain display: tapping them
+       mid-board would have to leave the board, which interferes with play. */
+
+/* ---------- (a) HOME tiers, visual-height keyed ---------- */
+html.vvh-s .fit-home { gap: 0.45rem; padding-top: 0.45rem; padding-bottom: 0.4rem; }
+html.vvh-s .fit-home .hero { padding: 0.55rem 0.7rem 0.6rem; gap: 0.45rem; }
+html.vvh-s .fit-home .logo-hero { font-size: clamp(2.5rem, 11dvh, 3.4rem); }
+html.vvh-s .home-play { padding: 0.6rem 1rem; font-size: 1.16rem; }
+html.vvh-s .home-plates .btn { padding: 0.5rem 0.4rem; }
+html.vvh-s .home-companion { padding: 0.45rem 0.6rem; }
+html.vvh-s .promo-strip { gap: 0.45rem; }
+html.vvh-s .promo-card { padding: 0.46rem 0.55rem; }
+html.vvh-s .promo-text > span { white-space: normal; }
+html.vvh-s .promo-card .daily-streakbtn { white-space: nowrap; font-size: 0.66rem; }
+html.vvh-s .fit-home .stat-strip { padding-top: 0.38rem; padding-bottom: 0.38rem; }
+html.vvh-s .fit-home .eyebrow, html.vvh-s .fit-home .lede { display: none; }
+html.vvh-xs .fit-home { gap: 0.3rem; padding-bottom: 0.25rem; }
+html.vvh-xs .fit-home .hero { padding: 0.34rem 0.6rem 0.42rem; gap: 0.33rem; }
+html.vvh-xs .fit-home .logo-hero { font-size: clamp(1.85rem, 10dvh, 2.9rem); }
+html.vvh-xs .home-play { padding: 0.48rem 1rem; font-size: 1.08rem; }
+html.vvh-xs .home-plates .btn { padding: 0.4rem 0.35rem; font-size: 0.86rem; }
+html.vvh-xs .home-companion { padding: 0.3rem 0.55rem; }
+html.vvh-xs .promo-card { padding: 0.4rem 0.5rem; }
+html.vvh-xs .promo-btns .btn { padding: 0.34rem 0.5rem; }
+html.vvh-xs .fit-home .stat-strip b, html.vvh-xs .fit-home .stat-strip strong { font-size: 0.98rem; }
+/* a11 top-up fix: the Levels promo strip carries the Daily + Remix BUTTONS —
+   a control must never be shed to save space (Tony's rule). Compact instead:
+   tighter cards, descriptive spans shed, buttons keep full tap height. */
+html.vvh-xs .levels-fit .promo-strip { gap: 0.45rem; }
+html.vvh-xs .levels-fit .promo-strip .promo-card { padding: 0.45rem 0.55rem; gap: 0.4rem; }
+html.vvh-xs .levels-fit .promo-strip .promo-text span { display: none; }
+html.vvh-xs .levels-fit .promo-strip .promo-text strong { font-size: 0.92rem; }
+html.vvh-xs .levels-fit .promo-strip .daily-btn { min-height: 42px; padding: 0.4rem 0.65rem; }
+
+/* ---------- (a) BOARD height cap, visual-height keyed (a10 formula) ---------- */
+html.vvh-b[data-device='phone'][data-layout='upright'] .play-fixed { gap: 0.3rem; padding-top: 0.35rem; padding-bottom: 0.3rem; }
+html.vvh-b[data-device='phone'][data-layout='upright'] .play-fixed .board {
+  width: min(100%, max(15rem, calc(var(--app-height, 100svh) - 19.5rem))) !important;
+  max-height: min(100%, max(15rem, calc(var(--app-height, 100svh) - 19.5rem))) !important;
+}
+html.vvh-b[data-device='phone'][data-layout='upright'] .play-caption { min-height: 1.85rem; max-height: 1.85rem; margin-top: 0.1rem; margin-bottom: 0.1rem; }
+html.vvh-b[data-device='phone'][data-layout='upright'] .brand-banner { margin-bottom: 0.3rem; padding-top: 0.3rem; padding-bottom: 0.3rem; }
+html.vvh-b[data-device='phone'][data-layout='upright'] .defender-rail { margin-top: 0.35rem; }
+
+/* ---------- (a) the 9.28 short-height sheds, visual-height keyed ---------- */
+html.vvh-b .challenge .sub { display: none; }
+html.vvh-b .challenge label { display: grid; grid-template-columns: 8.5rem 1fr; align-items: center; gap: 0.5rem; margin: 0; }
+html.vvh-b .challenge input, html.vvh-b .challenge select { min-height: 40px; }
+html.vvh-b .stable .stable-sub { display: none; }
+html.vvh-b .stable .stable-stash small { display: none; }
+html.vvh-b .about .about-line { font-size: 0.84rem; line-height: 1.35; }
+
+/* ---------- (b) MEASURED FIT STEPS ---------- */
+html.fit-s1 .fit-screen { gap: 0.42rem; padding-top: 0.45rem; padding-bottom: 0.5rem; }
+html.fit-s1 .fit-screen h2 { font-size: 1.34rem; }
+html.fit-s2 .fit-screen { gap: 0.32rem; padding-top: 0.38rem; padding-bottom: 0.42rem; }
+html.fit-s2 .fit-screen h2 { font-size: 1.24rem; }
+html.fit-s2 .fit-screen .sub { font-size: 0.84rem; line-height: 1.35; }
+html.fit-s3 .fit-screen { gap: 0.26rem; padding-top: 0.32rem; padding-bottom: 0.36rem; }
+html.fit-s3 .fit-screen h2 { font-size: 1.16rem; }
+html.fit-s3 .fit-screen .sub { display: none; }
+
+html.fit-s1 .fit-home { gap: 0.45rem; padding-top: 0.45rem; padding-bottom: 0.4rem; }
+html.fit-s1 .fit-home .hero { padding: 0.55rem 0.7rem 0.6rem; gap: 0.45rem; }
+html.fit-s1 .fit-home .logo-hero { font-size: clamp(2.5rem, 11dvh, 3.4rem); }
+html.fit-s1 .home-play { padding: 0.6rem 1rem; font-size: 1.16rem; }
+html.fit-s1 .home-plates .btn { padding: 0.5rem 0.4rem; }
+html.fit-s1 .home-companion { padding: 0.45rem 0.6rem; }
+html.fit-s1 .promo-strip { gap: 0.45rem; }
+html.fit-s1 .promo-card { padding: 0.46rem 0.55rem; }
+html.fit-s1 .promo-text > span { white-space: normal; }
+html.fit-s1 .fit-home .stat-strip { padding-top: 0.38rem; padding-bottom: 0.38rem; }
+html.fit-s2 .fit-home { gap: 0.3rem; padding-bottom: 0.25rem; }
+html.fit-s2 .fit-home .hero { padding: 0.34rem 0.6rem 0.42rem; gap: 0.33rem; }
+html.fit-s2 .fit-home .logo-hero { font-size: clamp(1.85rem, 10dvh, 2.9rem); }
+html.fit-s2 .home-play { padding: 0.48rem 1rem; font-size: 1.08rem; min-height: 50px; }
+html.fit-s2 .home-plates .btn { padding: 0.4rem 0.35rem; font-size: 0.86rem; }
+html.fit-s2 .home-companion { padding: 0.3rem 0.55rem; }
+html.fit-s2 .promo-card { padding: 0.4rem 0.5rem; }
+html.fit-s2 .promo-btns .btn { padding: 0.34rem 0.5rem; }
+html.fit-s2 .fit-home .stat-strip strong { font-size: 0.98rem; }
+html.fit-s2 .fit-home .eyebrow, html.fit-s2 .fit-home .lede { display: none; }
+html.fit-s3 .fit-home { gap: 0.22rem; padding-top: 0.25rem; padding-bottom: 0.2rem; }
+html.fit-s3 .fit-home .hero { padding: 0.22rem 0.5rem 0.3rem; gap: 0.24rem; }
+html.fit-s3 .fit-home .logo-hero { font-size: clamp(1.5rem, 8dvh, 2.2rem); }
+html.fit-s3 .home-play { padding: 0.38rem 1rem; font-size: 1rem; min-height: 44px; }
+html.fit-s3 .home-plates .btn { padding: 0.3rem 0.3rem; font-size: 0.8rem; }
+html.fit-s3 .home-companion { padding: 0.22rem 0.45rem; }
+html.fit-s3 .fit-home .home-pet-body svg { width: 38px; }
+html.fit-s3 .promo-card { padding: 0.3rem 0.42rem; }
+html.fit-s3 .promo-btns .btn { padding: 0.28rem 0.42rem; font-size: 0.78rem; }
+html.fit-s3 .fit-home .stat-strip { padding-top: 0.24rem; padding-bottom: 0.24rem; }
+html.fit-s3 .fit-home .stat-strip strong { font-size: 0.9rem; }
+html.fit-s3 .home-foot-link { font-size: 0.76rem; }
+
+html.fit-s1 .challenge .share-bar { margin: 0.35rem 0 0.5rem; gap: 0.4rem; }
+html.fit-s1 .challenge label { display: grid; grid-template-columns: 8.5rem 1fr; align-items: center; gap: 0.5rem; margin: 0; }
+html.fit-s1 .challenge input, html.fit-s1 .challenge select { min-height: 40px; }
+html.fit-s2 .challenge .share-chip { padding: 0.4rem 0.62rem; font-size: 0.8rem; }
+html.fit-s2 .challenge label { grid-template-columns: 7.4rem 1fr; font-size: 0.9rem; }
+html.fit-s2 .challenge input, html.fit-s2 .challenge select { min-height: 38px; padding-top: 0.4rem; padding-bottom: 0.4rem; }
+html.fit-s3 .challenge .share-bar { gap: 0.32rem; margin: 0.25rem 0 0.35rem; }
+html.fit-s3 .challenge .share-chip { padding: 0.34rem 0.52rem; font-size: 0.78rem; }
+html.fit-s3 .challenge label { grid-template-columns: 6.6rem 1fr; font-size: 0.86rem; gap: 0.4rem; }
+html.fit-s3 .challenge input, html.fit-s3 .challenge select { min-height: 36px; }
+html.fit-s3 .challenge > .btn { min-height: 38px; padding-top: 0.45rem; padding-bottom: 0.45rem; }
+
+html.fit-s1 .more-row { padding-top: 0.3rem; padding-bottom: 0.3rem; }
+html.fit-s2 .more-row { padding-top: 0.26rem; padding-bottom: 0.26rem; }
+html.fit-s2 .stable-pick { padding-top: 0.42rem; padding-bottom: 0.42rem; }
+html.fit-s3 .stable-pick { padding-top: 0.36rem; padding-bottom: 0.36rem; }
+html.fit-s3 .how-panel { gap: 0.32rem; }
+
+/* ---------- (c) coin pills are buttons (same size, clear press) ---------- */
+button.score-pill.coin { cursor: pointer; }
+button.score-pill.coin:active { transform: scale(0.94); }
+button.score-pill.coin:focus-visible, button.stable-coins:focus-visible { outline: 2px solid rgba(255, 209, 102, 0.8); outline-offset: 2px; }
+button.stable-coins { cursor: pointer; }
+button.stable-coins:active { transform: scale(0.94); }
+
+/* ---------- (c) Your coins panel (a9 plaque look, sized to the visible area) ---------- */
+.coins-overlay { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; }
+.coins-scrim { position: absolute; inset: 0; background: rgba(4, 3, 8, 0.68); }
+.coins-panel {
+  position: relative; box-sizing: border-box;
+  width: min(25rem, calc(100vw - 1.5rem));
+  max-height: calc(var(--app-height, 100dvh) - 1.5rem);
+  overflow-y: auto;
+  background: linear-gradient(180deg, #171226, #0d0a18);
+  border: 1px solid rgba(217, 164, 65, 0.55); border-radius: 11px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 232, 180, 0.14);
+  color: #f4eedd; padding: 0.85rem 1rem 0.95rem;
+}
+.coins-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+.coins-head h3 { margin: 0; font-family: var(--font-display); font-size: 1.28rem; color: #ffe9ad; letter-spacing: 0.02em; }
+.coins-close {
+  font: inherit; font-weight: 800; font-size: 0.84rem; cursor: pointer;
+  color: #ffe9ad; background: linear-gradient(180deg, #3a2c17, #241a0e);
+  border: 1px solid rgba(217, 164, 65, 0.5); border-radius: 10px; padding: 0.42rem 0.7rem; min-height: 40px;
+}
+.coins-close:active { transform: translateY(1px); }
+.coins-balance { margin: 0.3rem 0 0.5rem; color: #cdb271; font-weight: 700; display: flex; align-items: baseline; gap: 0.3rem; }
+.coins-balance b { font-size: 2.1rem; line-height: 1; color: var(--sun); font-weight: 900; }
+.coins-balance span { font-size: 1rem; opacity: 0.8; }
+.coins-sec h4 { margin: 0.45rem 0 0.25rem; font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; color: #c9973f; }
+.coins-sec ul { margin: 0; padding-left: 1.05rem; display: grid; gap: 0.28rem; }
+.coins-sec li { font-size: 0.88rem; line-height: 1.38; }
+.coins-stable-btn { width: 100%; margin-top: 0.7rem; min-height: 46px; }
+.coins-note { margin: 0.55rem 0 0; font-size: 0.76rem; line-height: 1.35; color: rgba(244, 238, 221, 0.66); text-align: center; }
+
+/* ---------- (d) Home build tag ---------- */
+.home-build { margin-top: 0.3rem; font-size: 0.66rem; font-weight: 600; letter-spacing: 0.05em; color: rgba(205, 178, 113, 0.55); }
+
+/* =====================================================================
+   9.33-a12 — TONY SIZE (320px wide, ~500px visible band)
+   Tony's real phone: 960px screenshots = 320 CSS px wide (Display Zoom),
+   and the Muse-app webview leaves only a ~500-560px visible band with
+   large rendered type. a11's models (390x639 / 430x727) were still bigger
+   than his reality, so Home cards overlapped and the Account form ran
+   under the bottom nav. Fixes: (1) promo cards STACK at <=380px wide —
+   the overlap was a width problem, not a height one; (2) a vvh-t tier
+   (visual height <= 560) keyed in syncAppHeight(); (3) Account split —
+   Backup / Share & challenge / Follow moved to a "Backup & sharing"
+   screen (see App.tsx); (4) board floor drops at vvh-t so the Defender
+   tray fits; (5) Rewards earn line wraps instead of clipping mid-word.
+   ===================================================================== */
+
+/* (1) Promo cards stack at narrow widths: text gets the full card width,
+   the streak pill keeps its own line, buttons go full-width underneath.
+   Side-by-side layout returns at >=381px (a11-approved look unchanged). */
+@media (max-width: 380px) {
+  .promo-card { flex-direction: column; align-items: stretch; gap: 0.3rem; }
+  .promo-text > span { white-space: normal; overflow: visible; text-overflow: clip; }
+  .promo-card > .btn { width: 100%; min-height: 42px; }
+  .promo-btns { grid-template-columns: 1fr 1fr; }
+  .promo-btns .btn { min-height: 40px; }
+  /* Rewards: the badge earn-condition must read whole, never clip mid-word. */
+  .rewards .badge-card .product-value { white-space: normal; overflow: visible; text-overflow: clip; }
+}
+/* 9.33-a13: the Rewards wrap above must also cover 430px-wide bands — there
+   the badge grid goes 3-up, columns narrow to ~112px, and the same
+   mid-phrase clips returned (6 truncations at the 430x727 band in a12).
+   Scoped to the Rewards rule only: the promo stacking stays at <=380px. */
+@media (max-width: 480px) {
+  .rewards .badge-card .product-value { white-space: normal; overflow: visible; text-overflow: clip; }
+}
+
+/* (2) vvh-t Home: stacked promos cost ~50px; the companion + stat strip
+   give it back so Home still ends cleanly (site link + build tag visible). */
+html.vvh-t .fit-home .home-companion { padding: 0.25rem 0.45rem; }
+html.vvh-t .fit-home .home-pet-body svg { width: 34px; }
+html.vvh-t .home-companion .treat-pile-widget small { font-size: 0.64rem; }
+html.vvh-t .fit-home .stat-strip { padding-top: 0.22rem; padding-bottom: 0.22rem; }
+html.vvh-t .promo-card { gap: 0.22rem; }
+
+/* (4) vvh-t board: floor 12.5rem (was 15rem in the vvh-b cap) so the
+   Defender tray clears the bottom of a 500px band. */
+html.vvh-t[data-device='phone'][data-layout='upright'] .play-fixed .board {
+  width: min(100%, max(12.5rem, calc(var(--app-height, 100svh) - 21rem))) !important;
+  min-height: min(100%, max(12.5rem, calc(var(--app-height, 100svh) - 21rem))) !important;
+}
+
+/* (3) Account at vvh-t: tighter form rhythm (tap targets stay >=42px). */
+html.vvh-t .account .auth-form { gap: 0.32rem; }
+html.vvh-t .account label { gap: 0.12rem; }
+html.vvh-t .account .auth-form input, html.vvh-t .account .name-setting input { padding: 0.45rem 0.55rem; min-height: 42px; }
+html.vvh-t .account .btn { min-height: 44px; }
+html.vvh-t .account .sub { font-size: 0.8rem; line-height: 1.3; }
+
+/* Backup & sharing screen: the moved sections keep their compaction. */
+.account-tools .backup, .account-tools .follow-section { margin: 0; }
+.account-tools .follow-section p { margin: 0.2rem 0 0.5rem; }
+.account-tools .backup .cta-row, .account-tools .follow-section .btn { margin: 0; }
+.account-tools .tools-back { align-self: flex-start; min-height: 42px; }
+.account-tools-row { flex: 0 0 auto; }
+
+/* How to play: rules pager (short screens page 8 + 8 — see HowToPlay.tsx). */
+.how-rules-pager { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex: 0 0 auto; }
+.how-rules-pager .btn { min-height: 40px; padding: 0.35rem 0.6rem; font-size: 0.8rem; }
+.how-rules-pager span { font-size: 0.78rem; opacity: 0.8; white-space: nowrap; }
+
+/* =====================================================================
+   9.33-a13 — CLOSE THE REMAINING TONY-SIZE DEFECTS
+   a12's AFTER audit left six honest items; each is closed here:
+   (1) Home tail: a FOURTH measured fit step (fit-s4 — see App.tsx) with
+       its deepest Home compression, so the stat strip + site link + build
+       tag end inside the band at 320x500/560.
+   (2) Stable Bundles & gifts at vvh-t: the section was ~117px too tall —
+       tighter cards, smaller bundle art, slimmer redeem block.
+   (3) About at vvh-t: light compression backing the new two-page split
+       (App.tsx pages the story tab at visual height <= 600).
+   (4) How to Play Watch at vvh-t: the demo + caption were ~80px taller
+       than the stage's flex share and the stage's centering painted the
+       demo UP over "The rules" tab. Demo shrinks, caption tightens, the
+       "More to discover" button stops wrapping to three lines.
+   (5) Rules spill at wider-but-short bands is closed in HowToPlay.tsx
+       (measured pager), the Rewards wrap extension sits with the a12
+       block above.
+   ===================================================================== */
+
+/* (1) fit-s4: generic fit-screen step */
+html.fit-s4 .fit-screen { gap: 0.2rem; padding-top: 0.26rem; padding-bottom: 0.3rem; }
+html.fit-s4 .fit-screen h2 { font-size: 1.05rem; }
+/* (1) fit-s4: Home — the deepest step, only reached when s3 still overflows */
+html.fit-s4 .fit-home { gap: 0.16rem; padding-top: 0.18rem; padding-bottom: 0.14rem; }
+html.fit-s4 .fit-home .hero { padding: 0.16rem 0.45rem 0.22rem; gap: 0.16rem; }
+html.fit-s4 .fit-home .logo-hero { font-size: clamp(1.2rem, 6dvh, 1.7rem); }
+html.fit-s4 .home-play { padding: 0.3rem 1rem; font-size: 0.94rem; min-height: 42px; }
+html.fit-s4 .home-plates .btn { padding: 0.24rem 0.3rem; font-size: 0.75rem; }
+html.fit-s4 .home-companion { padding: 0.16rem 0.4rem; }
+html.fit-s4 .fit-home .home-pet-body svg { width: 28px; }
+html.fit-s4 .home-companion small, html.fit-s4 .home-companion .treat-pile-widget small { font-size: 0.6rem; }
+html.fit-s4 .promo-strip { gap: 0.3rem; }
+html.fit-s4 .promo-card { padding: 0.24rem 0.38rem; gap: 0.16rem; }
+html.fit-s4 .promo-text strong { font-size: 0.9rem; }
+html.fit-s4 .promo-text > span { font-size: 0.76rem; line-height: 1.25; }
+html.fit-s4 .promo-card .daily-streakbtn { font-size: 0.6rem; }
+html.fit-s4 .promo-btns .btn { padding: 0.22rem 0.36rem; font-size: 0.75rem; min-height: 40px; }
+html.fit-s4 .promo-card > .btn { min-height: 40px; }
+html.fit-s4 .fit-home .stat-strip { padding-top: 0.14rem; padding-bottom: 0.14rem; }
+html.fit-s4 .fit-home .stat-strip strong { font-size: 0.82rem; }
+html.fit-s4 .fit-home .stat-strip span { font-size: 0.62rem; }
+html.fit-s4 .home-foot-link { font-size: 0.7rem; }
+html.fit-s4 .home-build { font-size: 0.58rem; margin-top: 0.12rem; }
+
+/* (2) Stable Bundles & gifts at the TONY tier: cards, art, note, redeem. */
+html.vvh-t .stable .stable-bundles { padding: 0.5rem; gap: 0.4rem; }
+html.vvh-t .stable .stable-bundles h3 { font-size: 0.92rem; }
+html.vvh-t .stable .stable-bundle { padding: 0.45rem; gap: 0.35rem 0.5rem; }
+html.vvh-t .stable .stable-bundle-art { max-width: 70px; }
+html.vvh-t .stable .stable-bundle-art svg { width: 32px; height: 32px; }
+html.vvh-t .stable .stable-bundle-text > strong { font-size: 0.94rem; }
+html.vvh-t .stable .stable-bundle-text small { font-size: 0.78rem; line-height: 1.25; }
+html.vvh-t .stable .stable-price { font-size: 0.84rem; line-height: 1.25; }
+html.vvh-t .stable .stable-bundle .stable-btn { min-height: 42px; padding-top: 0.38rem; padding-bottom: 0.38rem; }
+html.vvh-t .stable .stable-note { font-size: 0.74rem; line-height: 1.25; }
+html.vvh-t .stable .stable-redeem { padding: 0.5rem; }
+html.vvh-t .stable .stable-redeem h3 { font-size: 0.92rem; margin-bottom: 0.3rem; }
+html.vvh-t .stable .stable-redeem-row input { padding: 0.45rem 0.55rem; min-height: 42px; }
+html.vvh-t .stable .stable-redeem-row .btn { min-height: 42px; padding-top: 0.38rem; padding-bottom: 0.38rem; }
+html.vvh-t .stable .stable-tab { padding-top: 0.32rem; padding-bottom: 0.32rem; }
+
+/* (3) About at the TONY tier: backing compression for the two-page split. */
+html.vvh-t .about .about-defender svg { width: 28px; height: 28px; }
+html.vvh-t .about .about-defender p { font-size: 0.82rem; line-height: 1.3; }
+html.vvh-t .about .about-defenders { gap: 0.24rem; margin: 0.24rem 0; }
+html.vvh-t .about .about-line { font-size: 0.82rem; line-height: 1.3; margin-bottom: 0.4rem; }
+.about-pager { margin-top: auto; padding-top: 0.4rem; }
+
+/* (4) How to Play Watch at the TONY tier: fit the stage's flex share. */
+html.vvh-t .how-panel .how-demo { width: min(100%, 148px); }
+html.vvh-t .how-panel .how-stage { padding: 0.5rem; gap: 0.35rem; margin: 0.1rem 0 0.3rem; }
+html.vvh-t .how-caption h3 { font-size: 1.02rem; margin: 0.1rem 0; }
+html.vvh-t .how-caption p { font-size: 0.84rem; line-height: 1.28; }
+html.vvh-t .how-step-label { font-size: 0.7rem; }
+html.vvh-t .how-more { font-size: 0.82rem; padding: 0.45rem 0.6rem; line-height: 1.3; }
+
+/* ===== 9.33-a13 item 7 — Tony (Nov 8, after his phone test): "on mobile the
+   game renders TINY". The fit tiers had been buying vertical room by
+   shrinking; his order: fill the WIDTH, lay out side by side, and let
+   controls sit LOWER in the band rather than smaller. Everything below is
+   scoped to the phone tiers (vvh-t = visual height <= 560, plus the
+   width-capped rules the play screen already uses) — desktop rendering is
+   byte-for-byte the a12 look. ===== */
+
+/* The board: a12's floor (12.5rem) left the board ~230px wide in a 320px
+   screen with ~76-96px of dead space under the build tag. Grow the board to
+   use the width. Measured budget (probe-board2, 320x500): rail bottom =
+   board bottom + 60 (Reset row) + 52 (rail); the build tag hangs 20px
+   below the rail — so the board may take the band minus ~14.5rem of fixed
+   chrome. Branded boards add the brand banner (~53px) in flow above the
+   board: they get ~18rem of chrome instead. The audit re-measures the rail
+   and tag after this change at both TONY sizes. */
+html.vvh-t[data-device='phone'][data-layout='upright'] .play-fixed .board {
+  width: min(100%, max(15rem, calc(var(--app-height, 100svh) - 14.5rem))) !important;
+  min-height: min(100%, max(15rem, calc(var(--app-height, 100svh) - 14.5rem))) !important;
+}
+html.vvh-t[data-device='phone'][data-layout='upright'] .play-fixed:has(.brand-banner) .board {
+  width: min(100%, max(13.5rem, calc(var(--app-height, 100svh) - 18rem))) !important;
+  min-height: min(100%, max(13.5rem, calc(var(--app-height, 100svh) - 18rem))) !important;
+}
+
+/* Home: buy the tail room with SPACING, not smaller type — the foot's 0.9rem
+   top margin alone was half the remaining overflow. The measured fit stepper
+   then stops at the least shrink that fits instead of always bottoming out. */
+html.vvh-t .home-foot { margin-top: 0.25rem; padding-top: 0.15rem; }
+html.vvh-t .fit-home .hero { padding: 0.26rem 0.55rem 0.3rem; gap: 0.26rem; }
+html.vvh-t .home-play { padding-top: 0.42rem; padding-bottom: 0.42rem; }
+html.vvh-t .home-plates .btn { padding-top: 0.32rem; padding-bottom: 0.32rem; }
+html.vvh-t .promo-strip { gap: 0.3rem; }
+html.vvh-t .promo-card { padding: 0.32rem 0.42rem; }
+html.vvh-t .stat-strip { padding-top: 0.16rem; padding-bottom: 0.16rem; }
+html.vvh-t .home-companion { line-height: 1.25; }
+
+/* Stable bundles tail (the last ~29px): same spacing-not-type pass over the
+   bundles + redeem block so both cards, buttons and the redeem row all sit
+   inside the band at TONY sizes. */
+html.vvh-t .stable-head h2 { font-size: 1.15rem; }
+html.vvh-t .stable.fit-screen { gap: 0.28rem; }
+html.vvh-t .stable .stable-bundles { padding: 0.42rem 0.6rem; gap: 0.32rem; }
+html.vvh-t .stable .stable-bundle { padding: 0.36rem 0.55rem; }
+html.vvh-t .stable .stable-bundle-art svg { width: 30px; height: 30px; }
+html.vvh-t .stable .stable-bundle-text > strong { font-size: 0.9rem; }
+html.vvh-t .stable .stable-bundle-text small { font-size: 0.76rem; }
+html.vvh-t .stable .stable-price { line-height: 1.2; }
+html.vvh-t .stable .stable-redeem { padding: 0.42rem 0.6rem; }
+html.vvh-t .stable .stable-redeem h3 { margin-bottom: 0.22rem; }
+html.vvh-t .stable .stable-redeem-row input, html.vvh-t .stable .stable-redeem-row .btn { min-height: 40px; }
+html.vvh-t .stable .stable-note { line-height: 1.2; }
+
+/* Item 7, second pass — measured leftovers (audit after2 + probes):
+   Home's companion pet block (80px) and plates row (53px) are chrome, not
+   type: slimmer pet pill, smaller empty-circle, shorter Unseen card thumb,
+   40px plate floor, tighter stat strip. Bundles: the two sections carry
+   1.1rem top margins — halving them pulls the redeem row into the band. */
+html.vvh-t .home-pet { padding-top: 0.26rem; padding-bottom: 0.26rem; }
+html.vvh-t .home-pet-empty { width: 42px; height: 42px; }
+html.vvh-t .fit-home .unseen-card { width: 20px; }
+html.vvh-t .home-plates .btn, html.vvh-t .home-plates .unseen-tile { min-height: 40px; }
+html.vvh-t .fit-home .stat-strip { padding-top: 0.14rem; padding-bottom: 0.14rem; line-height: 1.15; }
+html.vvh-t .promo-text > span { line-height: 1.2; }
+html.vvh-t .stable .stable-bundles { margin-top: 0.45rem; }
+html.vvh-t .stable .stable-redeem { margin-top: 0.45rem; }
+html.vvh-t .stable.fit-screen { padding-bottom: 0.4rem; }
+
+/* Item 7, third pass — Home chrome cuts (the bundle side-by-side idea was
+   tried and REVERTED in the fourth pass: at 320px the price lines need the
+   full card width, squeezing them beside the button wrapped them to 4
+   lines and cost +115px. The stacked card stays; bundles close by spacing
+   and smaller art instead — see the vvh-t stable rules below.) */
+html.vvh-t .home-pet-text strong { font-size: 1rem; }
+html.vvh-t .home-pet-text small { line-height: 1.2; }
+html.vvh-t .home-plates .btn { line-height: 1.15; padding-top: 0.26rem; padding-bottom: 0.26rem; }
+html.vvh-t .fit-home .stat-strip strong, html.vvh-t .fit-home .stat-strip span { line-height: 1.1; }
+html.vvh-t .promo-card { padding-top: 0.26rem; padding-bottom: 0.26rem; }
+
+/* Item 7, fourth pass — the last ~17px of Home, all measured: the plates
+   row is driven by the Unseen tile's wrapping text (53px), the pet pill by
+   its vertical padding, the Daily card by its streak pill. */
+html.vvh-t .fit-home .unseen-tile { padding: 0.2rem 0.4rem; }
+html.vvh-t .fit-home .unseen-card { width: 16px; }
+html.vvh-t .fit-home .unseen-tile-text b { line-height: 1.15; }
+html.vvh-t .home-companion .home-pet { padding-top: 0.18rem; padding-bottom: 0.18rem; }
+html.vvh-t .promo-card .daily-streakbtn { padding: 0.08rem 0.4rem; }
+
+/* Item 7, fifth pass — the treat widget is the companion's tall child
+   (four stacked lines), and the Unseen tile still sets the plates row. */
+html.vvh-t .home-companion .treat-pile-widget { padding: 0.3rem 0.45rem; line-height: 1.2; }
+html.vvh-t .fit-home .unseen-tile { padding-top: 0.12rem; padding-bottom: 0.12rem; }
+html.vvh-t .fit-home .unseen-card { width: 14px; }
+html.vvh-t .fit-home { gap: 0.12rem; }
+html.vvh-t .fit-home .stat-strip { padding-top: 0.1rem; padding-bottom: 0.1rem; }
+
+/* Item 7, bundles final pass — measured column math at 320x500: head ~64 +
+   tabs ~48 + bundles ~285 + redeem ~82 + gaps/padding ~59 = ~538. The last
+   ~39px come from sub/tab/card spacing and 26px bundle art. Nothing is
+   removed; every control stays >= 40px. */
+html.vvh-t .stable-sub { line-height: 1.25; }
+html.vvh-t .stable .stable-tab { padding-top: 0.24rem; padding-bottom: 0.24rem; }
+html.vvh-t .stable .stable-bundles { padding: 0.34rem 0.55rem; gap: 0.24rem; }
+html.vvh-t .stable .stable-bundle { padding: 0.3rem 0.5rem; gap: 0.25rem 0.5rem; }
+html.vvh-t .stable .stable-bundle-art svg { width: 26px; height: 26px; }
+html.vvh-t .stable .stable-redeem { padding: 0.34rem 0.55rem; }
+
+/* Item 7, bundles final pass 2 — the redeem row sits 11px past the band
+   (24 by scroll). Column-wide micro-cuts: main gap, section margins, card
+   text line-heights, 40px Adopt buttons (the floor every other secondary
+   action already uses), and a slimmer stable bottom padding. (The
+   list/defenders tabs read 1px of scroll overflow at 320x500 in the audit
+   harness — a rounding unit in their flex column; zero elements sit past
+   the band. It reads 0 at 560 and in a12. Left as-is, documented in
+   FIX-A13.) */
+html.vvh-t .stable.fit-screen { gap: 0.16rem; padding-bottom: 0.85rem; padding-top: 0.35rem; }
+html.vvh-t .stable .stable-bundles { margin-top: 0.25rem; gap: 0.18rem; }
+html.vvh-t .stable .stable-redeem { margin-top: 0.25rem; }
+html.vvh-t .stable .stable-bundle-text > strong { line-height: 1.2; }
+html.vvh-t .stable .stable-price { margin-top: 0; }
+html.vvh-t .stable .stable-bundle .stable-btn { min-height: 40px; }
+
+/* The stable screens' 1px scroll overhang is the .atmo atmosphere layer:
+   inset 0 against a 1px-bordered shell makes its bottom edge land 1px past
+   the content box (probe-verified: every real element ends inside the
+   band; zero rect offenders). Pull the layer's bottom in by that 1px —
+   decorative only, no content moves. */
+
+/* NOTE — the defenders picklist rows are CRUSHED at TONY sizes (grid 1fr
+   rows + min-height 0 squash five rows into ~140px; name/perk text clips).
+   That squash is how a11/a12 shipped and how their audits read 0 — the
+   rect metrics cannot see text clipping inside a row. A trial min-height
+   on .stable-pick un-squashed the rows and the column overflowed 126px,
+   proving the tab's fixed blocks (now + stash + freepick ≈ 240px) leave
+   no honest room for five full rows in a 392px main. The real remedies
+   (2-column pick grid, merged status rows, or a scrollable list) are a
+   design pick for Tony — documented in FIX-A13, NOT improvised here. */
+
+/* Ship trim (final audit): restoring the stable bottom padding to a12's
+   0.85rem cleared the defenders tabs' 1px but cost the bundles tab 3px of
+   scroll extent (no element past the band). These bundles-only gaps give
+   it back. Placed last so they win the cascade. */
+html.vvh-t .stable .stable-bundles { gap: 0.14rem; }
+html.vvh-t .stable .stable-redeem { margin-top: 0.18rem; }
+html.vvh-t .stable .stable-bundle { gap: 0.2rem 0.5rem; }

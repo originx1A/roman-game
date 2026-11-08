@@ -33,8 +33,8 @@ test('the app reads the hash and does not treat the share query as navigation', 
   const duelReplace = app.indexOf("window.history.replaceState(null, '', window.location.pathname)", duelAt)
   assert.ok(duelReplace > duelAt)
   assert.ok(challengeAt < app.indexOf("window.history.replaceState(null, '', window.location.pathname)", challengeAt))
-  assert.match(app, /const next = window\.location\.pathname \+ window\.location\.hash/)
-  assert.match(app, /params\.get\('checkout'\)/)
+  // 9.33-a: real-money checkout is gone from the game — no checkout param is read any more
+  assert.equal(app.includes("params.get('checkout')"), false)
   assert.equal(app.includes("params.get('s')"), false)
 })
 

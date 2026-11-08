@@ -24,9 +24,9 @@ export interface BuddyDay {
 
 export const EMPTY_DAY: BuddyDay = { pet: null, kind: 'hint', used: DAY_BOARDS, last: null }
 
-/** hint buddies give a free hint; the coin buddies give double coins */
+/** 9.33-a: every Defender's day gift is coins now (the Hint button is gone) */
 export function dayKindFor(pet: PetId | null): DayPerkKind {
-  return pet === 'aquila' || pet === 'nox' || pet === null ? 'hint' : 'coins'
+  return pet === null ? 'hint' : 'coins'
 }
 
 /** The next buddy to feature: the owned one after `last` in Stable order (wraps; one owned = that one; none = null) */

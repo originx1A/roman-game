@@ -139,7 +139,7 @@ test('9.32-j-dev: close is reachable on every sheet, including the account sheet
 })
 
 test('9.32-k-dev: build tag bumped for the password switch', () => {
-  assert.match(tag, /build 9\.32-k'/)
+  assert.match(tag, /build 9\.33-a13'/)
 })
 
 test('9.32-j-dev round 2: the panel keeps the field being typed in above the phone keyboard', () => {

@@ -1638,3 +1638,43 @@ export function eventAllowed(event: BanterEvent, outcome: BoardOutcome): boolean
   if (LOSE_EVENTS.includes(event)) return outcome === 'lost'
   return true
 }
+
+// ---------- 9.33-a: The Unseen on Defender Boards (text-only; shown in his pop-up) ----------
+/**
+ * New taunts for the Defender Boards world. These are TEXT lines for the Unseen's
+ * pop-up (no recorded clips), added alongside his existing pools — nothing of his
+ * was removed. He never helps and cannot be bought; he just watches, and mocks.
+ */
+export const UNSEEN_DEFENDER_CALL_LINES: readonly string[] = [
+  'Calling for help again? How touching.',
+  'Ah, the cavalry. You rang — it came. I only watch.',
+  'Summoned help, like a waiter. Dignified.',
+  'You brought friends. I brought a shadow to sit in.',
+  'A Defender dances for you. I charge nothing. I also do nothing.',
+]
+
+/** A branded board whose Defender is missing or out of calls: he notices. */
+export const UNSEEN_DEFENDER_ABSENT_LINES: Readonly<Record<string, readonly string[]>> = {
+  aquila: ['Your eagle sleeps. Pity.', 'No feathers today. The sky is empty, and so is your plan.'],
+  leo: ['No lion on duty. Walk carefully.', 'The cub is away today. Try not to need him.'],
+  lupa: ['No wolf at your side. The paw prints go nowhere.', 'Your wolf is elsewhere. Sniff your own way out.'],
+  invictus: ['The horse is in its stable. You are not.', 'No hooves today. This row keeps its secrets.'],
+  nox: ['The owl is silent tonight. Darkness keeps its secrets.', 'No yellow eyes watching. Just mine.'],
+}
+
+/** Leo roars off a mistake: the Unseen gets his jab in a beat before. */
+export const UNSEEN_LEO_SAVE_LINES: readonly string[] = [
+  'Saved by the cub. Embarrassing for everyone.',
+  'A roar for one little mistake. Generous. Wasteful, but generous.',
+  'The lion pays your debts now? Interesting arrangement.',
+]
+
+export function unseenDefenderTaunt(kind: 'call' | 'absent' | 'leo-save', petId?: string, rng: () => number = Math.random): string {
+  const pool =
+    kind === 'call'
+      ? UNSEEN_DEFENDER_CALL_LINES
+      : kind === 'leo-save'
+        ? UNSEEN_LEO_SAVE_LINES
+        : (petId && UNSEEN_DEFENDER_ABSENT_LINES[petId]) || UNSEEN_DEFENDER_CALL_LINES
+  return pool[Math.floor(rng() * pool.length) % pool.length]
+}

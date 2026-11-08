@@ -1,4 +1,5 @@
 import type { Difficulty, Puzzle } from '../game/types'
+import { Atmosphere } from './Atmosphere'
 import { REMIX_SIZES, remixCountdownLabel, remixId, type RemixSize } from '../game/remix'
 import type { EndlessStats } from '../game/storage'
 
@@ -21,6 +22,7 @@ export function RemixScreen({
   formatMs,
   starString,
   onOpenBoard,
+  onTrial,
   endless,
   endlessBusy,
   onEndless,
@@ -34,12 +36,15 @@ export function RemixScreen({
   formatMs: (ms: number) => string
   starString: (n: number) => string
   onOpenBoard: (size: RemixSize) => void
+  /** 9.33-a4: 3-star Remix boards get a Trial chip (the retired start sheet was the old door) */
+  onTrial?: (size: RemixSize) => void
   endless: EndlessStats
   endlessBusy: Difficulty | null
   onEndless: (d: Difficulty) => void
 }) {
   return (
-    <main className="panel levels remix-screen scroll-pane">
+    <main className="panel levels remix-screen remix-fit has-atmo">
+      <Atmosphere variant="panel" tint="#5b8cff" />
       <h2>Remix boards</h2>
       <section className="remix-countdown" aria-live="polite">
         <strong data-remix-countdown>
@@ -56,32 +61,45 @@ export function RemixScreen({
           const isBuilding = building.includes(size)
           const isFailed = failed.includes(size)
           return (
-            <button
-              key={size}
-              type="button"
-              className={`level-card remix-card ${info?.bestMs != null ? 'cleared' : ''} ${isBuilding ? 'is-building' : ''}`}
-              data-level={id}
-              disabled={isBuilding}
-              aria-busy={isBuilding}
-              onClick={() => onOpenBoard(size)}
-            >
-              <span className="lv-name">
-                {p ? p.name : `Remix ${String.fromCharCode(60 + size)}`}
-                <span className={`lv-stars s${stars}`} aria-label={`${stars} of 3 stars`}>{starString(stars)}</span>
-              </span>
-              <span className="lv-meta">
-                {size}×{size} · {LABEL[size]}
-                {isBuilding
-                  ? ' · Building board…'
-                  : isFailed
-                    ? ' · Tap to try again'
-                    : !p
-                      ? ' · Tap to build'
-                      : info?.bestMs != null
-                        ? ` · best ${formatMs(info.bestMs)}`
-                        : ''}
-              </span>
-            </button>
+            <div key={size} className="level-card-wrap">
+              <button
+                type="button"
+                className={`level-card remix-card ${info?.bestMs != null ? 'cleared' : ''} ${isBuilding ? 'is-building' : ''}`}
+                data-level={id}
+                disabled={isBuilding}
+                aria-busy={isBuilding}
+                onClick={() => onOpenBoard(size)}
+              >
+                <span className="lv-name">
+                  {p ? p.name : `Remix ${String.fromCharCode(60 + size)}`}
+                  <span className={`lv-stars s${stars}`} aria-label={`${stars} of 3 stars`}>{starString(stars)}</span>
+                </span>
+                <span className="lv-meta">
+                  {size}×{size} · {LABEL[size]}
+                  {isBuilding
+                    ? ' · Building board…'
+                    : isFailed
+                      ? ' · Tap to try again'
+                      : !p
+                        ? ' · Tap to build'
+                        : info?.bestMs != null
+                          ? ` · best ${formatMs(info.bestMs)}`
+                          : ''}
+                </span>
+              </button>
+              {p && stars >= 3 && onTrial ? (
+                <button
+                  type="button"
+                  className="lv-trial-chip"
+                  data-trial={id}
+                  aria-label={`Play ${p.name} as Roman's Trial`}
+                  title="Roman's Trial — 3 hearts, beat the clock, 2× coins"
+                  onClick={() => onTrial(size)}
+                >
+                  ⚔ Trial
+                </button>
+              ) : null}
+            </div>
           )
         })}
       </div>

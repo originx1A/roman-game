@@ -57,7 +57,6 @@ export function WinScreen({
   themeLabel,
   timeLabel,
   score,
-  hintsUsed,
   livesLeft,
   maxLives,
   sparkCount,
@@ -164,7 +163,7 @@ export function WinScreen({
           {replay ? (
             <p className="win-replay-detail">{[replay.detail, replay.coinsLine].filter(Boolean).join(' · ')}</p>
           ) : perfect ? (
-            <p className="win-perfect">Perfect clear — no hints</p>
+            <p className="win-perfect">Perfect clear — no mistakes</p>
           ) : null}
 
           <div className="win-stats" aria-label="Run stats">
@@ -181,10 +180,6 @@ export function WinScreen({
               <strong className="win-stat-value">
                 {sparkCount}/{CRITTER_STASH_GOAL}
               </strong>
-            </div>
-            <div className="win-stat win-stat-minor">
-              <span className="win-stat-label">Hints</span>
-              <strong className="win-stat-value">{hintsUsed}</strong>
             </div>
             <div className="win-stat">
               <span className="win-stat-label">Hearts</span>

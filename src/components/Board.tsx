@@ -20,6 +20,7 @@ import {
   type ConflictKind,
 } from '../game/logic'
 import { sfxError, sfxGiggle, sfxMark, sfxPlace, sfxTap, unlockAudio } from '../game/sound'
+import { ChargeHorse } from './ChargeHorse'
 import { LONG_PRESS_MS, hasLeftTap, swipeModeFor, swipeTarget, type GestureStart, type SwipeMode } from '../game/gesture'
 
 interface Props {
@@ -37,6 +38,18 @@ interface Props {
     },
   ) => void
   hintIndex: number | null
+  /** 9.33-a Defender Boards: squares Nox is lighting (one hides a buddy) */
+  litIndices?: number[]
+  /** 9.33-a: squares Aquila feathered (no buddy there); feathers fade after ~5 s */
+  featherIndices?: number[]
+  /** 9.33-a: the square Invictus's roulette is flashing right now */
+  rouletteIndex?: number | null
+  /** 9.33-a: the row Invictus is charging across */
+  chargeRow?: number | null
+  /** 9.33-a6p: a live Concept C charge run (sprite + wake) on this row; while set, it replaces the abstract charge-cell row flash */
+  chargeFx?: { run: number; row: number } | null
+  /** 9.33-a: Lupa's paw-print trail cells */
+  pawIndices?: number[]
   giggleIndex?: number | null
   disabled?: boolean
   celebrate?: boolean
@@ -136,6 +149,12 @@ export function Board({
   cells,
   onChange,
   hintIndex,
+  litIndices,
+  featherIndices,
+  rouletteIndex = null,
+  chargeRow = null,
+  chargeFx = null,
+  pawIndices,
   giggleIndex = null,
   disabled,
   celebrate,
@@ -460,6 +479,11 @@ export function Board({
               state,
               bad ? 'conflict' : '',
               hintIndex === i ? 'hinted' : '',
+              litIndices?.includes(i) ? 'nox-lit' : '',
+              featherIndices?.includes(i) ? 'aquila-feather' : '',
+              pawIndices?.includes(i) ? 'paw-cell' : '',
+              rouletteIndex === i ? 'roulette-hot' : '',
+              chargeRow != null && !chargeFx && rowOf(i, size) === chargeRow ? 'charge-cell' : '',
               pressed === i ? 'pressed' : '',
             ]
               .filter(Boolean)
@@ -475,6 +499,12 @@ export function Board({
           >
             <span className="cell-fill" />
             <TileMark shape={style.shape} ink={style.ink} />
+            {featherIndices?.includes(i) && state === 'empty' && (
+              <span className="feather-mark" aria-hidden>🪶</span>
+            )}
+            {pawIndices?.includes(i) && state === 'empty' && (
+              <span className="paw-mark" aria-hidden>🐾</span>
+            )}
             {state === 'mark' && <MarkX />}
             {state === 'stone' && (
               <Buddy
@@ -487,6 +517,7 @@ export function Board({
           </div>
         )
       })}
+      {chargeFx ? <ChargeHorse key={chargeFx.run} row={chargeFx.row} size={size} /> : null}
     </div>
   )
 }

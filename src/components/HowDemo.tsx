@@ -228,7 +228,7 @@ function DemoPanel({ demo }: { demo: HowDemoId }) {
         {[
           ['Finish the board', 1],
           ['Beat the target time', 2],
-          ['Target time + high score + no undo', 3],
+          ['Target time + high score + no mistakes', 3],
         ].map(([label, n]) => (
           <div key={n} className={`demo-star-row r${n}`}>
             <span className="demo-star-icons">

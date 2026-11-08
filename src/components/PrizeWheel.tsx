@@ -6,7 +6,7 @@ export type PrizeId =
   | 'coins_25'
   | 'coins_50'
   | 'coins_100'
-  | 'hint_2'
+  | 'coins_75'
   | 'heart_refill'
   | 'shield'
   | 'jackpot'
@@ -23,7 +23,8 @@ export const PRIZES: Prize[] = [
   { id: 'coins_25', label: '+25 coins', weight: 28, color: '#ffd166' },
   { id: 'coins_50', label: '+50 coins', weight: 18, color: '#ffe08a' },
   { id: 'coins_100', label: '+100 coins', weight: 8, color: '#ff9f1c' },
-  { id: 'hint_2', label: '+2 hints', weight: 20, color: '#3dffa8' },
+  // 9.33-a8: was '+2 hints' — hints are not spendable in this design, so the slot pays coins
+  { id: 'coins_75', label: '+75 coins', weight: 20, color: '#3dffa8' },
   { id: 'heart_refill', label: 'Full hearts', weight: 12, color: '#ff6b6b' },
   { id: 'shield', label: 'Mistake shield', weight: 10, color: '#1a6dff' },
   { id: 'jackpot', label: 'JACKPOT 200', weight: 4, color: '#c77dff' },

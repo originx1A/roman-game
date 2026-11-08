@@ -79,8 +79,9 @@ test('perks: bounded, never shrink with level, stars add a little', () => {
   const perWin = Math.max(...P.PETS.map((p) => P.petWinCoins(e.perWin, P.perkFor(p.id, 30, 5))))
   const perDay = (perWin + P.HAPPY_COINS) * 5
   assert.ok(perDay / e.net <= 0.25, `top perk adds ${perDay} coins a day (${Math.round((perDay / e.net) * 100)}% of ${e.net})`)
-  // hint / rescue perks are worth at most a few coins a day in coins
-  assert.ok(P.perkFor('aquila', 30).hints * 5 * R.HINT_COST <= 5 * 3 * 15)
+  // 9.33-a: no perk pays in hints or rescues any more (the tools are gone)
+  assert.equal(P.perkFor('aquila', 30).hints, 0)
+  assert.equal(P.perkFor('nox', 30).rescues, 0)
 })
 
 test('mood: drifts down slowly, has a floor, never takes the perk away', () => {

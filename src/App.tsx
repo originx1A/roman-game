@@ -1,9 +1,10 @@
 import { useTapCount } from './components/useTapCount'
 import { loadAnon, openEvents, sendPing, PRIVACY_NOTE, ANON_KEY, gaEvent, setGaEnabled } from './game/analytics'
 import { OWNER_PATH, OWNER_TAP_WINDOW_MS, OWNER_TAPS } from './game/ownerDoor'
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Board } from './components/Board'
+import { chargeFxAllowed, chargePassMs, CHARGE_MS, preloadChargeAtlas } from './components/ChargeHorse'
 import { HowToPlay, HOW_NEW_START } from './components/HowToPlay'
 import { BugReport } from './components/BugReport'
 import { PrizeWheel } from './components/PrizeWheel'
@@ -11,7 +12,6 @@ import { ResultOverlay } from './components/ResultOverlay'
 import { WinScreen, type WinReplay } from './components/WinScreen'
 import { type ShortfallAction } from './components/ShortfallSheet'
 import { ShortfallSheetHost } from './components/ShortfallSheetHost'
-import { CoinPackCard } from './components/CoinPackCard'
 import './styles/store-layer.css'
 import { ShareBar } from './components/ShareBar'
 import { SparkCritter, CRITTER_STASH_GOAL, type CritterReward } from './components/SparkCritter'
@@ -23,7 +23,6 @@ import { initCloud, saveScore } from './cloud/cloud'
 import { UnseenCardTile } from './components/UnseenCard'
 import { noteCardWin } from './game/unseenCard'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
-import { TapButton } from './components/TapButton'
 import { BuddyHunt } from './components/BuddyHunt'
 import { PetArt } from './components/PetArt'
 import { Stable } from './components/Stable'
@@ -81,6 +80,10 @@ import {
   MAX_FIELD_TREATS,
   swapTreatsToCoins,
   stealFieldTreats,} from './game/pets'
+import { aquilaFeatherCount, buyCalls, callsFor, DEFENDER_THEME, NOX_LIGHT_COUNT, rollBrand, spendCall } from './game/defenders'
+import { DefenderRail } from './components/DefenderRail'
+import { Atmosphere } from './components/Atmosphere'
+import { LoreBackdrop } from './components/LoreBackdrop'
 import {
   BUDDY_HUNT_PERFECT_WINS,
   applyHuntPrize,
@@ -98,14 +101,12 @@ import {
   canEarnSpin,
   treasureBudget,
   treasureLeftPct,
-  hintPrice,
   huntPct,
   ledgerSummary,
   noteParadeGain,
   paradeRewardsLine,
   loadLedger,
   payWin,
-  rescuePrice,
   rollLedger,
   saveLedger,
   sparksOpen,
@@ -115,19 +116,16 @@ import {
 } from './game/dailyEconomy'
 import { dayCoins, dayShort, loadDay, saveDay, startBuddyDay, useDayBoard, type BuddyDay, type DayPerkKind } from './game/buddyDay'
 import { BUILD_TAG } from './buildTag'
-import { amendMove, createHistory, pushMove, redoMove, restoreHistory, stepsToSave, undoMove } from './game/history'
+import { amendMove, createHistory, pushMove, restoreHistory, stepsToSave } from './game/history'
 import {
-  applyHint,
-  clearBuddy,
+  colOf,
   emptyBoard,
-  findHint,
   findConflicts,
-  findMisplacedBuddy,
   isSolved,
+  rowOf,
 } from './game/logic'
 import {
   TRIAL_HEARTS,
-  UNDO_COST,
   comboMove,
   comboMult,
   dailyBoardForKey,
@@ -145,7 +143,6 @@ import {
   notePlay,
   paceDelta,
   recordRun,
-  resetBestTime,
   replayCoins,
   NEW_BEST_COINS,
   scoreRunV2,
@@ -190,6 +187,7 @@ import {
   eventAllowed,
   sparkProgressBanter,
   tipBanter,
+  unseenDefenderTaunt,
   VOICE_PRIORITY,
   type BoardOutcome,
   type ConflictKind as BanterConflictKind,
@@ -261,10 +259,9 @@ import {
   sfxAchievement,
   sfxCoin,
   sfxHeartLose,
-  sfxHint,
   sfxLose,
   sfxRecord,
-  sfxUndo,
+  sfxUiClick,
   sfxWhoosh,
   sfxWin,
   resetVoiceQuietClock,
@@ -275,11 +272,9 @@ import {
   dropWaitingVoice,
   petGiggle,
 } from './game/sound'
-import { COIN_PACKS, purchaseCoinPack, restorePurchases, isStoreBuild, subscribeStore, type CoinPackId } from './game/iap'
-import { loadWebPacks, type WebPackOffer } from './game/webPacks'
+import { isStoreBuild } from './game/iap'
 import './App.css'
 /** Temporarily hide the real-money coin shop until Stripe is connected. Set to true to re-enable. */
-const SHOP_ENABLED = false;
 
 
 let lastAppHeight = 0
@@ -312,9 +307,63 @@ function syncAppHeight() {
   // whole play screen jump. Use the layout viewport then, and ignore sub-pixel jitter.
   const zoomed = !!vv && vv.scale > 1.01
   const h = Math.round(zoomed ? window.innerHeight : (vv?.height ?? window.innerHeight))
+  // 9.33-a11: publish the VISUAL height as tier classes on <html>. CSS media queries see the
+  // layout viewport, which in an app webview (host chrome drawn over the page) can be much
+  // taller than the band the player can actually see — the a10 tiers keyed off media queries
+  // alone under-engaged on Tony's phone. These classes key off the same visual height that
+  // sizes the shell, so the compression tiers and the board cap follow the visible area.
+  const rootEl = document.documentElement
+  rootEl.classList.toggle('vvh-s', h > 0 && h <= 760)
+  rootEl.classList.toggle('vvh-xs', h > 0 && h <= 640)
+  rootEl.classList.toggle('vvh-b', h > 0 && h <= 720)
+  // 9.33-a12: the TONY tier — Tony's real phone (320 CSS wide, Muse-app webview)
+  // gives the game a visible band of only ~500-560px. a11's tiers stopped at 640
+  // and his Account form + board tray still amputated. vvh-t (<=560) carries the
+  // deepest compressions + the lower board floor; CSS in App.css (a12 section).
+  rootEl.classList.toggle('vvh-t', h > 0 && h <= 560)
   if (h <= 0 || Math.abs(h - lastAppHeight) < 2) return
   lastAppHeight = h
   document.documentElement.style.setProperty('--app-height', `${h}px`)
+}
+
+// 9.33-a11: measured fit — the shell-wide guarantee. Menu screens are overflow:hidden flex
+// columns sized by --app-height; when a webview renders type larger than the design budget
+// (Tony's Muse-app webview does), a stack silently amputates its own bottom — Home's promo
+// row, the board tray, the Challenge submit button. Instead of guessing breakpoints, MEASURE
+// the live screen: if its content is taller than its box, step the shell's compression
+// classes (fit-s1..s4, CSS in App.css) up until it fits whole. Runs on screen change, on
+// resize / visualViewport changes, and again once webfonts land (metrics move when they do).
+// 9.33-a13: a fourth step — at Tony's real band (320 x ~500) Home still had an
+// 80px tail after s3 (stat strip labels under the nav, the site link + build
+// tag below the band). s4 is the deepest step and only engages where s3 was
+// not enough, so taller screens never see it.
+let fitRaf = 0
+let fitTimer = 0
+function fitShellScreens() {
+  if (typeof window === 'undefined') return
+  cancelAnimationFrame(fitRaf)
+  fitRaf = requestAnimationFrame(() => {
+    const rootEl = document.documentElement
+    const shell = document.querySelector('.fixed-shell')
+    const main = shell?.querySelector(':scope > main')
+    if (!shell || !main || shell.classList.contains('shell-play')) {
+      rootEl.classList.remove('fit-s1', 'fit-s2', 'fit-s3', 'fit-s4')
+      return
+    }
+    rootEl.classList.remove('fit-s1', 'fit-s2', 'fit-s3', 'fit-s4')
+    void main.clientHeight
+    let step = 0
+    while (step < 4 && main.scrollHeight > main.clientHeight + 1) {
+      step += 1
+      rootEl.classList.add(`fit-s${step}`)
+      void main.clientHeight
+    }
+  })
+}
+function scheduleFit() {
+  fitShellScreens()
+  window.clearTimeout(fitTimer)
+  fitTimer = window.setTimeout(fitShellScreens, 350)
 }
 
 function resetPlayViewport() {
@@ -431,6 +480,36 @@ export default function App() {
   const [progress, setProgress] = useState(() => getProgress())
   const [settings, setSettings] = useState<Settings>(() => loadSettings())
   // Level select difficulty tab — persisted so it survives reloads
+  // 9.33-a7: Settings and About are indexes — each tab is one function, and
+  // the privacy note is its own step (no in-place expansion past the fit lock).
+  const [settingsTab, setSettingsTab] = useState<'sound' | 'play'>('sound')
+  const [showPrivacyNote, setShowPrivacyNote] = useState(false)
+  const [aboutTab, setAboutTab] = useState<'story' | 'feedback'>('story')
+  // 9.33-a13: on short, narrow screens (visual height <= 600 and width
+  // <= 640 — Tony's phone band) the About story tab pages in two: the story
+  // lines, then the Defenders list. The whole tab is ~140px taller than his
+  // band; a pager (same pattern as the How to Play rules pager) keeps every
+  // line reachable — nothing is buried below the fold and no text is cut.
+  // The width condition keeps desktop windows (even short ones) untouched.
+  const [aboutPage, setAboutPage] = useState(0)
+  const [shortScreen, setShortScreen] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      (window.visualViewport?.height ?? window.innerHeight) <= 600 &&
+      window.innerWidth <= 640,
+  )
+  useEffect(() => {
+    const onResize = () =>
+      setShortScreen(
+        (window.visualViewport?.height ?? window.innerHeight) <= 600 && window.innerWidth <= 640,
+      )
+    window.addEventListener('resize', onResize)
+    window.visualViewport?.addEventListener('resize', onResize)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      window.visualViewport?.removeEventListener('resize', onResize)
+    }
+  }, [])
   const [levelTab, setLevelTab] = useState<Difficulty>(() => {
     const saved = (() => {
       try { return localStorage.getItem('rg-level-tab') } catch { return null }
@@ -448,6 +527,45 @@ export default function App() {
   // 9.32: player accounts + score saving (lazy, never blocks the game)
   useEffect(() => {
     void initCloud()
+  }, [])
+
+  // 9.33-a7 (Tony): buttons must FEEL alive — every press is VISIBLE (an ember
+  // burst at the fingertip + a glow pulse) and AUDIBLE (a soft UI click through
+  // the sound system; Sound off = silent). One delegated listener for the whole
+  // app; board cells are skipped (they play their own richer sfx), disabled
+  // controls stay silent, and the burst is skipped under reduced motion.
+  useEffect(() => {
+    const onPress = (e: PointerEvent) => {
+      const t = e.target as HTMLElement | null
+      if (!t || typeof t.closest !== 'function') return
+      const el = t.closest('button, a[href], [role="tab"], summary') as HTMLElement | null
+      if (!el || el.closest('.board')) return
+      if ((el as HTMLButtonElement).disabled || el.getAttribute('aria-disabled') === 'true') return
+      sfxUiClick()
+      const reduced =
+        document.documentElement.dataset.motion === 'reduce' ||
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      if (reduced) return
+      el.classList.add('is-pressing')
+      window.setTimeout(() => el.classList.remove('is-pressing'), 380)
+      const r = el.getBoundingClientRect()
+      if (r.width === 0 || r.height === 0) return
+      const burst = document.createElement('span')
+      burst.className = 'press-burst'
+      burst.setAttribute('aria-hidden', 'true')
+      for (let i = 0; i < 6; i++) {
+        const s = document.createElement('i')
+        s.style.setProperty('--a', `${Math.round((i / 6) * 360 + Math.random() * 28)}deg`)
+        s.style.setProperty('--d', `${Math.round(13 + Math.random() * 15)}px`)
+        burst.appendChild(s)
+      }
+      burst.style.left = `${Math.round(e.clientX - r.left)}px`
+      burst.style.top = `${Math.round(e.clientY - r.top)}px`
+      el.appendChild(burst)
+      window.setTimeout(() => burst.remove(), 680)
+    }
+    document.addEventListener('pointerdown', onPress, true)
+    return () => document.removeEventListener('pointerdown', onPress, true)
   }, [])
   useEffect(() => {
     setGaEnabled(!isStoreBuild() && settingsRef.current.analytics !== false)
@@ -498,15 +616,41 @@ export default function App() {
   /** Buddy riding along on the board in progress (fixed at the start of the board) */
   const runPetRef = useRef<PetId | null>(null)
   /** Buddy freebies left on this board (free hints / free rescues) */
-  const [petFree, setPetFree] = useState({ hints: 0, rescues: 0 })
+  const [, setPetFree] = useState({ hints: 0, rescues: 0 })
+  // ---- 9.33-a: Defender Boards ----
+  /** This board's Defender brand (null = unbranded), rolled at a fresh board start */
+  const [brand, setBrand] = useState<PetId | null>(null)
+  const brandRef = useRef<PetId | null>(null)
+  /** Previous branded board's Defender: the same one never brands twice in a row */
+  const lastBrandRef = useRef<PetId | null>(null)
+  /** True once this board's Defender has fired (or Leo's shield is armed): max one activation per board */
+  const brandFiredRef = useRef(false)
+  /** Incremented on every board start so a late effect timer can't land on the wrong board */
+  const brandRunRef = useRef(0)
+  /** Nox's lit squares; they stay lit until the buddy among them is placed */
+  const [noxLit, setNoxLit] = useState<number[]>([])
+  const noxTargetRef = useRef<number | null>(null)
+  /** Aquila's feathered squares (fade after ~5 s) */
+  const [featherCells, setFeatherCells] = useState<number[]>([])
+  /** Invictus: the roulette's flashing square, then the row he charges */
+  const [rouletteIdx, setRouletteIdx] = useState<number | null>(null)
+  const [chargeRow, setChargeRow] = useState<number | null>(null)
+  /** 9.33-a6p: the live Concept C charge (sprite run) on the board, if one is playing */
+  const [chargeFx, setChargeFx] = useState<{ run: number; row: number } | null>(null)
+  const chargeRunRef = useRef(0)
+  /** Lupa's paw-print trail */
+  const [pawCells, setPawCells] = useState<number[]>([])
+  /** Leo's armed shield: roars off the first mistake on his board */
+  const [leoShield, setLeoShield] = useState(false)
+  const leoShieldRef = useRef(false)
   /** 9.30-m: hints and Rescues used on this board (each extra one costs a little more) */
   const [rescuesUsed, setRescuesUsed] = useState(0)
   /** 9.30-m: today's earn counters (wins paid, sparks, spins, hunts). Resets at midnight Toronto. */
   const [econ, setEconState] = useState<Ledger>(() => loadLedger(typeof window === 'undefined' ? null : safeLocalStorage(), torontoDateKey()))
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null)
   const [cells, setCells] = useState<CellState[]>([])
-  const [history, setHistory] = useState<CellState[][]>([])
-  const [future, setFuture] = useState<CellState[][]>([])
+  const [, setHistory] = useState<CellState[][]>([])
+  const [, setFuture] = useState<CellState[][]>([])
   const [elapsedMs, setElapsedMs] = useState(0)
   const [running, setRunning] = useState(false)
   const [hintsUsed, setHintsUsed] = useState(0)
@@ -540,13 +684,15 @@ export default function App() {
     unseenKey.current += 1
     setUnseenPop({ text: line.text, key: unseenKey.current })
   }
+  /** 9.33-a: the Unseen speaks in text (no clip) — Defender Boards moments use his pop-up directly */
+  function unseenSay(text: string) {
+    unseenKey.current += 1
+    setUnseenPop({ text, key: unseenKey.current })
+  }
   const [shortfall, setShortfall] = useState<null | { action: ShortfallAction; need: number; detail?: string }>(null)
   const [incoming, setIncoming] = useState<Challenge | null>(null)
   const [, setChallenges] = useState(() => loadChallenges())
   const [emailInput, setEmailInput] = useState('')
-  const [storePrices, setStorePrices] = useState<Record<string, string>>({})
-  const [webPacks, setWebPacks] = useState<WebPackOffer[] | null>(null)
-  const [webShop, setWebShop] = useState<'loading' | 'ready' | 'unavailable'>('loading')
   const [nameInput, setNameInput] = useState('Roman')
   const [challengeEmail, setChallengeEmail] = useState('')
   const [challengeMsg, setChallengeMsg] = useState('Can you beat me on this board?')
@@ -587,7 +733,6 @@ export default function App() {
   const shellRef = useRef<HTMLDivElement>(null)
   const tickRef = useRef<number | null>(null)
   const idleRef = useRef<number | null>(null)
-  const undoTimesRef = useRef<number[]>([])
   const lastActionRef = useRef(Date.now())
   // ---- Voice tips (9.28-b) ----
   const tipsRef = useRef<TipState>(loadTips())
@@ -616,6 +761,9 @@ export default function App() {
   const [cardGain, setCardGain] = useState<{ from: number; to: number } | null>(null)
   /** 9.32-f: the stats popup over the daily card (streak tap) */
   const [showStats, setShowStats] = useState(false)
+  // 9.33-a11 (Tony): the coin balance is a button — it opens the "Your coins" panel.
+  // The panel is an overlay, so closing it returns the player to exactly where they were.
+  const [showCoins, setShowCoins] = useState(false)
   /** 9.32-f: the last daily win — drives the Wordle-style daily share text */
   const [lastDailyWin, setLastDailyWin] = useState<{ key: string; streak: number } | null>(null)
   const [mode, setMode] = useState<RunMode>('normal')
@@ -623,7 +771,6 @@ export default function App() {
   /** Today's date key while this attempt is the scored (first) Daily try */
   const dailyRunRef = useRef<string | null>(null)
   const [dailyTag, setDailyTag] = useState<'' | 'scored' | 'practice'>('')
-  const [startSheet, setStartSheet] = useState<Puzzle | null>(null)
 
   // ---- 9.30-i: Remix boards (a new set of 4 every 3 days at midnight Toronto) + Endless mode ----
   const [clockNow, setClockNow] = useState(() => Date.now())
@@ -639,7 +786,7 @@ export default function App() {
   /** Difficulty while this run is an Endless board (Next makes another fresh one) */
   const endlessRef = useRef<Difficulty | null>(null)
   const screenNowRef = useRef<Screen>('home')
-  const startPuzzleRef = useRef<(p: Puzzle, resume?: boolean, opts?: { mode?: RunMode; daily?: boolean; endless?: boolean }) => void>(() => {})
+  const startPuzzleRef = useRef<(p: Puzzle, resume?: boolean, opts?: { mode?: RunMode; daily?: boolean; endless?: boolean; direct?: boolean }) => void>(() => {})
   screenNowRef.current = screen
   // The countdown ticks while off the board (every 30 s is plenty for "2d 5h" / "5h 12m")
   useEffect(() => {
@@ -677,7 +824,11 @@ export default function App() {
 
   useEffect(() => {
     syncAppHeight()
-    const onResize = () => syncAppHeight()
+    scheduleFit()
+    const onResize = () => {
+      syncAppHeight()
+      scheduleFit()
+    }
     window.addEventListener('resize', onResize)
     window.visualViewport?.addEventListener('resize', onResize)
     window.visualViewport?.addEventListener('scroll', onResize)
@@ -687,6 +838,13 @@ export default function App() {
       window.visualViewport?.removeEventListener('scroll', onResize)
     }
   }, [])
+
+  // 9.33-a11: re-measure the shell fit on every screen change, and again once
+  // the webfonts land (their metrics are part of the real rendered height).
+  useEffect(() => {
+    scheduleFit()
+    document.fonts?.ready.then(() => fitShellScreens()).catch(() => {})
+  }, [screen])
 
   // Play screen stays still on iPhone: lock the document (no rubber-band, no scroll, no pinch)
   // while a board is up. Only real scrollers inside overlays (win card body, sheets) may pan.
@@ -724,31 +882,6 @@ export default function App() {
     setVoiceEnabled(settings.voice)
   }, [settings.sound, settings.voice])
 
-  useEffect(() => {
-    if (isStoreBuild()) return
-    let cancelled = false
-    void loadWebPacks()
-      .then((packs) => {
-        if (cancelled) return
-        if (!packs) {
-          setWebShop('unavailable')
-          setWebPacks(null)
-          return
-        }
-        setWebPacks(packs)
-        setWebShop('ready')
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setWebShop('unavailable')
-          setWebPacks(null)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
   // 9.30-a: trial buddies end after 24h (checked every minute and when the tab comes back)
   useEffect(() => {
     const tick = () => {
@@ -782,63 +915,6 @@ export default function App() {
     params.delete('gift')
     const q = params.toString()
     window.history.replaceState(null, '', window.location.pathname + (q ? `?${q}` : '') + window.location.hash)
-  }, [])
-
-  useEffect(() => {
-    if (isStoreBuild()) return
-    const params = new URLSearchParams(window.location.search)
-    const checkout = params.get('checkout')
-    const sessionId = params.get('session_id')
-    const clean = () => {
-      const next = window.location.pathname + window.location.hash
-      window.history.replaceState(null, '', next)
-    }
-    if (checkout === 'cancel') {
-      showToast('Purchase cancelled. No coins were added.')
-      clean()
-      return
-    }
-    if (checkout !== 'success' || !sessionId) return
-    let cancelled = false
-    void import('./game/webCheckout').then(async (mod) => {
-      if (cancelled) return
-      if (mod.wasCheckoutRedeemed(sessionId)) {
-        showToast('Those coins are already in your wallet.')
-        clean()
-        return
-      }
-      const result = await mod.confirmWebCheckout(sessionId)
-      if (cancelled) return
-      clean()
-      if (!result.ok) {
-        showToast(result.reason)
-        return
-      }
-      mod.rememberCheckoutRedeemed(sessionId)
-      if (result.alreadyRedeemed || result.coins <= 0) {
-        showToast('Those coins are already in your wallet.')
-        return
-      }
-      const current = loadWallet()
-      persistWallet({ ...current, coins: current.coins + result.coins })
-      sfxCoin()
-      showToast(`+${result.coins} coins · ${result.label}`)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!isStoreBuild()) return
-    return subscribeStore((notice) => {
-      if (notice.type === 'prices') setStorePrices(notice.prices)
-      if (notice.type === 'granted') {
-        setWallet(loadWallet())
-        sfxCoin()
-        showToast(`+${notice.coins} coins · ${notice.label}`)
-      }
-    })
   }, [])
 
   useEffect(() => {
@@ -940,29 +1016,6 @@ export default function App() {
       if (tickRef.current) window.clearInterval(tickRef.current)
     }
   }, [running, rotatePaused])
-
-  // PC keyboard shortcuts on a live board: Z undo, Y redo, H hint (plus Ctrl/Cmd+Z, Ctrl+Y, Ctrl+Shift+Z)
-  const keysRef = useRef<{ undo: () => void; redo: () => void; hint: () => void }>({ undo: () => {}, redo: () => {}, hint: () => {} })
-  useEffect(() => {
-    if (screen !== 'play') return
-    const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null
-      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return
-      if (e.altKey || e.repeat) return
-      if (document.querySelector('.start-sheet, .win-screen, .buddy-hunt, .prize-overlay, .shortfall-overlay, .result-overlay, .rotate-prompt.is-on')) return
-      const k = e.key.toLowerCase()
-      const mod = e.ctrlKey || e.metaKey
-      let act: 'undo' | 'redo' | 'hint' | null = null
-      if (k === 'z' && !e.shiftKey) act = 'undo'
-      else if ((k === 'z' && e.shiftKey && mod) || k === 'y') act = 'redo'
-      else if (k === 'h' && !mod) act = 'hint'
-      if (!act) return
-      e.preventDefault()
-      keysRef.current[act]()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [screen])
 
   // A new board (or a comeback after a loss) is live again: its voice lines may speak
   useEffect(() => {
@@ -1267,6 +1320,20 @@ export default function App() {
     showToast(`${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} joined your Stable!`)
   }
 
+  /** 9.33-a: stock up a Defender's calls (+10 for coins) */
+  function onBuyCalls(id: PetId) {
+    const w = loadWallet()
+    const r = buyCalls(loadPets(), w.coins, id, Date.now())
+    if (!r.ok) {
+      showToast(r.reason)
+      return
+    }
+    persistWallet({ ...w, coins: r.coins })
+    persistPets(r.state)
+    sfxCoin()
+    showToast(`${petById(id)!.name}: ${r.calls} calls in the bank`)
+  }
+
   /** 9.30-m: the free daily pet */
   function onCarePet(id: PetId) {
     const r = petCare(loadPets(), id, Date.now(), torontoDateKey())
@@ -1377,6 +1444,187 @@ export default function App() {
   /** Board builds every move on this, so it can never work from a board Undo already replaced. */
   const getLiveCells = useCallback(() => historyRef.current.present, [])
 
+  // ---- 9.33-a: Defender Boards ----
+  /** Clear every Defender effect visual/ref (new board, resume, reset). */
+  function clearDefenderFx() {
+    setNoxLit([])
+    noxTargetRef.current = null
+    setFeatherCells([])
+    setRouletteIdx(null)
+    setChargeRow(null)
+    setPawCells([])
+    leoShieldRef.current = false
+    setLeoShield(false)
+  }
+
+  /**
+   * Roll this fresh board's brand. When the branded Defender is in the Stable with calls
+   * in the bank, spend exactly one call and fire its one effect. Roman's Trial stays pure
+   * (no Defenders); a board whose Defender is missing or out of calls just shows the
+   * banner with the Defender asleep — nothing fires, nothing is spent.
+   */
+  function setupDefenderBoard(p: Puzzle, trialRun: boolean) {
+    clearDefenderFx()
+    brandFiredRef.current = false
+    const run = ++brandRunRef.current
+    const b = trialRun ? null : rollBrand(Math.random, lastBrandRef.current)
+    brandRef.current = b
+    setBrand(b)
+    if (!b) return
+    lastBrandRef.current = b
+    const now = Date.now()
+    const s = loadPets()
+    if (!hasPet(s, b, now) || callsFor(s, b) <= 0) {
+      // The Defender sleeps — and the Unseen notices, more often than not
+      if (Math.random() < 0.7) {
+        window.setTimeout(() => {
+          if (brandRunRef.current === run && !boardOverRef.current) unseenSay(unseenDefenderTaunt('absent', b))
+        }, 1700)
+      }
+      return
+    }
+    const spent = spendCall(s, b)
+    if (!spent) return
+    persistPets(spent)
+    brandFiredRef.current = true
+    // 9.33-a6p: an Invictus board is coming — warm the charge sprite now (lazy asset;
+    // reduced-motion players never fetch it and keep the abstract charge)
+    if (b === 'invictus' && chargeFxAllowed()) preloadChargeAtlas()
+    window.setTimeout(() => {
+      if (brandRunRef.current !== run || boardOverRef.current) return
+      fireDefender(b, p)
+      // He sneers at summoned help about half the time
+      if (Math.random() < 0.5) {
+        window.setTimeout(() => {
+          if (brandRunRef.current === run && !boardOverRef.current) unseenSay(unseenDefenderTaunt('call', b))
+        }, 1000)
+      }
+    }, 1100)
+  }
+
+  /** Solution squares whose buddy is not placed yet */
+  function unrevealedBuddies(p: Puzzle): number[] {
+    const board = historyRef.current.present
+    return p.solution.filter((i) => board[i] !== 'stone')
+  }
+
+  /** Place a buddy on a solution square, the way a hint does (an assist move). */
+  function defenderPlaceBuddy(index: number) {
+    const board = historyRef.current.present
+    if (board[index] === 'stone') return
+    const next = [...board]
+    next[index] = 'stone'
+    flawedRef.current = true
+    onBoardChange(next, { kind: 'stone', conflict: false, index, assist: true })
+  }
+
+  function shuffled<T>(arr: T[]): T[] {
+    const a = [...arr]
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[a[i], a[j]] = [a[j], a[i]]
+    }
+    return a
+  }
+
+  /** The one thing each Defender does on its board. Fires once, after the banner moment. */
+  function fireDefender(b: PetId, p: Puzzle) {
+    const size = p.size
+    const board = historyRef.current.present
+    if (b === 'leo') {
+      leoShieldRef.current = true
+      setLeoShield(true)
+      showToast('🦁 Leo is watching. Your first mistake is his.')
+      return
+    }
+    if (b === 'lupa') {
+      const targets = unrevealedBuddies(p)
+      if (!targets.length) return
+      const target = targets[Math.floor(Math.random() * targets.length)]
+      // Paw prints walk the target's row from the left edge up to the buddy
+      const prints: number[] = []
+      for (let c = 0; c <= colOf(target, size); c++) prints.push(rowOf(target, size) * size + c)
+      setPawCells(prints.filter((i) => board[i] === 'empty'))
+      window.setTimeout(() => {
+        defenderPlaceBuddy(target)
+        window.setTimeout(() => setPawCells([]), 1200)
+      }, 750)
+      return
+    }
+    if (b === 'nox') {
+      const targets = unrevealedBuddies(p)
+      if (!targets.length) return
+      const target = targets[Math.floor(Math.random() * targets.length)]
+      const pool: number[] = []
+      for (let i = 0; i < board.length; i++) if (i !== target && board[i] === 'empty') pool.push(i)
+      noxTargetRef.current = target
+      setNoxLit([target, ...shuffled(pool).slice(0, NOX_LIGHT_COUNT - 1)])
+      return
+    }
+    if (b === 'aquila') {
+      const empties: number[] = []
+      for (let i = 0; i < board.length; i++) if (board[i] === 'empty' && !p.solution.includes(i)) empties.push(i)
+      setFeatherCells(shuffled(empties).slice(0, aquilaFeatherCount(size, empties.length)))
+      window.setTimeout(() => setFeatherCells([]), 5600)
+      return
+    }
+    if (b === 'invictus') {
+      const targets = unrevealedBuddies(p)
+      if (!targets.length) return
+      const target = targets[Math.floor(Math.random() * targets.length)]
+      let delay = 55
+      let steps = 0
+      const tick = () => {
+        if (boardOverRef.current) {
+          setRouletteIdx(null)
+          return
+        }
+        steps += 1
+        if (steps >= 16) {
+          // The roulette lands: a beat on the square, then the charge across its row
+          setRouletteIdx(target)
+          window.setTimeout(() => {
+            setRouletteIdx(null)
+            const row = rowOf(target, size)
+            setChargeRow(row)
+            if (chargeFxAllowed()) {
+              // 9.33-a6p Concept C: the real charge — sprite, dust wake and stage tilt.
+              // The buddy is revealed the moment the horse crosses its square, and the
+              // stage settles flat again when the run ends.
+              setChargeFx({ run: ++chargeRunRef.current, row })
+              window.setTimeout(() => {
+                if (!boardOverRef.current) defenderPlaceBuddy(target)
+              }, chargePassMs(colOf(target, size), size))
+              window.setTimeout(() => {
+                setChargeRow(null)
+                setChargeFx(null)
+              }, CHARGE_MS + 250)
+              return
+            }
+            window.setTimeout(() => {
+              defenderPlaceBuddy(target)
+              window.setTimeout(() => setChargeRow(null), 900)
+            }, 450)
+          }, 350)
+          return
+        }
+        setRouletteIdx(Math.floor(Math.random() * board.length))
+        delay *= 1.22
+        window.setTimeout(tick, delay)
+      }
+      tick()
+    }
+  }
+
+  // Nox's squares stay lit until the buddy among them is placed
+  useEffect(() => {
+    const t = noxTargetRef.current
+    if (t != null && cells[t] === 'stone') {
+      noxTargetRef.current = null
+      setNoxLit([])
+    }
+  }, [cells])
+
   /** Save the board with its undo/redo steps, so Resume shows what is on screen now. */
   function saveBoardDraft(hist: ReturnType<typeof createHistory>, extra?: { elapsedMs: number; hintsUsed: number }) {
     if (!puzzle) return
@@ -1466,11 +1714,11 @@ export default function App() {
     return real
   }
 
-  function startPuzzle(p: Puzzle, resume = false, opts: { mode?: RunMode; daily?: boolean; endless?: boolean } = {}) {
-    // First board ever: How to play opens first (returning players start at the new cards)
-    if (!resume && !settingsRef.current.howSeen) {
+  function startPuzzle(p: Puzzle, resume = false, opts: { mode?: RunMode; daily?: boolean; endless?: boolean; direct?: boolean } = {}) {
+    // First board ever: How to play opens first (returning players start at the new cards).
+    // 9.33-a3: Home's Play button passes `direct` — it starts the board immediately, no detour.
+    if (!resume && !opts.direct && !settingsRef.current.howSeen) {
       pendingStartRef.current = { p, opts }
-      setStartSheet(null)
       setHowStart(progress.clears.length > 0 ? HOW_NEW_START : 0)
       setScreen('how')
       return
@@ -1479,7 +1727,6 @@ export default function App() {
     dropWaitingVoice()
     sfxWhoosh()
     resetPlayViewport()
-    setStartSheet(null)
     const resumeDraft = resume ? loadDraft() : null
     const resuming = !!resumeDraft && resumeDraft.puzzleId === p.id
     const onCatalog = hasRecords(p.id)
@@ -1518,7 +1765,7 @@ export default function App() {
     // Before the board: what to beat
     const best = onCatalog ? hasBest(rec, p.id, runMode) : undefined
     const intro = [
-      runMode === 'trial' ? `Roman's Trial: ${TRIAL_HEARTS} hearts, no undo, beat the clock` : '',
+      runMode === 'trial' ? `Roman's Trial: ${TRIAL_HEARTS} hearts, beat the clock` : '',
       dailyKey ? 'Daily Challenge: only this first try counts' : practice ? "Daily practice: today's score is already in" : '',
       best ? `Best ${formatMs(best.bestMs!)} · ${best.bestScore ?? 0} pts` : '',
     ].filter(Boolean).join(' · ')
@@ -1583,6 +1830,11 @@ export default function App() {
         setElapsedMs(d.elapsedMs)
         setHintsUsed(d.hintsUsed)
         flawedRef.current = d.flawed === true || d.hintsUsed > 0
+        // 9.33-a: a resumed board carries no Defender brand
+        brandRef.current = null
+        setBrand(null)
+        clearDefenderFx()
+        brandRunRef.current += 1
         setRunning(true)
         setScreen('play')
         return
@@ -1605,6 +1857,8 @@ export default function App() {
       mode: runMode,
       daily: dailyKey ?? undefined,
     })
+    // 9.33-a: roll the Defender brand for this fresh board (may fire one Defender effect)
+    setupDefenderBoard({ ...p, theme: themeId }, trialRun)
   }
 
   function onBoardChange(
@@ -1672,8 +1926,16 @@ export default function App() {
       let nextLives = lives
       let w = { ...wallet, totalMistakes: wallet.totalMistakes + 1 }
       // One line per move: the losing move gets the lose line only, not a wrong-move line too
-      if (w.shields > 0 || lives > 1) pushBanter('place-bad', kind)
-      if (w.shields > 0) {
+      if (leoShieldRef.current || w.shields > 0 || lives > 1) pushBanter('place-bad', kind)
+      if (leoShieldRef.current) {
+        // 9.33-a: on Leo's board, Leo roars off the first mistake — no heart lost, once.
+        // The Unseen gets his jab in first, about half the time.
+        leoShieldRef.current = false
+        setLeoShield(false)
+        if (Math.random() < 0.5) unseenSay(unseenDefenderTaunt('leo-save', 'leo'))
+        showToast('🦁 Leo roared off your mistake!')
+        sfxCoin()
+      } else if (w.shields > 0) {
         w = { ...w, shields: w.shields - 1 }
         showToast('Shield blocked a mistake!')
         sfxCoin()
@@ -2009,129 +2271,11 @@ export default function App() {
     }
   }
 
-  /** Undo/redo spam (4 within 5s) gives the Unseen an opening */
-  function noteUndoRedo() {
-    const now = Date.now()
-    const recent = [...undoTimesRef.current.filter((t) => now - t < 5000), now]
-    if (recent.length >= 4) {
-      undoTimesRef.current = []
-      pushBanter('undo-spam')
-    } else {
-      undoTimesRef.current = recent
-    }
-  }
-
-  function undo() {
-    if (historyRef.current.past.length === 0 || celebrate || defeated || modeRef.current === 'trial') return
-    // Board first: a sound or voice hiccup must never cost the undo itself.
-    const hist = undoMove(historyRef.current)
-    replaceBoard(hist)
-    try {
-      // Each undo costs points and breaks the combo
-      undosRef.current += 1
-      comboRef.current = comboMove(comboRef.current, 'undo', -1, Date.now()).combo
-      showToast(`Undo · −${UNDO_COST} pts`)
-      // Repeated undos: a voice tip about what undo costs (once the heckle, if any, has finished)
-      if (undosRef.current >= TIP_TRIGGERS.undoCount) window.setTimeout(() => fireTip('undo-spam', undefined, { quietMs: 800 }), 1400)
-    } catch {
-      /* scoring only */
-    }
-    // Without this the saved board kept the undone X's: Resume (or iOS reloading the tab) put them back.
-    saveBoardDraft(hist)
-    afterUndoRedo()
-  }
-
-  function afterUndoRedo() {
-    try {
-      sfxUndo()
-      noteUndoRedo()
-    } catch {
-      /* sound only */
-    }
-  }
-
-  function redo() {
-    if (historyRef.current.future.length === 0 || celebrate || defeated || modeRef.current === 'trial') return
-    const hist = redoMove(historyRef.current)
-    replaceBoard(hist)
-    saveBoardDraft(hist)
-    afterUndoRedo()
-  }
-
-  function onHint() {
-    if (!puzzle || celebrate || defeated) return
-    bumpAction()
-    const board = historyRef.current.present
-    const hint = findHint(puzzle, board)
-    if (!hint) {
-      showToast('No hint available')
-      return
-    }
-    let w = { ...wallet }
-    if (petFree.hints > 0) {
-      setPetFree((f) => ({ ...f, hints: f.hints - 1 }))
-      showToast(`Free hint from ${petById(runPetRef.current)?.name ?? 'your buddy'}`)
-    } else if (w.freeHints > 0) {
-      w = { ...w, freeHints: w.freeHints - 1 }
-    } else if (w.coins >= hintPrice(hintsUsed)) {
-      w = { ...w, coins: w.coins - hintPrice(hintsUsed) }
-      showToast(`−${hintPrice(hintsUsed)} coins`)
-    } else {
-      setShortfall({ action: 'hint', need: hintPrice(hintsUsed) })
-      return
-    }
-    persistWallet(w)
-    sfxHint()
-    pushBanter('hint')
-    tipMastery('stuck')
-    lastProgressRef.current = Date.now()
-    flawedRef.current = true
-    setHintIndex(hint.index)
-    setHintText(hint.explanation)
-    setHintsUsed((n) => n + 1)
-    onBoardChange(applyHint(board, hint), {
-      kind: hint.kind === 'stone' ? 'stone' : 'mark',
-      conflict: false,
-      index: hint.index,
-      assist: true,
-    })
-  }
-
-  /** Rare rescue: clear a buddy that does not belong (wrong spot / conflict) */
-  function onRescue() {
-    if (!puzzle || celebrate || defeated) return
-    bumpAction()
-    const board = historyRef.current.present
-    const hit = findMisplacedBuddy(puzzle, board)
-    if (!hit) {
-      showToast('No rescue needed — buddies look fine')
-      return
-    }
-    if (petFree.rescues > 0) {
-      setPetFree((f) => ({ ...f, rescues: f.rescues - 1 }))
-    } else if (wallet.coins < rescuePrice(rescuesUsed)) {
-      setShortfall({ action: 'rescue', need: rescuePrice(rescuesUsed) })
-      return
-    } else {
-      persistWallet({ ...wallet, coins: wallet.coins - rescuePrice(rescuesUsed) })
-    }
-    setRescuesUsed((n) => n + 1)
-    flawedRef.current = true
-    sfxHint()
-    pushBanter('rescue')
-    setHintIndex(hit.index)
-    setHintText(hit.explanation)
-    showToast(hit.explanation)
-    onBoardChange(clearBuddy(board, hit.index), {
-      kind: 'empty',
-      conflict: false,
-      index: hit.index,
-      assist: true,
-    })
-  }
-
   function resetBoard() {
     if (!puzzle) return
+    // 9.33-a: a restart keeps the brand banner but the Defender's one effect is spent
+    clearDefenderFx()
+    brandRunRef.current += 1
     sfxWhoosh()
     comboRef.current = newCombo()
     undosRef.current = 0
@@ -2567,31 +2711,6 @@ export default function App() {
     showToast(`${def?.title ?? badgeId} → Rank ${rank} · +${formatBonusPercent(totalCoinBonusPercent(result.wallet))} coins`)
   }
 
-  async function onBuyCoins(packId: CoinPackId) {
-    unlockAudio()
-    if (!isStoreBuild()) {
-      const { startWebCheckout } = await import('./game/webCheckout')
-      const started = await startWebCheckout(packId)
-      if (!started.ok) showToast(started.reason)
-      return
-    }
-    const result = await purchaseCoinPack(packId)
-    if (!result.ok) {
-      showToast(result.reason)
-      return
-    }
-    if (result.credited) setWallet(loadWallet())
-    else persistWallet({ ...wallet, coins: wallet.coins + result.coins })
-    sfxCoin()
-    showToast(`+${result.coins} coins · ${result.pack.label}`)
-  }
-
-  async function onRestorePurchases() {
-    const result = await restorePurchases()
-    if (result.ok) setWallet(loadWallet())
-    showToast(result.message)
-  }
-
   function challengeMailHref(url: string): string | undefined {
     const to = challengeEmail.trim()
     if (!shareChallenge && !to) return undefined
@@ -2644,13 +2763,14 @@ export default function App() {
       }
       saveRemixBoard(set, p)
       setRemixBoards((r) => (r.set === set ? { set, boards: { ...r.boards, [size]: p } } : r))
-      if (openAfter && screenNowRef.current === 'remix') setStartSheet(p)
+      // 9.33-a4: a built Remix board starts at once — no start sheet gate (Tony: pick = play)
+      if (openAfter && screenNowRef.current === 'remix') startPuzzleRef.current(p, false, { direct: true })
     })
   }
 
   function openRemix(size: RemixSize) {
     const p = liveRemix[size]
-    if (p) setStartSheet(p)
+    if (p) startPuzzle(p, false, { direct: true })
     else buildRemix(size, true)
   }
 
@@ -2672,120 +2792,53 @@ export default function App() {
     startEndless(diffs[Math.floor(Math.random() * diffs.length)])
   }
 
-  /** 9.32-f: shared level-card rendering — used by the difficulty tabs AND the Classic boards set */
+  /** 9.32-f: shared level-card rendering — used by the difficulty tabs AND the Classic boards set.
+      9.33-a4: tapping a card PLAYS the level immediately (same direct path as Home Play) —
+      no start sheet in between. A 3-star card also carries a Trial chip (the sheet used to
+      be the only door to Roman's Trial). Your record rides the start toast into the board. */
   const levelCardFor = (p: Puzzle) => {
     const rec = records.levels[p.id]
     const stars = rec?.stars ?? 0
+    const trial = trialUnlocked(records, p.id)
     return (
-      <button
-        key={p.id}
-        type="button"
-        className={`level-card ${rec?.bestMs != null ? 'cleared' : ''}`}
-        data-level={p.id}
-        onClick={() => setStartSheet(p)}
-      >
-        <span className="lv-name">
-          {p.name}
-          <span className={`lv-stars s${stars}`} aria-label={`${stars} of 3 stars`}>{starString(stars)}</span>
-        </span>
-        <span className="lv-meta">
-          {p.size}×{p.size} · {THEMES[themeForPuzzle(p.id, p.difficulty)].label}
-          {rec?.bestMs != null ? ` · best ${formatMs(rec.bestMs)}` : ''}
-          {trialUnlocked(records, p.id) ? ' · ⚔ Trial' : ''}
-        </span>
-      </button>
+      <div key={p.id} className="level-card-wrap">
+        <button
+          type="button"
+          className={`level-card ${rec?.bestMs != null ? 'cleared' : ''}`}
+          data-level={p.id}
+          onClick={() => startPuzzle(p, false, { direct: true })}
+        >
+          <span className="lv-name">
+            {p.name}
+            <span className={`lv-stars s${stars}`} aria-label={`${stars} of 3 stars`}>{starString(stars)}</span>
+          </span>
+          <span className="lv-meta">
+            {p.size}×{p.size} · {THEMES[themeForPuzzle(p.id, p.difficulty)].label}
+            {rec?.bestMs != null ? ` · best ${formatMs(rec.bestMs)}` : ''}
+            {trial ? ' · ⚔ Trial' : ''}
+          </span>
+        </button>
+        {trial ? (
+          <button
+            type="button"
+            className="lv-trial-chip"
+            data-trial={p.id}
+            aria-label={`Play ${p.name} as Roman's Trial`}
+            title="Roman's Trial — 3 hearts, beat the clock, 2× coins"
+            onClick={() => startPuzzle(p, false, { mode: 'trial', direct: true })}
+          >
+            ⚔ Trial
+          </button>
+        ) : null}
+      </div>
     )
   }
 
   startPuzzleRef.current = startPuzzle
 
   const remixClearedCount = REMIX_SIZES.filter((sz) => records.levels[remixId(remixSet, sz)]?.bestMs != null).length
-  const remixCard = (() => {
-    // NEW badge for the first 24h of each 3-day set so players notice fresh boards
-    const freshMs = (REMIX_DAYS - 1) * 24 * 3600 * 1000
-    const isFresh = remixMsLeft > freshMs
-    return (
-      <section className="daily-card remix-entry" aria-label="Remix boards">
-        <div className="daily-text">
-          <strong>
-            Remix boards
-            {isFresh ? <span className="new-badge" aria-label="New boards">NEW</span> : null}
-          </strong>
-          <span>New boards every 3 days · same for everyone{remixClearedCount ? ` · ${remixClearedCount}/4 cleared` : ''}</span>
-          <span className="daily-status">Next set in {remixCountdownLabel(remixMsLeft)} · plus Endless mode</span>
-        </div>
-        <div className="remix-entry-btns">
-          <button type="button" className={`btn ${isFresh ? 'primary' : 'ghost'} daily-btn`} data-open-remix onClick={() => setScreen('remix')}>
-            Remix
-          </button>
-          <button type="button" className="btn ghost daily-btn" onClick={mixItUp} disabled={endlessBusy != null} title="A fresh Endless board at a random size">
-            {endlessBusy ? 'Making…' : '🎲 Mix it up'}
-          </button>
-        </div>
-      </section>
-    )
-  })()
-
-  const sheetTargets = startSheet ? targetsFor(startSheet) : null
-  const sheetRec = startSheet ? records.levels[startSheet.id] : undefined
-  const startSheetEl = startSheet && sheetTargets && createPortal(
-            <div className="start-sheet" role="dialog" aria-modal="true" aria-label={`${startSheet.name}: start`}>
-              <div className="start-sheet-scrim" onClick={() => setStartSheet(null)} />
-              <div className="start-sheet-card">
-                <h3>
-                  {startSheet.name} <span className="start-sheet-stars">{starString(sheetRec?.stars ?? 0)}</span>
-                </h3>
-                <p className="start-sheet-meta">{DIFFICULTY_LABEL[startSheet.difficulty]} · {startSheet.size}×{startSheet.size}</p>
-                <div className="start-sheet-bests">
-                  <div>
-                    <span>Best time</span>
-                    <strong>{sheetRec?.bestMs != null ? formatMs(sheetRec.bestMs) : '—'}</strong>
-                    {sheetRec?.bestMs != null ? <RunTag buddy={sheetRec.buddy ?? null} /> : null}
-                  </div>
-                  <div><span>Top score</span><strong>{sheetRec?.bestScore != null ? sheetRec.bestScore : '—'}</strong></div>
-                </div>
-                <ul className="start-sheet-goals">
-                  <li className={(sheetRec?.stars ?? 0) >= 1 ? 'done' : ''}>★ Finish the board</li>
-                  <li className={(sheetRec?.stars ?? 0) >= 2 ? 'done' : ''}>★★ Under {formatMs(sheetTargets.timeMs)}</li>
-                  <li className={(sheetRec?.stars ?? 0) >= 3 ? 'done' : ''}>★★★ Under {formatMs(sheetTargets.timeMs)}, {sheetTargets.score3}+ pts, no undos</li>
-                </ul>
-                <p className="start-sheet-tip">Quick good moves build a combo. Each undo costs {UNDO_COST} pts.</p>
-                <button type="button" className="btn primary" onClick={() => startPuzzle(startSheet)}>
-                  {sheetRec?.bestMs != null ? 'Play · beat your best' : 'Play'}
-                </button>
-                {trialUnlocked(records, startSheet.id) ? (
-                  <button type="button" className="btn trial-btn" onClick={() => startPuzzle(startSheet, false, { mode: 'trial' })}>
-                    ⚔ Roman's Trial
-                    <small>
-                      {TRIAL_HEARTS} hearts · no undo · {formatMs(trialTimeLimitMs(sheetTargets))} clock · 2× coins
-                      {sheetRec?.trial?.bestMs != null ? ` · best ${formatMs(sheetRec.trial.bestMs)}` : ''}
-                    </small>
-                  </button>
-                ) : (
-                  <p className="start-sheet-locked">⚔ Roman's Trial unlocks at 3 stars</p>
-                )}
-                {sheetRec?.bestMs != null ? (
-                  <button
-                    type="button"
-                    className="btn tool"
-                    data-testid="reset-best"
-                    onClick={() => {
-                      if (window.confirm(`Reset your best time on ${startSheet.name}? Your stars and top score stay.`)) {
-                        persistRecords(resetBestTime(records, startSheet.id))
-                        showToast('Best time reset. Set a new one!')
-                      }
-                    }}
-                  >
-                    Reset best time
-                  </button>
-                ) : null}
-                <button type="button" className="btn ghost" onClick={() => setStartSheet(null)}>
-                  Cancel
-                </button>
-              </div>
-            </div>,
-            document.body,
-          )
+  // NEW badge for the first 24h of each 3-day set so players notice fresh boards
+  const remixFresh = remixMsLeft > (REMIX_DAYS - 1) * 24 * 3600 * 1000
 
   // 9.32-f: stats-popup data — total daily wins + best daily time (from the daily-day records)
   const dailyWins = Object.values(records.daily.days).filter((d) => d.status === 'won').length
@@ -2794,44 +2847,65 @@ export default function App() {
     null,
   )
 
-  const dailyCard = (
-    <section className="daily-card" aria-label="Daily Challenge">
-      <div className="daily-text">
-        <strong>Daily Challenge · {dailyDateLabel}</strong>
-        <span>
-          {dailyBoard.name} · {dailyBoard.size}×{dailyBoard.size}
-        </span>
-        {/* 9.32-f: prominent streak — tap opens the stats popup (fixed overlay, no layout shift) */}
-        <button
-          type="button"
-          className="daily-streakbtn"
-          onClick={() => setShowStats(true)}
-          aria-label={`Open daily stats. ${dailyStreakNow}-day streak, best streak ${records.daily.bestStreak}.`}
-        >
-          🔥 {dailyStreakNow}-day streak · best {records.daily.bestStreak}
+  // 9.33-a7 (Tony): Daily + Remix stop leading screens as two TALL stacked
+  // cards — they share ONE compact side-by-side strip (his words: "put things
+  // side by side"). Home keeps it under the companion strip; on Levels it sits
+  // at the FOOT of the screen so the level picker always leads.
+  const promoStrip = (
+    <div className="promo-strip">
+      <section className="promo-card promo-daily" aria-label="Daily Challenge">
+        <div className="promo-text">
+          <strong>Daily · {dailyDateLabel}</strong>
+          <span>
+            {dailyBoard.name} · {dailyBoard.size}×{dailyBoard.size}
+          </span>
+          {/* 9.32-f: prominent streak — tap opens the stats popup (fixed overlay, no layout shift) */}
+          <button
+            type="button"
+            className="daily-streakbtn"
+            onClick={() => setShowStats(true)}
+            aria-label={`Open daily stats. ${dailyStreakNow}-day streak, best streak ${records.daily.bestStreak}.`}
+          >
+            🔥 {dailyStreakNow} · best {records.daily.bestStreak}
+          </button>
+          {dailyToday?.status === 'won' ? (
+            <span className="promo-status">Done today ✓ {formatMs(dailyToday.ms ?? 0)}</span>
+          ) : null}
+        </div>
+        <button type="button" className={`btn ${dailyToday ? 'ghost' : 'primary'} daily-btn`} onClick={() => startPuzzle(dailyBoard, false, { daily: true })}>
+          {dailyToday ? 'Practice' : 'Play daily'}
         </button>
-        <span className="daily-status">
-          {dailyToday?.status === 'won'
-            ? `Done today: ${formatMs(dailyToday.ms ?? 0)} · ${dailyToday.score ?? 0} pts. New board tomorrow.`
-            : dailyToday
-              ? 'First try used. Practice runs don’t score.'
-              : 'Only your first try counts. Clear it to grow your streak.'}
-        </span>
-      </div>
-      <button type="button" className={`btn ${dailyToday ? 'ghost' : 'primary'} daily-btn`} onClick={() => startPuzzle(dailyBoard, false, { daily: true })}>
-        {dailyToday ? 'Practice' : 'Play daily'}
-      </button>
-      {showStats ? (
-        <StatsPopup
-          streak={dailyStreakNow}
-          bestStreak={records.daily.bestStreak}
-          wins={dailyWins}
-          bestDailyMs={bestDailyMs}
-          formatMs={formatMs}
-          onClose={() => setShowStats(false)}
-        />
-      ) : null}
-    </section>
+        {showStats ? (
+          <StatsPopup
+            streak={dailyStreakNow}
+            bestStreak={records.daily.bestStreak}
+            wins={dailyWins}
+            bestDailyMs={bestDailyMs}
+            formatMs={formatMs}
+            onClose={() => setShowStats(false)}
+          />
+        ) : null}
+      </section>
+      <section className="promo-card promo-remix" aria-label="Remix boards">
+        <div className="promo-text">
+          <strong>
+            Remix boards
+            {remixFresh ? <span className="new-badge" aria-label="New boards">NEW</span> : null}
+          </strong>
+          <span>
+            {remixClearedCount ? `${remixClearedCount}/4 cleared · ` : ''}next set {remixCountdownLabel(remixMsLeft)}
+          </span>
+        </div>
+        <div className="promo-btns">
+          <button type="button" className={`btn ${remixFresh ? 'primary' : 'ghost'} daily-btn`} data-open-remix onClick={() => setScreen('remix')}>
+            Remix
+          </button>
+          <button type="button" className="btn ghost daily-btn" onClick={mixItUp} disabled={endlessBusy != null} title="A fresh Endless board at a random size">
+            {endlessBusy ? 'Making…' : '🎲 Mix it up'}
+          </button>
+        </div>
+      </section>
+    </div>
   )
 
   // Live ghost pace against your best (hidden until there is a best for this mode)
@@ -2844,7 +2918,17 @@ export default function App() {
   }
   const trialLeftMs = puzzle && mode === 'trial' ? Math.max(0, trialTimeLimitMs(targetsFor(puzzle)) - elapsedMs) : 0
 
-  keysRef.current = { undo, redo, hint: onHint }
+  // 9.33-a5: one Play action, shared by Home and the bottom nav — resume the draft,
+  // else the next uncleared level, else today's Daily (9.33-a3 direct start).
+  const playNext = () => {
+    if (draftPuzzle) {
+      startPuzzle(draftPuzzle, true)
+      return
+    }
+    const uncleared = PUZZLES.find((p) => !done.has(p.id))
+    if (uncleared) startPuzzle(uncleared, false, { direct: true })
+    else startPuzzle(dailyBoard, false, { daily: true, direct: true })
+  }
 
   return (
     <div
@@ -2852,6 +2936,7 @@ export default function App() {
       ref={shellRef}
       onPointerDown={unlockAudio}
     >
+      <LoreBackdrop />
       <div className="atmosphere" aria-hidden />
       <style>{MENU_CSS}</style>
       {!hideChrome && (
@@ -2867,28 +2952,22 @@ export default function App() {
             <span className="brand-mark" />
             <span className="brand-name">Roman</span>
           </button>
-          <nav className="nav">
-            <button type="button" className={screen === 'levels' ? 'on' : ''} onClick={() => setScreen('levels')}>
-              Play
-            </button>
-            <button type="button" className={screen === 'rewards' ? 'on' : ''} onClick={() => setScreen('rewards')}>
-              Rewards
-            </button>
-            <button type="button" className={`nav-stable ${screen === 'stable' ? 'on' : ''}`} onClick={() => setScreen('stable')}>
-              Stable
-            </button>
-            <button type="button" className={screen === 'challenge' ? 'on' : ''} onClick={() => setScreen('challenge')}>
-              Share
-            </button>
-            <button type="button" className={screen === 'profile' ? 'on' : ''} onClick={() => setScreen('profile')}>
-              {profile ? profile.displayName.split(' ')[0] : 'Save'}
-            </button>
-          </nav>
+          {/* 9.33-a5: the wordy top nav (it wrapped to two lines on phones) is gone —
+              brand + coins up here, navigation lives in the bottom plaque nav. */}
           <div className="hud-pills">
-            <div className="score-pill coin" title="Coins">
+            {/* 9.33-a11 (Tony): the coin amount is clickable — it opens "Your coins".
+                NOT Rewards (there is no wallet panel there); the panel explains the
+                balance and closing it lands the player right back here. */}
+            <button
+              type="button"
+              className="score-pill coin"
+              title="Your coins — how they work"
+              aria-label={`${wallet.coins} coins. Open Your coins.`}
+              onClick={() => setShowCoins(true)}
+            >
               {wallet.coins}
               <span>¢</span>
-            </div>
+            </button>
           </div>
         </header>
       )}
@@ -2908,7 +2987,7 @@ export default function App() {
               }}
             >
               <h3>What should we call you?</h3>
-              <p className="start-sheet-tip">Your name goes on the scores you share, like “{cleanPlayerName(nameDraft) || 'Sam'} scored 1,840 on Level 1”. It stays on this device. You can change it later in Save &amp; settings.</p>
+              <p className="start-sheet-tip">Your name goes on the scores you share, like “{cleanPlayerName(nameDraft) || 'Sam'} scored 1,840 on Level 1”. It stays on this device. You can change it later in More → Account.</p>
               <input
                 className="name-input"
                 type="text"
@@ -2941,45 +3020,29 @@ export default function App() {
           setShortfall(null)
           setScreen('levels')
         }}
-        onBuyCoins={onBuyCoins}
-        webPacks={webPacks}
-        purchasesUnavailable={webShop === 'unavailable'}
       />
 
       {screen === 'home' && (
-        <main className="home scroll-pane">
+        <main className="home fit-home has-atmo">
+          <Atmosphere variant="home" />
           <section className="hero no-callout">
             <p className="eyebrow">Logic puzzle</p>
             <h1 className="logo-hero no-callout" {...ownerDoor}>
               Roman
             </h1>
             <p className="lede">
-              Drop animated buddies — one per row, column, and region. They hate cuddling (even corners).
+              Drop animated Defenders — one per row, column, and region. They hate cuddling (even corners).
             </p>
-            <div className="cta-row">
-              {draftPuzzle ? (
-                <button type="button" className="btn primary" onClick={() => startPuzzle(draftPuzzle, true)}>
-                  Resume {draftPuzzle.name}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="btn primary"
-                  onClick={() => {
-                    // 9.30-n: once every level is cleared, Play opens the Levels list (it used to make endless random boards)
-                    const uncleared = PUZZLES.find((p) => !done.has(p.id))
-                    if (uncleared) startPuzzle(uncleared)
-                    else setScreen('levels')
-                  }}
-                >
-                  Play
-                </button>
-              )}
+            {/* 9.33-a5: ONE dominant action. Play/Resume takes the row; the secondaries
+                drop to a compact plate grid; Report a bug moved to More → About row. */}
+            <div className="cta-row home-cta">
+              <button type="button" className="btn primary home-play" onClick={playNext}>
+                {draftPuzzle ? `Resume ${draftPuzzle.name}` : 'Play'}
+              </button>
+            </div>
+            <div className="home-plates">
               <button type="button" className="btn ghost" onClick={() => setScreen('how')}>
                 How to play
-              </button>
-              <button type="button" className="btn ghost" onClick={() => setScreen('bug')}>
-                🐛 Report a bug
               </button>
               <CloudScoresButton suggestedName={playerName} />
               <UnseenCardTile records={records} />
@@ -3008,19 +3071,9 @@ export default function App() {
               )}
             </div>
           </section>
-          {/* 10.06: treat defense — the vulnerable field pile. Claim only on the board screen. */}
-          <section className="treat-pile-widget" aria-label="Field treat pile">
-            <span aria-hidden="true">🍖</span>
-            <span>
-              <strong>{pets.fieldTreats ?? 0}</strong> field treats
-              {Object.keys(pets.owned).length === 0 ? (
-                <small>⚠️ no defenders — your treats are in danger! <button type="button" className="linklike" onClick={() => setScreen('stable')}>Claim your FREE pet</button> to protect them</small>
-              ) : (
-                <small>wild buddies want them — play a board to claim them safe</small>
-              )}
-            </span>
-          </section>
-          <section className="home-pet-row" aria-label="Your buddy">
+          {/* 9.33-a7: Defender + field treats share ONE side-by-side strip —
+              two stacked widgets cost the height that made Home overlap. */}
+          <section className="home-companion" aria-label="Your Defender and field treats">
             <HomePet
               id={activePet(pets, petNow)}
               xp={(() => {
@@ -3038,9 +3091,20 @@ export default function App() {
               onTap={() => petGiggle()}
               onStable={() => setScreen('stable')}
             />
+            {/* 10.06: treat defense — the vulnerable field pile. Claim only on the board screen. */}
+            <div className="treat-pile-widget">
+              <span aria-hidden="true">🍖</span>
+              <span>
+                <strong>{pets.fieldTreats ?? 0}</strong> field treats
+                {Object.keys(pets.owned).length === 0 ? (
+                  <small>⚠️ no Defenders — treats in danger! <button type="button" className="linklike" onClick={() => setScreen('stable')}>Claim your FREE Defender</button></small>
+                ) : (
+                  <small>wild pets want them — play a board to claim them safe</small>
+                )}
+              </span>
+            </div>
           </section>
-          {dailyCard}
-          {remixCard}
+          {promoStrip}
           <section className="stat-strip home-strip">
             <div>
               <strong>{progress.clears.length}</strong>
@@ -3059,6 +3123,92 @@ export default function App() {
               <span>win coins</span>
             </div>
           </section>
+          <div className="home-foot">
+            <a className="home-foot-link" href="https://romansgame.com" target="_blank" rel="noopener">
+              ⊖ Visit romansgame.com
+            </a>
+            {/* 9.33-a11: the build tag lives on Home too — Tony must be able to read
+                which build he is looking at without entering a board. */}
+            <div className="home-build">{BUILD_TAG}</div>
+          </div>
+        </main>
+      )}
+
+      {screen === 'more' && (
+        <main className="panel more fit-screen has-atmo">
+          <Atmosphere variant="panel" tint="#b07fe8" />
+          <h2>More</h2>
+          <div className="more-grid">
+            <button type="button" className="more-row" onClick={() => setScreen('challenge')}>
+              <span className="more-icon" aria-hidden="true">⚔</span>
+              <span className="more-text">
+                <strong>Share &amp; challenge</strong>
+                <small>Send a board to a friend, beat their score</small>
+              </span>
+              <span className="more-go" aria-hidden="true">›</span>
+            </button>
+            <button type="button" className="more-row" onClick={() => setScreen('account')}>
+              <span className="more-icon" aria-hidden="true">✦</span>
+              <span className="more-text">
+                <strong>Account</strong>
+                <small>{profile ? `Signed in as ${profile.displayName}` : 'Save your name and progress'}</small>
+              </span>
+              <span className="more-go" aria-hidden="true">›</span>
+            </button>
+            <button type="button" className="more-row" onClick={() => setScreen('settings')}>
+              <span className="more-icon" aria-hidden="true">⚙</span>
+              <span className="more-text">
+                <strong>Settings</strong>
+                <small>Sound, voice, motion and privacy</small>
+              </span>
+              <span className="more-go" aria-hidden="true">›</span>
+            </button>
+            <button type="button" className="more-row" onClick={() => setScreen('how')}>
+              <span className="more-icon" aria-hidden="true">?</span>
+              <span className="more-text">
+                <strong>How to play</strong>
+                <small>The rules, with moving demos</small>
+              </span>
+              <span className="more-go" aria-hidden="true">›</span>
+            </button>
+            <button type="button" className="more-row" onClick={() => setScreen('about')}>
+              <span className="more-icon" aria-hidden="true">❧</span>
+              <span className="more-text">
+                <strong>About</strong>
+                <small>The Defenders, the Unseen, and the fine print</small>
+              </span>
+              <span className="more-go" aria-hidden="true">›</span>
+            </button>
+            <button type="button" className="more-row" onClick={() => setScreen('bug')}>
+              <span className="more-icon" aria-hidden="true">🐛</span>
+              <span className="more-text">
+                <strong>Report a bug</strong>
+                <small>Something broken? Tell us what happened</small>
+              </span>
+              <span className="more-go" aria-hidden="true">›</span>
+            </button>
+            <a className="more-row" href="https://facebook.com/romansgame" target="_blank" rel="noopener noreferrer">
+              <span className="more-icon" aria-hidden="true">f</span>
+              <span className="more-text">
+                <strong>Follow on Facebook</strong>
+                <small>New puzzles and challenges, fresh on our page</small>
+              </span>
+              <span className="more-go" aria-hidden="true">›</span>
+            </a>
+            <a className="more-row" href="./privacy.html">
+              <span className="more-icon" aria-hidden="true">§</span>
+              <span className="more-text">
+                <strong>Privacy</strong>
+                <small>What we count, and what we never touch</small>
+              </span>
+              <span className="more-go" aria-hidden="true">›</span>
+            </a>
+          </div>
+          <p className="more-foot">
+            <a href="https://romansgame.com" target="_blank" rel="noopener">
+              ⊖ Visit romansgame.com
+            </a>
+          </p>
         </main>
       )}
 
@@ -3088,15 +3238,17 @@ export default function App() {
       )}
 
       {screen === 'bug' && (
-        <BugReport currentScreen={screen} onBack={() => setScreen('home')} />
+        <BugReport currentScreen={screen} onBack={() => setScreen('more')} />
       )}
 
       {screen === 'levels' && (
-        <main className="panel levels scroll-pane">
+        <main className="panel levels levels-fit has-atmo">
+          <Atmosphere variant="panel" tint="#5b8cff" />
           <h2>Levels</h2>
-          <p className="sub">Beat your best time and score on any board. ★ finish · ★★ beat the target time · ★★★ target time, a high score and no undos. 3 stars unlocks Roman's Trial.</p>
-          {dailyCard}
-          {remixCard}
+          <p className="sub">Beat your best time and score on any board. ★ finish · ★★ beat the target time · ★★★ target time, a high score and a clean board. 3 stars unlocks Roman's Trial.</p>
+          {/* 9.33-a7 (Tony): the picker LEADS the screen — difficulty tabs and
+              the level grid are the screen's one function; Daily + Remix ride
+              in the compact strip at the foot, never ahead of the picker. */}
           <div className="level-tabs" role="tablist" aria-label="Difficulty">
             {(['easy', 'medium', 'hard', 'expert'] as const).map((diff) => (
               <button
@@ -3141,13 +3293,14 @@ export default function App() {
               {byDiff[levelTab].map((p) => levelCardFor(p))}
             </div>
           </section>
-          {startSheetEl}
+          {promoStrip}
         </main>
       )}
 
       {screen === 'play' && puzzle && (
-        <main className={`play play-fixed ${runPetRef.current ? 'has-hud-pet' : ''} ${THEMES[puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)].className}`}>
+        <main className={`play play-fixed has-atmo ${runPetRef.current ? 'has-hud-pet' : ''} ${THEMES[puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)].className}`}>
           <ThemeBackdrop themeId={puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)} />
+          <Atmosphere variant="play" tint={brand ? DEFENDER_THEME[brand].accent : undefined} />
           <div className="play-hud">
             <button type="button" className="hud-back" onClick={() => setScreen(parseRemixId(puzzle.id) || endlessRef.current ? 'remix' : 'levels')} aria-label="Back">
               ←
@@ -3237,7 +3390,7 @@ export default function App() {
                   <ul>
                     <li className={have >= 1 ? 'done' : ''}>★ Finish</li>
                     <li className={have >= 2 ? 'done' : ''}>★★ Under {formatMs(tg.timeMs)}</li>
-                    <li className={have >= 3 ? 'done' : ''}>★★★ {tg.score3}+ pts, no undo</li>
+                    <li className={have >= 3 ? 'done' : ''}>★★★ {tg.score3}+ pts, no mistakes</li>
                   </ul>
                   <p className="hud-goal-best">
                     Best {best?.bestMs != null ? formatMs(best.bestMs) : '—'} · {best?.bestScore != null ? `${best.bestScore} pts` : '—'}
@@ -3259,7 +3412,46 @@ export default function App() {
             )
           })()}
 
-          <div className="board-stage">
+          {/* 9.33-a8: banner + stage travel as ONE column in the wide grid (.board-col in
+              App.css). Upright layouts give the wrapper display:contents, so phones see
+              the banner and the stage as direct flex children of .play-fixed, as before. */}
+          <div className="board-col">
+          {brand &&
+            (() => {
+              const def = petById(brand)!
+              const theme = DEFENDER_THEME[brand]
+              const owned = hasPet(pets, brand, petNow)
+              const calls = callsFor(pets, brand)
+              const awake = owned && calls > 0
+              return (
+                <div
+                  className={`brand-banner ${awake ? '' : 'is-asleep'}`}
+                  data-brand={brand}
+                  role="note"
+                  style={{ '--brand-accent': theme.accent, '--brand-deep': theme.deep } as CSSProperties}
+                >
+                  <PetArt id={brand} size={36} locked={!owned} />
+                  <strong>{def.name.toUpperCase()} BOARD</strong>
+                  {awake ? (
+                    <span>
+                      {calls} call{calls === 1 ? '' : 's'} left · {theme.job}
+                      {brand === 'leo' && leoShield ? ' Shield ready.' : ''}
+                    </span>
+                  ) : (
+                    <span>
+                      {owned
+                        ? `${def.name} has no calls left — stock up in The Stable.`
+                        : `Your ${def.species.toLowerCase()} sleeps. ${def.name} is waiting in The Stable.`}
+                    </span>
+                  )}
+                </div>
+              )
+            })()}
+
+          <div
+            className={`board-stage ${brand ? `is-branded brand-${brand}` : ''} ${chargeFx ? 'is-charging' : ''}`}
+            style={brand ? ({ '--brand-deep': DEFENDER_THEME[brand].deep } as CSSProperties) : undefined}
+          >
             <Board
               puzzle={puzzle}
               cells={cells}
@@ -3267,6 +3459,12 @@ export default function App() {
               getCells={getLiveCells}
               version={boardVersion}
               hintIndex={hintIndex}
+              litIndices={noxLit}
+              featherIndices={featherCells}
+              rouletteIndex={rouletteIdx}
+              chargeRow={chargeRow}
+              chargeFx={chargeFx}
+              pawIndices={pawCells}
               giggleIndex={giggleIndex}
               celebrate={celebrate}
               defeated={defeated}
@@ -3274,35 +3472,11 @@ export default function App() {
               themeId={puzzle.theme ?? themeForPuzzle(puzzle.id, puzzle.difficulty)}
             />
           </div>
+          </div>
 
 
           <div className="play-side">
           <div className="toolbar play-toolbar">
-            <TapButton className="btn tool" onTap={undo} disabled={!history.length || celebrate || defeated || mode === 'trial'}>
-              {mode === 'trial' ? 'No undo' : 'Undo'}
-              <kbd className="kbd" aria-hidden="true">Z</kbd>
-            </TapButton>
-            <TapButton className="btn tool" onTap={redo} disabled={!future.length || celebrate || defeated || mode === 'trial'}>
-              Redo
-              <kbd className="kbd" aria-hidden="true">Y</kbd>
-            </TapButton>
-            <button type="button" className="btn tool" onClick={onHint} disabled={celebrate || defeated}>
-              <span className="tool-label">Hint</span>
-              <span className="tool-cost">
-                {petFree.hints + wallet.freeHints > 0 ? `${petFree.hints + wallet.freeHints} free` : String(hintPrice(hintsUsed))}
-              </span>
-              <kbd className="kbd" aria-hidden="true">H</kbd>
-            </button>
-            <button
-              type="button"
-              className="btn tool"
-              onClick={onRescue}
-              disabled={celebrate || defeated}
-              title={`Clear a misplaced buddy · ${rescuePrice(rescuesUsed)} coins`}
-            >
-              <span className="tool-label">Rescue</span>
-              <span className="tool-cost">{petFree.rescues > 0 ? `${petFree.rescues} free` : rescuePrice(rescuesUsed)}</span>
-            </button>
             <button type="button" className="btn tool" onClick={resetBoard}>
               Reset
             </button>
@@ -3313,13 +3487,13 @@ export default function App() {
             const def = rp ? petById(rp) : undefined
             if (!rp || !def) {
               return (
-                <div className="buddy-spot is-solo" data-buddy-spot="solo">
+                <button type="button" className="buddy-spot is-solo" data-buddy-spot="solo" onClick={() => setScreen('stable')} title="Pick a Defender in The Stable">
                   <span className="buddy-spot-ring" aria-hidden="true">
                     <span className="buddy-spot-face" />
                   </span>
                   <strong>Solo run</strong>
-                  <small>No buddy this board. Pick one in The Stable.</small>
-                </div>
+                  <small>No Defender this board. Pick one in The Stable.</small>
+                </button>
               )
             }
             const lv = levelInfo(petXp(pets, rp)).level
@@ -3335,6 +3509,8 @@ export default function App() {
               </div>
             )
           })()}
+          {/* 9.33-a: the Defender column — calls left at a glance, tap to open The Stable */}
+          <DefenderRail pets={pets} now={petNow} brand={brand} leoShield={leoShield} onOpenStable={() => setScreen('stable')} />
           </div>
           <p className="build-tag" data-build={BUILD_TAG}>{BUILD_TAG}</p>
 
@@ -3485,11 +3661,14 @@ export default function App() {
             formatMs={formatMs}
             starString={starString}
             onOpenBoard={openRemix}
+            onTrial={(size) => {
+              const p = liveRemix[size]
+              if (p) startPuzzle(p, false, { mode: 'trial', direct: true })
+            }}
             endless={endless}
             endlessBusy={endlessBusy}
             onEndless={startEndless}
           />
-          {startSheetEl}
         </>
       )}
 
@@ -3501,6 +3680,7 @@ export default function App() {
           onBuy={onAdoptPet}
           onClaimFree={onClaimFreePet}
           onBuyBundle={onBuyBundle}
+          onBuyCalls={onBuyCalls}
           onCare={onCarePet}
           onFeed={onFeedPet}
           onSwapTreats={handleSwapTreats}
@@ -3509,6 +3689,7 @@ export default function App() {
           onPeek={onPeekGift}
           onRedeem={onRedeemGift}
           onShop={() => setScreen('rewards')}
+          onCoins={() => setShowCoins(true)}
           onBack={() => setScreen('home')}
           giftCode={giftPrefill}
           giftsOnline={!isStoreBuild()}
@@ -3516,7 +3697,8 @@ export default function App() {
       )}
 
       {screen === 'rewards' && (
-        <main className="panel scroll-pane">
+        <main className="panel rewards fit-screen has-atmo">
+          <Atmosphere variant="panel" tint="#ffb52e" />
           <h2>Rewards</h2>
           <p className="sub">
             Unlock badges by playing, then spend coins to rank them up forever — each rank boosts coins on every win.
@@ -3529,13 +3711,12 @@ export default function App() {
             </span>
             <span>
               <strong>The Stable</strong>
-              <small>Adopt a buddy with coins. Each one has a perk.</small>
+              <small>Adopt a Defender with coins. Each one guards its own boards.</small>
             </span>
             <span aria-hidden="true">›</span>
           </button>
           <div className="stat-strip wallet-strip">
             <div><strong>{wallet.coins}</strong><span>coins</span></div>
-            <div><strong>{wallet.freeHints}</strong><span>free hints</span></div>
             <div><strong>{wallet.shields}</strong><span>shields</span></div>
             <div><strong>{wallet.spins}</strong><span>spins</span></div>
             <div><strong>{wallet.bonusHearts ?? 0}</strong><span>bonus hearts</span></div>
@@ -3567,58 +3748,6 @@ export default function App() {
           >
             {wallet.spins > 0 ? `Use a spin (${wallet.spins})` : 'Catch 5 sparks for a spin (1 a day)'}
           </button>
-
-          {SHOP_ENABLED && (<>
-          <h3 className="ach-title">Coin shop</h3>
-          <p className="sub shop-note">
-            {isStoreBuild()
-              ? 'Prices come from the App Store / Google Play. Coins spend on hints, rescues, revives, and badge ranks.'
-              : webShop === 'unavailable'
-                ? 'Purchases are unavailable right now. You can still win coins by playing.'
-                : webShop === 'ready'
-                  ? 'Prices are in US dollars. Coins are added in this browser after you pay. You can still win coins by playing.'
-                  : 'Loading the coin shop.'}
-          </p>
-          <div className="coin-shop">
-            {isStoreBuild()
-              ? COIN_PACKS.map((pack) => (
-                  <CoinPackCard
-                    key={pack.id}
-                    pack={pack}
-                    onBuy={onBuyCoins}
-                    priceText={storePrices[pack.productId]}
-                  />
-                ))
-              : webShop === 'ready' && webPacks
-                ? webPacks.map((pack) => (
-                    <CoinPackCard
-                      key={pack.id}
-                      webBuy
-                      pack={{
-                        id: pack.id,
-                        productId: pack.productId,
-                        label: pack.label,
-                        coins: pack.coins,
-                        priceHint: pack.priceLabel,
-                      }}
-                      priceText={pack.priceLabel}
-                      onBuy={onBuyCoins}
-                    />
-                  ))
-                : null}
-          </div>
-          {isStoreBuild() && (
-            <>
-              <button type="button" className="btn ghost" onClick={() => void onRestorePurchases()}>
-                Restore unfinished purchases
-              </button>
-              <p className="sub restore-note">
-                Coin packs are consumable. A finished purchase is not restored. This only adds a payment
-                that was charged but not yet turned into coins.
-              </p>
-            </>
-          )}
-          </>)}
 
           <h3 className="ach-title">Badges · rank up</h3>
           <div className="ach-grid badge-grid">
@@ -3654,203 +3783,319 @@ export default function App() {
         </main>
       )}
 
-      {screen === 'profile' && (
-        <main className="panel profile scroll-pane">
-          <h2>Save & settings</h2>
+      {screen === 'account' && (
+        <main className="panel account fit-screen has-atmo">
+          <Atmosphere variant="panel" tint="#4f9dff" />
+          <h2>Account</h2>
           {profile ? (
-            <div className="profile-card">
-              <p className="profile-name">{profile.displayName}</p>
-              <p className="profile-email">{profile.email}</p>
-              <button
-                type="button"
-                className="btn ghost"
-                onClick={() => {
-                  signOutKeepDevice()
-                  setProfile(null)
-                  setProgress(getProgress())
-                }}
-              >
-                Sign out
-              </button>
-            </div>
+          <div className="profile-card">
+          <p className="profile-name">{profile.displayName}</p>
+          <p className="profile-email">{profile.email}</p>
+          <button
+          type="button"
+          className="btn ghost"
+          onClick={() => {
+          signOutKeepDevice()
+          setProfile(null)
+          setProgress(getProgress())
+          }}
+          >
+          Sign out
+          </button>
+          </div>
           ) : (
-            <form className="auth-form" onSubmit={handleSignIn}>
-              <label>
-                Email
-                <input type="email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} required />
-              </label>
-              <label>
-                Display name
-                <input type="text" value={nameInput} onChange={(e) => setNameInput(e.target.value)} />
-              </label>
-              <button type="submit" className="btn primary">Save with email</button>
-            </form>
+          <form className="auth-form" onSubmit={handleSignIn}>
+          <label>
+          Email
+          <input type="email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} required />
+          </label>
+          <label>
+          Display name
+          <input type="text" value={nameInput} onChange={(e) => setNameInput(e.target.value)} />
+          </label>
+          <button type="submit" className="btn primary">Save with email</button>
+          </form>
           )}
-          <section className="settings">
-            <h3>Settings</h3>
+          <section className="account-name">
             <label className="name-setting">
-              Your name on shared scores
-              <input
-                type="text"
-                value={settings.playerName ?? ''}
-                maxLength={PLAYER_NAME_MAX}
-                placeholder="Blank = “I scored…”"
-                aria-label="Your name on shared scores"
-                onChange={(e) => saveSettingsPatch({ playerName: e.target.value.slice(0, PLAYER_NAME_MAX), namePrompted: true })}
-                onBlur={(e) => saveSettingsPatch({ playerName: cleanPlayerName(e.target.value) })}
-              />
-            </label>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={settings.sound}
-                onChange={(e) => {
-                  const next = { ...settings, sound: e.target.checked }
-                  setSettings(next)
-                  saveSettings(next)
-                  setMuted(!next.sound)
-                }}
-              />
-              Sound effects
-            </label>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={settings.voice}
-                onChange={(e) => {
-                  const next = { ...settings, voice: e.target.checked }
-                  setSettings(next)
-                  saveSettings(next)
-                  setVoiceEnabled(next.voice)
-                }}
-              />
-              Voice comments
-            </label>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={settings.voiceTips !== false}
-                onChange={(e) => saveSettingsPatch({ voiceTips: e.target.checked })}
-              />
-              Voice tips
-            </label>
-            <div className="heard-card" data-testid="heard-card">
-              <div className="heard-head">
-                Voice lines heard: <strong data-testid="heard-count">{heardInfo.heard} of {heardInfo.total}</strong>
-              </div>
-              <div className="heard-bar" aria-hidden>
-                <span style={{ width: `${heardInfo.total ? Math.round((heardInfo.heard / heardInfo.total) * 100) : 0}%` }} />
-              </div>
-              <ul className="heard-voices">
-                {heardInfo.voices.map((v) => (
-                  <li key={v.name}>
-                    {v.name}: {v.heard} of {v.total}
-                  </li>
-                ))}
-              </ul>
-              <button
-                type="button"
-                className="btn ghost heard-reset"
-                onClick={() => {
-                  if (window.confirm('Reset the voice lines heard counter? Every line counts as new again.')) {
-                    heardLog.reset()
-                    setHeardTick((n) => n + 1)
-                  }
-                }}
-              >
-                Reset heard lines
-              </button>
-            </div>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={settings.parade !== false}
-                onChange={(e) => saveSettingsPatch({ parade: e.target.checked })}
-              />
-              Buddy Parade (every 5-7 wins)
-            </label>
-            <div className="privacy-note" data-testid="privacy-note">
-              <strong>What we count</strong>
-              <p>{PRIVACY_NOTE}</p>
-              <label className="toggle">
-                <input type="checkbox" data-testid="analytics-toggle" checked={settings.analytics !== false} onChange={(e) => saveSettingsPatch({ analytics: e.target.checked })} />
-                Share anonymous play counts
-              </label>
-            </div>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={settings.reduceMotion}
-                onChange={(e) => {
-                  const next = { ...settings, reduceMotion: e.target.checked }
-                  setSettings(next)
-                  saveSettings(next)
-                }}
-              />
-              Reduce motion
+            Your name on shared scores
+            <input
+            type="text"
+            value={settings.playerName ?? ''}
+            maxLength={PLAYER_NAME_MAX}
+            placeholder="Blank = “I scored…”"
+            aria-label="Your name on shared scores"
+            onChange={(e) => saveSettingsPatch({ playerName: e.target.value.slice(0, PLAYER_NAME_MAX), namePrompted: true })}
+            onBlur={(e) => saveSettingsPatch({ playerName: cleanPlayerName(e.target.value) })}
+            />
             </label>
           </section>
-          <section className="follow-section" aria-label="Follow Roman's Game">
-            <h3>Follow Roman&rsquo;s Game</h3>
-            <p>New puzzles, remix boards, and challenges — fresh on our page.</p>
-            <a
-              className="btn primary fb-btn"
-              href="https://facebook.com/romansgame"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                <path
-                  fill="currentColor"
-                  d="M13.5 21v-7h2.4l.4-3h-2.8V9.1c0-.9.3-1.5 1.6-1.5h1.3V4.9c-.3 0-1.1-.1-2-.1-2 0-3.4 1.2-3.4 3.5V11H8.5v3H11v7h2.5z"
-                />
-              </svg>
-              Follow on Facebook
-            </a>
-          </section>
+          {/* 9.33-a12 (Tony's phone): Backup, Share & challenge and Follow moved to
+              their own "Backup & sharing" screen — the Account stack was ~170px
+              taller than the visible band on a 320px-wide phone and its bottom
+              rows slid under the nav. Account keeps identity only; the row below
+              leads to the rest, and that screen's Back returns here exactly. */}
+          <button type="button" className="more-row account-tools-row" onClick={() => setScreen('accountTools')}>
+            <span className="more-icon" aria-hidden="true">💾</span>
+            <span className="more-text">
+              <strong>Backup &amp; sharing</strong>
+              <small>Save or restore your game, share &amp; challenge, follow us</small>
+            </span>
+            <span className="more-go" aria-hidden="true">›</span>
+          </button>
+        </main>
+      )}
+
+      {screen === 'accountTools' && (
+        <main className="panel account-tools fit-screen has-atmo">
+          <Atmosphere variant="panel" tint="#4f9dff" />
+          <button type="button" className="btn ghost tools-back" onClick={() => setScreen('account')}>
+            ← Account
+          </button>
+          <h2>Backup &amp; sharing</h2>
           <section className="backup">
-            <h3>Backup</h3>
-            <div className="cta-row">
-              <button
-                type="button"
-                className="btn ghost"
-                onClick={() => {
-                  const blob = new Blob([exportSaveJson()], { type: 'application/json' })
-                  const a = document.createElement('a')
-                  a.href = URL.createObjectURL(blob)
-                  a.download = 'roman-save.json'
-                  a.click()
-                }}
-              >
-                Export
-              </button>
-              <label className="btn ghost file-btn">
-                Import
-                <input
-                  type="file"
-                  accept="application/json"
-                  hidden
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0]
-                    if (!file) return
-                    if (importSaveJson(await file.text())) {
-                      setProfile(loadProfile())
-                      setProgress(getProgress())
-                      setSettings(loadSettings())
-                      setWallet(loadWallet())
-                      setChallenges(loadChallenges())
-                      showToast('Imported')
-                    }
-                  }}
-                />
-              </label>
-            </div>
+          <h3>Backup</h3>
+          <div className="cta-row">
+          <button
+          type="button"
+          className="btn ghost"
+          onClick={() => {
+          const blob = new Blob([exportSaveJson()], { type: 'application/json' })
+          const a = document.createElement('a')
+          a.href = URL.createObjectURL(blob)
+          a.download = 'roman-save.json'
+          a.click()
+          }}
+          >
+          Export
+          </button>
+          <label className="btn ghost file-btn">
+          Import
+          <input
+          type="file"
+          accept="application/json"
+          hidden
+          onChange={async (e) => {
+          const file = e.target.files?.[0]
+          if (!file) return
+          if (importSaveJson(await file.text())) {
+          setProfile(loadProfile())
+          setProgress(getProgress())
+          setSettings(loadSettings())
+          setWallet(loadWallet())
+          setChallenges(loadChallenges())
+          showToast('Imported')
+          }
+          }}
+          />
+          </label>
+          </div>
           </section>
+          <button type="button" className="more-row account-share" onClick={() => setScreen('challenge')}>
+            <span className="more-icon" aria-hidden="true">⚔</span>
+            <span className="more-text">
+              <strong>Share &amp; challenge</strong>
+              <small>Your scores, head-to-head with friends</small>
+            </span>
+            <span className="more-go" aria-hidden="true">›</span>
+          </button>
+          <section className="follow-section" aria-label="Follow Roman's Game">
+          <h3>Follow Roman&rsquo;s Game</h3>
+          <p>New puzzles, remix boards, and challenges — fresh on our page.</p>
+          <a
+          className="btn primary fb-btn"
+          href="https://facebook.com/romansgame"
+          target="_blank"
+          rel="noopener noreferrer"
+          >
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <path
+          fill="currentColor"
+          d="M13.5 21v-7h2.4l.4-3h-2.8V9.1c0-.9.3-1.5 1.6-1.5h1.3V4.9c-.3 0-1.1-.1-2-.1-2 0-3.4 1.2-3.4 3.5V11H8.5v3H11v7h2.5z"
+          />
+          </svg>
+          Follow on Facebook
+          </a>
+          </section>
+        </main>
+      )}
+
+      {screen === 'settings' && (
+        <main className="panel settings-screen fit-screen has-atmo">
+          <Atmosphere variant="panel" tint="#7fb2d9" />
+          <h2>Settings</h2>
+          <div className="seg-tabs" role="tablist" aria-label="Settings sections">
+            <button type="button" role="tab" aria-selected={settingsTab === 'sound'} className={`seg-tab ${settingsTab === 'sound' ? 'on' : ''}`} onClick={() => { setSettingsTab('sound'); setShowPrivacyNote(false) }}>
+              Sound &amp; voice
+            </button>
+            <button type="button" role="tab" aria-selected={settingsTab === 'play'} className={`seg-tab ${settingsTab === 'play' ? 'on' : ''}`} onClick={() => setSettingsTab('play')}>
+              Play &amp; privacy
+            </button>
+          </div>
+          {showPrivacyNote ? (
+          <section className="settings settings-note" data-testid="privacy-note">
+            <button type="button" className="btn ghost settings-back" onClick={() => setShowPrivacyNote(false)}>
+              ← Back to settings
+            </button>
+            <h3>What we count</h3>
+            <p>{PRIVACY_NOTE}</p>
+          </section>
+          ) : (
+          <section className="settings">
+            {settingsTab === 'sound' ? (<>
+          <label className="toggle">
+          <input
+          type="checkbox"
+          checked={settings.sound}
+          onChange={(e) => {
+          const next = { ...settings, sound: e.target.checked }
+          setSettings(next)
+          saveSettings(next)
+          setMuted(!next.sound)
+          }}
+          />
+          Sound effects
+          </label>
+          <label className="toggle">
+          <input
+          type="checkbox"
+          checked={settings.voice}
+          onChange={(e) => {
+          const next = { ...settings, voice: e.target.checked }
+          setSettings(next)
+          saveSettings(next)
+          setVoiceEnabled(next.voice)
+          }}
+          />
+          Voice comments
+          </label>
+          <label className="toggle">
+          <input
+          type="checkbox"
+          checked={settings.voiceTips !== false}
+          onChange={(e) => saveSettingsPatch({ voiceTips: e.target.checked })}
+          />
+          Voice tips
+          </label>
+          <div className="heard-card" data-testid="heard-card">
+          <div className="heard-head">
+          Voice lines heard: <strong data-testid="heard-count">{heardInfo.heard} of {heardInfo.total}</strong>
+          </div>
+          <div className="heard-bar" aria-hidden>
+          <span style={{ width: `${heardInfo.total ? Math.round((heardInfo.heard / heardInfo.total) * 100) : 0}%` }} />
+          </div>
+          <ul className="heard-voices">
+          {heardInfo.voices.map((v) => (
+          <li key={v.name}>
+          {v.name}: {v.heard} of {v.total}
+          </li>
+          ))}
+          </ul>
+          <button
+          type="button"
+          className="btn ghost heard-reset"
+          onClick={() => {
+          if (window.confirm('Reset the voice lines heard counter? Every line counts as new again.')) {
+          heardLog.reset()
+          setHeardTick((n) => n + 1)
+          }
+          }}
+          >
+          Reset heard lines
+          </button>
+          </div>
+            </>) : (<>
+          <label className="toggle">
+          <input
+          type="checkbox"
+          checked={settings.parade !== false}
+          onChange={(e) => saveSettingsPatch({ parade: e.target.checked })}
+          />
+          Buddy Parade (every 5-7 wins)
+          </label>
+          <button type="button" className="settings-linkrow" onClick={() => setShowPrivacyNote(true)}>
+            <strong>What we count</strong>
+            <span aria-hidden="true">›</span>
+          </button>
+          <label className="toggle">
+          <input type="checkbox" data-testid="analytics-toggle" checked={settings.analytics !== false} onChange={(e) => saveSettingsPatch({ analytics: e.target.checked })} />
+          Share anonymous play counts
+          </label>
+          <label className="toggle">
+          <input
+          type="checkbox"
+          checked={settings.reduceMotion}
+          onChange={(e) => {
+          const next = { ...settings, reduceMotion: e.target.checked }
+          setSettings(next)
+          saveSettings(next)
+          }}
+          />
+          Reduce motion
+          </label>
+            </>)}
+          </section>
+          )}
+        </main>
+      )}
+
+      {screen === 'about' && (
+        <main className="panel about fit-screen has-atmo">
+          <Atmosphere variant="panel" tint="#c084fc" />
+          <h2>About</h2>
+          <div className="seg-tabs" role="tablist" aria-label="About sections">
+            <button type="button" role="tab" aria-selected={aboutTab === 'story'} className={`seg-tab ${aboutTab === 'story' ? 'on' : ''}`} onClick={() => setAboutTab('story')}>
+              The Defenders
+            </button>
+            <button type="button" role="tab" aria-selected={aboutTab === 'feedback'} className={`seg-tab ${aboutTab === 'feedback' ? 'on' : ''}`} onClick={() => setAboutTab('feedback')}>
+              Feedback &amp; links
+            </button>
+          </div>
+          {aboutTab === 'story' ? (
           <section className="about-section" aria-label="About Roman's Game">
-            <h3>About</h3>
+            {(!shortScreen || aboutPage === 0) && (
+            <>
             <p className="about-line">
               Roman&rsquo;s Game <span className="build-tag">{BUILD_TAG}</span>
             </p>
+            <p className="about-line">
+              Place one buddy in every row, column and coloured region — no two touching, not even at a corner.
+              Some boards wear a Defender&rsquo;s colours: if you hold calls for that Defender, they step in and help, once.
+              Calls are bought in The Stable with coins you win. Coins only — no real money, ever.
+            </p>
+            </>
+            )}
+            {(!shortScreen || aboutPage === 1) && (
+            <div className="about-defenders">
+              {PETS.map((p) => (
+                <div key={p.id} className="about-defender">
+                  <PetArt id={p.id} size={40} />
+                  <p>
+                    <strong>{p.name}</strong> — {DEFENDER_THEME[p.id].job}
+                  </p>
+                </div>
+              ))}
+            </div>
+            )}
+            {(!shortScreen || aboutPage === 0) && (
+            <p className="about-line">
+              And something watches from the smoke. The Unseen never helps and cannot be bought — he just mocks.
+            </p>
+            )}
+            {shortScreen && (
+              <div className="how-rules-pager about-pager">
+                <button type="button" className="btn ghost" disabled={aboutPage === 0} onClick={() => setAboutPage(0)}>
+                  ‹ Back
+                </button>
+                <span>{aboutPage === 0 ? 'The story · 1 of 2' : 'The Defenders · 2 of 2'}</span>
+                <button type="button" className="btn ghost" disabled={aboutPage === 1} onClick={() => setAboutPage(1)}>
+                  Defenders ›
+                </button>
+              </div>
+            )}
+          </section>
+          ) : (
+          <section className="about-section" aria-label="Feedback and links">
             <p className="about-line">
               {!isStoreBuild() && settings.analytics !== false ? <FeedbackChip onSend={sendFeedback} /> : null}
               <a className="about-link" href="./privacy.html">
@@ -3861,11 +4106,16 @@ export default function App() {
               </a>
             </p>
           </section>
+          )}
+          <button type="button" className="btn ghost" onClick={() => setScreen('home')}>
+            ← Home
+          </button>
         </main>
       )}
 
       {screen === 'challenge' && (
-        <main className="panel challenge scroll-pane">
+        <main className="panel challenge fit-screen has-atmo">
+          <Atmosphere variant="panel" tint="#ff5d73" />
           <h2>Share &amp; challenge</h2>
           <p className="sub">
             Share your best time. Friends open the link, play the same board, then send a head-to-head score back.
@@ -3936,33 +4186,39 @@ export default function App() {
               {linkBoardError ? <p className="link-board-error">{linkBoardError}</p> : null}
             </div>
           )}
-          <label>
-            Board
-            <select
-              value={puzzle?.id ?? PUZZLES[0].id}
-              onChange={(e) => {
-                const p = getPuzzle(e.target.value)
-                if (p) setPuzzle(p)
-              }}
-            >
-              {PUZZLES.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({DIFFICULTY_LABEL[p.difficulty]})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Friend email (optional)
-            <input type="email" value={challengeEmail} onChange={(e) => setChallengeEmail(e.target.value)} />
-          </label>
-          <label>
-            Message
-            <input type="text" value={challengeMsg} onChange={(e) => setChallengeMsg(e.target.value)} maxLength={120} />
-          </label>
-          <button type="button" className="btn primary" onClick={handleCreateChallenge}>
-            Make score challenge link
-          </button>
+          {/* 9.33-a7: making the link is a STEP — once the link exists, the
+              share box replaces the form instead of stacking past the lock. */}
+          {!shareLink && (
+            <>
+              <label>
+                Board
+                <select
+                  value={puzzle?.id ?? PUZZLES[0].id}
+                  onChange={(e) => {
+                    const p = getPuzzle(e.target.value)
+                    if (p) setPuzzle(p)
+                  }}
+                >
+                  {PUZZLES.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({DIFFICULTY_LABEL[p.difficulty]})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Friend email (optional)
+                <input type="email" value={challengeEmail} onChange={(e) => setChallengeEmail(e.target.value)} />
+              </label>
+              <label>
+                Message
+                <input type="text" value={challengeMsg} onChange={(e) => setChallengeMsg(e.target.value)} maxLength={120} />
+              </label>
+              <button type="button" className="btn primary" onClick={handleCreateChallenge}>
+                Make score challenge link
+              </button>
+            </>
+          )}
           {shareLink && (
             <div className="share-box">
               <code>{shareLink}</code>
@@ -3972,13 +4228,17 @@ export default function App() {
                 emailHref={challengeMailHref(shareLink)}
                 onCopied={() => showToast('Copied')}
               />
+              <button type="button" className="btn ghost" onClick={() => setShareLink('')}>
+                Make another link
+              </button>
             </div>
           )}
         </main>
       )}
 
       {screen === 'duel' && duel && (
-        <main className="panel challenge scroll-pane">
+        <main className="panel challenge fit-screen has-atmo">
+          <Atmosphere variant="panel" tint="#ff5d73" />
           <h2>Head-to-head</h2>
           <p className="sub">
             {boardLabel(duel)} — both scores on the same board. Share so your friend sees the matchup too.
@@ -4042,6 +4302,37 @@ export default function App() {
         </main>
       )}
 
+      {/* 9.33-a5: bottom plaque nav — one line on every phone and every PC.
+          Play starts a board immediately (same action as Home's Play). */}
+      {!hideChrome && (
+        <nav className="bottom-nav" aria-label="Main">
+          <button type="button" className="bottom-nav-item" onClick={playNext}>
+            <span className="bottom-nav-icon" aria-hidden="true">▶</span>
+            <span>Play</span>
+          </button>
+          <button type="button" className={`bottom-nav-item ${screen === 'levels' || screen === 'remix' ? 'on' : ''}`} onClick={() => setScreen('levels')}>
+            <span className="bottom-nav-icon" aria-hidden="true">▤</span>
+            <span>Levels</span>
+          </button>
+          <button type="button" className={`bottom-nav-item nav-stable ${screen === 'stable' ? 'on' : ''}`} onClick={() => setScreen('stable')}>
+            <span className="bottom-nav-icon" aria-hidden="true">♞</span>
+            <span>Stable</span>
+          </button>
+          <button type="button" className={`bottom-nav-item ${screen === 'rewards' ? 'on' : ''}`} onClick={() => setScreen('rewards')}>
+            <span className="bottom-nav-icon" aria-hidden="true">★</span>
+            <span>Rewards</span>
+          </button>
+          <button
+            type="button"
+            className={`bottom-nav-item ${['more', 'account', 'accountTools', 'settings', 'about', 'how', 'bug', 'challenge', 'duel'].includes(screen) ? 'on' : ''}`}
+            onClick={() => setScreen('more')}
+          >
+            <span className="bottom-nav-icon" aria-hidden="true">☰</span>
+            <span>More</span>
+          </button>
+        </nav>
+      )}
+
       <PrizeWheel
         open={showWheel}
         spinsLeft={wallet.spins}
@@ -4050,9 +4341,58 @@ export default function App() {
         onClose={() => setShowWheel(false)}
       />
 
+      {/* 9.33-a11 (Tony): "Your coins" — the coin balance's own panel. Opened by tapping
+          any coin pill (topbar, Stable). It is an OVERLAY: the screen underneath never
+          unmounts, so the Back button returns the player to exactly where they were
+          (same screen, same tab, same Defender detail). Copy verified against
+          src/game/dailyEconomy.ts + pets.ts, Nov 8 2026. */}
+      {showCoins && (
+        <div className="coins-overlay" role="dialog" aria-modal="true" aria-label="Your coins">
+          <div className="coins-scrim" onClick={() => setShowCoins(false)} />
+          <div className="coins-panel">
+            <div className="coins-head">
+              <h3>Your coins</h3>
+              <button type="button" className="coins-close" onClick={() => setShowCoins(false)} aria-label="Back to where you were">
+                ← Back
+              </button>
+            </div>
+            <p className="coins-balance">
+              <b>{wallet.coins}</b> <span>¢</span>
+            </p>
+            <section className="coins-sec">
+              <h4>Earn them</h4>
+              <ul>
+                <li>Win boards. The first 5 wins each day pay in full — after that, wins pay a bit less until tomorrow.</li>
+                <li>Beat your best on a board: new bests pay bonus coins. Replays pay for improving, not for repeating.</li>
+                <li>Catch spark critters, join the parade, hunt with your Defender — and swap spare snacks for coins in the Stable.</li>
+              </ul>
+            </section>
+            <section className="coins-sec">
+              <h4>Spend them</h4>
+              <ul>
+                <li>Adopt Defenders in the Stable — bundles there save coins over adopting one by one.</li>
+                <li>Top up a Defender&rsquo;s calls and feed them in the Stable.</li>
+                <li>Hints and rescues while you play, and ranking up your badges in Rewards.</li>
+              </ul>
+            </section>
+            <button
+              type="button"
+              className="btn primary coins-stable-btn"
+              onClick={() => {
+                setShowCoins(false)
+                setScreen('stable')
+              }}
+            >
+              Go to the Stable
+            </button>
+            <p className="coins-note">Coins are earned by playing and spent inside the game. They are never sold.</p>
+          </div>
+        </div>
+      )}
+
       {/* Footer bar removed 2026-10-22 (Tony): it was eating screen space on every menu screen.
-          Its contents live in Save & settings now — Sound effects toggle in Settings, and the
-          version, thumbs, Privacy and JRNY credit in the About section at the bottom. */}
+          Sound effects toggle lives in Settings; version, thumbs, Privacy and JRNY credit live
+          on the About screen (Home → About). 9.33-a4: About moved out of Save & settings. */}
       {/* Keep clear of Netlify “Powered by” badge */}
       <div className="netlify-safe" aria-hidden />
       {/* 10.06: Unseen heckler pop-up — visual only, never blocks input */}

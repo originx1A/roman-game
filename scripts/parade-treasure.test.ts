@@ -66,9 +66,9 @@ test('buddy of the day rotates through owned buddies, wraps, and handles none / 
   assert.deepEqual(seen.slice(5), [...all])
 })
 
-test('perk kinds: hint buddies and guests give a free hint, the others double coins', () => {
-  assert.equal(dayKindFor('aquila'), 'hint')
-  assert.equal(dayKindFor('nox'), 'hint')
+test('perk kinds: every Defender gives double coins (9.33-a: no free-hint days)', () => {
+  assert.equal(dayKindFor('aquila'), 'coins')
+  assert.equal(dayKindFor('nox'), 'coins')
   assert.equal(dayKindFor(null), 'hint')
   assert.equal(dayKindFor('lupa'), 'coins')
   assert.equal(dayKindFor('invictus'), 'coins')
