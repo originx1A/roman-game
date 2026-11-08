@@ -1,0 +1,241 @@
+{
+  "at": "2026-11-08T00:06:26.809Z",
+  "seam": "stubbed fetch (romansgame.com auth API + Supabase + Turnstile all local)",
+  "checks": [
+    {
+      "name": "chooser opens first",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "chooser heading is Save your scores",
+      "ok": true,
+      "detail": "Save your scores"
+    },
+    {
+      "name": "chooser options: Sign in / Create account / email code / Not now",
+      "ok": true,
+      "detail": "[\"Sign in\",\"Create account\",\"Sign in with an email code\",\"Not now\"]"
+    },
+    {
+      "name": "chooser has NO form fields",
+      "ok": true,
+      "detail": "inputs=0"
+    },
+    {
+      "name": "footer link: \"Visit romansgame.com\", visible on the chooser",
+      "ok": true,
+      "detail": "{\"text\":\"Visit romansgame.com\",\"href\":\"https://romansgame.com/\",\"target\":\"_blank\",\"rel\":\"noopener\",\"visible\":true}"
+    },
+    {
+      "name": "sign-in screen replaces chooser",
+      "ok": true,
+      "detail": "Sign in"
+    },
+    {
+      "name": "sign-in: name + password fields, NO checkboxes, NO email field",
+      "ok": true,
+      "detail": "{\"heading\":\"Sign in\",\"checkboxes\":0,\"pw\":1,\"texts\":1}"
+    },
+    {
+      "name": "wrong password -> the website’s own error copy",
+      "ok": true,
+      "detail": "That name and password didn't match. Try again, or reset your password."
+    },
+    {
+      "name": "wrong password reached the signin endpoint once",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "the sheet stayed open on the failure",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "right password -> box closes and you are in (Tony’s model)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "signin payload: name + password + stay_signed_in true",
+      "ok": true,
+      "detail": "{\"name\":\"StubHero\",\"password\":\"correct-horse-9\",\"stay_signed_in\":true}"
+    },
+    {
+      "name": "signed-in button opens the account sheet",
+      "ok": true,
+      "detail": "Scores are saving"
+    },
+    {
+      "name": "forgot sheet opens from sign-in",
+      "ok": true,
+      "detail": "Forgot your password?"
+    },
+    {
+      "name": "forgot without the person check asks for it first (fail closed)",
+      "ok": true,
+      "detail": "One more step: finish the person check below, then tap Email me a reset code again."
+    },
+    {
+      "name": "forgot start sent (202 path) with the captcha token",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "reset sheet opens for the code",
+      "ok": true,
+      "detail": "Enter your reset code"
+    },
+    {
+      "name": "wrong reset code (no token yet) asks for the person check",
+      "ok": true,
+      "detail": "One more step: finish the person check below, then tap Check the code again."
+    },
+    {
+      "name": "wrong reset code -> code_invalid copy from the API",
+      "ok": true,
+      "detail": "That code didn't work."
+    },
+    {
+      "name": "right reset code (no token yet) asks for the person check",
+      "ok": true,
+      "detail": "One more step: finish the person check below, then tap Check the code again."
+    },
+    {
+      "name": "right reset code -> new-password step",
+      "ok": true,
+      "detail": "Choose a new password"
+    },
+    {
+      "name": "finish payload: grant token + chosen account + new password",
+      "ok": true,
+      "detail": "{\"reset_token\":\"GRANT-TOKEN-123456\",\"user_id\":\"11111111-1111-4111-8111-111111111111\",\"new_password\":\"brand-new-pass-7\",\"stay_signed_in\":true,\"captchaToken\":\"stub-turnstile-token\"}"
+    },
+    {
+      "name": "after the reset the player is signed in (box closed)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "account sheet offers Add a recovery email to password accounts",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "email-add posted with the typed address",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "back on the account sheet with the confirm note",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "create screen: name + password + confirm + the 3 consent questions",
+      "ok": true,
+      "detail": "{\"heading\":\"Create your account\",\"pw\":2,\"checkboxes\":[\"I'm 13 or older\",\"I agree to the Terms and Priva\",\"Get Roman's World News: the st\"]}"
+    },
+    {
+      "name": "create without the person check -> asked, and NOTHING was posted",
+      "ok": true,
+      "detail": "One more step: finish the person check below, then tap Create my account again."
+    },
+    {
+      "name": "signup payload: server age record + terms + captcha + stay",
+      "ok": true,
+      "detail": "{\"name\":\"NewHero\",\"password\":\"a-strong-pass-1\",\"age_choice\":\"13_plus\",\"terms_accepted\":true,\"marketing_opt_in\":false,\"stay_signed_in\":true,\"captchaToken\":\"stub-turnstile-token\"}"
+    },
+    {
+      "name": "after create, the box closes and you are in (server already holds the name + age record)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "the new account sheet shows the leaderboard name the server wrote (first name of the sign-in name)",
+      "ok": true,
+      "detail": "Scores are saving"
+    },
+    {
+      "name": "email-code sheet (the bootstrap door)",
+      "ok": true,
+      "detail": "Sign in with an email code"
+    },
+    {
+      "name": "code sheet opens",
+      "ok": true,
+      "detail": "Check your email"
+    },
+    {
+      "name": "code sign-in lands a named player on the account sheet",
+      "ok": true,
+      "detail": "Scores are saving"
+    },
+    {
+      "name": "account sheet offers the claim to a code account",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "claim sheet opens",
+      "ok": true,
+      "detail": "Give your account a name + password"
+    },
+    {
+      "name": "claim without the person check -> asked first",
+      "ok": true,
+      "detail": "One more step: finish the person check below, then tap Claim my account again."
+    },
+    {
+      "name": "dual account -> the server’s stop message, no third account",
+      "ok": true,
+      "detail": "Stub: this email already has a website account — write to support."
+    },
+    {
+      "name": "claim payload: name + password + server age + terms",
+      "ok": true,
+      "detail": "{\"name\":\"HeroClaim\",\"password\":\"claim-pass-123\",\"age_choice\":\"13_plus\",\"terms_accepted\":true,\"marketing_opt_in\":false,\"stay_signed_in\":true,\"captchaToken\":\"stub-turnstile-token\"}"
+    },
+    {
+      "name": "claim done -> back on the account sheet with the done note",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "the claim button is gone after claiming",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "sign-in name survived the round trip to create and back",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "the shared email survived too",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Not now closes the box",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "new create screen fits 390x664: submit reachable",
+      "ok": true,
+      "detail": "{\"submitVisibleAfterScroll\":true}"
+    },
+    {
+      "name": "KEYBOARD: the new create screen’s password field stays visible above the keyboard",
+      "ok": true,
+      "detail": "{\"field\":\"Password\",\"top\":170,\"bottom\":213,\"visibleHeight\":400,\"fieldVisible\":true}"
+    },
+    {
+      "name": "KEYBOARD: the sign-in password field stays visible too",
+      "ok": true,
+      "detail": "{\"top\":155,\"bottom\":198,\"fieldVisible\":true}"
+    }
+  ]
+}

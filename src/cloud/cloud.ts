@@ -2,9 +2,14 @@ import { gaEvent } from '../game/analytics'
 /**
  * Player accounts + score saving (Supabase, project romans-game).
  *
- * - Sign-in: email magic link, or the code from that same email (no passwords). The session
- *   lives in localStorage, but the player row and every score live on the server, so a cache clear
- *   only means "sign in again". The code is {{ .Token }} in the Magic Link email; Tony adds that.
+ * - Sign-in: player name + password, through the same /api/auth/* service the
+ *   romansgame.com website uses (Tony 2026-11-07: one model everywhere — name +
+ *   password is the key, email is for recovery only). The API hands back a real
+ *   Supabase session pair, which lands on the lazy client with setSession, so
+ *   everything downstream (player row, scores, the Unseen card) is unchanged.
+ * - The old email-code door (magic link / code) stays alive ONLY as the claim
+ *   bootstrap: an existing game player signs in by code once, then gives the
+ *   account a name + password (POST /api/auth/claim) and uses that from then on.
  * - Scores: queued locally first, then sent. Offline / Supabase down / not signed in = they wait
  *   in the queue (max 200) and flush on sign-in, on `online`, and after each new game.
  * - supabase-js is loaded lazily, so the game never waits on it and works fully without it.
@@ -40,6 +45,14 @@ export interface CloudState {
   publicName?: string
   pending: number
   lastSync?: string
+  /**
+   * Account shape, from the shared door (session probe): 'password' = the account
+   * has its name+password door (it has a profiles row, or it was born on the new
+   * door); 'code' = a game-born email-code account that has not claimed yet;
+   * undefined = unknown (probe failed / signed out) — the UI then offers the
+   * claim as an option rather than asserting it is needed.
+   */
+  authKind?: 'password' | 'code'
 }
 
 const QUEUE_KEY = 'rg.cloud.queue.v1'
@@ -177,6 +190,33 @@ async function loadPlayer(sb: SupabaseClient, session: Session | null) {
   if (error) return set({ status: 'signed-in', email: session.user.email, name: state.name ?? null })
   set({ status: 'signed-in', email: session.user.email, name: data?.display_name ?? null, publicName: data?.public_name })
   if (data) void flushScores().then(() => syncCard())
+  void probeAuthKind(session)
+}
+
+/**
+ * Which door does this account have? A website-born (or claimed) account signs
+ * in with name + password; its login address is synthetic. A game-born account
+ * still carries its real email and no password. Asked once per session change
+ * via the shared door's session probe (it answers for profiles-row accounts);
+ * no answer + a real-email auth address reads as a code account; no answer +
+ * a synthetic address reads as a password account. Never blocks anything.
+ */
+let probedFor: string | null = null
+async function probeAuthKind(session: Session): Promise<void> {
+  const uid = session.user.id
+  if (probedFor === uid) return
+  probedFor = uid
+  const synthetic = (session.user.email ?? '').endsWith('@players.romansgame.invalid')
+  try {
+    const { status } = await authPost('/api/auth/session', {}, session.access_token)
+    if (status === 200) {
+      if (state.authKind !== 'password') set({ authKind: 'password' })
+      return
+    }
+  } catch {
+    /* fall through to the address shape */
+  }
+  set({ authKind: synthetic ? 'password' : 'code' })
 }
 
 /** Call once at startup. Never throws, never blocks. */
@@ -194,6 +234,355 @@ export async function initCloud(): Promise<void> {
   } catch {
     set({ status: 'off' })
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* The shared name+password door: romansgame.com /api/auth/*           */
+/*                                                                     */
+/* Absolute URLs on purpose: this site's own /api/* is the game's      */
+/* checkout functions, never auth. Sessions arrive as a token pair     */
+/* in the JSON body and land on the supabase-js client via setSession  */
+/* — the website's own trick (applyNameSession in its accounts.js).    */
+/* ------------------------------------------------------------------ */
+
+export const AUTH_BASE = 'https://romansgame.com'
+
+export interface AuthAccount {
+  userId: string
+  /** The public display name (group-name safe), as the API returns it. */
+  displayName: string
+  /** The full chosen name the player signs in with. '' when server-generated. */
+  playerName: string
+}
+
+export interface AuthResult {
+  ok: boolean
+  error?: string
+  account?: AuthAccount
+  /** The API demands the person check (Turnstile) before it will proceed. */
+  captchaNeeded?: boolean
+  /** Another account-scope fact the UI must phrase itself (e.g. dual account). */
+  code?: string
+  /** Signup only: a recovery/parent email is waiting for its confirm tap. */
+  emailPending?: boolean
+}
+
+interface AuthApiBody {
+  user_id?: string
+  display_name?: string
+  player_name?: string
+  error?: string
+  message?: string
+  hint?: string
+  session?: { access_token: string; refresh_token: string }
+  recovery_email_pending?: boolean
+  parent_email_pending?: boolean
+  reset_token?: string
+  accounts?: { user_id: string; player_name: string; role: string }[]
+}
+
+async function authPost(path: string, payload: Record<string, unknown>, bearer?: string): Promise<{ status: number; data: AuthApiBody | null }> {
+  try {
+    const r = await fetch(`${AUTH_BASE}${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json', ...(bearer ? { authorization: `Bearer ${bearer}` } : {}) },
+      body: JSON.stringify(payload),
+    })
+    return { status: r.status, data: (await r.json().catch(() => null)) as AuthApiBody | null }
+  } catch {
+    return { status: 0, data: null }
+  }
+}
+
+/** Error copy mirrors the website's own wording (auth-client.js nameAuthError). */
+export function authErrorMessage(status: number, data: AuthApiBody | null, isSignUp: boolean): string {
+  if (!status) return "Couldn't reach the account service. Check your connection and try again. Your progress is still on this device."
+  const code = data?.error ? String(data.error) : ''
+  const hint = data?.hint ? String(data.hint) : ''
+  const message = data?.message ? String(data.message) : ''
+  if (status >= 500 || code === 'unavailable') return 'The account service is unavailable right now. Try again in a moment. Your progress is still on this device.'
+  if (status === 429 || code === 'rate_limited') return message || 'Too many tries. Wait a minute and try again.'
+  if (code === 'age_required') return "Choose who this account is for. If it is for you, tick I'm 13 or older. If it is for a child, leave it unticked and put a grown-up's email in."
+  if (code === 'age_locked') return 'This account already has an age saved. Sign in instead of creating it again.'
+  if (code === 'weak_password') return hint ? `Pick a stronger password. ${hint}` : "Pick a stronger password. Use 10 or more characters, and don't use your name or a very common password."
+  if (code === 'bad_recovery_email') return "That recovery email doesn't look right. Check it, or leave it empty if this account is for you."
+  if (code === 'name_rejected') return "That name can't be used. Pick another one."
+  if (code === 'name_taken') return 'That player name is taken. Pick another one.'
+  if (code === 'email_taken') return 'That email is already on an account. Sign in with it, or use a different email.'
+  if (code === 'terms_required') return 'Please accept the Terms and Privacy Policy.'
+  if (code === 'turnstile_required') return 'Finish the person check, then try again.'
+  if (code === 'captcha_failed') return "The person check didn't go through. Wait for it to finish, then try again."
+  if (code === 'invalid_credentials') return "That name and password didn't match. Try again, or reset your password."
+  if (code === 'code_invalid') return message || "That code didn't work. You can try again, or use the button in the email."
+  if (code === 'session_expired') return 'That sign-in expired. Sign in again.'
+  if (status === 422) return 'Check the name, password, email, and age, then try again.'
+  return isSignUp ? "Couldn't make the account just now. Try again in a moment." : "Couldn't sign you in just now. Try again in a moment."
+}
+
+function authFailure(status: number, data: AuthApiBody | null, isSignUp: boolean): AuthResult {
+  const code = data?.error ? String(data.error) : ''
+  return {
+    ok: false,
+    code,
+    captchaNeeded: code === 'turnstile_required' || code === 'captcha_failed',
+    error: authErrorMessage(status, data, isSignUp),
+  }
+}
+
+/** Land an API session pair on the game client; loadPlayer then runs off the session. */
+async function adoptApiSession(data: AuthApiBody): Promise<AuthResult> {
+  const sb = await client()
+  if (!sb || !data.session) return { ok: false, error: "You're offline. Try again when you're connected." }
+  const { error } = await sb.auth.setSession({ access_token: data.session.access_token, refresh_token: data.session.refresh_token })
+  if (error) return { ok: false, error: "Couldn't finish signing in. Try again." }
+  return {
+    ok: true,
+    account: { userId: String(data.user_id ?? ''), displayName: String(data.display_name ?? ''), playerName: String(data.player_name ?? '') },
+  }
+}
+
+/** Sign in with player name + password (the shared door). stay_signed_in: true
+ * matches the game's always-persistent sessions. captchaToken only on a retry
+ * after the API asks for the person check (it never asks on a first try). */
+export async function signInWithPassword(name: string, password: string, captchaToken?: string): Promise<AuthResult> {
+  const payload: Record<string, unknown> = { name: name.trim(), password, stay_signed_in: true }
+  if (captchaToken) payload.captchaToken = captchaToken
+  const { status, data } = await authPost('/api/auth/signin', payload)
+  if (status === 200 && data?.session) return adoptApiSession(data)
+  return authFailure(status, data, false)
+}
+
+export interface CreateInput {
+  name: string
+  password: string
+  age13: boolean
+  terms: boolean
+  /** 13+: optional recovery email. Under 13: the grown-up's email (required by the API). */
+  email?: string
+  optIn: boolean
+  captchaToken?: string
+}
+
+/**
+ * Create an account on the shared door. The age answer becomes the server's
+ * locked record (age_choice), never just a device note: 13+ ticks map to
+ * '13_plus'; unticked maps to 'under_13' and the API then requires the
+ * grown-up email in `email`. The person check is mandatory for signup — with
+ * no token the API refuses (turnstile_required) and nothing is created.
+ */
+export async function createAccount(input: CreateInput): Promise<AuthResult> {
+  const payload: Record<string, unknown> = {
+    name: input.name.trim(),
+    password: input.password,
+    age_choice: input.age13 ? '13_plus' : 'under_13',
+    terms_accepted: input.terms,
+    marketing_opt_in: input.optIn,
+    stay_signed_in: true,
+  }
+  if (input.email?.trim()) payload.email = input.email.trim()
+  if (input.captchaToken) payload.captchaToken = input.captchaToken
+  const { status, data } = await authPost('/api/auth/signup', payload)
+  if (status === 201 && data?.session) {
+    const r = await adoptApiSession(data)
+    if (r.ok) r.emailPending = !!(data.recovery_email_pending || data.parent_email_pending)
+    return r
+  }
+  return authFailure(status, data, true)
+}
+
+/* ------------------------- Turnstile (person check) ------------------------- */
+
+let turnstileApiP: Promise<any> | null = null
+function loadTurnstileApi(): Promise<any> {
+  if (!turnstileApiP) {
+    turnstileApiP = new Promise((resolve, reject) => {
+      const w = window as any
+      if (w.turnstile) return resolve(w.turnstile)
+      const s = document.createElement('script')
+      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
+      s.async = true
+      s.onload = () => resolve((window as any).turnstile)
+      s.onerror = () => reject(new Error('turnstile load failed'))
+      document.head.appendChild(s)
+    }).catch((e) => {
+      turnstileApiP = null
+      throw e
+    })
+  }
+  return turnstileApiP
+}
+
+/** The production site key, from the same public config the website reads. */
+export async function authSiteKey(): Promise<string | null> {
+  try {
+    const r = await fetch(`${AUTH_BASE}/api/auth/config`, { headers: { accept: 'application/json' } })
+    if (!r.ok) return null
+    const data = (await r.json().catch(() => null)) as { turnstileSiteKey?: string } | null
+    return data?.turnstileSiteKey ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Render the person check into `container` and resolve with its token.
+ * Resolves null when the widget cannot run here (script blocked, or this
+ * origin is not on the site key's Cloudflare hostname list — the dashboard
+ * item flagged in Phase 0). Callers must fail closed on null, exactly as
+ * the website does: no token, no signup.
+ */
+export async function renderTurnstile(container: HTMLElement): Promise<string | null> {
+  try {
+    const key = await authSiteKey()
+    if (!key) return null
+    const ts = await loadTurnstileApi()
+    if (!ts) return null
+    return await new Promise<string | null>((resolve) => {
+      let settled = false
+      const done = (v: string | null) => {
+        if (!settled) {
+          settled = true
+          resolve(v)
+        }
+      }
+      const id = ts.render(container, {
+        sitekey: key,
+        callback: (token: string) => done(token),
+        'error-callback': () => done(null),
+        'expired-callback': () => done(null),
+      })
+      window.setTimeout(() => {
+        if (!settled) {
+          try {
+            ts.remove(id)
+          } catch {
+            /* widget already gone */
+          }
+          done(null)
+        }
+      }, 30_000)
+    })
+  } catch {
+    return null
+  }
+}
+
+/* ------------------------- The claim (Phase 2) ------------------------- */
+
+export interface ClaimInput {
+  name: string
+  password: string
+  age13: boolean
+  terms: boolean
+  optIn: boolean
+  captchaToken?: string
+}
+
+/**
+ * Give an existing email-code account its name + password (POST /api/auth/claim,
+ * bearer = the live code session). The server writes the name directory row,
+ * sets the password, swaps the login email to the synthetic address, and files
+ * the real email as the verified recovery address — same user ID throughout,
+ * so scores, the card and the leaderboard name carry by construction.
+ * 'dual_account' comes back as a code so the UI can show the support path.
+ */
+export async function claimAccount(input: ClaimInput): Promise<AuthResult> {
+  const sb = await client()
+  if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
+  const { data } = await sb.auth.getSession()
+  const token = data.session?.access_token
+  if (!token) return { ok: false, error: 'Please sign in first.' }
+  const payload: Record<string, unknown> = {
+    name: input.name.trim(),
+    password: input.password,
+    age_choice: input.age13 ? '13_plus' : 'under_13',
+    terms_accepted: input.terms,
+    marketing_opt_in: input.optIn,
+    stay_signed_in: true,
+  }
+  if (input.captchaToken) payload.captchaToken = input.captchaToken
+  const { status, data: res } = await authPost('/api/auth/claim', payload, token)
+  if (status === 200 && res) {
+    return {
+      ok: true,
+      account: { userId: String(res.user_id ?? data.session?.user.id ?? ''), displayName: String(res.display_name ?? ''), playerName: String(res.player_name ?? input.name.trim()) },
+    }
+  }
+  const failure = authFailure(status, res, true)
+  // The dual-account stop carries its own plain-words explanation from the server.
+  if (failure.code === 'dual_account' && res?.message) failure.error = String(res.message)
+  return failure
+}
+
+/* ------------------------- Recovery (Phase 3) ------------------------- */
+
+/** Forgot step 1: email a reset code + link to the account's recovery address.
+ * The API answers the same whether or not it sent (anti-enumeration). */
+export async function recoverStart(email: string, captchaToken?: string): Promise<AuthResult> {
+  const payload: Record<string, unknown> = { email: email.trim() }
+  if (captchaToken) payload.captchaToken = captchaToken
+  const { status, data } = await authPost('/api/auth/recover/lost/start', payload)
+  if (status === 202) return { ok: true }
+  return authFailure(status, data, false)
+}
+
+export interface ResetGrant {
+  token: string
+  accounts: { userId: string; playerName: string; role: string }[]
+}
+
+/** Forgot step 2: the code from the email becomes a one-time reset grant. */
+export async function recoverCode(email: string, code: string, captchaToken?: string): Promise<{ ok: boolean; error?: string; captchaNeeded?: boolean; grant?: ResetGrant }> {
+  const payload: Record<string, unknown> = { email: email.trim(), code: code.trim() }
+  if (captchaToken) payload.captchaToken = captchaToken
+  const { status, data } = await authPost('/api/auth/recover/lost/code', payload)
+  if (status === 200 && data?.reset_token) {
+    return {
+      ok: true,
+      grant: {
+        token: String(data.reset_token),
+        accounts: (data.accounts ?? []).map((a) => ({ userId: String(a.user_id), playerName: String(a.player_name ?? ''), role: String(a.role ?? 'account') })),
+      },
+    }
+  }
+  const f = authFailure(status, data, false)
+  return { ok: false, error: f.error, captchaNeeded: f.captchaNeeded }
+}
+
+/** Forgot step 3: set the new password with the grant; the API signs the
+ * player straight back in (its reply carries a fresh session pair). */
+export async function recoverFinish(grant: ResetGrant, userId: string, newPassword: string, captchaToken?: string): Promise<AuthResult> {
+  const payload: Record<string, unknown> = { reset_token: grant.token, user_id: userId, new_password: newPassword, stay_signed_in: true }
+  if (captchaToken) payload.captchaToken = captchaToken
+  const { status, data } = await authPost('/api/auth/recover/lost/finish', payload)
+  if (status === 200 && data?.session) return adoptApiSession(data)
+  return authFailure(status, data, false)
+}
+
+/** Add a recovery email to the signed-in account (the confirm code/link the
+ * API mails completes it). Refused server-side when one is already verified. */
+export async function addRecoveryEmail(email: string): Promise<AuthResult> {
+  const sb = await client()
+  if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
+  const { data: sess } = await sb.auth.getSession()
+  const token = sess.session?.access_token
+  if (!token) return { ok: false, error: 'Please sign in first.' }
+  const { status, data } = await authPost('/api/auth/email-add', { email: email.trim() }, token)
+  if (status === 200 || status === 202) return { ok: true }
+  return authFailure(status, data, false)
+}
+
+/** Sign out through the shared door too (best effort), then the local sign-out. */
+export async function signOutEverywhere(): Promise<void> {
+  try {
+    const sb = await client()
+    const { data } = (await sb?.auth.getSession()) ?? { data: { session: null } }
+    const token = data.session?.access_token
+    if (token) await authPost('/api/auth/signout', {}, token)
+  } catch {
+    /* the local sign-out below is the one that matters on this device */
+  }
+  await signOut()
 }
 
 export async function sendMagicLink(email: string): Promise<{ ok: boolean; error?: string }> {
@@ -251,7 +640,8 @@ export async function signOut(): Promise<void> {
   // local scope: only this device; this player's unsent scores stay queued under their id
   await sb?.auth.signOut({ scope: 'local' }).catch(() => undefined)
   queueOwner = null
-  set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined })
+  probedFor = null
+  set({ status: 'signed-out', email: undefined, name: undefined, publicName: undefined, authKind: undefined })
 }
 
 /** Queue a finished game and try to send everything queued. Safe to call offline. */

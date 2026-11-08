@@ -6376,6 +6376,9 @@ html[data-motion='reduce'] .td-invader {
 .cloud-check input { width: 1.15rem; height: 1.15rem; flex-shrink: 0; margin-top: 0.12rem; accent-color: #f5c84c; }
 .cloud-check a { color: #ffd166; font-weight: 800; text-underline-offset: 0.12em; }
 .cloud-switch { font-size: 0.8rem; padding: 0.35rem 0.75rem; min-height: 0; opacity: 0.9; }
+.cloud-captcha { display: grid; gap: 0.35rem; justify-items: center; margin-top: 0.6rem; }
+.cloud-field-label { margin: 0.55rem 0 0.15rem; font-size: 0.82rem; font-weight: 700; opacity: 0.9; text-align: left; }
+.cloud-note { margin: 0.25rem 0 0; color: #b8e6a0; font-size: 0.85rem; font-weight: 600; }
 
 /* 9.32-d: exclusive Unseen card, back while locked, flips to the animated front when earned */
 .unseen-card { position: relative; width: 44px; aspect-ratio: 2 / 3; flex: none; perspective: 900px; }
