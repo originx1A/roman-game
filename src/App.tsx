@@ -2998,6 +2998,11 @@ export default function App() {
               <span>win coins</span>
             </div>
           </section>
+          <div className="home-foot">
+            <a className="home-foot-link" href="https://romansgame.com" target="_blank" rel="noopener">
+              ⊖ Visit romansgame.com
+            </a>
+          </div>
         </main>
       )}
 
@@ -3071,6 +3076,11 @@ export default function App() {
               <span className="more-go" aria-hidden="true">›</span>
             </a>
           </div>
+          <p className="more-foot">
+            <a href="https://romansgame.com" target="_blank" rel="noopener">
+              ⊖ Visit romansgame.com
+            </a>
+          </p>
         </main>
       )}
 

@@ -8149,3 +8149,137 @@ html[data-motion='reduce'] .home-play { animation: none; }
 @media (prefers-reduced-motion: reduce) {
   .brand-banner, .home-play { animation: none; }
 }
+
+/* ================= 9.33-a10 — SHORT-VIEWPORT FIT + DE-CROWD =================
+   Tony's real iPhone webview (Muse app) gives the game a much shorter stage
+   than a full-height phone browser, and renders type larger — the a9 stacks
+   fit headless 390x844 but clipped on his phone (Home promo row behind the
+   bottom nav; the Defender tray pushed off the board screen). a10 makes the
+   stacks HEIGHT-AWARE: below 760px the big pieces compress in tiers, the
+   board is capped by the height that is actually left (not width alone),
+   and crowded sections get bigger targets + roomier type instead of being
+   miniaturised. Tall screens keep the a9 look untouched. */
+
+/* ---------- HOME: compression tiers + the romansgame.com foot link ---------- */
+.home-foot { flex: 0 0 auto; text-align: center; line-height: 1; }
+.home-foot-link {
+  font-size: 0.82rem; font-weight: 600; color: #cdb271; text-decoration: none;
+  border-bottom: 1px dotted rgba(205, 178, 113, 0.55); padding: 0.1rem 0.25rem;
+}
+.more-foot { flex: 0 0 auto; text-align: center; margin: 0; line-height: 1.2; }
+.more-foot a {
+  font-size: 0.82rem; font-weight: 600; color: #cdb271; text-decoration: none;
+  border-bottom: 1px dotted rgba(205, 178, 113, 0.55); padding: 0.1rem 0.25rem;
+}
+.result-site-link {
+  display: block; margin-top: 0.65rem; text-align: center;
+  font-size: 0.82rem; font-weight: 600; color: #cdb271; text-decoration: none;
+}
+@media (max-height: 760px) {
+  .fit-home { gap: 0.45rem; padding-top: 0.45rem; padding-bottom: 0.4rem; }
+  .fit-home .hero { padding: 0.55rem 0.7rem 0.6rem; gap: 0.45rem; }
+  .fit-home .logo-hero { font-size: clamp(2.5rem, 11dvh, 3.4rem); }
+  .home-play { padding: 0.6rem 1rem; font-size: 1.16rem; }
+  .home-plates .btn { padding: 0.5rem 0.4rem; }
+  .home-companion { padding: 0.45rem 0.6rem; }
+  .promo-strip { gap: 0.45rem; }
+  .promo-card { padding: 0.46rem 0.55rem; }
+  /* the Remix blurb wraps to a second line instead of truncating mid-word */
+  .promo-text > span { white-space: normal; }
+  .promo-card .daily-streakbtn { white-space: nowrap; font-size: 0.66rem; }
+  .fit-home .stat-strip { padding-top: 0.38rem; padding-bottom: 0.38rem; }
+}
+@media (max-height: 640px) {
+  .fit-home { gap: 0.3rem; padding-bottom: 0.25rem; }
+  .fit-home .hero { padding: 0.34rem 0.6rem 0.42rem; gap: 0.33rem; }
+  .fit-home .logo-hero { font-size: clamp(1.85rem, 10dvh, 2.9rem); }
+  .home-play { padding: 0.48rem 1rem; font-size: 1.08rem; }
+  .home-plates .btn { padding: 0.4rem 0.35rem; font-size: 0.86rem; }
+  .home-companion { padding: 0.3rem 0.55rem; }
+  .promo-card { padding: 0.4rem 0.5rem; }
+  .promo-btns .btn { padding: 0.34rem 0.5rem; }
+  .fit-home .stat-strip b, .fit-home .stat-strip strong { font-size: 0.98rem; }
+}
+
+/* ---------- BOARD: height-aware cap (phone portrait) ----------
+   The board used to be sized by width alone (~359px at 390 wide). At short
+   heights the fixed stack around it (HUD + caption + banner + Reset + tray)
+   needs ~280px, so the tray fell off the bottom. The cap below reserves
+   that stack out of the REAL shell height: the board shrinks only when
+   height is the tight dimension, and every short height keeps ~50px of
+   slack under the tray. Width still rules on tall screens (a3 uniformity:
+   at any given height every board size gets the same square). */
+@media (max-height: 720px) {
+  html[data-device='phone'][data-layout='upright'] .play-fixed {
+    gap: 0.3rem; padding-top: 0.35rem; padding-bottom: 0.3rem;
+  }
+  html[data-device='phone'][data-layout='upright'] .play-fixed .board {
+    width: min(100%, max(15rem, calc(var(--app-height, 100svh) - 19.5rem))) !important;
+    max-height: min(100%, max(15rem, calc(var(--app-height, 100svh) - 19.5rem))) !important;
+  }
+  html[data-device='phone'][data-layout='upright'] .play-caption {
+    min-height: 1.85rem; max-height: 1.85rem; margin-top: 0.1rem; margin-bottom: 0.1rem;
+  }
+  html[data-device='phone'][data-layout='upright'] .brand-banner {
+    margin-bottom: 0.3rem; padding-top: 0.3rem; padding-bottom: 0.3rem;
+  }
+  html[data-device='phone'][data-layout='upright'] .defender-rail { margin-top: 0.35rem; }
+}
+/* mode line + banner copy: fit the words instead of ellipsising them */
+@media (max-width: 430px) {
+  .hud-title { flex: 1 1 auto; min-width: 0; }
+  .hud-title span { font-size: 0.63rem; letter-spacing: 0.01em; }
+  .brand-banner .banner-line { font-size: 0.79rem; line-height: 1.25; }
+  .defender-plate .def-name { font-size: 0.64rem; }
+}
+
+/* ---------- LEVELS: all seven cards on screen, tabs at a readable size ---------- */
+@media (max-width: 699px) {
+  /* every difficulty has 5-6 boards; implicit rows take the same 1fr share
+     as the five templated ones, so the 6th card gets a full row instead of
+     spilling past the grid (a9 behaviour on Medium/Hard/Expert) */
+  .levels-fit .level-grid { grid-auto-rows: minmax(0, 1fr); }
+  .levels-fit .level-card { align-content: center; padding: 0.4rem 0.75rem; gap: 0.05rem; }
+  .levels-fit .level-card strong { font-size: 0.98rem; }
+}
+@media (max-height: 760px) {
+  .level-tab { font-size: 0.84rem; }
+  /* the Daily/Remix strip also lives on Home — at very short heights it
+     steps aside on Levels so all seven boards stay visible whole */
+}
+@media (max-height: 620px) {
+  .levels-fit .promo-strip { display: none; }
+}
+
+/* ---------- STABLE: de-crowd — bigger targets, wrapping label, airier rows ---------- */
+.stable-tab, .how-tab { min-height: 44px; }
+.stable .stable-now .btn { min-height: 42px; }
+/* the "Solo: no Defender on your runs" label wraps instead of truncating */
+.stable .stable-now > span { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.2; }
+.stable-pick { padding-top: 0.55rem; padding-bottom: 0.55rem; }
+.stable-pick-name { font-size: 0.97rem; }
+.stable-pick-perk { font-size: 0.73rem; }
+@media (max-height: 700px) {
+  .stable-tab, .how-tab { min-height: 44px; }
+  .stable-pick { padding-top: 0.46rem; padding-bottom: 0.46rem; }
+  .stable .stable-head h2 { font-size: 1.32rem; }
+}
+
+/* ---------- MORE: rows breathe a little tighter so all eight + the site
+   link fit at short heights (targets stay 48px+) ---------- */
+@media (max-height: 760px) {
+  .more .more-list { gap: 0.42rem; }
+  .more-row { padding: 0.34rem 0.75rem; }
+  .more-row small { font-size: 0.72rem; }
+}
+
+/* ---------- REWARDS: wallet labels + badge titles up a step ---------- */
+.rewards .wallet-strip span { font-size: 0.7rem; }
+.rewards .badge-card strong { font-size: 0.83rem; letter-spacing: 0; }
+.rewards .econ-card { font-size: 0.82rem; line-height: 1.4; }
+@media (min-height: 721px) {
+  .rewards .badge-card .product-value { font-size: 0.74rem; }
+}
+
+/* ---------- CHALLENGE: share buttons to a comfortable tap height ---------- */
+.challenge .btn { min-height: 40px; }
