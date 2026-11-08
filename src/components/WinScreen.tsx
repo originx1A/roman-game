@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { CRITTER_STASH_GOAL } from './SparkCritter'
 import { PetArt } from './PetArt'
 import { CloudScoresButton } from '../cloud/CloudScores'
@@ -80,72 +80,128 @@ export function WinScreen({
   cardGain,
 }: WinScreenProps) {
   const [entered, setEntered] = useState(false)
-  const rootRef = useRef<HTMLDivElement>(null)
-
-  // Fit everything on one screen: step through tighter layouts (data-fit 0..4) until the card
-  // body stops overflowing. Runs on the real visible height, so Safari toolbars, safe areas and
-  // short landscape screens are all handled; the less important bits shrink or hide first.
-  useLayoutEffect(() => {
-    const root = rootRef.current
-    if (!root) return
-    const fit = () => {
-      const body = root.querySelector<HTMLElement>('.win-screen-body')
-      const card = root.querySelector<HTMLElement>('.win-screen-card')
-      if (!body || !card) return
-      for (let level = 0; level <= 4; level++) {
-        root.dataset.fit = String(level)
-        const over = body.scrollHeight - body.clientHeight > 1 || card.scrollHeight - card.clientHeight > 1
-        if (!over) break
-      }
-    }
-    fit()
-    const vv = window.visualViewport
-    window.addEventListener('resize', fit)
-    vv?.addEventListener('resize', fit)
-    const late = window.setTimeout(fit, 350)
-    document.fonts?.ready.then(fit).catch(() => {})
-    return () => {
-      window.removeEventListener('resize', fit)
-      vv?.removeEventListener('resize', fit)
-      window.clearTimeout(late)
-    }
-  }, [replay, buddyMeter, romanSaying, spins])
+  const [more, setMore] = useState(false)
 
   useEffect(() => {
     const id = window.requestAnimationFrame(() => setEntered(true))
     return () => window.cancelAnimationFrame(id)
   }, [])
 
+  const huntReady = !!(buddyMeter?.pending && onBuddyHunt)
+  const detail = replay ? [replay.detail, replay.coinsLine].filter(Boolean).join(' · ') : ''
+  const showSpin = spins > 0 && !!onSpin
+
   return (
-    <div ref={rootRef} data-fit="0" className={`win-screen ${entered ? 'in' : ''}`} role="dialog" aria-label="Board cleared">
-      <div className="win-screen-burst" aria-hidden="true" />
+    <div className={`win-screen win-sheet ${entered ? 'in' : ''}`} role="dialog" aria-label="Board cleared">
       <div className="win-screen-sparkles" aria-hidden="true">
-        {Array.from({ length: 18 }, (_, i) => (
+        {Array.from({ length: 12 }, (_, i) => (
           <span key={i} className="win-spark" style={{ '--i': i } as CSSProperties} />
         ))}
       </div>
 
-      <div className="win-screen-card">
+      <div className="win-sheet-wrap">
         {replay?.pet ? (
           <div className={`win-pet ${replay.pet.cheer ? 'is-cheer' : ''}`} data-win-pet={replay.pet.id} aria-label={`${replay.pet.name}: ${replay.pet.text}`}>
             <PetArt id={replay.pet.id} size={40} />
             <span className="win-pet-bubble">{replay.pet.text}</span>
           </div>
         ) : null}
-        {/* Scrolls on its own only if a very short screen can't fit it; the buttons stay pinned below. */}
-        <div className="win-screen-body">
-          <h2 className="win-screen-title">Victory!</h2>
-          {modeNote ? <p className="win-mode-note" data-testid="win-mode-note">{modeNote}</p> : null}
-          {paradeHint ? <p className="next-parade-hint" data-testid="next-parade-hint">{paradeHint}</p> : null}
-          <p className="win-screen-kicker">
-            <span className="win-screen-board">{puzzleName}</span> · {difficultyLabel} · {themeLabel}
-          </p>
 
-          <p className="win-roman-says">{romanSaying}</p>
+        <div className="win-screen-card">
+          <div className="win-more win-screen-body" id="win-more" hidden={!more}>
+            {huntReady ? (
+              <button type="button" className="btn primary win-cta win-hunt" onClick={onBuddyHunt}>
+                Buddy Hunt!
+              </button>
+            ) : null}
 
-          {replay && (replay.showStars || replay.banner) ? (
-            <div className="win-replay">
-              {replay.showStars ? (
+            {buddyMeter ? (
+              <div
+                className={`buddy-meter ${buddyMeter.pending ? 'is-full' : ''}`}
+                aria-label={`Buddy meter ${buddyMeter.pending ? buddyMeter.goal : buddyMeter.notches} of ${buddyMeter.goal}`}
+                data-meter={buddyMeter.pending ? buddyMeter.goal : buddyMeter.notches}
+              >
+                <span className="buddy-meter-label">Buddy meter</span>
+                <span className="buddy-meter-notches">
+                  {Array.from({ length: buddyMeter.goal }, (_, i) => (
+                    <i
+                      key={i}
+                      className={
+                        buddyMeter.pending || i < buddyMeter.notches
+                          ? `on ${buddyMeter.perfect && (buddyMeter.pending ? i === buddyMeter.goal - 1 : i === buddyMeter.notches - 1) ? 'new' : ''}`
+                          : ''
+                      }
+                    />
+                  ))}
+                </span>
+                <span className="buddy-meter-hint">
+                  {buddyMeter.pending ? 'Full!' : buddyMeter.perfect ? 'Perfect win +1' : 'Perfect wins fill it'}
+                </span>
+              </div>
+            ) : null}
+
+            <p className="win-roman-says">{romanSaying}</p>
+
+            <p className="win-sheet-kicker">
+              <span className="win-screen-board">{puzzleName}</span> · {difficultyLabel} · {themeLabel}
+            </p>
+            {modeNote ? <p className="win-mode-note" data-testid="win-mode-note">{modeNote}</p> : null}
+            {paradeHint ? <p className="next-parade-hint" data-testid="next-parade-hint">{paradeHint}</p> : null}
+            {detail ? <p className="win-replay-detail">{detail}</p> : null}
+            <p className="win-sheet-extra">
+              Sparks {sparkCount}/{CRITTER_STASH_GOAL} · Hints {hintsUsed}
+            </p>
+
+            {cardGain ? <UnseenCardGain from={cardGain.from} to={cardGain.to} /> : null}
+
+            {showSpin || onDuel ? (
+              <div className="win-screen-row">
+                {showSpin ? (
+                  <button type="button" className="btn ghost win-cta win-spin" onClick={onSpin}>
+                    Spin prize ({spins})
+                  </button>
+                ) : null}
+                {onDuel ? (
+                  <button type="button" className="btn ghost win-cta" onClick={onDuel}>
+                    Head-to-head
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="win-screen-secondary">
+              <button type="button" className="btn tool" onClick={onLevels}>
+                Levels
+              </button>
+              <button type="button" className="btn tool" onClick={onHome}>
+                Home
+              </button>
+            </div>
+
+            <CloudScoresButton compact />
+
+            <a
+              className="win-fb-follow"
+              href="https://romansgame.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Explore the world of Roman's Game"
+            >
+              <svg className="win-fb-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2c2.1 0 3.9 1.1 5 2.7H7c1.1-1.6 2.9-2.7 5-2.7zM4.2 12c0-1.2.3-2.4.8-3.4h14c.5 1 .8 2.2.8 3.4s-.3 2.4-.8 3.4H5c-.5-1-.8-2.2-.8-3.4zm7.8 8c-2.1 0-3.9-1.1-5-2.7h10c-1.1 1.6-2.9 2.7-5 2.7z"
+                />
+              </svg>
+              Loved it? Explore the world of Roman&rsquo;s Game!
+            </a>
+          </div>
+
+          <div className={`win-sheet-main ${replay?.pet ? 'has-pet' : ''}`}>
+            <span className="win-sheet-handle" aria-hidden="true" />
+            <div className="win-sheet-head">
+              <h2 className="win-screen-title">Victory!</h2>
+              {replay?.showStars ? (
                 <span className="win-stars" aria-label={`${replay.stars} of 3 stars`} data-stars={replay.stars}>
                   {[1, 2, 3].map((i) => (
                     <i key={i} className={`${i <= replay.stars ? 'on' : ''} ${i > replay.starsBefore && i <= replay.stars ? 'new' : ''}`}>
@@ -154,131 +210,58 @@ export function WinScreen({
                   ))}
                 </span>
               ) : null}
-              {replay.banner ? (
-                <span className={`win-record is-${replay.banner.kind}`} data-banner={replay.banner.kind}>
-                  {replay.banner.text}
-                </span>
+            </div>
+
+            {replay?.banner ? (
+              <span className={`win-record is-${replay.banner.kind}`} data-banner={replay.banner.kind}>
+                {replay.banner.text}
+              </span>
+            ) : perfect ? (
+              <p className="win-perfect">Perfect clear — no hints</p>
+            ) : null}
+
+            <div className="win-stats" aria-label="Run stats">
+              <div className="win-stat">
+                <span className="win-stat-label">Time</span>
+                <strong className="win-stat-value">{timeLabel}</strong>
+              </div>
+              <div className="win-stat">
+                <span className="win-stat-label">Score</span>
+                <strong className="win-stat-value">{score}</strong>
+              </div>
+              <div className="win-stat">
+                <span className="win-stat-label">Hearts</span>
+                <strong className="win-stat-value">
+                  {livesLeft}/{maxLives}
+                </strong>
+              </div>
+            </div>
+
+            <div className="win-sheet-actions">
+              <button type="button" className="btn primary win-cta" onClick={onNext}>
+                {nextLabel ?? 'Next board'}
+              </button>
+              <button type="button" className="btn ghost win-cta" onClick={onReplay}>
+                Play again
+              </button>
+              {onShare ? (
+                <button type="button" className="btn ghost win-cta win-share" onClick={onShare}>
+                  Share
+                </button>
               ) : null}
             </div>
-          ) : null}
-          {replay ? (
-            <p className="win-replay-detail">{[replay.detail, replay.coinsLine].filter(Boolean).join(' · ')}</p>
-          ) : perfect ? (
-            <p className="win-perfect">Perfect clear — no hints</p>
-          ) : null}
 
-          <div className="win-stats" aria-label="Run stats">
-            <div className="win-stat">
-              <span className="win-stat-label">Time</span>
-              <strong className="win-stat-value">{timeLabel}</strong>
-            </div>
-            <div className="win-stat">
-              <span className="win-stat-label">Score</span>
-              <strong className="win-stat-value">{score}</strong>
-            </div>
-            <div className="win-stat win-stat-minor">
-              <span className="win-stat-label">Sparks</span>
-              <strong className="win-stat-value">
-                {sparkCount}/{CRITTER_STASH_GOAL}
-              </strong>
-            </div>
-            <div className="win-stat win-stat-minor">
-              <span className="win-stat-label">Hints</span>
-              <strong className="win-stat-value">{hintsUsed}</strong>
-            </div>
-            <div className="win-stat">
-              <span className="win-stat-label">Hearts</span>
-              <strong className="win-stat-value">
-                {livesLeft}/{maxLives}
-              </strong>
-            </div>
-          </div>
-
-          {buddyMeter ? (
-            <div
-              className={`buddy-meter ${buddyMeter.pending ? 'is-full' : ''}`}
-              aria-label={`Buddy meter ${buddyMeter.pending ? buddyMeter.goal : buddyMeter.notches} of ${buddyMeter.goal}`}
-              data-meter={buddyMeter.pending ? buddyMeter.goal : buddyMeter.notches}
+            <button
+              type="button"
+              className={`win-more-toggle ${huntReady ? 'has-hunt' : ''}`}
+              aria-expanded={more}
+              aria-controls="win-more"
+              onClick={() => setMore((open) => !open)}
             >
-              <span className="buddy-meter-label">Buddy meter</span>
-              <span className="buddy-meter-notches">
-                {Array.from({ length: buddyMeter.goal }, (_, i) => (
-                  <i
-                    key={i}
-                    className={
-                      buddyMeter.pending || i < buddyMeter.notches
-                        ? `on ${buddyMeter.perfect && (buddyMeter.pending ? i === buddyMeter.goal - 1 : i === buddyMeter.notches - 1) ? 'new' : ''}`
-                        : ''
-                    }
-                  />
-                ))}
-              </span>
-              <span className="buddy-meter-hint">
-                {buddyMeter.pending ? 'Full!' : buddyMeter.perfect ? 'Perfect win +1' : 'Perfect wins fill it'}
-              </span>
-            </div>
-          ) : null}
-        </div>
-
-        <div className="win-screen-actions">
-          {/* 9.32-a: Share is the main CTA — primary gold, top placement */}
-          {onShare ? (
-            <button type="button" className="btn primary win-cta win-share" onClick={onShare}>
-              Share
-            </button>
-          ) : null}
-          {buddyMeter?.pending && onBuddyHunt ? (
-            <button type="button" className="btn primary win-cta win-hunt" onClick={onBuddyHunt}>
-              Buddy Hunt!
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className={`btn ${onShare || (buddyMeter?.pending && onBuddyHunt) ? 'ghost' : 'primary'} win-cta`}
-            onClick={onNext}
-          >
-            {nextLabel ?? 'Next board'}
-          </button>
-          {cardGain ? <UnseenCardGain from={cardGain.from} to={cardGain.to} /> : null}
-          <CloudScoresButton compact />
-          <div className="win-screen-row">
-            <button type="button" className="btn ghost win-cta" onClick={onReplay}>
-              Play again
-            </button>
-            {onDuel ? (
-              <button type="button" className="btn ghost win-cta" onClick={onDuel}>
-                Head-to-head
-              </button>
-            ) : null}
-            {spins > 0 && onSpin ? (
-              <button type="button" className="btn ghost win-cta win-spin" onClick={onSpin}>
-                Spin prize ({spins})
-              </button>
-            ) : null}
-          </div>
-          <div className="win-screen-secondary">
-            <button type="button" className="btn tool" onClick={onLevels}>
-              Levels
-            </button>
-            <button type="button" className="btn tool" onClick={onHome}>
-              Home
+              {more ? 'Less' : 'More'}
+              {huntReady && !more ? <span className="win-more-hunt">Buddy Hunt!</span> : null}
             </button>
           </div>
-          <a
-            className="win-fb-follow"
-            href="https://romansgame.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Explore the world of Roman's Game"
-          >
-            <svg className="win-fb-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-              <path
-                fill="currentColor"
-                d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2c2.1 0 3.9 1.1 5 2.7H7c1.1-1.6 2.9-2.7 5-2.7zM4.2 12c0-1.2.3-2.4.8-3.4h14c.5 1 .8 2.2.8 3.4s-.3 2.4-.8 3.4H5c-.5-1-.8-2.2-.8-3.4zm7.8 8c-2.1 0-3.9-1.1-5-2.7h10c-1.1 1.6-2.9 2.7-5 2.7z"
-              />
-            </svg>
-            Loved it? Explore the world of Roman&rsquo;s Game!
-          </a>
         </div>
       </div>
     </div>
