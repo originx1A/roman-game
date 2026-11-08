@@ -316,6 +316,11 @@ function syncAppHeight() {
   rootEl.classList.toggle('vvh-s', h > 0 && h <= 760)
   rootEl.classList.toggle('vvh-xs', h > 0 && h <= 640)
   rootEl.classList.toggle('vvh-b', h > 0 && h <= 720)
+  // 9.33-a12: the TONY tier — Tony's real phone (320 CSS wide, Muse-app webview)
+  // gives the game a visible band of only ~500-560px. a11's tiers stopped at 640
+  // and his Account form + board tray still amputated. vvh-t (<=560) carries the
+  // deepest compressions + the lower board floor; CSS in App.css (a12 section).
+  rootEl.classList.toggle('vvh-t', h > 0 && h <= 560)
   if (h <= 0 || Math.abs(h - lastAppHeight) < 2) return
   lastAppHeight = h
   document.documentElement.style.setProperty('--app-height', `${h}px`)
@@ -3773,6 +3778,29 @@ export default function App() {
             />
             </label>
           </section>
+          {/* 9.33-a12 (Tony's phone): Backup, Share & challenge and Follow moved to
+              their own "Backup & sharing" screen — the Account stack was ~170px
+              taller than the visible band on a 320px-wide phone and its bottom
+              rows slid under the nav. Account keeps identity only; the row below
+              leads to the rest, and that screen's Back returns here exactly. */}
+          <button type="button" className="more-row account-tools-row" onClick={() => setScreen('accountTools')}>
+            <span className="more-icon" aria-hidden="true">💾</span>
+            <span className="more-text">
+              <strong>Backup &amp; sharing</strong>
+              <small>Save or restore your game, share &amp; challenge, follow us</small>
+            </span>
+            <span className="more-go" aria-hidden="true">›</span>
+          </button>
+        </main>
+      )}
+
+      {screen === 'accountTools' && (
+        <main className="panel account-tools fit-screen has-atmo">
+          <Atmosphere variant="panel" tint="#4f9dff" />
+          <button type="button" className="btn ghost tools-back" onClick={() => setScreen('account')}>
+            ← Account
+          </button>
+          <h2>Backup &amp; sharing</h2>
           <section className="backup">
           <h3>Backup</h3>
           <div className="cta-row">
@@ -4225,7 +4253,7 @@ export default function App() {
           </button>
           <button
             type="button"
-            className={`bottom-nav-item ${['more', 'account', 'settings', 'about', 'how', 'bug', 'challenge', 'duel'].includes(screen) ? 'on' : ''}`}
+            className={`bottom-nav-item ${['more', 'account', 'accountTools', 'settings', 'about', 'how', 'bug', 'challenge', 'duel'].includes(screen) ? 'on' : ''}`}
             onClick={() => setScreen('more')}
           >
             <span className="bottom-nav-icon" aria-hidden="true">☰</span>

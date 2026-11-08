@@ -45,6 +45,31 @@ export const HOW_NEW_START = STEPS.findIndex((s) => 'isNew' in s && s.isNew)
 
 const STEP_MS = 4500
 
+/** The rules list, verbatim. Rendered whole on tall screens; on short screens
+ *  (9.33-a12: visual height <= 600 — Tony's phone band) it pages 8 + 8, because
+ *  16 rules cannot fit a ~500px band at readable size without spilling over
+ *  the buttons below (the a11 audit's blind spot: the spill painted OVER the
+ *  cta row while main's scrollHeight still read "fits"). */
+export const HOW_RULES: readonly string[] = [
+  'One buddy in every colored region.',
+  'One buddy in every row and column.',
+  'No touching — not even diagonally.',
+  'Swipe to mark × (quiet). Tap a mark to place a buddy.',
+  '3 mistakes = lose a round (unless a shield saves you).',
+  'Win to spin prizes. Catch the spark critter 5 times across games for a bonus prize.',
+  'Perfect wins fill the buddy meter. 3 notches open Buddy Hunt: 5 taps to find 3 hidden buddies.',
+  "Defender Boards: a board in a Defender's colours calls that Defender in — if you hold their calls. One call, one rescue of a board, never twice.",
+  'Themed boards change buddy looks — rules stay the same.',
+  'Stars: finish, beat the target time, then target time + high score + no mistakes.',
+  "3 stars unlocks Roman's Trial. The Daily Challenge counts your first try only.",
+  'Each color also has its own little shape in the tile corner.',
+  'Your Defender flies by during play — tap them for rewards.',
+  'Wild pets try to steal your treat pile on the board. Your Defenders guard it — tap the 🍖 count to stash treats safe.',
+  'Every win earns 5 treats. Treats feed and grow Defenders. Swap safe treats for coins anytime.',
+  'No Defenders yet? Claim your FREE Defender in the Stable — without Defenders your treats are in danger.',
+]
+export const HOW_RULES_PAGE = 8
+
 export function HowToPlay({
   onDone,
   onBack,
@@ -63,6 +88,20 @@ export function HowToPlay({
   const [step, setStep] = useState(() => Math.max(0, Math.min(STEPS.length - 1, startAt)))
   // 9.33-a5: fit-to-screen — the demo and the full rules list are two panels of one screen, never a scroll
   const [panel, setPanel] = useState<'watch' | 'rules'>('watch')
+  // 9.33-a12: on short screens the rules page 8 + 8 (see HOW_RULES note).
+  const [rulesPage, setRulesPage] = useState(0)
+  const [shortScreen, setShortScreen] = useState(
+    () => typeof window !== 'undefined' && (window.visualViewport?.height ?? window.innerHeight) <= 600,
+  )
+  useEffect(() => {
+    const onResize = () => setShortScreen((window.visualViewport?.height ?? window.innerHeight) <= 600)
+    window.addEventListener('resize', onResize)
+    window.visualViewport?.addEventListener('resize', onResize)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      window.visualViewport?.removeEventListener('resize', onResize)
+    }
+  }, [])
   // RG03: a first-run player starts in core-only mode; tapping "More to
   // discover" (or any dot past the core five) opens the full deck.
   const [coreOnly, setCoreOnly] = useState(() => firstRun && startAt < HOW_CORE_COUNT)
@@ -142,24 +181,35 @@ export function HowToPlay({
         </button>
       )}
       </>
+      ) : shortScreen ? (
+      <>
+      <ol className="rules how-rules" start={rulesPage * HOW_RULES_PAGE + 1}>
+        {HOW_RULES.slice(rulesPage * HOW_RULES_PAGE, (rulesPage + 1) * HOW_RULES_PAGE).map((r) => (
+          <li key={r}>{r}</li>
+        ))}
+      </ol>
+      <div className="how-rules-pager">
+        <button type="button" className="btn ghost" disabled={rulesPage === 0} onClick={() => setRulesPage((p) => Math.max(0, p - 1))}>
+          ‹ Back
+        </button>
+        <span>
+          Rules {rulesPage * HOW_RULES_PAGE + 1}–{Math.min(HOW_RULES.length, (rulesPage + 1) * HOW_RULES_PAGE)} of {HOW_RULES.length}
+        </span>
+        <button
+          type="button"
+          className="btn ghost"
+          disabled={(rulesPage + 1) * HOW_RULES_PAGE >= HOW_RULES.length}
+          onClick={() => setRulesPage((p) => p + 1)}
+        >
+          More rules ›
+        </button>
+      </div>
+      </>
       ) : (
       <ol className="rules how-rules">
-        <li>One buddy in every colored region.</li>
-        <li>One buddy in every row and column.</li>
-        <li>No touching — not even diagonally.</li>
-        <li>Swipe to mark × (quiet). Tap a mark to place a buddy.</li>
-        <li>3 mistakes = lose a round (unless a shield saves you).</li>
-        <li>Win to spin prizes. Catch the spark critter 5 times across games for a bonus prize.</li>
-        <li>Perfect wins fill the buddy meter. 3 notches open Buddy Hunt: 5 taps to find 3 hidden buddies.</li>
-        <li>Defender Boards: a board in a Defender's colours calls that Defender in — if you hold their calls. One call, one rescue of a board, never twice.</li>
-        <li>Themed boards change buddy looks — rules stay the same.</li>
-        <li>Stars: finish, beat the target time, then target time + high score + no mistakes.</li>
-        <li>3 stars unlocks Roman&apos;s Trial. The Daily Challenge counts your first try only.</li>
-        <li>Each color also has its own little shape in the tile corner.</li>
-        <li>Your Defender flies by during play — tap them for rewards.</li>
-        <li>Wild pets try to steal your treat pile on the board. Your Defenders guard it — tap the 🍖 count to stash treats safe.</li>
-        <li>Every win earns 5 treats. Treats feed and grow Defenders. Swap safe treats for coins anytime.</li>
-        <li>No Defenders yet? Claim your FREE Defender in the Stable — without Defenders your treats are in danger.</li>
+        {HOW_RULES.map((r) => (
+          <li key={r}>{r}</li>
+        ))}
       </ol>
       )}
       <div className="cta-row">

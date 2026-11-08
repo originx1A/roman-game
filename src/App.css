@@ -8451,3 +8451,64 @@ button.stable-coins:active { transform: scale(0.94); }
 
 /* ---------- (d) Home build tag ---------- */
 .home-build { margin-top: 0.3rem; font-size: 0.66rem; font-weight: 600; letter-spacing: 0.05em; color: rgba(205, 178, 113, 0.55); }
+
+/* =====================================================================
+   9.33-a12 — TONY SIZE (320px wide, ~500px visible band)
+   Tony's real phone: 960px screenshots = 320 CSS px wide (Display Zoom),
+   and the Muse-app webview leaves only a ~500-560px visible band with
+   large rendered type. a11's models (390x639 / 430x727) were still bigger
+   than his reality, so Home cards overlapped and the Account form ran
+   under the bottom nav. Fixes: (1) promo cards STACK at <=380px wide —
+   the overlap was a width problem, not a height one; (2) a vvh-t tier
+   (visual height <= 560) keyed in syncAppHeight(); (3) Account split —
+   Backup / Share & challenge / Follow moved to a "Backup & sharing"
+   screen (see App.tsx); (4) board floor drops at vvh-t so the Defender
+   tray fits; (5) Rewards earn line wraps instead of clipping mid-word.
+   ===================================================================== */
+
+/* (1) Promo cards stack at narrow widths: text gets the full card width,
+   the streak pill keeps its own line, buttons go full-width underneath.
+   Side-by-side layout returns at >=381px (a11-approved look unchanged). */
+@media (max-width: 380px) {
+  .promo-card { flex-direction: column; align-items: stretch; gap: 0.3rem; }
+  .promo-text > span { white-space: normal; overflow: visible; text-overflow: clip; }
+  .promo-card > .btn { width: 100%; min-height: 42px; }
+  .promo-btns { grid-template-columns: 1fr 1fr; }
+  .promo-btns .btn { min-height: 40px; }
+  /* Rewards: the badge earn-condition must read whole, never clip mid-word. */
+  .rewards .badge-card .product-value { white-space: normal; overflow: visible; text-overflow: clip; }
+}
+
+/* (2) vvh-t Home: stacked promos cost ~50px; the companion + stat strip
+   give it back so Home still ends cleanly (site link + build tag visible). */
+html.vvh-t .fit-home .home-companion { padding: 0.25rem 0.45rem; }
+html.vvh-t .fit-home .home-pet-body svg { width: 34px; }
+html.vvh-t .home-companion .treat-pile-widget small { font-size: 0.64rem; }
+html.vvh-t .fit-home .stat-strip { padding-top: 0.22rem; padding-bottom: 0.22rem; }
+html.vvh-t .promo-card { gap: 0.22rem; }
+
+/* (4) vvh-t board: floor 12.5rem (was 15rem in the vvh-b cap) so the
+   Defender tray clears the bottom of a 500px band. */
+html.vvh-t[data-device='phone'][data-layout='upright'] .play-fixed .board {
+  width: min(100%, max(12.5rem, calc(var(--app-height, 100svh) - 21rem))) !important;
+  min-height: min(100%, max(12.5rem, calc(var(--app-height, 100svh) - 21rem))) !important;
+}
+
+/* (3) Account at vvh-t: tighter form rhythm (tap targets stay >=42px). */
+html.vvh-t .account .auth-form { gap: 0.32rem; }
+html.vvh-t .account label { gap: 0.12rem; }
+html.vvh-t .account .auth-form input, html.vvh-t .account .name-setting input { padding: 0.45rem 0.55rem; min-height: 42px; }
+html.vvh-t .account .btn { min-height: 44px; }
+html.vvh-t .account .sub { font-size: 0.8rem; line-height: 1.3; }
+
+/* Backup & sharing screen: the moved sections keep their compaction. */
+.account-tools .backup, .account-tools .follow-section { margin: 0; }
+.account-tools .follow-section p { margin: 0.2rem 0 0.5rem; }
+.account-tools .backup .cta-row, .account-tools .follow-section .btn { margin: 0; }
+.account-tools .tools-back { align-self: flex-start; min-height: 42px; }
+.account-tools-row { flex: 0 0 auto; }
+
+/* How to play: rules pager (short screens page 8 + 8 — see HowToPlay.tsx). */
+.how-rules-pager { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex: 0 0 auto; }
+.how-rules-pager .btn { min-height: 40px; padding: 0.35rem 0.6rem; font-size: 0.8rem; }
+.how-rules-pager span { font-size: 0.78rem; opacity: 0.8; white-space: nowrap; }

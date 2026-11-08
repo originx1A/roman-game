@@ -90,6 +90,7 @@ export type Screen =
   | 'play'
   | 'about'
   | 'account'
+  | 'accountTools'
   | 'settings'
   | 'more'
   | 'challenge'
