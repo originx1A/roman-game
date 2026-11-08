@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Atmosphere } from './Atmosphere'
 import { HowDemo, type HowDemoId } from './HowDemo'
 
@@ -45,11 +45,13 @@ export const HOW_NEW_START = STEPS.findIndex((s) => 'isNew' in s && s.isNew)
 
 const STEP_MS = 4500
 
-/** The rules list, verbatim. Rendered whole on tall screens; on short screens
+/** The rules list, verbatim. Rendered whole when it fits; on short screens
  *  (9.33-a12: visual height <= 600 — Tony's phone band) it pages 8 + 8, because
  *  16 rules cannot fit a ~500px band at readable size without spilling over
  *  the buttons below (the a11 audit's blind spot: the spill painted OVER the
- *  cta row while main's scrollHeight still read "fits"). */
+ *  cta row while main's scrollHeight still read "fits"). 9.33-a13: the full
+ *  list is also measured after render at ANY size — if it does not fit its
+ *  box (the 430x727 band spilled rules 15-16), the pager takes over. */
 export const HOW_RULES: readonly string[] = [
   'One buddy in every colored region.',
   'One buddy in every row and column.',
@@ -93,8 +95,19 @@ export function HowToPlay({
   const [shortScreen, setShortScreen] = useState(
     () => typeof window !== 'undefined' && (window.visualViewport?.height ?? window.innerHeight) <= 600,
   )
+  // 9.33-a13: the <=600 mount heuristic misses wider-but-short bands — at a
+  // 727px-tall, 430px-wide band the full list still spilled rules 15-16 over
+  // the buttons (larger type, same trap as a12). So the full list is also
+  // MEASURED after render: if it does not fit its box, the pager takes over.
+  // The height guess only decides the first paint; measurement decides.
+  const [rulesMeasuredPaged, setRulesMeasuredPaged] = useState(false)
+  const rulesListRef = useRef<HTMLOListElement | null>(null)
   useEffect(() => {
-    const onResize = () => setShortScreen((window.visualViewport?.height ?? window.innerHeight) <= 600)
+    const onResize = () => {
+      setShortScreen((window.visualViewport?.height ?? window.innerHeight) <= 600)
+      // size changed: let the full list render once and be measured again
+      setRulesMeasuredPaged(false)
+    }
     window.addEventListener('resize', onResize)
     window.visualViewport?.addEventListener('resize', onResize)
     return () => {
@@ -102,6 +115,25 @@ export function HowToPlay({
       window.visualViewport?.removeEventListener('resize', onResize)
     }
   }, [])
+  const rulesPaged = shortScreen || rulesMeasuredPaged
+  useLayoutEffect(() => {
+    if (panel !== 'rules' || rulesPaged) return
+    const ol = rulesListRef.current
+    if (ol && ol.scrollHeight > ol.clientHeight + 2) setRulesMeasuredPaged(true)
+  }, [panel, rulesPaged, step])
+  // webfonts move the metrics; re-measure once they land
+  useEffect(() => {
+    if (panel !== 'rules' || rulesPaged) return
+    let live = true
+    document.fonts?.ready.then(() => {
+      if (!live || rulesPaged) return
+      const ol = rulesListRef.current
+      if (ol && ol.scrollHeight > ol.clientHeight + 2) setRulesMeasuredPaged(true)
+    })
+    return () => {
+      live = false
+    }
+  }, [panel, rulesPaged])
   // RG03: a first-run player starts in core-only mode; tapping "More to
   // discover" (or any dot past the core five) opens the full deck.
   const [coreOnly, setCoreOnly] = useState(() => firstRun && startAt < HOW_CORE_COUNT)
@@ -181,7 +213,7 @@ export function HowToPlay({
         </button>
       )}
       </>
-      ) : shortScreen ? (
+      ) : rulesPaged ? (
       <>
       <ol className="rules how-rules" start={rulesPage * HOW_RULES_PAGE + 1}>
         {HOW_RULES.slice(rulesPage * HOW_RULES_PAGE, (rulesPage + 1) * HOW_RULES_PAGE).map((r) => (
@@ -206,7 +238,7 @@ export function HowToPlay({
       </div>
       </>
       ) : (
-      <ol className="rules how-rules">
+      <ol className="rules how-rules" ref={rulesListRef}>
         {HOW_RULES.map((r) => (
           <li key={r}>{r}</li>
         ))}

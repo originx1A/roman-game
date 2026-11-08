@@ -8478,6 +8478,13 @@ button.stable-coins:active { transform: scale(0.94); }
   /* Rewards: the badge earn-condition must read whole, never clip mid-word. */
   .rewards .badge-card .product-value { white-space: normal; overflow: visible; text-overflow: clip; }
 }
+/* 9.33-a13: the Rewards wrap above must also cover 430px-wide bands — there
+   the badge grid goes 3-up, columns narrow to ~112px, and the same
+   mid-phrase clips returned (6 truncations at the 430x727 band in a12).
+   Scoped to the Rewards rule only: the promo stacking stays at <=380px. */
+@media (max-width: 480px) {
+  .rewards .badge-card .product-value { white-space: normal; overflow: visible; text-overflow: clip; }
+}
 
 /* (2) vvh-t Home: stacked promos cost ~50px; the companion + stat strip
    give it back so Home still ends cleanly (site link + build tag visible). */
@@ -8512,3 +8519,225 @@ html.vvh-t .account .sub { font-size: 0.8rem; line-height: 1.3; }
 .how-rules-pager { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex: 0 0 auto; }
 .how-rules-pager .btn { min-height: 40px; padding: 0.35rem 0.6rem; font-size: 0.8rem; }
 .how-rules-pager span { font-size: 0.78rem; opacity: 0.8; white-space: nowrap; }
+
+/* =====================================================================
+   9.33-a13 — CLOSE THE REMAINING TONY-SIZE DEFECTS
+   a12's AFTER audit left six honest items; each is closed here:
+   (1) Home tail: a FOURTH measured fit step (fit-s4 — see App.tsx) with
+       its deepest Home compression, so the stat strip + site link + build
+       tag end inside the band at 320x500/560.
+   (2) Stable Bundles & gifts at vvh-t: the section was ~117px too tall —
+       tighter cards, smaller bundle art, slimmer redeem block.
+   (3) About at vvh-t: light compression backing the new two-page split
+       (App.tsx pages the story tab at visual height <= 600).
+   (4) How to Play Watch at vvh-t: the demo + caption were ~80px taller
+       than the stage's flex share and the stage's centering painted the
+       demo UP over "The rules" tab. Demo shrinks, caption tightens, the
+       "More to discover" button stops wrapping to three lines.
+   (5) Rules spill at wider-but-short bands is closed in HowToPlay.tsx
+       (measured pager), the Rewards wrap extension sits with the a12
+       block above.
+   ===================================================================== */
+
+/* (1) fit-s4: generic fit-screen step */
+html.fit-s4 .fit-screen { gap: 0.2rem; padding-top: 0.26rem; padding-bottom: 0.3rem; }
+html.fit-s4 .fit-screen h2 { font-size: 1.05rem; }
+/* (1) fit-s4: Home — the deepest step, only reached when s3 still overflows */
+html.fit-s4 .fit-home { gap: 0.16rem; padding-top: 0.18rem; padding-bottom: 0.14rem; }
+html.fit-s4 .fit-home .hero { padding: 0.16rem 0.45rem 0.22rem; gap: 0.16rem; }
+html.fit-s4 .fit-home .logo-hero { font-size: clamp(1.2rem, 6dvh, 1.7rem); }
+html.fit-s4 .home-play { padding: 0.3rem 1rem; font-size: 0.94rem; min-height: 42px; }
+html.fit-s4 .home-plates .btn { padding: 0.24rem 0.3rem; font-size: 0.75rem; }
+html.fit-s4 .home-companion { padding: 0.16rem 0.4rem; }
+html.fit-s4 .fit-home .home-pet-body svg { width: 28px; }
+html.fit-s4 .home-companion small, html.fit-s4 .home-companion .treat-pile-widget small { font-size: 0.6rem; }
+html.fit-s4 .promo-strip { gap: 0.3rem; }
+html.fit-s4 .promo-card { padding: 0.24rem 0.38rem; gap: 0.16rem; }
+html.fit-s4 .promo-text strong { font-size: 0.9rem; }
+html.fit-s4 .promo-text > span { font-size: 0.76rem; line-height: 1.25; }
+html.fit-s4 .promo-card .daily-streakbtn { font-size: 0.6rem; }
+html.fit-s4 .promo-btns .btn { padding: 0.22rem 0.36rem; font-size: 0.75rem; min-height: 40px; }
+html.fit-s4 .promo-card > .btn { min-height: 40px; }
+html.fit-s4 .fit-home .stat-strip { padding-top: 0.14rem; padding-bottom: 0.14rem; }
+html.fit-s4 .fit-home .stat-strip strong { font-size: 0.82rem; }
+html.fit-s4 .fit-home .stat-strip span { font-size: 0.62rem; }
+html.fit-s4 .home-foot-link { font-size: 0.7rem; }
+html.fit-s4 .home-build { font-size: 0.58rem; margin-top: 0.12rem; }
+
+/* (2) Stable Bundles & gifts at the TONY tier: cards, art, note, redeem. */
+html.vvh-t .stable .stable-bundles { padding: 0.5rem; gap: 0.4rem; }
+html.vvh-t .stable .stable-bundles h3 { font-size: 0.92rem; }
+html.vvh-t .stable .stable-bundle { padding: 0.45rem; gap: 0.35rem 0.5rem; }
+html.vvh-t .stable .stable-bundle-art { max-width: 70px; }
+html.vvh-t .stable .stable-bundle-art svg { width: 32px; height: 32px; }
+html.vvh-t .stable .stable-bundle-text > strong { font-size: 0.94rem; }
+html.vvh-t .stable .stable-bundle-text small { font-size: 0.78rem; line-height: 1.25; }
+html.vvh-t .stable .stable-price { font-size: 0.84rem; line-height: 1.25; }
+html.vvh-t .stable .stable-bundle .stable-btn { min-height: 42px; padding-top: 0.38rem; padding-bottom: 0.38rem; }
+html.vvh-t .stable .stable-note { font-size: 0.74rem; line-height: 1.25; }
+html.vvh-t .stable .stable-redeem { padding: 0.5rem; }
+html.vvh-t .stable .stable-redeem h3 { font-size: 0.92rem; margin-bottom: 0.3rem; }
+html.vvh-t .stable .stable-redeem-row input { padding: 0.45rem 0.55rem; min-height: 42px; }
+html.vvh-t .stable .stable-redeem-row .btn { min-height: 42px; padding-top: 0.38rem; padding-bottom: 0.38rem; }
+html.vvh-t .stable .stable-tab { padding-top: 0.32rem; padding-bottom: 0.32rem; }
+
+/* (3) About at the TONY tier: backing compression for the two-page split. */
+html.vvh-t .about .about-defender svg { width: 28px; height: 28px; }
+html.vvh-t .about .about-defender p { font-size: 0.82rem; line-height: 1.3; }
+html.vvh-t .about .about-defenders { gap: 0.24rem; margin: 0.24rem 0; }
+html.vvh-t .about .about-line { font-size: 0.82rem; line-height: 1.3; margin-bottom: 0.4rem; }
+.about-pager { margin-top: auto; padding-top: 0.4rem; }
+
+/* (4) How to Play Watch at the TONY tier: fit the stage's flex share. */
+html.vvh-t .how-panel .how-demo { width: min(100%, 148px); }
+html.vvh-t .how-panel .how-stage { padding: 0.5rem; gap: 0.35rem; margin: 0.1rem 0 0.3rem; }
+html.vvh-t .how-caption h3 { font-size: 1.02rem; margin: 0.1rem 0; }
+html.vvh-t .how-caption p { font-size: 0.84rem; line-height: 1.28; }
+html.vvh-t .how-step-label { font-size: 0.7rem; }
+html.vvh-t .how-more { font-size: 0.82rem; padding: 0.45rem 0.6rem; line-height: 1.3; }
+
+/* ===== 9.33-a13 item 7 — Tony (Nov 8, after his phone test): "on mobile the
+   game renders TINY". The fit tiers had been buying vertical room by
+   shrinking; his order: fill the WIDTH, lay out side by side, and let
+   controls sit LOWER in the band rather than smaller. Everything below is
+   scoped to the phone tiers (vvh-t = visual height <= 560, plus the
+   width-capped rules the play screen already uses) — desktop rendering is
+   byte-for-byte the a12 look. ===== */
+
+/* The board: a12's floor (12.5rem) left the board ~230px wide in a 320px
+   screen with ~76-96px of dead space under the build tag. Grow the board to
+   use the width. Measured budget (probe-board2, 320x500): rail bottom =
+   board bottom + 60 (Reset row) + 52 (rail); the build tag hangs 20px
+   below the rail — so the board may take the band minus ~14.5rem of fixed
+   chrome. Branded boards add the brand banner (~53px) in flow above the
+   board: they get ~18rem of chrome instead. The audit re-measures the rail
+   and tag after this change at both TONY sizes. */
+html.vvh-t[data-device='phone'][data-layout='upright'] .play-fixed .board {
+  width: min(100%, max(15rem, calc(var(--app-height, 100svh) - 14.5rem))) !important;
+  min-height: min(100%, max(15rem, calc(var(--app-height, 100svh) - 14.5rem))) !important;
+}
+html.vvh-t[data-device='phone'][data-layout='upright'] .play-fixed:has(.brand-banner) .board {
+  width: min(100%, max(13.5rem, calc(var(--app-height, 100svh) - 18rem))) !important;
+  min-height: min(100%, max(13.5rem, calc(var(--app-height, 100svh) - 18rem))) !important;
+}
+
+/* Home: buy the tail room with SPACING, not smaller type — the foot's 0.9rem
+   top margin alone was half the remaining overflow. The measured fit stepper
+   then stops at the least shrink that fits instead of always bottoming out. */
+html.vvh-t .home-foot { margin-top: 0.25rem; padding-top: 0.15rem; }
+html.vvh-t .fit-home .hero { padding: 0.26rem 0.55rem 0.3rem; gap: 0.26rem; }
+html.vvh-t .home-play { padding-top: 0.42rem; padding-bottom: 0.42rem; }
+html.vvh-t .home-plates .btn { padding-top: 0.32rem; padding-bottom: 0.32rem; }
+html.vvh-t .promo-strip { gap: 0.3rem; }
+html.vvh-t .promo-card { padding: 0.32rem 0.42rem; }
+html.vvh-t .stat-strip { padding-top: 0.16rem; padding-bottom: 0.16rem; }
+html.vvh-t .home-companion { line-height: 1.25; }
+
+/* Stable bundles tail (the last ~29px): same spacing-not-type pass over the
+   bundles + redeem block so both cards, buttons and the redeem row all sit
+   inside the band at TONY sizes. */
+html.vvh-t .stable-head h2 { font-size: 1.15rem; }
+html.vvh-t .stable.fit-screen { gap: 0.28rem; }
+html.vvh-t .stable .stable-bundles { padding: 0.42rem 0.6rem; gap: 0.32rem; }
+html.vvh-t .stable .stable-bundle { padding: 0.36rem 0.55rem; }
+html.vvh-t .stable .stable-bundle-art svg { width: 30px; height: 30px; }
+html.vvh-t .stable .stable-bundle-text > strong { font-size: 0.9rem; }
+html.vvh-t .stable .stable-bundle-text small { font-size: 0.76rem; }
+html.vvh-t .stable .stable-price { line-height: 1.2; }
+html.vvh-t .stable .stable-redeem { padding: 0.42rem 0.6rem; }
+html.vvh-t .stable .stable-redeem h3 { margin-bottom: 0.22rem; }
+html.vvh-t .stable .stable-redeem-row input, html.vvh-t .stable .stable-redeem-row .btn { min-height: 40px; }
+html.vvh-t .stable .stable-note { line-height: 1.2; }
+
+/* Item 7, second pass — measured leftovers (audit after2 + probes):
+   Home's companion pet block (80px) and plates row (53px) are chrome, not
+   type: slimmer pet pill, smaller empty-circle, shorter Unseen card thumb,
+   40px plate floor, tighter stat strip. Bundles: the two sections carry
+   1.1rem top margins — halving them pulls the redeem row into the band. */
+html.vvh-t .home-pet { padding-top: 0.26rem; padding-bottom: 0.26rem; }
+html.vvh-t .home-pet-empty { width: 42px; height: 42px; }
+html.vvh-t .fit-home .unseen-card { width: 20px; }
+html.vvh-t .home-plates .btn, html.vvh-t .home-plates .unseen-tile { min-height: 40px; }
+html.vvh-t .fit-home .stat-strip { padding-top: 0.14rem; padding-bottom: 0.14rem; line-height: 1.15; }
+html.vvh-t .promo-text > span { line-height: 1.2; }
+html.vvh-t .stable .stable-bundles { margin-top: 0.45rem; }
+html.vvh-t .stable .stable-redeem { margin-top: 0.45rem; }
+html.vvh-t .stable.fit-screen { padding-bottom: 0.4rem; }
+
+/* Item 7, third pass — Home chrome cuts (the bundle side-by-side idea was
+   tried and REVERTED in the fourth pass: at 320px the price lines need the
+   full card width, squeezing them beside the button wrapped them to 4
+   lines and cost +115px. The stacked card stays; bundles close by spacing
+   and smaller art instead — see the vvh-t stable rules below.) */
+html.vvh-t .home-pet-text strong { font-size: 1rem; }
+html.vvh-t .home-pet-text small { line-height: 1.2; }
+html.vvh-t .home-plates .btn { line-height: 1.15; padding-top: 0.26rem; padding-bottom: 0.26rem; }
+html.vvh-t .fit-home .stat-strip strong, html.vvh-t .fit-home .stat-strip span { line-height: 1.1; }
+html.vvh-t .promo-card { padding-top: 0.26rem; padding-bottom: 0.26rem; }
+
+/* Item 7, fourth pass — the last ~17px of Home, all measured: the plates
+   row is driven by the Unseen tile's wrapping text (53px), the pet pill by
+   its vertical padding, the Daily card by its streak pill. */
+html.vvh-t .fit-home .unseen-tile { padding: 0.2rem 0.4rem; }
+html.vvh-t .fit-home .unseen-card { width: 16px; }
+html.vvh-t .fit-home .unseen-tile-text b { line-height: 1.15; }
+html.vvh-t .home-companion .home-pet { padding-top: 0.18rem; padding-bottom: 0.18rem; }
+html.vvh-t .promo-card .daily-streakbtn { padding: 0.08rem 0.4rem; }
+
+/* Item 7, fifth pass — the treat widget is the companion's tall child
+   (four stacked lines), and the Unseen tile still sets the plates row. */
+html.vvh-t .home-companion .treat-pile-widget { padding: 0.3rem 0.45rem; line-height: 1.2; }
+html.vvh-t .fit-home .unseen-tile { padding-top: 0.12rem; padding-bottom: 0.12rem; }
+html.vvh-t .fit-home .unseen-card { width: 14px; }
+html.vvh-t .fit-home { gap: 0.12rem; }
+html.vvh-t .fit-home .stat-strip { padding-top: 0.1rem; padding-bottom: 0.1rem; }
+
+/* Item 7, bundles final pass — measured column math at 320x500: head ~64 +
+   tabs ~48 + bundles ~285 + redeem ~82 + gaps/padding ~59 = ~538. The last
+   ~39px come from sub/tab/card spacing and 26px bundle art. Nothing is
+   removed; every control stays >= 40px. */
+html.vvh-t .stable-sub { line-height: 1.25; }
+html.vvh-t .stable .stable-tab { padding-top: 0.24rem; padding-bottom: 0.24rem; }
+html.vvh-t .stable .stable-bundles { padding: 0.34rem 0.55rem; gap: 0.24rem; }
+html.vvh-t .stable .stable-bundle { padding: 0.3rem 0.5rem; gap: 0.25rem 0.5rem; }
+html.vvh-t .stable .stable-bundle-art svg { width: 26px; height: 26px; }
+html.vvh-t .stable .stable-redeem { padding: 0.34rem 0.55rem; }
+
+/* Item 7, bundles final pass 2 — the redeem row sits 11px past the band
+   (24 by scroll). Column-wide micro-cuts: main gap, section margins, card
+   text line-heights, 40px Adopt buttons (the floor every other secondary
+   action already uses), and a slimmer stable bottom padding. (The
+   list/defenders tabs read 1px of scroll overflow at 320x500 in the audit
+   harness — a rounding unit in their flex column; zero elements sit past
+   the band. It reads 0 at 560 and in a12. Left as-is, documented in
+   FIX-A13.) */
+html.vvh-t .stable.fit-screen { gap: 0.16rem; padding-bottom: 0.85rem; padding-top: 0.35rem; }
+html.vvh-t .stable .stable-bundles { margin-top: 0.25rem; gap: 0.18rem; }
+html.vvh-t .stable .stable-redeem { margin-top: 0.25rem; }
+html.vvh-t .stable .stable-bundle-text > strong { line-height: 1.2; }
+html.vvh-t .stable .stable-price { margin-top: 0; }
+html.vvh-t .stable .stable-bundle .stable-btn { min-height: 40px; }
+
+/* The stable screens' 1px scroll overhang is the .atmo atmosphere layer:
+   inset 0 against a 1px-bordered shell makes its bottom edge land 1px past
+   the content box (probe-verified: every real element ends inside the
+   band; zero rect offenders). Pull the layer's bottom in by that 1px —
+   decorative only, no content moves. */
+
+/* NOTE — the defenders picklist rows are CRUSHED at TONY sizes (grid 1fr
+   rows + min-height 0 squash five rows into ~140px; name/perk text clips).
+   That squash is how a11/a12 shipped and how their audits read 0 — the
+   rect metrics cannot see text clipping inside a row. A trial min-height
+   on .stable-pick un-squashed the rows and the column overflowed 126px,
+   proving the tab's fixed blocks (now + stash + freepick ≈ 240px) leave
+   no honest room for five full rows in a 392px main. The real remedies
+   (2-column pick grid, merged status rows, or a scrollable list) are a
+   design pick for Tony — documented in FIX-A13, NOT improvised here. */
+
+/* Ship trim (final audit): restoring the stable bottom padding to a12's
+   0.85rem cleared the defenders tabs' 1px but cost the bundles tab 3px of
+   scroll extent (no element past the band). These bundles-only gaps give
+   it back. Placed last so they win the cascade. */
+html.vvh-t .stable .stable-bundles { gap: 0.14rem; }
+html.vvh-t .stable .stable-redeem { margin-top: 0.18rem; }
+html.vvh-t .stable .stable-bundle { gap: 0.2rem 0.5rem; }

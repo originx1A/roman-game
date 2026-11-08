@@ -331,8 +331,12 @@ function syncAppHeight() {
 // (Tony's Muse-app webview does), a stack silently amputates its own bottom — Home's promo
 // row, the board tray, the Challenge submit button. Instead of guessing breakpoints, MEASURE
 // the live screen: if its content is taller than its box, step the shell's compression
-// classes (fit-s1..s3, CSS in App.css) up until it fits whole. Runs on screen change, on
+// classes (fit-s1..s4, CSS in App.css) up until it fits whole. Runs on screen change, on
 // resize / visualViewport changes, and again once webfonts land (metrics move when they do).
+// 9.33-a13: a fourth step — at Tony's real band (320 x ~500) Home still had an
+// 80px tail after s3 (stat strip labels under the nav, the site link + build
+// tag below the band). s4 is the deepest step and only engages where s3 was
+// not enough, so taller screens never see it.
 let fitRaf = 0
 let fitTimer = 0
 function fitShellScreens() {
@@ -343,13 +347,13 @@ function fitShellScreens() {
     const shell = document.querySelector('.fixed-shell')
     const main = shell?.querySelector(':scope > main')
     if (!shell || !main || shell.classList.contains('shell-play')) {
-      rootEl.classList.remove('fit-s1', 'fit-s2', 'fit-s3')
+      rootEl.classList.remove('fit-s1', 'fit-s2', 'fit-s3', 'fit-s4')
       return
     }
-    rootEl.classList.remove('fit-s1', 'fit-s2', 'fit-s3')
+    rootEl.classList.remove('fit-s1', 'fit-s2', 'fit-s3', 'fit-s4')
     void main.clientHeight
     let step = 0
-    while (step < 3 && main.scrollHeight > main.clientHeight + 1) {
+    while (step < 4 && main.scrollHeight > main.clientHeight + 1) {
       step += 1
       rootEl.classList.add(`fit-s${step}`)
       void main.clientHeight
@@ -481,6 +485,31 @@ export default function App() {
   const [settingsTab, setSettingsTab] = useState<'sound' | 'play'>('sound')
   const [showPrivacyNote, setShowPrivacyNote] = useState(false)
   const [aboutTab, setAboutTab] = useState<'story' | 'feedback'>('story')
+  // 9.33-a13: on short, narrow screens (visual height <= 600 and width
+  // <= 640 — Tony's phone band) the About story tab pages in two: the story
+  // lines, then the Defenders list. The whole tab is ~140px taller than his
+  // band; a pager (same pattern as the How to Play rules pager) keeps every
+  // line reachable — nothing is buried below the fold and no text is cut.
+  // The width condition keeps desktop windows (even short ones) untouched.
+  const [aboutPage, setAboutPage] = useState(0)
+  const [shortScreen, setShortScreen] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      (window.visualViewport?.height ?? window.innerHeight) <= 600 &&
+      window.innerWidth <= 640,
+  )
+  useEffect(() => {
+    const onResize = () =>
+      setShortScreen(
+        (window.visualViewport?.height ?? window.innerHeight) <= 600 && window.innerWidth <= 640,
+      )
+    window.addEventListener('resize', onResize)
+    window.visualViewport?.addEventListener('resize', onResize)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      window.visualViewport?.removeEventListener('resize', onResize)
+    }
+  }, [])
   const [levelTab, setLevelTab] = useState<Difficulty>(() => {
     const saved = (() => {
       try { return localStorage.getItem('rg-level-tab') } catch { return null }
@@ -4001,6 +4030,8 @@ export default function App() {
           </div>
           {aboutTab === 'story' ? (
           <section className="about-section" aria-label="About Roman's Game">
+            {(!shortScreen || aboutPage === 0) && (
+            <>
             <p className="about-line">
               Roman&rsquo;s Game <span className="build-tag">{BUILD_TAG}</span>
             </p>
@@ -4009,6 +4040,9 @@ export default function App() {
               Some boards wear a Defender&rsquo;s colours: if you hold calls for that Defender, they step in and help, once.
               Calls are bought in The Stable with coins you win. Coins only — no real money, ever.
             </p>
+            </>
+            )}
+            {(!shortScreen || aboutPage === 1) && (
             <div className="about-defenders">
               {PETS.map((p) => (
                 <div key={p.id} className="about-defender">
@@ -4019,9 +4053,23 @@ export default function App() {
                 </div>
               ))}
             </div>
+            )}
+            {(!shortScreen || aboutPage === 0) && (
             <p className="about-line">
               And something watches from the smoke. The Unseen never helps and cannot be bought — he just mocks.
             </p>
+            )}
+            {shortScreen && (
+              <div className="how-rules-pager about-pager">
+                <button type="button" className="btn ghost" disabled={aboutPage === 0} onClick={() => setAboutPage(0)}>
+                  ‹ Back
+                </button>
+                <span>{aboutPage === 0 ? 'The story · 1 of 2' : 'The Defenders · 2 of 2'}</span>
+                <button type="button" className="btn ghost" disabled={aboutPage === 1} onClick={() => setAboutPage(1)}>
+                  Defenders ›
+                </button>
+              </div>
+            )}
           </section>
           ) : (
           <section className="about-section" aria-label="Feedback and links">
