@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { isProfane } from './profanity'
-import { NAME_MAX, loadConsent, saveConsent, onCloud, savePlayerName, sendMagicLink, signOut, type CloudState } from './cloud'
+import { NAME_MAX, loadConsent, saveConsent, onCloud, savePlayerName, sendMagicLink, signOut, verifyEmailCode, type CloudState } from './cloud'
 
 /**
- * "Save my scores" button + sheets: email magic-link sign-in, then a one-time name prompt.
+ * "Save my scores" button + sheets: email magic link or the code from that email, then a one-time name prompt.
  * The whole chosen name is shown publicly (the server adds 02, 03... if it's taken); bad words are rejected on the spot.
  */
 export function useCloud(): CloudState {
@@ -19,16 +19,31 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
   const cloud = useCloud()
   const [sheet, setSheet] = useState<Sheet>(null)
   const [email, setEmail] = useState('')
+  const [code, setCode] = useState('')
   const [name, setName] = useState(suggestedName ?? '')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [age13, setAge13] = useState(() => loadConsent()?.age13 ?? false)
   const [optIn, setOptIn] = useState(() => loadConsent()?.optIn ?? false)
+  const [terms, setTerms] = useState(false)
   const consentChecks = (
     <div className="cloud-checks">
       <label className="cloud-check">
         <input type="checkbox" checked={age13} onChange={(e) => setAge13(e.target.checked)} />
         <span>I'm 13 or older</span>
+      </label>
+      <label className="cloud-check">
+        <input type="checkbox" checked={terms} onChange={(e) => setTerms(e.target.checked)} />
+        <span>
+          I agree to the{' '}
+          <a href="https://romansgame.com/terms" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+            Terms
+          </a>{' '}
+          and{' '}
+          <a href="./privacy.html" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+            Privacy
+          </a>
+        </span>
       </label>
       <label className="cloud-check">
         <input type="checkbox" checked={optIn} onChange={(e) => setOptIn(e.target.checked)} />
@@ -38,9 +53,11 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
     </div>
   )
 
-  // Signed in from the magic link but no name yet: ask once
+  // Signed in from the link or the code. No name yet: ask once. Code sign-in of a named player: show the account.
   useEffect(() => {
-    if (cloud.status === 'signed-in' && cloud.name === null) setSheet((s) => (s === 'account' ? s : 'name'))
+    if (cloud.status !== 'signed-in') return
+    if (cloud.name === null) setSheet((s) => (s === 'account' ? s : 'name'))
+    else setSheet((s) => (s === 'sent' ? 'account' : s))
   }, [cloud.status, cloud.name])
 
   const label =
@@ -54,9 +71,11 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
   async function switchPlayer() {
     await signOut()
     setEmail('')
+    setCode('')
     setName('')
     setAge13(false)
     setOptIn(false)
+    setTerms(false)
     saveConsent({ age13: false, optIn: false })
     setErr('')
     setSheet('email')
@@ -91,6 +110,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 onSubmit={async (e) => {
                   e.preventDefault()
                   if (!age13) return setSheet('parent')
+                  if (!terms) return setErr('Please agree to the Terms and Privacy.')
                   if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setErr('Type a full email address.')
                   saveConsent({ age13, optIn })
                   setBusy(true)
@@ -102,7 +122,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
               >
                 <h3>Save your scores</h3>
                 <p className="start-sheet-tip">
-                  Get on the leaderboard and keep your scores on any device. We'll email you a sign-in link. No password.
+                  Get on the leaderboard and keep your scores on any device. We'll email you a sign-in link and the code from your email. No password.
                 </p>
                 <input className="name-input" type="email" inputMode="email" autoComplete="email" placeholder="Email address" aria-label="Email address" value={email} onChange={(e) => setEmail(e.target.value)} />
                 {consentChecks}
@@ -116,15 +136,49 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
               </form>
             )}
             {sheet === 'sent' && (
-              <div className="start-sheet-card">
+              <form
+                className="start-sheet-card"
+                onSubmit={async (e) => {
+                  e.preventDefault()
+                  if (!/^\d{6,8}$/.test(code)) return setErr('Enter the code from your email.')
+                  setBusy(true)
+                  const r = await verifyEmailCode(email, code)
+                  setBusy(false)
+                  if (!r.ok) setErr(r.error ?? 'Something went wrong.')
+                }}
+              >
                 <h3>Check your email</h3>
                 <p className="start-sheet-tip">
-                  We sent a link to <b>{email.trim()}</b>. Open it on this device and you're in. Your scores keep saving here until then.
+                  We sent it to <b>{email.trim()}</b>. Tap the link in your email, or enter the code from your email.
                 </p>
-                <button type="button" className="btn primary" onClick={() => setSheet(null)}>
-                  OK
+                <input
+                  className="name-input cloud-code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={8}
+                  placeholder="the code from your email"
+                  aria-label="the code from your email"
+                  value={code}
+                  onPaste={(e) => {
+                    const text = e.clipboardData.getData('text').replace(/\s/g, '').replace(/\D/g, '').slice(0, 8)
+                    if (!text) return
+                    e.preventDefault()
+                    setCode(text)
+                    setErr('')
+                  }}
+                  onChange={(e) => {
+                    setCode(e.target.value.replace(/\s/g, '').replace(/\D/g, '').slice(0, 8))
+                    setErr('')
+                  }}
+                />
+                {err && <p className="cloud-err" role="alert">{err}</p>}
+                <button type="submit" className="btn primary" disabled={busy || code.length < 6}>
+                  {busy ? 'Checking…' : 'Sign in with code'}
                 </button>
-              </div>
+                <button type="button" className="btn ghost" onClick={() => setSheet(null)}>
+                  Not now
+                </button>
+              </form>
             )}
             {sheet === 'name' && (
               <form
@@ -133,6 +187,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                   e.preventDefault()
                   if (!name.trim() || nameProblem) return
                   if (!age13) return setSheet('parent')
+                  if (!loadConsent()?.age13 && !terms) return setErr('Please agree to the Terms and Privacy.')
                   setBusy(true)
                   const r = await savePlayerName(name, { age13, optIn })
                   setBusy(false)

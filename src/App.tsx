@@ -1160,7 +1160,6 @@ export default function App() {
     if (isStoreBuild() || settingsRef.current.analytics === false) return
     sendPing({ id: loadAnon(safeLocalStorage()).id, ev: 'feedback', vote, note: note.slice(0, 200) })
   }
-
   function saveSettingsPatch(patch: Partial<Settings>) {
     if (patch.analytics !== undefined) setGaEnabled(patch.analytics !== false)
     setSettings((cur) => {
@@ -2984,6 +2983,29 @@ export default function App() {
               </button>
               <CloudScoresButton suggestedName={playerName} />
               <UnseenCardTile records={records} />
+              {/* 9.32-j: the way back to the main site, on the home screen itself (Tony 2026-11-07).
+                  Until now the only romansgame.com link in the game sat on the win screen, so a
+                  player who hadn't just won had no way out. Same globe-link pattern as the win
+                  screen's link (class home-site-link), styled as a home-row button. Web only:
+                  store builds keep players inside the app. */}
+              {!isStoreBuild() && (
+                <a
+                  className="btn ghost home-site-link"
+                  href="https://romansgame.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="home-site-link"
+                  aria-label="Visit romansgame.com — the main Roman's Game site"
+                >
+                  <svg className="home-site-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                    <path
+                      fill="currentColor"
+                      d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2c2.1 0 3.9 1.1 5 2.7H7c1.1-1.6 2.9-2.7 5-2.7zM4.2 12c0-1.2.3-2.4.8-3.4h14c.5 1 .8 2.2.8 3.4s-.3 2.4-.8 3.4H5c-.5-1-.8-2.2-.8-3.4zm7.8 8c-2.1 0-3.9-1.1-5-2.7h10c-1.1 1.6-2.9 2.7-5 2.7z"
+                    />
+                  </svg>
+                  Visit romansgame.com
+                </a>
+              )}
             </div>
           </section>
           {/* 10.06: treat defense — the vulnerable field pile. Claim only on the board screen. */}
@@ -3044,6 +3066,7 @@ export default function App() {
         <HowToPlay
           key={`how-${howStart}`}
           startAt={howStart}
+          firstRun={progress.clears.length === 0}
           doneLabel={pendingStartRef.current ? "Let's play" : 'Choose a level'}
           onDone={() => {
             settingsRef.current = { ...settingsRef.current, howSeen: true }
@@ -3823,6 +3846,21 @@ export default function App() {
               </label>
             </div>
           </section>
+          <section className="about-section" aria-label="About Roman's Game">
+            <h3>About</h3>
+            <p className="about-line">
+              Roman&rsquo;s Game <span className="build-tag">{BUILD_TAG}</span>
+            </p>
+            <p className="about-line">
+              {!isStoreBuild() && settings.analytics !== false ? <FeedbackChip onSend={sendFeedback} /> : null}
+              <a className="about-link" href="./privacy.html">
+                Privacy
+              </a>
+              <a className="about-link" data-testid="jrny-link" href="https://jrny.fun" target="_blank">
+                A JRNY project
+              </a>
+            </p>
+          </section>
         </main>
       )}
 
@@ -4012,32 +4050,9 @@ export default function App() {
         onClose={() => setShowWheel(false)}
       />
 
-      <footer className={`foot ${screen === 'play' ? 'foot-hidden' : ''}`}>
-        <span>
-          Roman's Game <span className="build-tag build-tag-foot">{BUILD_TAG}</span>
-        </span>
-        <span className="foot-links">
-          {!isStoreBuild() && settings.analytics !== false ? <FeedbackChip onSend={sendFeedback} /> : null}
-          <a className="privacy-link" href="./privacy.html">
-            Privacy
-          </a>
-          <a className="privacy-link jrny-link" data-testid="jrny-link" href="https://jrny.fun" target="_blank">
-            A JRNY project
-          </a>
-          <button
-            type="button"
-            className="mute"
-            onClick={() => {
-              const next = { ...settings, sound: !settings.sound }
-              setSettings(next)
-              saveSettings(next)
-              setMuted(!next.sound)
-            }}
-          >
-            {settings.sound ? 'Sound on' : 'Sound off'}
-          </button>
-        </span>
-      </footer>
+      {/* Footer bar removed 2026-10-22 (Tony): it was eating screen space on every menu screen.
+          Its contents live in Save & settings now — Sound effects toggle in Settings, and the
+          version, thumbs, Privacy and JRNY credit in the About section at the bottom. */}
       {/* Keep clear of Netlify “Powered by” badge */}
       <div className="netlify-safe" aria-hidden />
       {/* 10.06: Unseen heckler pop-up — visual only, never blocks input */}
@@ -4059,7 +4074,7 @@ export default function App() {
   )
 }
 
-/** 9.30-r: small 👍/👎 in the footer; tapping one opens a one-line optional note */
+/** 9.30-r: small 👍/👎 in the About section; tapping one opens a one-line optional note */
 function FeedbackChip({ onSend }: { onSend: (vote: 'up' | 'down', note: string) => void }) {
   const [vote, setVote] = useState<'up' | 'down' | null>(null)
   const [note, setNote] = useState('')

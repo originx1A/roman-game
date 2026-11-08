@@ -30,6 +30,11 @@ export interface Story {
   date: string
   image?: string
   sourceIndex: number
+  /**
+   * Set from `data-keep-quotes` on the card `<h2>`.
+   * When true, a wrapping quote pair stays in the Kit subject.
+   */
+  keepTitleQuotes?: boolean
 }
 
 export function xmlEscape(value: string): string {
@@ -48,8 +53,75 @@ export function decodeHtml(value: string): string {
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
+    .replace(/&ldquo;/g, '\u201C')
+    .replace(/&rdquo;/g, '\u201D')
     .replace(/&apos;|&#x27;/g, "'")
+    .replace(/&lsquo;/g, '\u2018')
+    .replace(/&rsquo;/g, '\u2019')
     .replace(/&amp;/g, '&')
+}
+
+const WRAP_PAIRS = new Set(['""', "''", '\u201C\u201D', '\u2018\u2019'])
+
+function escapedAt(value: string, index: number): boolean {
+  let slashes = 0
+  for (let i = index - 1; i >= 0 && value[i] === '\\'; i -= 1) slashes += 1
+  return slashes % 2 === 1
+}
+
+/** Turn `\"` and `\'` (and the curly equivalents) into real quote characters. `\\` stays a backslash. */
+function unescapeTitleQuotes(value: string): string {
+  return value.replace(/\\([\\"'\u201C\u201D\u2018\u2019])/g, '$1')
+}
+
+/**
+ * Title text for the Kit subject (and thumbnail alt).
+ *
+ * Published cards sometimes include the YAML or JSON quotes around the
+ * heading, so the `<h2>` text is `"Throne Weather — …"` after HTML decode.
+ * One matching wrapping pair is removed: straight `"` or `'`, or curly
+ * `“…”` / `‘…’`. Quotes inside the title are left in place. Only one pair
+ * is removed.
+ *
+ * A wrapping pair is kept when either of these is true:
+ * - The title sets a flag: `data-keep-quotes="true"` (also `1`, `yes`, `on`,
+ *   or the bare attribute) on the story `<h2>`. That is `keepQuotes` here.
+ *   `false`, `0`, `no`, and `off` do not set it.
+ * - The wrapping quotes are escaped: `\"Title\"` or `\'Title\'` (curly
+ *   quotes the same way). The backslashes are removed and the quote
+ *   characters stay.
+ *
+ * Escaped quotes anywhere else are also unescaped after the wrap check, so a
+ * JSON-quoted title that contains quotes (`"Say \"hi\""`) keeps the inner
+ * ones (`Say "hi"`). `JSON.stringify('"On purpose"')` stays `"On purpose"`.
+ */
+export function stripWrappingTitleQuotes(title: string, keepQuotes = false): string {
+  const value = title.trim()
+  if (!keepQuotes && value.length >= 2) {
+    const open = value[0] ?? ''
+    const close = value[value.length - 1] ?? ''
+    const wrapped = WRAP_PAIRS.has(open + close) && !escapedAt(value, 0) && !escapedAt(value, value.length - 1)
+    if (wrapped) return unescapeTitleQuotes(value.slice(1, -1).trim())
+  }
+  return unescapeTitleQuotes(value)
+}
+
+function h2Attr(inner: string, name: string): string | null {
+  const attrs = /<h2\b([^>]*)>/i.exec(inner)?.[1] ?? ''
+  const match = new RegExp(`\\b${name}\\b\\s*(?:=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>]+)))?`, 'i').exec(attrs)
+  if (!match) return null
+  const value = match[1] ?? match[2] ?? match[3]
+  return value === undefined ? '' : value
+}
+
+/** `data-keep-quotes` on the card `<h2>`. Bare or empty counts as set. */
+export function h2KeepsTitleQuotes(inner: string): boolean {
+  const raw = h2Attr(inner, 'data-keep-quotes')
+  if (raw === null) return false
+  const value = raw.trim()
+  if (value === '') return true
+  if (/^(0|false|no|off)$/i.test(value)) return false
+  return /^(1|true|yes|on)$/i.test(value)
 }
 
 export function storyIdFromHref(href: string): string {
@@ -80,6 +152,7 @@ export function parseNewsIndex(html: string, base = NEWS_INDEX_URL): Story[] {
     const title = textOf(inner, 'h2')
     const excerpt = textOf(inner, 'nex')
     const date = textOf(inner, 'nmeta')
+    const keepTitleQuotes = h2KeepsTitleQuotes(inner)
     if (!title || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue
     const img = /<img\b[^>]*\bsrc="([^"]+)"/i.exec(inner)?.[1]
     let link = href
@@ -98,6 +171,7 @@ export function parseNewsIndex(html: string, base = NEWS_INDEX_URL): Story[] {
       date,
       image,
       sourceIndex: stories.length,
+      ...(keepTitleQuotes ? { keepTitleQuotes: true } : {}),
     })
   }
   return stories

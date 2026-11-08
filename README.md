@@ -92,13 +92,15 @@ There is an optional pool in Netlify Blobs (`story-pool`). It is empty unless so
 
 The scheduled function `kit-daily-news` runs at 13:20 and 14:20 UTC. It sends only when the Toronto clock is 09:20 or later in the 9 o'clock hour, so one of those two runs acts in both EDT and EST, including the March and November changeover days. It sends today's newest published story to Kit. If that date has no story, it logs and exits.
 
+The Kit subject is that card's `<h2>` text. The publisher sometimes leaves the YAML or JSON quotes on the heading (`"Throne Weather — …"`). One matching wrapping pair — straight `"` or `'`, or curly `“…”` / `‘…’` — is removed from the subject and the thumbnail alt. Quotes inside the title stay. To keep a wrapping pair, set `data-keep-quotes="true"` (`1`, `yes`, `on`, or the bare attribute) on the `<h2>`, or write the wrapping quotes escaped (`\"Title\"` or `\'Title\'`). Escaped quotes inside a title become real quotes, so `"Say \"hi\""` is sent as `Say "hi"`.
+
 Kit v4 broadcasts can target a **segment or a tag**, not a form id. Set `KIT_SEGMENT_ID` to a segment of form 10053148 when you have one. Until then the broadcast uses the tag `form-10053148`, which this server applies when it adds someone to the form. The marketing-site signup bar posts straight to Kit and is not in this repo. Give Kit a webhook to `POST /api/kit-webhook` with header `X-Kit-Webhook-Secret` so those subscribers get the same tag and welcome.
 
 Amazon Associates forbids affiliate links in email. The daily broadcast, the welcome letter, and support alerts drop every `amazon.*`, `amzn.to`, and `a.co` URL (tagged or not). In the broadcast those links are rewritten to that post's `https://romansgame.com/news/` article. The welcome and the alerts have no article, so the link is removed and the sentence stays. The RSS feed and the pages on romansgame.com are left as published. Sends stay off until `KIT_SEND_ENABLED` is set on a production deploy.
 
 Kit's free plan has broadcasts, not a one-person send (sequences and visual automations are paid). The welcome letter is sent with Resend from support@romansgame.com. The draft copy is `netlify/lib/welcomeCopy.ts`. It is one-time per address (a Blobs record plus the Kit tag `welcome-sent`). The letter includes a one-click unsubscribe link, `List-Unsubscribe` and `List-Unsubscribe-Post` headers, and a mailing-address line. That link cancels the subscriber in Kit and records the address so no further welcome is sent. A later signup is new consent and puts them back on the form, without a second welcome. Kit broadcasts keep `{{ unsubscribe_url }}` and `{{ address }}` so Kit's own footer still works.
 
-Real sends (daily, manual, welcome) happen only when `KIT_SEND_ENABLED` is true **and** Netlify `CONTEXT` is `production`. Anything else logs `send disabled`. Deploy previews do not send. `KIT_DRY_RUN=true` or `?dryRun=1` builds the payload and does not send.
+Real broadcasts and the welcome letter happen only when `KIT_SEND_ENABLED` is true and the function is running in a production deploy. Kit subscribe, unsubscribe, and support alerts use that same production check. Netlify sets `CONTEXT` for the build, not when a function runs, so the function uses the deploy context from its runtime `Context` (`context.deploy.context`). The site build also bakes that same `CONTEXT` into the bundle for the case where the runtime value is missing. Deploy previews, branch deploys, and local dev never send. `KIT_DRY_RUN=true` or `?dryRun=1` builds the payload and does not send.
 
 ### Environment
 
@@ -130,7 +132,7 @@ The response and the function log show the payload. Nothing is sent.
 curl -X POST "$SITE/api/kit-send-now" -H "X-Kit-Admin-Secret: $KIT_ADMIN_SECRET"
 ```
 
-That sends today's story once. It is idempotent. To send a published story again:
+That sends today's story once. It does not use the 9 o'clock window, so a missed morning edition can be sent later that same Toronto day. It is idempotent. To send a published story again:
 
 ```bash
 curl -X POST "$SITE/api/kit-send-now?force=1&storyId=STORY-SLUG" -H "X-Kit-Admin-Secret: $KIT_ADMIN_SECRET"
@@ -143,5 +145,5 @@ curl -X POST "$SITE/api/kit-send-now?force=1&storyId=STORY-SLUG" -H "X-Kit-Admin
 1. In Kit, confirm a verified sending address and either create a segment of form 10053148 (`KIT_SEGMENT_ID`) or let the tag `form-10053148` stand in.
 2. Set `KIT_API_KEY`, `KIT_ADMIN_SECRET`, `KIT_FORM_ID=10053148`, `RESEND_API_KEY`, `NEWS_POSTAL_ADDRESS`, and `KIT_WEBHOOK_SECRET`.
 3. Dry-run send-now and read the log.
-4. Set `KIT_SEND_ENABLED=true` on the **production** site only. Previews stay dark even if the flag is copied there, because `CONTEXT` is not `production`.
+4. Set `KIT_SEND_ENABLED=true` on the **production** deploy context only. Previews stay dark even if the flag is copied there, because their deploy context is not `production`. Publishing this code requires a new production deploy; the flag alone does not change a function that is already live.
 5. Point a Kit webhook at `https://play.romansgame.com/api/kit-webhook` for the marketing-site form.

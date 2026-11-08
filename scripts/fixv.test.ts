@@ -8,7 +8,10 @@ const idx = rd('../index.html')
 const llms = rd('../public/llms.txt')
 const priv = rd('../public/privacy.html')
 
-test('9.30-v: footer + privacy page link to jrny.fun in a new tab, normal rel (passes link value), no tracking', () => {
+test('9.30-v: About section + privacy page link to jrny.fun in a new tab, normal rel (passes link value), no tracking', () => {
+  // The footer bar was removed 2026-10-22 on Tony's order (screen space); its jrny-link
+  // now lives in the About section of Save & settings. There must be no <footer> at all.
+  assert.doesNotMatch(app, /<footer/)
   const foot = app.match(/<a[^>]*data-testid="jrny-link"[^>]*>[\s\S]*?<\/a>/)![0]
   assert.match(foot, /href="https:\/\/jrny\.fun"/)
   assert.match(foot, /target="_blank"/)

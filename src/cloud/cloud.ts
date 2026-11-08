@@ -2,8 +2,9 @@ import { gaEvent } from '../game/analytics'
 /**
  * Player accounts + score saving (Supabase, project romans-game).
  *
- * - Sign-in: email magic link only (no passwords). The session lives in localStorage, but the
- *   player row and every score live on the server, so a cache clear only means "sign in again".
+ * - Sign-in: email magic link, or the code from that same email (no passwords). The session
+ *   lives in localStorage, but the player row and every score live on the server, so a cache clear
+ *   only means "sign in again". The code is {{ .Token }} in the Magic Link email; Tony adds that.
  * - Scores: queued locally first, then sent. Offline / Supabase down / not signed in = they wait
  *   in the queue (max 200) and flush on sign-in, on `online`, and after each new game.
  * - supabase-js is loaded lazily, so the game never waits on it and works fully without it.
@@ -201,6 +202,24 @@ export async function sendMagicLink(email: string): Promise<{ ok: boolean; error
   const redirect = `${window.location.origin}${window.location.pathname}`
   const { error } = await sb.auth.signInWithOtp({ email: email.trim(), options: { emailRedirectTo: redirect, shouldCreateUser: true } })
   if (error) return { ok: false, error: error.message.includes('rate') ? 'Too many tries. Wait a minute and try again.' : "Couldn't send the link. Check the email and try again." }
+  return { ok: true }
+}
+
+/**
+ * The code from the same email as the magic link. The project sends 6 to 8 digits.
+ * verifyOtp signs the player in and fires SIGNED_IN. The listener in initCloud then runs
+ * loadPlayer, which copies this device's queued scores onto the account and flushes them.
+ * That is the same path as opening the link.
+ */
+export async function verifyEmailCode(email: string, token: string): Promise<{ ok: boolean; error?: string }> {
+  const sb = await client()
+  if (!sb) return { ok: false, error: "You're offline. Try again when you're connected." }
+  const code = token.replace(/\s/g, '')
+  if (!/^\d{6,8}$/.test(code)) return { ok: false, error: 'Enter the code from your email.' }
+  const { data, error } = await sb.auth.verifyOtp({ email: email.trim(), token: code, type: 'email' })
+  if (error || !data.session) {
+    return { ok: false, error: error?.message?.includes('rate') ? 'Too many tries. Wait a minute and try again.' : "That code didn't work. Check it and try again." }
+  }
   return { ok: true }
 }
 

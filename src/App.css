@@ -884,14 +884,16 @@ html[data-motion='reduce'] .cell.pressed .cell-fill {
 .settings,
 .backup,
 .challenge-list,
-.follow-section {
+.follow-section,
+.about-section {
   margin-top: 1.5rem;
 }
 
 .settings h3,
 .backup h3,
 .challenge-list h3,
-.follow-section h3 {
+.follow-section h3,
+.about-section h3 {
   margin: 0 0 0.7rem;
   font-size: 0.85rem;
   letter-spacing: 0.12em;
@@ -3614,6 +3616,20 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
 .win-fb-icon {
   flex-shrink: 0;
 }
+/* 9.32-j: home-screen return link to romansgame.com — an <a> wearing the home
+   row's .btn ghost clothes, so it needs the anchor resets .btn (written for
+   <button>) doesn't carry: no underline, and flex centring for the globe icon. */
+.home-site-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.home-site-icon {
+  flex-shrink: 0;
+}
 .link-board-error {
   margin: 0.75rem 0 0;
   font-weight: 800;
@@ -6041,6 +6057,11 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
 .foot .privacy-link { color: rgba(244, 251, 255, 0.86); }
 .foot .privacy-link:hover, .foot .privacy-link:focus-visible { color: #f4fbff; }
 
+/* About section (Save & settings) — the footer bar's contents live here since 2026-10-22 */
+.about-line { margin: 0 0 0.55rem; font-size: 0.85rem; color: rgba(244, 251, 255, 0.6); display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem 0.9rem; }
+.about-link { color: rgba(244, 251, 255, 0.86); font-weight: 700; }
+.about-link:hover, .about-link:focus-visible { color: #f4fbff; }
+
 /* Footer must never clip on a narrow phone: the "Sound on/off" button was cut off at the right edge. */
 .foot {
   flex-wrap: wrap;
@@ -6355,9 +6376,12 @@ html[data-motion='reduce'] .td-invader {
 .cloud-btn.is-compact { font-size: 0.8rem; padding: 0.35rem 0.7rem; min-height: 0; }
 .cloud-err { margin: 0.25rem 0 0; color: #ff8a8a; font-size: 0.82rem; font-weight: 600; }
 .cloud-sheet .name-input { width: 100%; }
+.cloud-code { letter-spacing: 0.22em; text-align: center; font-weight: 800; font-variant-numeric: tabular-nums; }
+.cloud-code::placeholder { letter-spacing: 0; font-weight: 600; }
 .cloud-checks { display: grid; gap: 0.45rem; margin: 0.6rem 0 0.2rem; text-align: left; }
-.cloud-check { display: flex; align-items: center; gap: 0.55rem; font-size: 0.88rem; cursor: pointer; }
-.cloud-check input { width: 1.15rem; height: 1.15rem; flex-shrink: 0; accent-color: #f5c84c; }
+.cloud-check { display: flex; align-items: flex-start; gap: 0.55rem; font-size: 0.88rem; cursor: pointer; }
+.cloud-check input { width: 1.15rem; height: 1.15rem; flex-shrink: 0; margin-top: 0.12rem; accent-color: #f5c84c; }
+.cloud-check a { color: #ffd166; font-weight: 800; text-underline-offset: 0.12em; }
 .cloud-switch { font-size: 0.8rem; padding: 0.35rem 0.75rem; min-height: 0; opacity: 0.9; }
 
 /* 9.32-d: exclusive Unseen card, back while locked, flips to the animated front when earned */
