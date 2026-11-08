@@ -16,7 +16,7 @@ import { extname, join, normalize } from 'node:path'
 import { writeFileSync } from 'node:fs'
 
 const SHELL = '/home/hatch/.cache/ms-playwright/chromium_headless_shell-1248/chrome-headless-shell-linux64/chrome-headless-shell'
-const ROOT = '/home/hatch/workspace/game-auth-simplify-2026-11-07'
+const ROOT = '/home/hatch/workspace/roman-game/release-b-merge'
 const DIST = join(ROOT, 'dist')
 const PORT = 9367
 const HTTP_PORT = 8942
