@@ -412,16 +412,26 @@ function loadTurnstileApi(): Promise<any> {
   return turnstileApiP
 }
 
+/** The production public site key — the same one the website ships in
+ *  accounts-config.js. The config endpoint stays the source of truth; this
+ *  is only the belt-and-braces fallback for when that fetch cannot be read
+ *  from this origin (e.g. it answers without CORS headers, as /api/auth/config
+ *  did — see TURNSTILE-DIAGNOSIS.md). A key rotation still propagates via
+ *  the config in the normal case. */
+const FALLBACK_SITE_KEY = '0x4AAAAAAFfTs2hm1baT01HK'
+
 /** The production site key, from the same public config the website reads. */
 export async function authSiteKey(): Promise<string | null> {
   try {
     const r = await fetch(`${AUTH_BASE}/api/auth/config`, { headers: { accept: 'application/json' } })
-    if (!r.ok) return null
-    const data = (await r.json().catch(() => null)) as { turnstileSiteKey?: string } | null
-    return data?.turnstileSiteKey ?? null
+    if (r.ok) {
+      const data = (await r.json().catch(() => null)) as { turnstileSiteKey?: string } | null
+      if (data?.turnstileSiteKey) return data.turnstileSiteKey
+    }
   } catch {
-    return null
+    /* config unreadable from here — fall through to the public key */
   }
+  return FALLBACK_SITE_KEY
 }
 
 /**
