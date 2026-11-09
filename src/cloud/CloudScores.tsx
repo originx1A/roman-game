@@ -109,10 +109,17 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
    * the API asks. One widget at a time, rendered lazily into whichever sheet is
    * asking. Tokens are single-use server-side, so every gated call clears it. */
   const [cap, setCap] = useState<{ need: boolean; token: string | null; busy: boolean }>({ need: false, token: null, busy: false })
+  const [capRetry, setCapRetry] = useState(0)
   const capRef = useRef<HTMLDivElement>(null)
   const capStarted = useRef(false)
   function askCaptcha() {
     capStarted.current = false
+    // Bump the attempt counter as well: after a failed/null attempt the cap
+    // values are unchanged, so without this the render effect below would not
+    // re-fire and re-tapping the submit button would be a no-op (diagnosis
+    // §2.4). The counter is in the effect's deps, so every ask starts a
+    // genuinely fresh person-check attempt.
+    setCapRetry((n) => n + 1)
     setCap({ need: true, token: null, busy: false })
   }
   function clearCaptcha() {
@@ -144,7 +151,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
     return () => {
       stopped = true
     }
-  }, [cap.need, cap.token, sheet])
+  }, [cap.need, cap.token, sheet, capRetry])
   const captchaBox = cap.need ? (
     <div className="cloud-captcha">
       <div ref={capRef} />

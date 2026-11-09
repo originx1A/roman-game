@@ -197,9 +197,12 @@ async function loadPlayer(sb: SupabaseClient, session: Session | null) {
  * Which door does this account have? A website-born (or claimed) account signs
  * in with name + password; its login address is synthetic. A game-born account
  * still carries its real email and no password. Asked once per session change
- * via the shared door's session probe (it answers for profiles-row accounts);
- * no answer + a real-email auth address reads as a code account; no answer +
- * a synthetic address reads as a password account. Never blocks anything.
+ * via the shared door's session probe: it answers 200 for ANY live session,
+ * but only an account WITH a profile on the shared door (claimed or
+ * website-born) gets its player name back in the answer — that name is the
+ * password tell. No name in the answer + a real-email auth address reads as a
+ * code account; a synthetic address reads as a password account. Never blocks
+ * anything.
  */
 let probedFor: string | null = null
 async function probeAuthKind(session: Session): Promise<void> {
@@ -208,8 +211,12 @@ async function probeAuthKind(session: Session): Promise<void> {
   probedFor = uid
   const synthetic = (session.user.email ?? '').endsWith('@players.romansgame.invalid')
   try {
-    const { status } = await authPost('/api/auth/session', {}, session.access_token)
-    if (status === 200) {
+    const { status, data } = await authPost('/api/auth/session', {}, session.access_token)
+    // A bare 200 proves only that the session is live — the probe answers for
+    // game-born code accounts too. Without a profile name in the answer there
+    // is no name + password login yet, whatever the status says; fall through
+    // to the address shape instead of misreading the account as claimed.
+    if (status === 200 && (data?.player_name || data?.display_name)) {
       if (state.authKind !== 'password') set({ authKind: 'password' })
       return
     }
