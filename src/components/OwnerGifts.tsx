@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { BugReports } from './BugReports'
 import { allBuddiesPack, cleanGiftNote, GIFT_NOTE_MAX, GIFT_TAG, giftLabel, giftShareMessage, PETS, type Gift, type GiftItem, type PetId } from '../game/pets'
 import { PetArt } from './PetArt'
+import { PasswordInput } from './PasswordInput'
 
 /*
  * 9.30-a: Tony's private gift page (web only, hidden route /roman-owner). 9.30-c: no visible link;
@@ -271,7 +272,7 @@ export function OwnerGifts() {
         >
           <label>
             Owner passphrase
-            <input type="password" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="current-password" />
+            <PasswordInput value={key} onChange={setKey} autoComplete="current-password" placeholder="" ariaLabel="Owner passphrase" />
           </label>
           <button type="submit" className="btn primary" disabled={busy || !key}>
             Unlock

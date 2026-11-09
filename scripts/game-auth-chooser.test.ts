@@ -7,6 +7,7 @@ const ui = rd('../src/cloud/CloudScores.tsx')
 const cloud = rd('../src/cloud/cloud.ts')
 const tag = rd('../src/buildTag.ts')
 const css = rd('../src/App.css')
+const passInput = rd('../src/components/PasswordInput.tsx')
 
 /** Slice one sheet's JSX block: from its `sheet === '<name>'` marker to the next sheet marker (or the portal close). */
 function block(name: string): string {
@@ -34,7 +35,7 @@ test('9.32-k-dev: sign-in is player name + password on the shared door (no code 
   // Tony 2026-11-07: the game matches the website — name + password signs in,
   // email is recovery only. The code door survives only as the claim bootstrap.
   const signin = block('signin')
-  assert.match(signin, /type="password"/, 'sign-in has a password field')
+  assert.match(signin, /<PasswordInput/, 'sign-in has a password field')
   assert.match(signin, /autoComplete="current-password"/)
   assert.match(signin, /value=\{loginName\}/, 'sign-in asks the player name')
   assert.match(signin, /Forgot your password\?/, 'forgot is one tap from sign-in')
@@ -48,7 +49,7 @@ test('9.32-k-dev: sign-in is player name + password on the shared door (no code 
 test('9.32-k-dev: create collects name + password + confirm; the age answer is the server record', () => {
   const create = block('create')
   assert.match(create, /value=\{createName\}/)
-  assert.equal((create.match(/type="password"/g) ?? []).length, 2, 'password + confirm on create')
+  assert.equal((create.match(/<PasswordInput/g) ?? []).length, 2, 'password + confirm on create')
   assert.match(create, /Recovery email \(optional\)/, 'email is framed as recovery for grown-ups')
   assert.match(create, /Grown-up's email \(required/, 'an unticked age box makes it a grown-up’s required email')
   assert.match(ui, /await createAccount\(\{/, 'create posts to the shared API')
@@ -73,7 +74,7 @@ test('9.32-k-dev: the claim gives an email-code account its name + password (sam
   const claim = block('claim')
   assert.match(claim, /Give your account a name \+ password/)
   assert.match(claim, /your leaderboard\s+name doesn't change/, 'the copy keeps login name and leaderboard name straight')
-  assert.equal((claim.match(/type="password"/g) ?? []).length, 2, 'password + confirm on claim')
+  assert.equal((claim.match(/<PasswordInput/g) ?? []).length, 2, 'password + confirm on claim')
   assert.match(claim, /consentChecks/, 'the age/terms questions are answered once, server-side, at claim')
   assert.match(ui, /await claimAccount\(\{/)
   assert.match(cloud, /'\/api\/auth\/claim'/)
@@ -138,8 +139,22 @@ test('9.32-j-dev: close is reachable on every sheet, including the account sheet
   assert.match(ui, /start-sheet-scrim" onClick=\{\(\) => setSheet\(null\)\}/, 'the scrim closes the box')
 })
 
+test('9.33-a16: every password field carries the show/hide eye (Tony 2026-11-08)', () => {
+  // Tony, from typing blind on his phone: "add that little eye icon so you can see what
+  // your password is after you type it in." One shared field component, one eye per field.
+  assert.match(ui, /import \{ PasswordInput \} from '\.\.\/components\/PasswordInput'/, 'the sheets use the shared password field')
+  const reset = block('reset')
+  assert.equal((reset.match(/<PasswordInput/g) ?? []).length, 2, 'password + confirm on the reset sheet')
+  assert.equal((ui.match(/<PasswordInput/g) ?? []).length, 7, 'sign-in 1 + create 2 + claim 2 + reset 2 password fields')
+  assert.match(passInput, /type=\{show \? 'text' : 'password'\}/, 'the eye flips the field between hidden and readable')
+  assert.match(passInput, /const \[show, setShow\] = useState\(false\)/, 'each field owns its eye state and starts hidden')
+  assert.match(passInput, /type="button"[^>]*className="pass-eye"/, 'the eye is a plain button — it can never submit the form')
+  assert.match(passInput, /aria-label=\{show \? 'Hide password' : 'Show password'\}/, 'the eye says what it does')
+  assert.match(css, /\.pass-eye \{[^}]*position: absolute/, 'the eye rides inside the field, adding no width')
+})
+
 test('9.32-k-dev: build tag bumped for the password switch', () => {
-  assert.match(tag, /build 9\.33-a15'/)
+  assert.match(tag, /build 9\.33-a16'/)
 })
 
 test('9.32-j-dev round 2: the panel keeps the field being typed in above the phone keyboard', () => {

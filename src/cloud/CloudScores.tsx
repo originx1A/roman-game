@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { PasswordInput } from '../components/PasswordInput'
 import { isProfane } from './profanity'
 import {
   NAME_MAX,
@@ -534,7 +535,7 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 <h3>Sign in</h3>
                 <p className="start-sheet-tip">Your player name + password — the same ones as romansgame.com.</p>
                 <input className="name-input" type="text" autoComplete="username" placeholder="Player name" aria-label="Player name" value={loginName} onChange={(e) => setLoginName(e.target.value)} />
-                <input className="name-input" type="password" autoComplete="current-password" placeholder="Password" aria-label="Password" value={pass} onChange={(e) => setPass(e.target.value)} />
+                <PasswordInput inputClassName="name-input" autoComplete="current-password" placeholder="Password" ariaLabel="Password" value={pass} onChange={setPass} />
                 {captchaBox}
                 {err && <p className="cloud-err" role="alert">{err}</p>}
                 <button type="submit" className="btn primary" disabled={busy}>
@@ -579,8 +580,8 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                   One account for the game and romansgame.com. Your name + password is how you sign in; an email is only for getting back in if you forget.
                 </p>
                 <input className="name-input" type="text" autoComplete="username" placeholder="Player name" aria-label="Player name" value={createName} onChange={(e) => setCreateName(e.target.value)} />
-                <input className="name-input" type="password" autoComplete="new-password" placeholder="Password" aria-label="Password" value={pass} onChange={(e) => setPass(e.target.value)} />
-                <input className="name-input" type="password" autoComplete="new-password" placeholder="Type the password again" aria-label="Type the password again" value={pass2} onChange={(e) => setPass2(e.target.value)} />
+                <PasswordInput inputClassName="name-input" autoComplete="new-password" placeholder="Password" ariaLabel="Password" value={pass} onChange={setPass} />
+                <PasswordInput inputClassName="name-input" autoComplete="new-password" placeholder="Type the password again" ariaLabel="Type the password again" value={pass2} onChange={setPass2} />
                 <p className="cloud-field-label">{age13 ? 'Recovery email (optional)' : "Grown-up's email (required for a child's account)"}</p>
                 {emailField}
                 {consentChecks}
@@ -680,8 +681,8 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                   name doesn't change) and a password. Your email becomes the recovery address for getting back in.
                 </p>
                 <input className="name-input" type="text" autoComplete="username" placeholder="Sign-in name" aria-label="Sign-in name" value={loginName} onChange={(e) => setLoginName(e.target.value)} />
-                <input className="name-input" type="password" autoComplete="new-password" placeholder="Password" aria-label="Password" value={pass} onChange={(e) => setPass(e.target.value)} />
-                <input className="name-input" type="password" autoComplete="new-password" placeholder="Type the password again" aria-label="Type the password again" value={pass2} onChange={(e) => setPass2(e.target.value)} />
+                <PasswordInput inputClassName="name-input" autoComplete="new-password" placeholder="Password" ariaLabel="Password" value={pass} onChange={setPass} />
+                <PasswordInput inputClassName="name-input" autoComplete="new-password" placeholder="Type the password again" ariaLabel="Type the password again" value={pass2} onChange={setPass2} />
                 {consentChecks}
                 {captchaBox}
                 {err && <p className="cloud-err" role="alert">{err}</p>}
@@ -760,8 +761,8 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                       </>
                     )}
                     {grant.accounts.length <= 1 && <p className="start-sheet-tip">Code accepted. Choose the new password for {grant.accounts[0]?.playerName || 'your account'}.</p>}
-                    <input className="name-input" type="password" autoComplete="new-password" placeholder="New password" aria-label="New password" value={pass} onChange={(e) => setPass(e.target.value)} />
-                    <input className="name-input" type="password" autoComplete="new-password" placeholder="Type it again" aria-label="Type it again" value={pass2} onChange={(e) => setPass2(e.target.value)} />
+                    <PasswordInput inputClassName="name-input" autoComplete="new-password" placeholder="New password" ariaLabel="New password" value={pass} onChange={setPass} />
+                    <PasswordInput inputClassName="name-input" autoComplete="new-password" placeholder="Type it again" ariaLabel="Type it again" value={pass2} onChange={setPass2} />
                   </>
                 )}
                 {captchaBox}
