@@ -712,6 +712,24 @@ main,
   pointer-events: none;
 }
 
+/* 9.33-a17-halo (TEST ONLY): faint warm light halo behind each buddy on the puzzle
+   board, so buddies read against the gem cells. Scoped to .board — buddies elsewhere
+   (demos, hunt, rail) are untouched. Disc is ~168% of the buddy, feathering to clear. */
+.board .buddy::before {
+  content: '';
+  position: absolute;
+  inset: -34%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 246, 214, 0.55) 0%,
+    rgba(255, 240, 200, 0.3) 45%,
+    rgba(255, 240, 200, 0) 70%
+  );
+  z-index: -1;
+  pointer-events: none;
+}
+
 .buddy-body {
   position: relative;
   width: 100%;
