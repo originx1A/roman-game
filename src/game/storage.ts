@@ -77,6 +77,20 @@ export interface BoardDraft {
 
 const defaultSettings: Settings = { sound: true, voice: true, reduceMotion: false }
 
+function portalBuild(): boolean {
+  const flag = (globalThis as { __ROMAN_PORTAL__?: string }).__ROMAN_PORTAL__
+  return flag === 'crazygames' || flag === 'poki'
+}
+
+/** Portal copies keep playing when storage throws (private mode). The default build still throws. */
+function persist(op: () => void) {
+  try {
+    op()
+  } catch (err) {
+    if (!portalBuild()) throw err
+  }
+}
+
 function read<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key)
@@ -88,7 +102,7 @@ function read<T>(key: string, fallback: T): T {
 }
 
 function write(key: string, value: unknown) {
-  localStorage.setItem(key, JSON.stringify(value))
+  persist(() => localStorage.setItem(key, JSON.stringify(value)))
 }
 
 export function loadSettings(): Settings {
@@ -132,7 +146,7 @@ export function saveProfile(profile: Profile) {
 }
 
 export function clearProfile() {
-  localStorage.removeItem(KEYS.profile)
+  persist(() => localStorage.removeItem(KEYS.profile))
 }
 
 export function loadGuestProgress(): ProgressBlob {
@@ -255,7 +269,7 @@ export function addChallenge(c: Challenge) {
 }
 
 export function saveDraft(draft: BoardDraft | null) {
-  if (!draft) localStorage.removeItem(KEYS.boardDraft)
+  if (!draft) persist(() => localStorage.removeItem(KEYS.boardDraft))
   else write(KEYS.boardDraft, draft)
 }
 

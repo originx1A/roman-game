@@ -50,6 +50,7 @@ export interface PingBody {
 
 /** Fire and forget. Never throws, never waits on the game. */
 export function sendPing(body: PingBody, enabled = true): void {
+  if (typeof __PORTAL_BUILD__ !== 'undefined' && __PORTAL_BUILD__) return
   if (!enabled || typeof fetch !== 'function') return
   try {
     void fetch('/api/ping', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), keepalive: true }).catch(() => {})
@@ -67,6 +68,10 @@ export const GA_ID = 'G-9MYJE42RQ1'
 let gaOn = true
 /** Follows the in-game analytics switch (also stops gtag's own page_view hits). */
 export function setGaEnabled(on: boolean): void {
+  if (typeof __PORTAL_BUILD__ !== 'undefined' && __PORTAL_BUILD__) {
+    gaOn = false
+    return
+  }
   gaOn = on
   try {
     ;(window as unknown as Record<string, unknown>)['ga-disable-' + GA_ID] = !on
@@ -75,6 +80,7 @@ export function setGaEnabled(on: boolean): void {
   }
 }
 export function gaEvent(name: GaEvent, params?: { board_id?: string | number; level?: number }): void {
+  if (typeof __PORTAL_BUILD__ !== 'undefined' && __PORTAL_BUILD__) return
   if (!gaOn) return
   try {
     const g = (window as unknown as { gtag?: (...a: unknown[]) => void }).gtag

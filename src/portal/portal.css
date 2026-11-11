@@ -1,0 +1,17 @@
+/* Portal copies only. The default site does not load this file. */
+body.portal-crazygames,
+body.portal-poki {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+
+body.portal-crazygames input,
+body.portal-crazygames textarea,
+body.portal-poki input,
+body.portal-poki textarea {
+  -webkit-user-select: text;
+  user-select: text;
+  touch-action: auto;
+}

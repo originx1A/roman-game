@@ -1,7 +1,20 @@
 /** Reconstructed from roman-game.surge.sh production JS. */
 import { buildShareLinks, copyText, nativeShare } from '../game/share'
 
-export function ShareBar({
+const PORTAL_BUILD = __PORTAL_BUILD__
+
+export function ShareBar(props: {
+  url: string
+  title?: string
+  text?: string
+  onCopied?: () => void
+  emailHref?: string
+}) {
+  if (PORTAL_BUILD) return null
+  return <ShareBarLinks {...props} />
+}
+
+function ShareBarLinks({
   url,
   title = "Roman's Game",
   text = "Come play Roman's logic board with me!",

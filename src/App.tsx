@@ -473,6 +473,8 @@ const MENU_CSS = `
 .daily-streakbtn:active { transform: scale(0.96); }
 `
 
+const PORTAL_BUILD = __PORTAL_BUILD__
+
 export default function App() {
   const [screen, setScreen] = useState<Screen>('home')
   const [{ layout }, setLayoutInfo] = useState(() => readLayout())
@@ -568,8 +570,8 @@ export default function App() {
     return () => document.removeEventListener('pointerdown', onPress, true)
   }, [])
   useEffect(() => {
-    setGaEnabled(!isStoreBuild() && settingsRef.current.analytics !== false)
-    if (isStoreBuild() || settingsRef.current.analytics === false) return
+    setGaEnabled(!PORTAL_BUILD && !isStoreBuild() && settingsRef.current.analytics !== false)
+    if (PORTAL_BUILD || isStoreBuild() || settingsRef.current.analytics === false) return
     const ls = safeLocalStorage()
     const today = torontoDateKey()
     const o = openEvents(loadAnon(ls), today)
@@ -1206,11 +1208,11 @@ export default function App() {
 
   /** 9.30-r: anonymous level_clear ping */
   function analyticsClear(size: number, ms: number) {
-    if (isStoreBuild() || settingsRef.current.analytics === false) return
+    if (PORTAL_BUILD || isStoreBuild() || settingsRef.current.analytics === false) return
     sendPing({ id: loadAnon(safeLocalStorage()).id, ev: 'level_clear', size, ms: Math.round(ms) })
   }
   function sendFeedback(vote: 'up' | 'down', note: string) {
-    if (isStoreBuild() || settingsRef.current.analytics === false) return
+    if (PORTAL_BUILD || isStoreBuild() || settingsRef.current.analytics === false) return
     sendPing({ id: loadAnon(safeLocalStorage()).id, ev: 'feedback', vote, note: note.slice(0, 200) })
   }
   function saveSettingsPatch(patch: Partial<Settings>) {
@@ -1382,6 +1384,7 @@ export default function App() {
     // 10.06: local gift codes (backend-free) decode directly
     const local = parseLocalGiftCode(code)
     if (local) return { ok: true, message: '', gift: local.gift, note: local.note, code }
+    if (PORTAL_BUILD) return { ok: false, message: 'Website gift codes are not in this copy.' }
     try {
       const res = await fetch('/api/gift-redeem', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code, peek: true }) })
       const j = (await res.json().catch(() => ({}))) as { ok?: boolean; gift?: Gift; note?: string; reason?: string }
@@ -1397,6 +1400,7 @@ export default function App() {
     if (loadPets().redeemed.includes(code)) return { ok: false, message: 'You already redeemed that code.' }
     // 10.06: local gift codes (backend-free) decode and apply directly
     const local = parseLocalGiftCode(code)
+    if (PORTAL_BUILD && !local) return { ok: false, message: 'Website gift codes are not in this copy.' }
     if (local) {
       const w = loadWallet()
       const out = applyGift(loadPets(), w.coins, local.gift, code, Date.now(), local.note)
@@ -2933,6 +2937,9 @@ export default function App() {
   return (
     <div
       className={`shell fixed-shell ${isStoreBuild() ? 'shell-native' : ''} ${screen === 'play' ? 'shell-play' : ''} ${screen === 'play' && celebrate && !showWheel ? 'shell-celebrate' : ''} ${hideChrome ? 'shell-immersive' : ''} shell-${screen}`}
+      {...(PORTAL_BUILD
+        ? { 'data-portal-play': screen === 'play' && puzzle && !celebrate && !defeated && !rotatePaused && !showWheel ? '1' : '0' }
+        : {})}
       ref={shellRef}
       onPointerDown={unlockAudio}
     >
@@ -3051,7 +3058,7 @@ export default function App() {
                   player who hadn't just won had no way out. Same globe-link pattern as the win
                   screen's link (class home-site-link), styled as a home-row button. Web only:
                   store builds keep players inside the app. */}
-              {!isStoreBuild() && (
+              {!isStoreBuild() && !PORTAL_BUILD && (
                 <a
                   className="btn ghost home-site-link"
                   href="https://romansgame.com/"
@@ -3124,9 +3131,11 @@ export default function App() {
             </div>
           </section>
           <div className="home-foot">
+            {!PORTAL_BUILD && (
             <a className="home-foot-link" href="https://romansgame.com" target="_blank" rel="noopener">
               ⊖ Visit romansgame.com
             </a>
+            )}
             {/* 9.33-a11: the build tag lives on Home too — Tony must be able to read
                 which build he is looking at without entering a board. */}
             <div className="home-build">{BUILD_TAG}</div>
@@ -3139,6 +3148,7 @@ export default function App() {
           <Atmosphere variant="panel" tint="#b07fe8" />
           <h2>More</h2>
           <div className="more-grid">
+            {!PORTAL_BUILD && (
             <button type="button" className="more-row" onClick={() => setScreen('challenge')}>
               <span className="more-icon" aria-hidden="true">⚔</span>
               <span className="more-text">
@@ -3147,6 +3157,7 @@ export default function App() {
               </span>
               <span className="more-go" aria-hidden="true">›</span>
             </button>
+            )}
             <button type="button" className="more-row" onClick={() => setScreen('account')}>
               <span className="more-icon" aria-hidden="true">✦</span>
               <span className="more-text">
@@ -3179,6 +3190,7 @@ export default function App() {
               </span>
               <span className="more-go" aria-hidden="true">›</span>
             </button>
+            {!PORTAL_BUILD && (
             <button type="button" className="more-row" onClick={() => setScreen('bug')}>
               <span className="more-icon" aria-hidden="true">🐛</span>
               <span className="more-text">
@@ -3187,6 +3199,8 @@ export default function App() {
               </span>
               <span className="more-go" aria-hidden="true">›</span>
             </button>
+            )}
+            {!PORTAL_BUILD && (
             <a className="more-row" href="https://facebook.com/romansgame" target="_blank" rel="noopener noreferrer">
               <span className="more-icon" aria-hidden="true">f</span>
               <span className="more-text">
@@ -3195,6 +3209,7 @@ export default function App() {
               </span>
               <span className="more-go" aria-hidden="true">›</span>
             </a>
+            )}
             <a className="more-row" href="./privacy.html">
               <span className="more-icon" aria-hidden="true">§</span>
               <span className="more-text">
@@ -3204,11 +3219,13 @@ export default function App() {
               <span className="more-go" aria-hidden="true">›</span>
             </a>
           </div>
+          {!PORTAL_BUILD && (
           <p className="more-foot">
             <a href="https://romansgame.com" target="_blank" rel="noopener">
               ⊖ Visit romansgame.com
             </a>
           </p>
+          )}
         </main>
       )}
 
@@ -3594,8 +3611,8 @@ export default function App() {
                 perfect: winPerfect,
               }}
               onBuddyHunt={openBuddyHunt}
-              onShare={() => shareWinAsChallenge()}
-              onDuel={duel && activeChallenge?.puzzleId === puzzle.id ? openDuelShare : undefined}
+              onShare={PORTAL_BUILD ? undefined : () => shareWinAsChallenge()}
+              onDuel={!PORTAL_BUILD && duel && activeChallenge?.puzzleId === puzzle.id ? openDuelShare : undefined}
             />
           )}
 
@@ -3692,7 +3709,7 @@ export default function App() {
           onCoins={() => setShowCoins(true)}
           onBack={() => setScreen('home')}
           giftCode={giftPrefill}
-          giftsOnline={!isStoreBuild()}
+          giftsOnline={!PORTAL_BUILD && !isStoreBuild()}
         />
       )}
 
@@ -3790,7 +3807,7 @@ export default function App() {
           {profile ? (
           <div className="profile-card">
           <p className="profile-name">{profile.displayName}</p>
-          <p className="profile-email">{profile.email}</p>
+          {!PORTAL_BUILD && <p className="profile-email">{profile.email}</p>}
           <button
           type="button"
           className="btn ghost"
@@ -3803,6 +3820,8 @@ export default function App() {
           Sign out
           </button>
           </div>
+          ) : PORTAL_BUILD ? (
+          <p className="sub">Progress stays on this device. This copy has no account and no sign-in.</p>
           ) : (
           <form className="auth-form" onSubmit={handleSignIn}>
           <label>
@@ -3891,6 +3910,7 @@ export default function App() {
           </label>
           </div>
           </section>
+          {!PORTAL_BUILD && (
           <button type="button" className="more-row account-share" onClick={() => setScreen('challenge')}>
             <span className="more-icon" aria-hidden="true">⚔</span>
             <span className="more-text">
@@ -3899,6 +3919,8 @@ export default function App() {
             </span>
             <span className="more-go" aria-hidden="true">›</span>
           </button>
+          )}
+          {!PORTAL_BUILD && (
           <section className="follow-section" aria-label="Follow Roman's Game">
           <h3>Follow Roman&rsquo;s Game</h3>
           <p>New puzzles, remix boards, and challenges — fresh on our page.</p>
@@ -3917,6 +3939,7 @@ export default function App() {
           Follow on Facebook
           </a>
           </section>
+          )}
         </main>
       )}
 
@@ -4013,14 +4036,21 @@ export default function App() {
           />
           Buddy Parade (every 5-7 wins)
           </label>
+          {!PORTAL_BUILD && (
           <button type="button" className="settings-linkrow" onClick={() => setShowPrivacyNote(true)}>
             <strong>What we count</strong>
             <span aria-hidden="true">›</span>
           </button>
+          )}
+          {!PORTAL_BUILD && (
           <label className="toggle">
           <input type="checkbox" data-testid="analytics-toggle" checked={settings.analytics !== false} onChange={(e) => saveSettingsPatch({ analytics: e.target.checked })} />
           Share anonymous play counts
           </label>
+          )}
+          {PORTAL_BUILD && (
+          <p className="sub">This copy stores progress only on this device. It does not sign in, count plays, or offer purchases.</p>
+          )}
           <label className="toggle">
           <input
           type="checkbox"
@@ -4097,13 +4127,15 @@ export default function App() {
           ) : (
           <section className="about-section" aria-label="Feedback and links">
             <p className="about-line">
-              {!isStoreBuild() && settings.analytics !== false ? <FeedbackChip onSend={sendFeedback} /> : null}
+              {!PORTAL_BUILD && !isStoreBuild() && settings.analytics !== false ? <FeedbackChip onSend={sendFeedback} /> : null}
               <a className="about-link" href="./privacy.html">
                 Privacy
               </a>
+              {!PORTAL_BUILD && (
               <a className="about-link" data-testid="jrny-link" href="https://jrny.fun" target="_blank">
                 A JRNY project
               </a>
+              )}
             </p>
           </section>
           )}

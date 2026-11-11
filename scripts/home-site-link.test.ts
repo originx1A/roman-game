@@ -21,7 +21,7 @@ test('9.32-j: home screen carries a way back to romansgame.com before any run st
   const homeBlock = app.slice(app.indexOf("{screen === 'home'"), app.indexOf("{screen === 'how'"))
   assert.match(homeBlock, /data-testid="home-site-link"/, 'link must render on the home screen')
   // Web only: store (native app) builds keep players inside the app.
-  assert.match(app, /!isStoreBuild\(\) && \(\s*<a[^>]*data-testid="home-site-link"/)
+  assert.match(app, /!isStoreBuild\(\) && !PORTAL_BUILD && \(\s*<a[^>]*data-testid="home-site-link"/)
 })
 
 test('9.32-j: home return link introduces no footer bar and no new pill chrome', () => {
@@ -35,6 +35,6 @@ test('9.32-j: home return link introduces no footer bar and no new pill chrome',
   assert.match(css, /\.home-site-icon \{/)
 })
 
-test('9.32-j: build tag bumped so a phone can tell the preview from live 9.32-i', () => {
-  assert.match(tag, /build 9\.33-a16/)
+test('9.33-a18-halo: build tag matches the live game', () => {
+  assert.match(tag, /build 9\.33-a18-halo/)
 })

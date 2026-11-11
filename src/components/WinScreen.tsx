@@ -235,7 +235,7 @@ export function WinScreen({
             {nextLabel ?? 'Next board'}
           </button>
           {cardGain ? <UnseenCardGain from={cardGain.from} to={cardGain.to} /> : null}
-          <CloudScoresButton compact />
+          {!__PORTAL_BUILD__ ? <CloudScoresButton compact /> : null}
           <div className="win-screen-row">
             <button type="button" className="btn ghost win-cta" onClick={onReplay}>
               Play again
@@ -259,7 +259,7 @@ export function WinScreen({
               Home
             </button>
           </div>
-          <a
+          {!__PORTAL_BUILD__ ? <a
             className="win-fb-follow"
             href="https://romansgame.com"
             target="_blank"
@@ -273,7 +273,7 @@ export function WinScreen({
               />
             </svg>
             Loved it? Explore the world of Roman&rsquo;s Game!
-          </a>
+          </a> : null}
         </div>
       </div>
     </div>

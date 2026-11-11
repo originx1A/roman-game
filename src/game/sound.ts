@@ -590,6 +590,15 @@ function ac(): AudioContext {
   return ctx
 }
 
+/** Portal builds call this so iOS can resume a suspended context on the next touch. */
+export function resumeSuspendedAudio(): void {
+  const kick = () => {
+    if (ctx && ctx.state === 'suspended') void ctx.resume().catch(() => {})
+  }
+  window.addEventListener('touchend', kick, { passive: true })
+  window.addEventListener('pointerdown', kick, { passive: true })
+}
+
 /** Resume audio graph before every beep — mobile browsers mute until gesture + resume */
 function ensureAudio() {
   try {

@@ -64,7 +64,7 @@ export function ResultOverlay({
           ) : null}
           {extra}
         </div>
-        {kind === 'lose' ? (
+        {kind === 'lose' && !__PORTAL_BUILD__ ? (
           <a className="result-site-link" href="https://romansgame.com" target="_blank" rel="noopener">
             ⊖ Visit romansgame.com
           </a>
