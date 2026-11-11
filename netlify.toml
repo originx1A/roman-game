@@ -4,6 +4,9 @@
 
 [build.environment]
   NODE_VERSION = "22.23.4"
+  # SUPABASE_URL is the public project URL, also hardcoded in src/cloud/cloud.ts for the browser.
+  # Omit only this key from Netlify secrets scanning; scanning stays on for every other value.
+  SECRETS_SCAN_OMIT_KEYS = "SUPABASE_URL"
 
 [functions]
   directory = "netlify/functions"
