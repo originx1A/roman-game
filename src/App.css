@@ -8792,3 +8792,66 @@ html.vvh-t .stable .stable-bundle .stable-btn { min-height: 40px; }
 html.vvh-t .stable .stable-bundles { gap: 0.14rem; }
 html.vvh-t .stable .stable-redeem { margin-top: 0.18rem; }
 html.vvh-t .stable .stable-bundle { gap: 0.2rem 0.5rem; }
+
+/* =====================================================================
+   9.33-a18 — BOARD SIZE IS LAYOUT-DRIVEN, NOT MEASUREMENT-DRIVEN
+   (Tony QA, Nov 10, on the a17-halo preview: "the board is smaller than
+   the screen — make it as big as possible, fit across left and right"
+   ... then, same build, "now it looks correct for some reason").
+
+   ROOT CAUSE of the intermittent size: on phones the board was sized by
+   FORMULAS over --app-height, a JS measurement of visualViewport taken
+   at load/resize time — three stacked tiers with different reserves
+   (max-height:720px media and vvh-b: app-height − 19.5rem, floor 15rem;
+   vvh-t ≤560: − 14.5rem, branded − 18rem, floor 12.5/13.5/15rem across
+   revisions). Tony's visible band (~500-560px in the app webview)
+   straddles the vvh-t boundary at 560, and the webview's reported
+   visual height varies between loads, so the SAME build rendered the
+   board at whatever the last measurement implied. Probe-measured on
+   a17 at 320 wide, fresh loads: band 430 → 240px (the floor; the stack
+   then OVERFLOWED the shell, rail + tag clipped — scrollHeight 468 in
+   a 430 shell), 500 → 268, 559 → 288.8 (full width), 561 → 249 (vvh-t
+   flips off 2px past the boundary and the harsher vvh-b reserve takes
+   over, stranding ~89px of dead space under the tag), 620 → 288.8.
+   Non-monotonic, load-dependent, and branded boards swung ~52px more
+   via the :has(.brand-banner) reserve.
+
+   THE FIX: stop computing the board from a measured viewport. The
+   stage becomes a size container and flexes to the space the play
+   column ACTUALLY has left after the HUD, caption, banner, Reset row,
+   defender rail and build tag take theirs; the board is the largest
+   square that fits that space — min(100cqw, 100cqh) — resolved by the
+   layout engine every frame. No JS variable, no tier formula, no
+   floor, no branded special case (the banner shrinks the stage
+   naturally because it sits in the same column). Identical on every
+   load at a given band; grows smoothly as the band grows; the whole
+   stack fits by construction (the board can never exceed the leftover
+   height). The play column's side padding drops 0.6rem → 0.35rem and
+   the stage loses its 6px side padding, so a width-bound board spans
+   the screen edge to edge (~309px of 320) instead of ~289px.
+   Scoped to phone-upright; desktop/wide/tablet sizing untouched.
+   Browsers without container units keep the a17 rules (no regression).
+   The halo (a17) is untouched.
+   ===================================================================== */
+@supports (width: 1cqw) {
+  html[data-device='phone'][data-layout='upright'] .play-fixed {
+    padding-left: 0.35rem;
+    padding-right: 0.35rem;
+  }
+  html[data-device='phone'][data-layout='upright'] .play-fixed .board-stage {
+    flex: 1 1 auto;
+    min-height: 0;
+    container-type: size;
+    padding: 6px 0;
+  }
+  html[data-device='phone'][data-layout='upright'] .play-fixed .board,
+  html.vvh-b[data-device='phone'][data-layout='upright'] .play-fixed .board,
+  html.vvh-t[data-device='phone'][data-layout='upright'] .play-fixed .board,
+  html.vvh-t[data-device='phone'][data-layout='upright'] .play-fixed:has(.brand-banner) .board {
+    width: min(100cqw, 100cqh, 520px) !important;
+    max-width: 100cqw !important;
+    max-height: min(100cqh, 520px) !important;
+    min-height: 0 !important;
+    height: auto;
+  }
+}
