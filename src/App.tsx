@@ -21,6 +21,7 @@ import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
 import { CloudScoresButton } from './cloud/CloudScores'
 import { initCloud, saveScore } from './cloud/cloud'
 import { UnseenCardTile } from './components/UnseenCard'
+import { SponsorCredit } from './components/SponsorCredit'
 import { noteCardWin } from './game/unseenCard'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
 import { BuddyHunt } from './components/BuddyHunt'
@@ -3071,6 +3072,11 @@ export default function App() {
               )}
             </div>
           </section>
+          {/* 9.33-a19: front-door sponsor credit line — directly
+              under the hero (below the plates row that holds the Unseen
+              card), where the sponsor page's approved example shows it.
+              Display only; see components/SponsorCredit.tsx. */}
+          <SponsorCredit />
           {/* 9.33-a7: Defender + field treats share ONE side-by-side strip —
               two stacked widgets cost the height that made Home overlap. */}
           <section className="home-companion" aria-label="Your Defender and field treats">

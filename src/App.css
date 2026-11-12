@@ -6849,6 +6849,23 @@ html[data-device='phone'] .play-fixed .board {
   cursor: pointer;
 }
 .home-foot-link:hover, .home-foot-link:focus-visible { color: #ecd28f; }
+
+/* 9.33-a19: front-door sponsor credit — a quiet light strip
+   directly under the hero, matching the sponsor page's approved example
+   (examples/game.webp). Display only; see components/SponsorCredit.tsx. */
+.sponsor-credit {
+  max-width: 640px;
+  margin: 0.7rem auto 0;
+  background: #fffdf4;
+  color: #23202a;
+  border: 1px solid rgba(201, 162, 39, 0.55);
+  border-radius: 10px;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  text-align: center;
+}
+.sponsor-credit a { color: #14532d; font-weight: 700; text-decoration: underline; }
 .about .about-section { border-top: none; padding-top: 0; margin-top: 0.2rem; }
 .about .about-line { font-size: 0.95rem; line-height: 1.55; }
 
