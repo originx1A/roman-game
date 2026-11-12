@@ -80,6 +80,13 @@
       .btn-signin:hover { filter: brightness(1.06); }
       .btn-signin:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--gold-deep); }
 
+      /* ---------- Sponsor credit (hub front door) ---------- */
+      .sponsor-credit {
+        margin: 2px 0 0; padding: 12px 4px 0;
+        color: var(--muted); font-size: 15px; text-align: center;
+      }
+      .sponsor-credit a { color: var(--gold); font-weight: 700; }
+
       /* ---------- Section labels ---------- */
       h2.section {
         font-family: "Baloo 2", "Nunito", sans-serif;
@@ -201,6 +208,8 @@
         </div>
       </div>
 
+      <p class="sponsor-credit" id="sponsor-credit" role="note">Sponsored by <a href="https://payhip.com/NorthroomDigital">Northroom Digital</a>.</p>
+
       <h2 class="section">Start with the original</h2>
 
       <a class="card featured" href="/game/">
@@ -257,5 +266,36 @@
       </footer>
 
     </main>
+    <script>
+      // Hub sponsor credit — same rule the game front door used to carry.
+      // A paid active deal for the game placement wins; otherwise the house
+      // line (Northroom Digital) stays. The house line is the initial
+      // content, so the line is never blank and never an error.
+      (function () {
+        var el = document.getElementById('sponsor-credit');
+        if (!el) return;
+        function esc(s) {
+          return String(s).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+          });
+        }
+        fetch('/api/sponsors-feed', { headers: { accept: 'application/json' } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (data) {
+            var c = data && data.credits ? data.credits.game : null;
+            if (!c || !c.business_name) return; // house line stays
+            var line = (c.credit_line || '').trim();
+            var wording = (c.line || '').trim();
+            if (line) {
+              el.innerHTML = 'Sponsored by <strong>' + esc(c.business_name) + '</strong> &mdash; ' + esc(line) + '. (Paid sponsor)';
+            } else if (wording) {
+              el.textContent = wording;
+            } else {
+              el.innerHTML = 'Sponsored by <strong>' + esc(c.business_name) + '</strong>. (Paid sponsor)';
+            }
+          })
+          .catch(function () { /* house line stays */ });
+      })();
+    </script>
   </body>
 </html>

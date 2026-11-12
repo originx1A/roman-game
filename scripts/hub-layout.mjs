@@ -52,12 +52,30 @@ const checks = [
   [join(dist, 'index.html'), 'Rings of the Keeper', 'hub page must carry the Rings card'],
   [join(dist, 'index.html'), 'href="/game/"', 'hub page must link the game card to /game/'],
   [join(dist, 'index.html'), 'href="/rings/"', 'hub page must link the Rings card to /rings/'],
+  [join(dist, 'index.html'), 'id="sponsor-credit"', 'hub page must carry the sponsor credit line'],
+  [join(dist, 'index.html'), '/api/sponsors-feed', 'hub sponsor line must read the sponsors feed'],
   [join(dist, 'game', 'index.html'), '<base href="/" />', 'game copy must carry <base href="/">'],
   [join(dist, 'game', 'index.html'), "Roman's Game: free logic puzzle", 'game copy must be the game entry'],
   [join(dist, 'rings', 'index.html'), 'Rings of the Keeper', 'rings copy must be the match game'],
+  [join(dist, 'rings', 'index.html'), '100dvh', 'rings page must use dynamic viewport units (locked layout)'],
+  [join(dist, 'rings', 'index.html'), 'overscroll-behavior: none', 'rings page must block overscroll'],
+  [join(dist, 'rings', 'index.html'), 'container-type: size', 'rings board frame must size the board to the viewport'],
+  [join(dist, 'rings', 'index.html'), 'touch-action: none', 'rings board must not scroll on swipe'],
 ]
 for (const [file, marker, why] of checks) {
   if (!readFileSync(file, 'utf8').includes(marker)) fail(`${why} (missing ${JSON.stringify(marker)} in ${file})`)
+}
+
+// Sponsor credit lives on the hub ONLY — the games must not carry it.
+const forbidden = [
+  [join(dist, 'game', 'index.html'), 'Sponsored by', 'game copy must not carry a sponsor credit'],
+  [join(dist, 'game', 'index.html'), 'sponsors-feed', 'game copy must not fetch the sponsors feed'],
+  [join(dist, 'game', 'index.html'), 'Northroom', 'game copy must not name the house sponsor'],
+  [join(dist, 'rings', 'index.html'), 'Sponsored by', 'rings page must not carry a sponsor credit'],
+  [join(dist, 'rings', 'index.html'), 'Northroom', 'rings page must not name the house sponsor'],
+]
+for (const [file, marker, why] of forbidden) {
+  if (readFileSync(file, 'utf8').includes(marker)) fail(`${why} (found ${JSON.stringify(marker)} in ${file})`)
 }
 
 console.log('[hub-layout] OK: / = hub, /game/ = game (+ <base href="/">), /rings/ = match game')
