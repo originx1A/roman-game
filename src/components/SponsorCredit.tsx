@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { isStoreBuild } from '../game/iap'
 
 /**
- * 9.33-a19 (PREVIEW): the game front-door sponsor credit line.
+ * 9.33-a19: the game front-door sponsor credit line.
  *
  * Display only — no booking, no store write, nothing that touches the
  * sponsor calendar. The line is fed by this site's own /api/sponsors-feed

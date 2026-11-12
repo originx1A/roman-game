@@ -1,7 +1,7 @@
 import type { Context } from '@netlify/functions'
 
 /**
- * 9.33-a19 (PREVIEW): same-origin proxy for the hub's public sponsors feed.
+ * 9.33-a19: same-origin proxy for the hub's public sponsors feed.
  *
  * The game (play.romansgame.com) and the sponsor system (romansgame.com)
  * live on different origins, and sponsors-public sends no CORS headers,
@@ -13,21 +13,14 @@ import type { Context } from '@netlify/functions'
  * Upstream defaults to the production feed. SPONSORS_FEED_URL (env) can
  * point a non-production deploy at another feed (e.g. a hub branch
  * preview running against the test sponsor store) without code changes.
- *
- * PREVIEW-ONLY OVERRIDE (this branch): while PREVIEW_UPSTREAM is set,
- * it wins over the production default (env still wins over both). It
- * exists because env writes are not available through the deploy API
- * surrogate used to build this preview. REMOVE PREVIEW_UPSTREAM before
- * this function is ever merged toward production — production must
- * read the production feed (env or DEFAULT_UPSTREAM).
+ * Production reads the production feed (env or DEFAULT_UPSTREAM) and
+ * nothing else — no branch override exists in this file.
  */
 const DEFAULT_UPSTREAM = 'https://romansgame.com/.netlify/functions/sponsors-public'
-const PREVIEW_UPSTREAM =
-  'https://sponsor-spots-missing-2026-11-11--romansgame-hub-staging.netlify.app/.netlify/functions/sponsors-public'
 
 export default async function sponsorsFeed(req: Request, _context: Context): Promise<Response> {
   if (req.method !== 'GET') return new Response(null, { status: 405 })
-  const upstream = (process.env.SPONSORS_FEED_URL || PREVIEW_UPSTREAM || DEFAULT_UPSTREAM).trim()
+  const upstream = (process.env.SPONSORS_FEED_URL || DEFAULT_UPSTREAM).trim()
   try {
     const r = await fetch(upstream, {
       headers: { accept: 'application/json' },

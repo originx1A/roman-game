@@ -6850,7 +6850,7 @@ html[data-device='phone'] .play-fixed .board {
 }
 .home-foot-link:hover, .home-foot-link:focus-visible { color: #ecd28f; }
 
-/* 9.33-a19 (PREVIEW): front-door sponsor credit — a quiet light strip
+/* 9.33-a19: front-door sponsor credit — a quiet light strip
    directly under the hero, matching the sponsor page's approved example
    (examples/game.webp). Display only; see components/SponsorCredit.tsx. */
 .sponsor-credit {
