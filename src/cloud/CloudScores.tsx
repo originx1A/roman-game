@@ -20,13 +20,16 @@ import {
   recoverFinish,
   addRecoveryEmail,
   renderTurnstile,
+  openWebsite,
   type CloudState,
   type ResetGrant,
 } from './cloud'
 
 /**
- * "Save my scores" button + sheets, chooser-first (Tony 2026-11-07): the box opens on two
- * options only — Sign in or Create account. Picking one swaps in that job's own screen.
+ * "Save my scores" button + sheets (Tony 2026-11-07; two-step rule Nov 12, 2026): the box
+ * opens on two options only — Sign in or Create account (+ X to close). Picking one swaps
+ * in that job's own screen; the other paths (email code, forgot password) live under
+ * Sign in, never on the chooser. One sign-in, one account, shown wherever the player is.
  *
  * Name + password switch (Tony 2026-11-07, "just fix it and put it up"): sign-in and create
  * now run on the same /api/auth/* door as romansgame.com — player name + password is the
@@ -183,6 +186,26 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
     })
   }, [cloud.status, cloud.name])
 
+  // Bridge round-trip (two-way sign-in, Tony Nov 12, 2026): tapping "Sign in"
+  // on the chooser asks the website first. The flag survives the redirect;
+  // when the cloud state settles to signed-out afterwards, the sign-in form
+  // opens — the player asked for it. A successful handoff lands signed-in,
+  // and the signed-in effect above closes the sheet instead.
+  const [bridgePending, setBridgePending] = useState(() => {
+    try {
+      if (window.sessionStorage.getItem('rg.game.bridge') === '1') {
+        window.sessionStorage.removeItem('rg.game.bridge')
+        return true
+      }
+    } catch { /* ignore */ }
+    return false
+  })
+  useEffect(() => {
+    if (!bridgePending || cloud.status !== 'signed-out') return
+    setBridgePending(false)
+    setSheet('signin')
+  }, [bridgePending, cloud.status])
+
   // Phone keyboard (Tony 2026-11-07): the on-screen keyboard covers the lower half of the
   // screen — including the field being typed in. So while the box is open, it is sized and
   // positioned to the VISUAL viewport (the part of the screen still visible above the
@@ -227,8 +250,9 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
   }, [sheet])
 
   // The way back to the main site, at the foot of every sheet in this box (Tony 2026-11-07).
+  // Carries the sign-in over when the player has one, so they never sign in twice.
   const siteLink = (
-    <a className="cloud-site-link" href="https://romansgame.com/" target="_blank" rel="noopener">
+    <a className="cloud-site-link" href="https://romansgame.com/" target="_blank" rel="noopener" onClick={(e) => { e.preventDefault(); openWebsite('https://romansgame.com/'); }}>
       Visit romansgame.com
     </a>
   )
@@ -483,16 +507,21 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
             <div className="start-sheet-scrim" onClick={() => setSheet(null)} />
             {sheet === 'start' && (
               <div className="start-sheet-card">
+                <button type="button" className="cloud-close" aria-label="Close" onClick={() => setSheet(null)}>
+                  &times;
+                </button>
                 <h3>Save your scores</h3>
-                <p className="start-sheet-tip">
-                  Get on the leaderboard and keep your scores on any device. Sign in with your player name + password — the same account as romansgame.com.
-                </p>
                 <button
                   type="button"
                   className="btn primary"
                   onClick={() => {
                     setErr('')
-                    setSheet('signin')
+                    // Bridge check (two-way sign-in, Nov 12, 2026): ask the
+                    // website first — if the player is signed in there, the
+                    // bridge hands back a code and they are signed in here
+                    // without typing anything.
+                    try { window.sessionStorage.setItem('rg.game.bridge', '1') } catch { /* ignore */ }
+                    window.location.href = 'https://romansgame.com/auth-bridge.html?return=' + encodeURIComponent(window.location.href.split('?')[0].split('#')[0])
                   }}
                 >
                   Sign in
@@ -507,20 +536,6 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 >
                   Create account
                 </button>
-                <button
-                  type="button"
-                  className="btn ghost"
-                  onClick={() => {
-                    setErr('')
-                    setFlow('claim')
-                    setSheet('emailcode')
-                  }}
-                >
-                  Sign in with an email code
-                </button>
-                <button type="button" className="btn ghost" onClick={() => setSheet(null)}>
-                  Not now
-                </button>
                 {siteLink}
               </div>
             )}
@@ -533,7 +548,6 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 }}
               >
                 <h3>Sign in</h3>
-                <p className="start-sheet-tip">Your player name + password — the same ones as romansgame.com.</p>
                 <input className="name-input" type="text" autoComplete="username" placeholder="Player name" aria-label="Player name" value={loginName} onChange={(e) => setLoginName(e.target.value)} />
                 <PasswordInput inputClassName="name-input" autoComplete="current-password" placeholder="Password" ariaLabel="Password" value={pass} onChange={setPass} />
                 {captchaBox}
@@ -541,29 +555,43 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 <button type="submit" className="btn primary" disabled={busy}>
                   {busy ? 'Signing in…' : 'Sign in'}
                 </button>
-                <button
-                  type="button"
-                  className="btn ghost"
-                  onClick={() => {
-                    setErr('')
-                    setSheet('forgot')
-                  }}
-                >
-                  Forgot your password?
-                </button>
-                <button
-                  type="button"
-                  className="btn ghost"
-                  onClick={() => {
-                    setErr('')
-                    setSheet('create')
-                  }}
-                >
-                  New here? Create account instead
-                </button>
-                <button type="button" className="btn ghost" onClick={() => setSheet(null)}>
-                  Not now
-                </button>
+                <p className="cloud-quiet">
+                  <button
+                    type="button"
+                    className="cloud-text-btn"
+                    onClick={() => {
+                      setErr('')
+                      setFlow('claim')
+                      setSheet('emailcode')
+                    }}
+                  >
+                    Sign in with an email code instead
+                  </button>
+                </p>
+                <p className="cloud-quiet">
+                  <button
+                    type="button"
+                    className="cloud-text-btn"
+                    onClick={() => {
+                      setErr('')
+                      setSheet('forgot')
+                    }}
+                  >
+                    Forgot your password?
+                  </button>
+                </p>
+                <p className="cloud-quiet">
+                  <button
+                    type="button"
+                    className="cloud-text-btn"
+                    onClick={() => {
+                      setErr('')
+                      setSheet('start')
+                    }}
+                  >
+                    Back
+                  </button>
+                </p>
                 {siteLink}
               </form>
             )}
@@ -576,9 +604,6 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 }}
               >
                 <h3>Create your account</h3>
-                <p className="start-sheet-tip">
-                  One account for the game and romansgame.com. Your name + password is how you sign in; an email is only for getting back in if you forget.
-                </p>
                 <input className="name-input" type="text" autoComplete="username" placeholder="Player name" aria-label="Player name" value={createName} onChange={(e) => setCreateName(e.target.value)} />
                 <PasswordInput inputClassName="name-input" autoComplete="new-password" placeholder="Password" ariaLabel="Password" value={pass} onChange={setPass} />
                 <PasswordInput inputClassName="name-input" autoComplete="new-password" placeholder="Type the password again" ariaLabel="Type the password again" value={pass2} onChange={setPass2} />
@@ -590,19 +615,18 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 <button type="submit" className="btn primary" disabled={busy}>
                   {busy ? 'Creating…' : 'Create my account'}
                 </button>
-                <button
-                  type="button"
-                  className="btn ghost"
-                  onClick={() => {
-                    setErr('')
-                    setSheet('signin')
-                  }}
-                >
-                  Already have an account? Sign in instead
-                </button>
-                <button type="button" className="btn ghost" onClick={() => setSheet(null)}>
-                  Not now
-                </button>
+                <p className="cloud-quiet">
+                  <button
+                    type="button"
+                    className="cloud-text-btn"
+                    onClick={() => {
+                      setErr('')
+                      setSheet('start')
+                    }}
+                  >
+                    Back
+                  </button>
+                </p>
                 {siteLink}
               </form>
             )}
@@ -633,9 +657,6 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 >
                   Sign in with name + password instead
                 </button>
-                <button type="button" className="btn ghost" onClick={() => setSheet(null)}>
-                  Not now
-                </button>
                 {siteLink}
               </form>
             )}
@@ -661,9 +682,18 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 <button type="submit" className="btn primary" disabled={busy || code.length < 6}>
                   {busy ? 'Checking…' : 'Sign in with code'}
                 </button>
-                <button type="button" className="btn ghost" onClick={() => setSheet(null)}>
-                  Not now
-                </button>
+                <p className="cloud-quiet">
+                  <button
+                    type="button"
+                    className="cloud-text-btn"
+                    onClick={() => {
+                      setErr('')
+                      setSheet('emailcode')
+                    }}
+                  >
+                    Use a different email
+                  </button>
+                </p>
                 {siteLink}
               </form>
             )}
@@ -724,9 +754,6 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 >
                   Back to sign in
                 </button>
-                <button type="button" className="btn ghost" onClick={() => setSheet(null)}>
-                  Not now
-                </button>
                 {siteLink}
               </form>
             )}
@@ -769,9 +796,6 @@ export function CloudScoresButton({ suggestedName, compact }: { suggestedName?: 
                 {err && <p className="cloud-err" role="alert">{err}</p>}
                 <button type="submit" className="btn primary" disabled={busy}>
                   {busy ? 'Working…' : grant ? 'Save the new password' : 'Check the code'}
-                </button>
-                <button type="button" className="btn ghost" onClick={() => setSheet(null)}>
-                  Not now
                 </button>
                 {siteLink}
               </form>

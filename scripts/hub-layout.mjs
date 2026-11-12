@@ -47,6 +47,11 @@ if (!existsSync(ringsSrc)) fail('hub/rings.html missing')
 mkdirSync(join(dist, 'rings'), { recursive: true })
 cpSync(ringsSrc, join(dist, 'rings', 'index.html'))
 
+// 3b. Sign-in bridge at /auth-bridge.html (two-way sign-in, Nov 12, 2026).
+const bridgeSrc = join(root, 'hub', 'auth-bridge.html')
+if (!existsSync(bridgeSrc)) fail('hub/auth-bridge.html missing')
+cpSync(bridgeSrc, join(dist, 'auth-bridge.html'))
+
 // 4. Verify the result before the deploy can pick it up.
 const checks = [
   [join(dist, 'index.html'), 'Rings of the Keeper', 'hub page must carry the Rings card'],
@@ -66,6 +71,8 @@ const checks = [
   [join(dist, 'rings', 'index.html'), 'overscroll-behavior: none', 'rings page must block overscroll'],
   [join(dist, 'rings', 'index.html'), 'container-type: size', 'rings board frame must size the board to the viewport'],
   [join(dist, 'rings', 'index.html'), 'touch-action: none', 'rings board must not scroll on swipe'],
+  [join(dist, 'auth-bridge.html'), 'Signing you in', 'bridge page must show the signing-in message'],
+  [join(dist, 'auth-bridge.html'), '/api/auth/handoff/mint', 'bridge page must mint a handoff code'],
 ]
 for (const [file, marker, why] of checks) {
   if (!readFileSync(file, 'utf8').includes(marker)) fail(`${why} (missing ${JSON.stringify(marker)} in ${file})`)

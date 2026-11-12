@@ -19,7 +19,7 @@ import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
 import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
 import { CloudScoresButton } from './cloud/CloudScores'
-import { initCloud, saveScore } from './cloud/cloud'
+import { initCloud, openWebsite, saveScore } from './cloud/cloud'
 import { UnseenCardTile } from './components/UnseenCard'
 import { noteCardWin } from './game/unseenCard'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
@@ -3073,6 +3073,7 @@ export default function App() {
                   rel="noopener noreferrer"
                   data-testid="home-site-link"
                   aria-label="Visit romansgame.com — the main Roman's Game site"
+                  onClick={(e) => { e.preventDefault(); openWebsite('https://romansgame.com/'); }}
                 >
                   <svg className="home-site-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
                     <path
@@ -3157,7 +3158,7 @@ export default function App() {
             </div>
           </section>
           <div className="home-foot">
-            <a className="home-foot-link" href="https://romansgame.com" target="_blank" rel="noopener">
+            <a className="home-foot-link" href="https://romansgame.com" target="_blank" rel="noopener" onClick={(e) => { e.preventDefault(); openWebsite('https://romansgame.com'); }}>
               ⊖ Visit romansgame.com
             </a>
             {/* 9.33-a11: the build tag lives on Home too — Tony must be able to read
@@ -3238,7 +3239,7 @@ export default function App() {
             </a>
           </div>
           <p className="more-foot">
-            <a href="https://romansgame.com" target="_blank" rel="noopener">
+            <a href="https://romansgame.com" target="_blank" rel="noopener" onClick={(e) => { e.preventDefault(); openWebsite('https://romansgame.com'); }}>
               ⊖ Visit romansgame.com
             </a>
           </p>

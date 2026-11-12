@@ -61,8 +61,12 @@ test('9.32-k-dev: create collects name + password + confirm; the age answer is t
 })
 
 test('9.32-k-dev: the email-code door is demoted to a bootstrap sheet, not the front door', () => {
+  // Tony 2026-11-12 (two-step rule): the chooser shows ONLY Sign in /
+  // Create account — the code door lives under Sign in, never on the chooser.
   const start = block('start')
-  assert.match(start, /Sign in with an email code/, 'the code door is still reachable for older accounts')
+  assert.doesNotMatch(start, /Sign in with an email code/, 'the chooser carries no code door')
+  const signin = block('signin')
+  assert.match(signin, /Sign in with an email code instead/, 'the code door is still reachable for older accounts, under Sign in')
   const emailcode = block('emailcode')
   assert.match(emailcode, /Email me my sign-in code/)
   assert.match(emailcode, /await sendCode\(\)/)
@@ -118,8 +122,13 @@ test('9.32-j-dev: the 13+ / Terms / newsletter questions live on the create scre
 test('9.32-k-dev: shared fields — switching doors never wipes typed values', () => {
   assert.equal((ui.match(/value=\{email\}/g) ?? []).length, 1, 'exactly one input is bound to the shared email state')
   assert.equal((ui.match(/value=\{loginName\}/g) ?? []).length, 2, 'the sign-in name is shared by sign-in and claim')
-  assert.match(ui, /New here\? Create account instead/)
-  assert.match(ui, /Already have an account\? Sign in instead/)
+  // Tony 2026-11-12 (two-step rule): the cross-links are gone — Back to the
+  // chooser is the way between the two forms, and the shared state above is
+  // what keeps the typing. The chooser still offers both doors.
+  assert.match(block('start'), />\s*Sign in\s*</)
+  assert.match(block('start'), />\s*Create account\s*</)
+  assert.match(block('signin'), />\s*Back\s*</, 'sign-in steps back to the chooser')
+  assert.match(block('create'), />\s*Back\s*</, 'create steps back to the chooser')
 })
 
 test('9.32-k-dev: the one-time name step still completes a code sign-in', () => {
@@ -132,7 +141,10 @@ test('9.32-k-dev: the one-time name step still completes a code sign-in', () => 
 })
 
 test('9.32-j-dev: close is reachable on every sheet, including the account sheet', () => {
-  for (const name of ['start', 'signin', 'create', 'sent', 'emailcode', 'forgot']) assert.match(block(name), /Not now/, `${name} sheet can be closed`)
+  // Tony 2026-11-12 (two-step rule): the chooser closes with its X; every
+  // step-2 screen steps Back to the chooser; the scrim closes from anywhere.
+  assert.match(block('start'), /cloud-close/, 'chooser has an X to close')
+  for (const name of ['signin', 'create', 'emailcode', 'sent', 'forgot']) assert.match(block(name), /Back|Sign in with name \+ password instead|Use a different email/, `${name} sheet can step back`)
   assert.match(block('claim'), /Not now/, 'claim sheet can step back')
   assert.match(block('addemail'), /Back/, 'add-email sheet can step back')
   assert.match(block('account'), />\s*Close\s*</, 'account sheet has a Close button')

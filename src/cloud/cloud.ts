@@ -231,6 +231,18 @@ export async function initCloud(): Promise<void> {
   try {
     const sb = await client()
     if (!sb) return set({ status: 'off' })
+    // Handoff from the other origin: redeem the one-time code first, so
+    // the session it lands wins over any stale local one. Best effort —
+    // a bad code just means sign in normally.
+    try {
+      const code = new URLSearchParams(window.location.search).get('sso')
+      if (code) {
+        stripSsoParam()
+        await redeemHandoffCode(code)
+      }
+    } catch {
+      /* ignore */
+    }
     const { data } = await sb.auth.getSession()
     await loadPlayer(sb, data.session)
     sb.auth.onAuthStateChange((_e, session) => {
@@ -285,6 +297,8 @@ interface AuthApiBody {
   recovery_email_pending?: boolean
   parent_email_pending?: boolean
   reset_token?: string
+  /** One-time cross-origin handoff code (mint response). */
+  code?: string
   accounts?: { user_id: string; player_name: string; role: string }[]
 }
 
@@ -346,6 +360,65 @@ async function adoptApiSession(data: AuthApiBody): Promise<AuthResult> {
     ok: true,
     account: { userId: String(data.user_id ?? ''), displayName: String(data.display_name ?? ''), playerName: String(data.player_name ?? '') },
   }
+}
+
+/* ------------- Cross-origin sign-in handoff (Tony, Nov 12, 2026) -------------
+ * One sign-in, one account, shown wherever the player is. The origin where
+ * the player signed in mints a 5-minute single-use code; this origin trades
+ * it for the session pair server-side. NO token ever goes in a URL — the
+ * code travels in the URL, the tokens travel server-side. */
+
+/** Mint a handoff code for the current session, or null when signed out / offline. */
+export async function mintHandoffCode(): Promise<string | null> {
+  const sb = await client()
+  if (!sb) return null
+  const { data } = await sb.auth.getSession()
+  const s = data.session
+  if (!s?.access_token || !s.refresh_token) return null
+  const { status, data: out } = await authPost('/api/auth/handoff/mint', { refresh_token: s.refresh_token }, s.access_token)
+  return status === 200 && out && typeof out.code === 'string' ? out.code : null
+}
+
+/** Trade a handoff code for the session pair. False when the code is bad, used, or expired. */
+export async function redeemHandoffCode(code: string): Promise<boolean> {
+  const { status, data } = await authPost('/api/auth/handoff/redeem', { code })
+  if (status !== 200 || !data?.session) return false
+  return adoptApiSession(data).then((r) => r.ok)
+}
+
+/** Strip ?sso= from the URL the moment it is read, so the one-time code never lingers in history. */
+export function stripSsoParam(): void {
+  try {
+    const u = new URL(window.location.href)
+    if (!u.searchParams.has('sso')) return
+    u.searchParams.delete('sso')
+    window.history.replaceState(null, '', u.pathname + u.search + u.hash)
+  } catch {
+    /* non-URL environments: ignore */
+  }
+}
+
+/**
+ * Open the website in a new tab, carrying the sign-in over when the
+ * player has one. The tab opens synchronously in the click (a popup
+ * blocker would eat an async open), then minting upgrades it to the
+ * ?sso= URL; when minting fails the tab simply stays on the plain URL.
+ */
+export function openWebsite(href: string): void {
+  const win = window.open(href, '_blank')
+  if (!win) {
+    window.location.href = href
+    return
+  }
+  void mintHandoffCode().then((code) => {
+    if (!code) return
+    try {
+      const base = href.split('?')[0].split('#')[0]
+      win.location.href = `${base}?sso=${encodeURIComponent(code)}`
+    } catch {
+      /* the tab is already on its way: leave it */
+    }
+  })
 }
 
 /** Sign in with player name + password (the shared door). stay_signed_in: true
