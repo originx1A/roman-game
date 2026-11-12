@@ -51,16 +51,38 @@
       }
       * { box-sizing: border-box; }
       html, body { margin: 0; padding: 0; }
+      html { height: 100%; overscroll-behavior: none; }
       body {
         font-family: "Nunito", system-ui, sans-serif;
         background: linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
         color: var(--ink);
-        min-height: 100vh;
+        height: 100svh;
+        height: 100dvh;
+        overflow: hidden;
+        overscroll-behavior: none;
         -webkit-tap-highlight-color: transparent;
       }
       h1, h2, h3, .display { font-family: "Baloo 2", "Nunito", sans-serif; }
-      .wrap { max-width: 600px; margin: 0 auto; padding: 14px 14px 40px; }
+      .wrap {
+        max-width: 600px; margin: 0 auto;
+        height: 100svh; height: 100dvh;
+        display: flex; flex-direction: column; overflow: hidden;
+        padding-top: max(14px, env(safe-area-inset-top));
+        padding-bottom: max(14px, env(safe-area-inset-bottom));
+        padding-left: max(14px, env(safe-area-inset-left));
+        padding-right: max(14px, env(safe-area-inset-right));
+      }
       .hidden { display: none !important; }
+
+      /* ---------- Locked screens (Nov 11): every screen is its own fixed
+         full-viewport view — the page itself never scrolls. A screen whose
+         content is taller than the viewport (map, hall cards) scrolls inside
+         its own area; the game screen never scrolls. ---------- */
+      #map-screen, #game-screen { flex: 1 1 auto; min-height: 0; }
+      #map-screen { overflow-y: auto; overscroll-behavior: none; -webkit-overflow-scrolling: touch; }
+      #game-screen { display: flex; flex-direction: column; overflow: hidden; overscroll-behavior: none; }
+      #game-screen .level-title, #game-screen .hud, #game-screen .goalbar,
+      #game-screen .tilda-strip, #game-screen .game-jump { flex: none; }
 
       /* ---------- Map screen ---------- */
       .hall-hero {
@@ -239,9 +261,11 @@
       .board-frame {
         background: var(--board-bg); border-radius: 18px; padding: 10px;
         border: 3px solid var(--panel-edge); box-shadow: 0 10px 26px var(--shadow);
+        flex: 1 1 auto; min-height: 0; display: grid; place-items: center;
+        container-type: size; overflow: hidden;
       }
       .board {
-        position: relative; width: 100%; aspect-ratio: 1 / 1;
+        position: relative; width: 100%; width: min(100%, 100cqh); aspect-ratio: 1 / 1;
         border-radius: 10px; overflow: hidden; touch-action: none;
         background:
           radial-gradient(circle at 50% 42%, rgba(255, 214, 130, .14), rgba(0,0,0,0) 62%),
@@ -304,12 +328,12 @@
       /* ---------- Modals ---------- */
       .overlay {
         position: fixed; inset: 0; z-index: 40; display: grid; place-items: center;
-        background: rgba(38, 24, 10, .55); padding: 16px;
+        background: rgba(38, 24, 10, .55); padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
       }
       .modal {
         background: var(--panel); border: 3px solid var(--panel-edge); border-radius: 20px;
         max-width: 430px; width: 100%; padding: 20px; text-align: center;
-        box-shadow: 0 18px 44px rgba(0,0,0,.4); max-height: 92vh; overflow: auto;
+        box-shadow: 0 18px 44px rgba(0,0,0,.4); max-height: 92svh; max-height: 92dvh; overflow: auto;
       }
       .modal img.portrait { width: 104px; height: 126px; object-fit: cover; object-position: 50% 16%; border-radius: 14px; border: 2px solid var(--panel-edge); }
       .modal h2 { margin: 10px 0 4px; font-size: 1.5rem; line-height: 1.15; }
@@ -346,7 +370,7 @@
       }
       .toggle-btn.on { background: var(--leaf); border-color: #3c6128; color: #fff; }
       .toast {
-        position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%) translateY(20px);
+        position: fixed; left: 50%; bottom: max(22px, env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(20px);
         background: var(--ink); color: var(--panel); font-weight: 800; font-size: .95rem;
         padding: 10px 18px; border-radius: 999px; opacity: 0; pointer-events: none;
         transition: opacity .25s, transform .25s; z-index: 60; box-shadow: 0 8px 20px rgba(0,0,0,.35);
@@ -1295,7 +1319,7 @@
         $("game-screen").classList.add("hidden");
         $("map-screen").classList.remove("hidden");
         renderMap();
-        window.scrollTo(0, 0);
+        window.scrollTo(0, 0); $("map-screen").scrollTop = 0;
       }
 
       /* ---------- INPUT ---------- */
