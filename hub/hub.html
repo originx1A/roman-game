@@ -188,12 +188,16 @@
       }
 
       /* ---------- Sign-in sheet (hub's own sign-in; same door as the game) ---------- */
-      .hub-sheet { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: calc(12px + env(safe-area-inset-top, 0px)) 14px calc(12px + env(safe-area-inset-bottom, 0px)); }
+      /* Keyboard-open fit (Tony, Nov 12, 2026): the sheet tracks the
+         visual viewport (see syncHubViewport) so the card centres in the
+         strip the keyboard leaves, never under it — the card then scrolls
+         inside that strip instead of overflowing it. */
+      .hub-sheet { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: calc(12px + env(safe-area-inset-top, 0px)) 14px calc(12px + env(safe-area-inset-bottom, 0px)); top: var(--hub-vv-top, 0); bottom: auto; height: var(--hub-vv-height, 100dvh); }
       .hub-sheet[hidden] { display: none; }
       .hub-sheet .scrim { position: absolute; inset: 0; background: rgba(9, 18, 20, .68); }
       .hub-card {
         position: relative; width: 100%; max-width: 430px;
-        max-height: calc(100dvh - 24px); max-height: calc(100svh - 24px);
+        max-height: calc(var(--hub-vv-height, 100dvh) - 24px);
         overflow-y: auto; overscroll-behavior: contain;
         background: #fff8e7; color: #123; border-radius: 18px;
         border: 1px solid #e6d6ae; box-shadow: 0 20px 60px rgba(0, 0, 0, .35);
@@ -220,6 +224,14 @@
         min-height: 44px; padding: 8px 14px; border-radius: 999px; border: 1px solid #9fb0b7; cursor: pointer;
         font-family: "Baloo 2", "Nunito", sans-serif; font-weight: 700; font-size: 15.5px;
         background: #fff; color: #20404f;
+      }
+      /* Quiet text links under a form (Tony, Nov 12, 2026): the second
+         step of the sheet shows ONLY the form, these links, and Back —
+         never another row of big buttons. */
+      .hub-card .hub-quiet { margin: 10px 0 0; text-align: center; }
+      .hub-card .hub-text-btn {
+        background: none; border: none; padding: 4px; cursor: pointer;
+        font: inherit; font-size: 14.5px; color: #0e7490; text-decoration: underline;
       }
       .hub-card .hub-err { display: none; background: #fdeceb; border: 1px solid #f0b4ae; color: #7c1d17; border-radius: 12px; padding: 10px 12px; font-size: 14.5px; margin-top: 12px; }
       .hub-card .hub-err.show { display: block; }
@@ -306,7 +318,7 @@
 
       <footer>
         <span>Free to play &mdash; your progress saves as you go.</span>
-        <a href="https://romansgame.com">Stories, books &amp; more at romansgame.com &rarr;</a>
+        <a id="hub-site-link" href="https://romansgame.com">Stories, books &amp; more at romansgame.com &rarr;</a>
       </footer>
 
     </main>
@@ -350,19 +362,14 @@
 
       <section class="hub-screen" data-screen="start">
         <h2 id="hub-sheet-title">Save your progress</h2>
-        <p>Sign in to save your progress and keep it across your devices. You can play every game without signing in — signing in only saves your progress.</p>
-        <p class="hub-tip">Same sign-in as romansgame.com — one account for the website and every game here.</p>
         <div class="hub-actions">
           <button type="button" class="hub-btn" data-goto="signin">Sign in</button>
           <button type="button" class="hub-btn-ghost" data-goto="create">Create account</button>
-          <button type="button" class="hub-btn-ghost" data-goto="emailcode">Sign in with an email code</button>
-          <button type="button" class="hub-btn-ghost" data-hub-close>Not now — just play</button>
         </div>
       </section>
 
       <section class="hub-screen" data-screen="signin" hidden>
         <h2>Sign in</h2>
-        <p>Your player name + password — the same ones as romansgame.com.</p>
         <form data-form="signin" novalidate>
           <label for="hub-signin-name">Player name or email</label>
           <input id="hub-signin-name" type="text" autocomplete="username" autocapitalize="off" spellcheck="false">
@@ -372,38 +379,39 @@
           <div class="hub-err" role="alert"></div>
           <div class="hub-actions">
             <button type="submit" class="hub-btn">Sign in</button>
-            <button type="button" class="hub-btn-ghost" data-goto="forgot">Forgot password</button>
-            <button type="button" class="hub-btn-ghost" data-goto="create">Create an account instead</button>
-            <button type="button" class="hub-btn-ghost" data-hub-close>Not now — just play</button>
           </div>
+          <p class="hub-quiet"><button type="button" class="hub-text-btn" data-goto="emailcode">Sign in with an email code instead</button></p>
+          <p class="hub-quiet"><button type="button" class="hub-text-btn" data-goto="forgot">Forgot password?</button></p>
+          <p class="hub-quiet"><button type="button" class="hub-text-btn" data-goto="start">Back</button></p>
         </form>
       </section>
 
       <section class="hub-screen" data-screen="create" hidden>
         <h2>Create account</h2>
-        <p>Pick a player name and a password. No email needed — you can add a recovery email later.</p>
         <form data-form="create" novalidate>
           <label for="hub-create-name">Player name</label>
           <input id="hub-create-name" type="text" autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="30">
+          <label for="hub-create-email">Email (optional — for password recovery)</label>
+          <input id="hub-create-email" type="email" autocomplete="email" autocapitalize="off" spellcheck="false">
           <label for="hub-create-pass">Password</label>
           <input id="hub-create-pass" type="password" autocomplete="new-password">
           <label for="hub-create-pass2">Password again</label>
           <input id="hub-create-pass2" type="password" autocomplete="new-password">
           <label class="hub-check"><input id="hub-create-age" type="checkbox"> I am 13 or older.</label>
-          <label class="hub-check"><input id="hub-create-terms" type="checkbox"> I agree to the terms and privacy policy.</label>
+          <label class="hub-check"><input id="hub-create-terms" type="checkbox"> I agree to the <a href="https://romansgame.com/terms" target="_blank" rel="noopener noreferrer">terms</a> and <a href="https://romansgame.com/privacy" target="_blank" rel="noopener noreferrer">privacy policy</a>.</label>
+          <label class="hub-check"><input id="hub-create-news" type="checkbox"> Get Roman&rsquo;s World News: the story behind this game. Unsubscribe anytime.</label>
           <div class="hub-cap-slot"></div>
           <div class="hub-err" role="alert"></div>
           <div class="hub-actions">
             <button type="submit" class="hub-btn">Create account</button>
-            <button type="button" class="hub-btn-ghost" data-goto="signin">I already have an account</button>
-            <button type="button" class="hub-btn-ghost" data-hub-close>Not now — just play</button>
           </div>
+          <p class="hub-quiet"><button type="button" class="hub-text-btn" data-goto="start">Back</button></p>
         </form>
       </section>
 
       <section class="hub-screen" data-screen="emailcode" hidden>
         <h2>Sign in with an email code</h2>
-        <p>We&rsquo;ll email you a 6-digit code. It works for accounts made with an email code.</p>
+        <p>We&rsquo;ll email you a code. It works for accounts made with an email code.</p>
         <form data-form="emailcode" novalidate>
           <label for="hub-code-email">Email</label>
           <input id="hub-code-email" type="email" autocomplete="email" autocapitalize="off" spellcheck="false">
@@ -411,14 +419,13 @@
           <div class="hub-actions">
             <button type="submit" class="hub-btn">Email me a code</button>
             <button type="button" class="hub-btn-ghost" data-goto="signin">Sign in with a password instead</button>
-            <button type="button" class="hub-btn-ghost" data-hub-close>Not now — just play</button>
           </div>
         </form>
       </section>
 
       <section class="hub-screen" data-screen="sent" hidden>
         <h2>Check your email</h2>
-        <p id="hub-sent-note">We sent a 6-digit code. It may take a minute to arrive — check your spam folder too.</p>
+        <p id="hub-sent-note">We sent a code. It may take a minute to arrive — check your spam folder too.</p>
         <form data-form="code" novalidate>
           <label for="hub-code">Code from the email</label>
           <div class="hub-code"><input id="hub-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8"></div>
@@ -426,7 +433,6 @@
           <div class="hub-actions">
             <button type="submit" class="hub-btn">Sign in with the code</button>
             <button type="button" class="hub-btn-ghost" data-goto="emailcode">Use a different email</button>
-            <button type="button" class="hub-btn-ghost" data-hub-close>Not now — just play</button>
           </div>
         </form>
       </section>
@@ -442,7 +448,6 @@
           <div class="hub-actions">
             <button type="submit" class="hub-btn">Email me a reset code</button>
             <button type="button" class="hub-btn-ghost" data-goto="signin">Back to sign in</button>
-            <button type="button" class="hub-btn-ghost" data-hub-close>Not now — just play</button>
           </div>
         </form>
       </section>
@@ -651,6 +656,55 @@
         return out;
       }).catch(function () { return null; });
     }
+
+    /* --- Cross-origin sign-in handoff (Tony, Nov 12, 2026): one sign-in,
+       one account, shown wherever the player is. romansgame.com and
+       play.romansgame.com are different origins with separate
+       localStorage, so the origin where the player signed in mints a
+       5-minute single-use code and the other origin trades it for the
+       session pair server-side. NO token ever goes in a URL — the code
+       travels in the URL, the tokens travel server-side. --- */
+    var BRIDGE_FLAG = 'rg.hub.bridge';
+    function handoffSession() {
+      return getSupabase().then(function (client) {
+        if (!client) return null;
+        return client.auth.getSession().then(function (res) {
+          var s = res && res.data ? res.data.session : null;
+          return s && s.access_token ? s : null;
+        }).catch(function () { return null; });
+      });
+    }
+    function mintHandoffCode() {
+      return handoffSession().then(function (s) {
+        if (!s) return null;
+        return api('/api/auth/handoff/mint', { refresh_token: s.refresh_token }, s.access_token).then(function (out) {
+          return out && out.ok && out.code ? out.code : null;
+        }).catch(function () { return null; });
+      });
+    }
+    function redeemHandoffCode(code) {
+      return api('/api/auth/handoff/redeem', { code: code }).then(function (out) {
+        if (!out || !out.ok || !out.session) return false;
+        return getSupabase().then(function (client) { return landSession(client, out.session); });
+      }).catch(function () { return false; });
+    }
+    function stripSsoParam() {
+      try {
+        var u = new URL(window.location.href);
+        if (!u.searchParams.has('sso')) return;
+        u.searchParams.delete('sso');
+        window.history.replaceState(null, '', u.pathname + u.search + u.hash);
+      } catch (e) {}
+    }
+    /* Bridge check: tapping "Sign in" on the chooser asks the website
+       first — if the player is signed in there, the bridge hands back
+       a code and they are signed in here without typing anything. If
+       not, the bridge sends them back and the sign-in form opens. */
+    function goBridge() {
+      try { window.sessionStorage.setItem(BRIDGE_FLAG, '1'); } catch (e) {}
+      var back = window.location.href.split('?')[0].split('#')[0];
+      window.location.href = 'https://romansgame.com/auth-bridge.html?return=' + encodeURIComponent(back);
+    }
     function rememberName(name) {
       displayName = name || '';
       try {
@@ -754,6 +808,7 @@
     function openSheet(name) {
       sheet.hidden = false;
       document.body.style.overflow = 'hidden';
+      syncHubViewport();
       showScreen(name || (displayName ? 'account' : 'start'));
     }
     function closeSheet() {
@@ -799,9 +854,13 @@
     /* --- Create account --- */
     function submitCreate(form) {
       var name = $('hub-create-name').value.trim();
+      var email = $('hub-create-email').value.trim();
+      var optIn = $('hub-create-news').checked;
       var pass = $('hub-create-pass').value;
       var pass2 = $('hub-create-pass2').value;
       if (!validName(name)) { showErr('create', 'Pick a name with letters and numbers, between 3 and 30 characters.'); return; }
+      if (email && !validEmail(email)) { showErr('create', 'That email doesn’t look right. Check it and try again.'); return; }
+      if (optIn && !email) { showErr('create', 'Add an email to get Roman’s World News.'); return; }
       if (pass.length < 8) { showErr('create', 'Pick a password at least 8 characters long.'); return; }
       if (pass !== pass2) { showErr('create', 'Those passwords don’t match. Try again.'); return; }
       if (!$('hub-create-age').checked || !$('hub-create-terms').checked) { showErr('create', 'You need to be 13 or older and accept the terms to create an account.'); return; }
@@ -811,7 +870,8 @@
         if (!client) throw new Error('Could not load the sign-in service. Check your connection and try again.');
         return api('/api/auth/signup', {
           name: name, password: pass, age_choice: '13_plus', terms_accepted: true,
-          marketing_opt_in: false, stay_signed_in: true, captcha_token: cap.token
+          marketing_opt_in: optIn, stay_signed_in: true, captcha_token: cap.token,
+          ...(email ? { email: email } : {})
         }).then(function (out) {
           if (out && out.ok && out.session) {
             return landSession(client, out.session).then(function (landed) {
@@ -819,6 +879,11 @@
               rememberName(out.display_name || out.player_name || name);
               authKind = 'password';
               clearCaptcha();
+              /* Newsletter opt-in: best effort, never blocks the account.
+                 Same-origin game function as the /news/ bar (source 'hub'). */
+              if (optIn && email) {
+                fetch('/api/kit-subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, source: 'hub' }) }).catch(function () {});
+              }
               return refreshSignedInUI().then(function () { showScreen('account'); });
             });
           }
@@ -846,7 +911,7 @@
           codeEmail = email;
           codeMode = 'signin';
           var note = $('hub-sent-note');
-          if (note) note.textContent = 'We sent a 6-digit code to ' + email + '. It may take a minute to arrive — check your spam folder too.';
+          if (note) note.textContent = 'We sent a code to ' + email + '. It may take a minute to arrive — check your spam folder too.';
           showScreen('sent');
         });
       }).catch(function (e) { showErr('emailcode', authErrorMessage(e)); })
@@ -1024,7 +1089,7 @@
               codeEmail = email;
               codeMode = 'add';
               var note = $('hub-sent-note');
-              if (note) note.textContent = 'We sent a 6-digit code to ' + email + '. Enter it to confirm the address is yours.';
+              if (note) note.textContent = 'We sent a code to ' + email + '. Enter it to confirm the address is yours.';
               showScreen('sent');
               return;
             }
@@ -1061,11 +1126,38 @@
       var closer = ev.target.closest('[data-hub-close]');
       if (closer) { closeSheet(); return; }
       var go = ev.target.closest('[data-goto]');
-      if (go) { showScreen(go.dataset.goto); return; }
+      if (!go) return;
+      // From the chooser, "Sign in" checks the website first (bridge).
+      if (go.dataset.goto === 'signin' && currentScreen === 'start') { goBridge(); return; }
+      showScreen(go.dataset.goto);
     });
     document.addEventListener('keydown', function (ev) {
       if (ev.key === 'Escape' && !sheet.hidden) closeSheet();
     });
+    // Keyboard-open fit (Tony, Nov 12, 2026): when the keyboard opens the
+    // visual viewport shrinks to the strip it leaves; the sheet takes that
+    // strip (top + height as CSS vars) so the card centres in it and scrolls
+    // inside it, and the focused field is scrolled back into view after the
+    // sheet moves. Without this the card stays centred in the full viewport
+    // and the password field + submit sit under the keyboard at 390px.
+    function syncHubViewport() {
+      var vv = window.visualViewport;
+      if (!vv) return;
+      var top = Math.max(0, Math.round(vv.offsetTop || 0));
+      var h = Math.max(0, Math.round(vv.height || 0));
+      if (!h) return;
+      sheet.style.setProperty('--hub-vv-top', top + 'px');
+      sheet.style.setProperty('--hub-vv-height', h + 'px');
+      var ae = document.activeElement;
+      if (ae && sheet.contains(ae) && ae.scrollIntoView) {
+        try { ae.scrollIntoView({ block: 'center' }); } catch (e) {}
+      }
+    }
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', syncHubViewport);
+      window.visualViewport.addEventListener('scroll', syncHubViewport);
+    }
+    window.addEventListener('resize', syncHubViewport);
     sheet.addEventListener('focusin', function (ev) {
       var el = ev.target;
       if (el && el.scrollIntoView) {
@@ -1096,9 +1188,56 @@
     });
     var signoutBtn = $('hub-signout-btn');
     if (signoutBtn) signoutBtn.addEventListener('click', signOut);
+    /* Outbound link to the website: carry the sign-in over when the
+       player has one, so they never sign in twice. Plain link when
+       signed out or when minting fails. */
+    var siteLink = $('hub-site-link');
+    if (siteLink) siteLink.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      var href = siteLink.href.split('?')[0].split('#')[0];
+      var navigated = false;
+      var go = function (code) {
+        if (navigated) return;
+        navigated = true;
+        window.location.href = code ? href + '?sso=' + encodeURIComponent(code) : href;
+      };
+      var to = setTimeout(function () { go(null); }, 2000);
+      mintHandoffCode().then(function (code) { clearTimeout(to); go(code); });
+    });
 
-    renderPanel();
-    refreshSignedInUI();
+    /* Load: redeem a handoff code from the other origin first, then the
+       normal session restore. A bridge round-trip with no code opens
+       the sign-in form the player asked for. ?signin=1 (the game's
+       "Save my scores" link — Tony Nov 12, 2026, sign-in lives on the
+       hub and the website only) opens the sheet: the chooser when signed
+       out, the account panel when already signed in. */
+    (function handoffOnLoad() {
+      var code = null;
+      var bridged = false;
+      var askSignin = false;
+      try {
+        var q = new URLSearchParams(window.location.search);
+        code = q.get('sso');
+        askSignin = q.get('signin') === '1';
+        if (askSignin) {
+          q.delete('signin');
+          window.history.replaceState(null, '', window.location.pathname + (q.toString() ? '?' + q.toString() : '') + window.location.hash);
+        }
+        bridged = window.sessionStorage.getItem(BRIDGE_FLAG) === '1';
+        window.sessionStorage.removeItem(BRIDGE_FLAG);
+      } catch (e) {}
+      if (code) {
+        stripSsoParam();
+        redeemHandoffCode(code).then(function () { renderPanel(); refreshSignedInUI(); if (askSignin) openSheet(); });
+        return;
+      }
+      renderPanel();
+      refreshSignedInUI();
+      if (askSignin) { openSheet(); return; }
+      if (bridged) {
+        handoffSession().then(function (s) { if (!s) openSheet('signin'); });
+      }
+    })();
   })();
   </script>
   </body>

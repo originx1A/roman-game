@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Signing you in… — Roman&rsquo;s Game</title>
+<style>
+  body { margin: 0; min-height: 100dvh; display: grid; place-items: center; background: #fff8e7; color: #20404f; font: 16px/1.5 "Baloo 2", "Nunito", sans-serif; }
+  main { text-align: center; padding: 24px; }
+  h1 { font-size: 22px; margin: 0 0 8px; color: #10222b; }
+  p { margin: 0; color: #3d5563; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Signing you in…</h1>
+  <p>Carrying your sign-in over — one moment.</p>
+</main>
+<script type="module">
+/* Sign-in bridge (Tony, Nov 12, 2026): one sign-in, one account, shown
+   wherever the player is. The hub sent the player here to ask whether
+   they are signed in on THIS origin. If so, mint a 5-minute single-use
+   handoff code and send them back with it (?sso=code); if not, send
+   them back without one and the hub opens the sign-in form. NO token
+   ever goes in a URL — the code travels in the URL, the tokens travel
+   server-side. The return URL is allowlisted to our two origins only. */
+(function () {
+  'use strict';
+  var SUPABASE_URL = 'https://oelsglmfkpzbueqysvdm.supabase.co';
+  var SUPABASE_KEY = 'sb_publishable_-lwtjOa1ekpRv6bdjOoTmg_lL3Tmne8';
+  var AUTH_BASE = 'https://romansgame.com';
+  var LIB_URL = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/+esm';
+  var ALLOWED_ORIGINS = ['https://romansgame.com', 'https://www.romansgame.com', 'https://play.romansgame.com'];
+
+  function returnUrl() {
+    var raw = null;
+    try { raw = new URLSearchParams(window.location.search).get('return'); } catch (e) {}
+    try {
+      var u = new URL(raw || '');
+      if (ALLOWED_ORIGINS.indexOf(u.origin) !== -1) return u.href;
+    } catch (e) {}
+    return 'https://play.romansgame.com/';
+  }
+  var back = returnUrl();
+  var done = false;
+  function go(code) {
+    if (done) return;
+    done = true;
+    var url = back;
+    try {
+      var u = new URL(url);
+      u.searchParams.delete('sso');
+      if (code) u.searchParams.set('sso', code);
+      url = u.href;
+    } catch (e) {}
+    window.location.replace(url);
+  }
+  // Never strand the player here: 3 seconds, then back without a code.
+  setTimeout(function () { go(null); }, 3000);
+
+  import(LIB_URL).then(function (mod) {
+    var sb = mod.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'implicit' }
+    });
+    return sb.auth.getSession().then(function (res) {
+      var s = res && res.data ? res.data.session : null;
+      if (!s || !s.access_token) { go(null); return; }
+      return fetch(AUTH_BASE + '/api/auth/handoff/mint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + s.access_token },
+        body: JSON.stringify({ refresh_token: s.refresh_token })
+      }).then(function (r) { return r.json().catch(function () { return {}; }); }).then(function (out) {
+        go(out && out.ok && out.code ? out.code : null);
+      }).catch(function () { go(null); });
+    });
+  }).catch(function () { go(null); });
+})();
+</script>
+</body>
+</html>

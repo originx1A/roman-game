@@ -206,32 +206,6 @@ export function recordClear(input: {
   return next
 }
 
-export function signInWithEmail(email: string, displayName?: string): Profile {
-  const normalized = email.trim().toLowerCase()
-  const guest = loadGuestProgress()
-  const existing = loadProfile()
-
-  // Same email → keep; new email merges guest clears if profile empty
-  if (existing && existing.email === normalized) {
-    return existing
-  }
-
-  const name =
-    displayName?.trim() ||
-    normalized.split('@')[0].replace(/[._]/g, ' ') ||
-    'Player'
-
-  const profile: Profile = {
-    email: normalized,
-    displayName: name.replace(/\b\w/g, (c) => c.toUpperCase()),
-    createdAt: new Date().toISOString(),
-    totalScore: guest.totalScore,
-    clears: guest.clears,
-  }
-  saveProfile(profile)
-  return profile
-}
-
 export function signOutKeepDevice() {
   const profile = loadProfile()
   if (profile) {

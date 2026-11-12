@@ -1401,5 +1401,49 @@
       if (hadSave) setTimeout(function () { toast("Welcome back — your progress was saved on this device."); }, 600);
     })();
     </script>
+    <script>
+    /* Cross-origin sign-in handoff (Tony, Nov 12, 2026): links out to
+       romansgame.com carry the sign-in over when the player has one.
+       Rings keeps no Supabase client, so the session pair is read
+       straight from the shared localStorage key. NO token ever goes in
+       a URL — the code travels in the URL, the tokens travel server-side. */
+    (function () {
+      'use strict';
+      function readSession() {
+        try {
+          for (var i = 0; i < window.localStorage.length; i++) {
+            var k = window.localStorage.key(i);
+            if (!k || !/^sb-.*-auth-token$/.test(k)) continue;
+            var s = JSON.parse(window.localStorage.getItem(k) || 'null');
+            if (s && s.access_token && s.refresh_token) return s;
+          }
+        } catch (e) {}
+        return null;
+      }
+      function mint() {
+        var s = readSession();
+        if (!s) return Promise.resolve(null);
+        return fetch('https://romansgame.com/api/auth/handoff/mint', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + s.access_token },
+          body: JSON.stringify({ refresh_token: s.refresh_token })
+        }).then(function (r) { return r.json().catch(function () { return {}; }); }).then(function (out) {
+          return out && out.ok && out.code ? out.code : null;
+        }).catch(function () { return null; });
+      }
+      document.querySelectorAll('a[href^="https://romansgame.com"]').forEach(function (a) {
+        a.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          var href = a.href.split('?')[0].split('#')[0];
+          var win = window.open(href, '_blank');
+          if (!win) { window.location.href = href; return; }
+          mint().then(function (code) {
+            if (!code) return;
+            try { win.location.href = href + '?sso=' + encodeURIComponent(code); } catch (e) {}
+          });
+        });
+      });
+    })();
+    </script>
   </body>
 </html>
