@@ -387,12 +387,15 @@
         <form data-form="create" novalidate>
           <label for="hub-create-name">Player name</label>
           <input id="hub-create-name" type="text" autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="30">
+          <label for="hub-create-email">Email (optional — for password recovery)</label>
+          <input id="hub-create-email" type="email" autocomplete="email" autocapitalize="off" spellcheck="false">
           <label for="hub-create-pass">Password</label>
           <input id="hub-create-pass" type="password" autocomplete="new-password">
           <label for="hub-create-pass2">Password again</label>
           <input id="hub-create-pass2" type="password" autocomplete="new-password">
           <label class="hub-check"><input id="hub-create-age" type="checkbox"> I am 13 or older.</label>
-          <label class="hub-check"><input id="hub-create-terms" type="checkbox"> I agree to the terms and privacy policy.</label>
+          <label class="hub-check"><input id="hub-create-terms" type="checkbox"> I agree to the <a href="https://romansgame.com/terms" target="_blank" rel="noopener noreferrer">terms</a> and <a href="https://romansgame.com/privacy" target="_blank" rel="noopener noreferrer">privacy policy</a>.</label>
+          <label class="hub-check"><input id="hub-create-news" type="checkbox"> Get Roman&rsquo;s World News: the story behind this game. Unsubscribe anytime.</label>
           <div class="hub-cap-slot"></div>
           <div class="hub-err" role="alert"></div>
           <div class="hub-actions">
@@ -404,7 +407,7 @@
 
       <section class="hub-screen" data-screen="emailcode" hidden>
         <h2>Sign in with an email code</h2>
-        <p>We&rsquo;ll email you a 6-digit code. It works for accounts made with an email code.</p>
+        <p>We&rsquo;ll email you a code. It works for accounts made with an email code.</p>
         <form data-form="emailcode" novalidate>
           <label for="hub-code-email">Email</label>
           <input id="hub-code-email" type="email" autocomplete="email" autocapitalize="off" spellcheck="false">
@@ -418,7 +421,7 @@
 
       <section class="hub-screen" data-screen="sent" hidden>
         <h2>Check your email</h2>
-        <p id="hub-sent-note">We sent a 6-digit code. It may take a minute to arrive — check your spam folder too.</p>
+        <p id="hub-sent-note">We sent a code. It may take a minute to arrive — check your spam folder too.</p>
         <form data-form="code" novalidate>
           <label for="hub-code">Code from the email</label>
           <div class="hub-code"><input id="hub-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8"></div>
@@ -846,9 +849,13 @@
     /* --- Create account --- */
     function submitCreate(form) {
       var name = $('hub-create-name').value.trim();
+      var email = $('hub-create-email').value.trim();
+      var optIn = $('hub-create-news').checked;
       var pass = $('hub-create-pass').value;
       var pass2 = $('hub-create-pass2').value;
       if (!validName(name)) { showErr('create', 'Pick a name with letters and numbers, between 3 and 30 characters.'); return; }
+      if (email && !validEmail(email)) { showErr('create', 'That email doesn’t look right. Check it and try again.'); return; }
+      if (optIn && !email) { showErr('create', 'Add an email to get Roman’s World News.'); return; }
       if (pass.length < 8) { showErr('create', 'Pick a password at least 8 characters long.'); return; }
       if (pass !== pass2) { showErr('create', 'Those passwords don’t match. Try again.'); return; }
       if (!$('hub-create-age').checked || !$('hub-create-terms').checked) { showErr('create', 'You need to be 13 or older and accept the terms to create an account.'); return; }
@@ -858,7 +865,8 @@
         if (!client) throw new Error('Could not load the sign-in service. Check your connection and try again.');
         return api('/api/auth/signup', {
           name: name, password: pass, age_choice: '13_plus', terms_accepted: true,
-          marketing_opt_in: false, stay_signed_in: true, captcha_token: cap.token
+          marketing_opt_in: optIn, stay_signed_in: true, captcha_token: cap.token,
+          ...(email ? { email: email } : {})
         }).then(function (out) {
           if (out && out.ok && out.session) {
             return landSession(client, out.session).then(function (landed) {
@@ -866,6 +874,11 @@
               rememberName(out.display_name || out.player_name || name);
               authKind = 'password';
               clearCaptcha();
+              /* Newsletter opt-in: best effort, never blocks the account.
+                 Same-origin game function as the /news/ bar (source 'hub'). */
+              if (optIn && email) {
+                fetch('/api/kit-subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, source: 'hub' }) }).catch(function () {});
+              }
               return refreshSignedInUI().then(function () { showScreen('account'); });
             });
           }
@@ -893,7 +906,7 @@
           codeEmail = email;
           codeMode = 'signin';
           var note = $('hub-sent-note');
-          if (note) note.textContent = 'We sent a 6-digit code to ' + email + '. It may take a minute to arrive — check your spam folder too.';
+          if (note) note.textContent = 'We sent a code to ' + email + '. It may take a minute to arrive — check your spam folder too.';
           showScreen('sent');
         });
       }).catch(function (e) { showErr('emailcode', authErrorMessage(e)); })
@@ -1071,7 +1084,7 @@
               codeEmail = email;
               codeMode = 'add';
               var note = $('hub-sent-note');
-              if (note) note.textContent = 'We sent a 6-digit code to ' + email + '. Enter it to confirm the address is yours.';
+              if (note) note.textContent = 'We sent a code to ' + email + '. Enter it to confirm the address is yours.';
               showScreen('sent');
               return;
             }
@@ -1165,22 +1178,33 @@
 
     /* Load: redeem a handoff code from the other origin first, then the
        normal session restore. A bridge round-trip with no code opens
-       the sign-in form the player asked for. */
+       the sign-in form the player asked for. ?signin=1 (the game's
+       "Save my scores" link — Tony Nov 12, 2026, sign-in lives on the
+       hub and the website only) opens the sheet: the chooser when signed
+       out, the account panel when already signed in. */
     (function handoffOnLoad() {
       var code = null;
       var bridged = false;
+      var askSignin = false;
       try {
-        code = new URLSearchParams(window.location.search).get('sso');
+        var q = new URLSearchParams(window.location.search);
+        code = q.get('sso');
+        askSignin = q.get('signin') === '1';
+        if (askSignin) {
+          q.delete('signin');
+          window.history.replaceState(null, '', window.location.pathname + (q.toString() ? '?' + q.toString() : '') + window.location.hash);
+        }
         bridged = window.sessionStorage.getItem(BRIDGE_FLAG) === '1';
         window.sessionStorage.removeItem(BRIDGE_FLAG);
       } catch (e) {}
       if (code) {
         stripSsoParam();
-        redeemHandoffCode(code).then(function () { renderPanel(); refreshSignedInUI(); });
+        redeemHandoffCode(code).then(function () { renderPanel(); refreshSignedInUI(); if (askSignin) openSheet(); });
         return;
       }
       renderPanel();
       refreshSignedInUI();
+      if (askSignin) { openSheet(); return; }
       if (bridged) {
         handoffSession().then(function (s) { if (!s) openSheet('signin'); });
       }

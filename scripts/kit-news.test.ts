@@ -664,10 +664,19 @@ test('kit client backs off, honors Retry-After, times out, and does not retry a 
   assert.equal(client.retryAfterMs('3', 0), 3000)
 })
 
-test('signup paths: in-game opt-in, /news/ bar, and the alternate feed link', () => {
+test('signup paths: hub opt-in, /news/ bar, and the alternate feed link', () => {
+  // Tony Nov 12, 2026, ~10:46: sign-in lives on the hub and the website only
+  // — never in the game. The signup newsletter opt-in moved with the create
+  // form to the hub sheet: an unchecked box on create, subscribed best-effort
+  // through the same-origin game function as the /news/ bar.
+  const hub = readFileSync(new URL('../hub/hub.html', import.meta.url), 'utf8')
+  assert.match(hub, /hub-create-news/)
+  assert.match(hub, /Get Roman&rsquo;s World News/)
+  assert.match(hub, /marketing_opt_in: optIn/)
+  assert.match(hub, /\/api\/kit-subscribe/)
+  assert.match(hub, /source: 'hub'/)
   const game = readFileSync(new URL('../src/cloud/cloud.ts', import.meta.url), 'utf8')
-  assert.match(game, /\/api\/kit-subscribe/)
-  assert.match(game, /source: 'game'/)
+  assert.doesNotMatch(game, /\/api\/kit-subscribe/, 'the game has no signup form left to opt in from')
   const page = readFileSync(new URL('../public/news/index.html', import.meta.url), 'utf8')
   assert.match(page, /rel="alternate" type="application\/rss\+xml"/)
   assert.match(page, /href="\/news\/feed\.xml"/)

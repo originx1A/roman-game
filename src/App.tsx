@@ -1,7 +1,7 @@
 import { useTapCount } from './components/useTapCount'
 import { loadAnon, openEvents, sendPing, PRIVACY_NOTE, ANON_KEY, gaEvent, setGaEnabled } from './game/analytics'
 import { OWNER_PATH, OWNER_TAP_WINDOW_MS, OWNER_TAPS } from './game/ownerDoor'
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { Board } from './components/Board'
 import { chargeFxAllowed, chargePassMs, CHARGE_MS, preloadChargeAtlas } from './components/ChargeHorse'
@@ -19,7 +19,7 @@ import { BuddyFlyby, type FlybyReward } from './components/BuddyFlyby'
 import { TreatDefense } from './components/TreatDefense'
 import { UnseenPopup, type UnseenPop } from './components/UnseenPopup'
 import { CloudScoresButton } from './cloud/CloudScores'
-import { initCloud, openWebsite, saveScore } from './cloud/cloud'
+import { initCloud, onCloud, openWebsite, saveScore, type CloudState } from './cloud/cloud'
 import { UnseenCardTile } from './components/UnseenCard'
 import { noteCardWin } from './game/unseenCard'
 import { ThemeBackdrop } from './components/ThemeBackdrop'
@@ -248,7 +248,6 @@ import {
   saveDraft,
   saveSettings,
   saveWallet,
-  signInWithEmail,
   signOutKeepDevice,
   type Settings,
 } from './game/storage'
@@ -477,6 +476,11 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('home')
   const [{ layout }, setLayoutInfo] = useState(() => readLayout())
   const [profile, setProfile] = useState<Profile | null>(() => loadProfile())
+  /* Hub account status (Tony Nov 12, 2026): the game reads the hub session —
+   * the Account screen shows it and links out to the hub; the game itself
+   * never signs anyone in. */
+  const [cloud, setCloud] = useState<CloudState>({ status: 'off', pending: 0 })
+  useEffect(() => onCloud(setCloud), [])
   const [progress, setProgress] = useState(() => getProgress())
   const [settings, setSettings] = useState<Settings>(() => loadSettings())
   // Level select difficulty tab — persisted so it survives reloads
@@ -706,8 +710,6 @@ export default function App() {
   const [shortfall, setShortfall] = useState<null | { action: ShortfallAction; need: number; detail?: string }>(null)
   const [incoming, setIncoming] = useState<Challenge | null>(null)
   const [, setChallenges] = useState(() => loadChallenges())
-  const [emailInput, setEmailInput] = useState('')
-  const [nameInput, setNameInput] = useState('Roman')
   const [challengeEmail, setChallengeEmail] = useState('')
   const [challengeMsg, setChallengeMsg] = useState('Can you beat me on this board?')
   const [shareLink, setShareLink] = useState('')
@@ -2444,19 +2446,6 @@ export default function App() {
     })
   }
 
-  function handleSignIn(e: FormEvent) {
-    e.preventDefault()
-    if (!emailInput.includes('@')) {
-      showToast('Enter a valid email')
-      return
-    }
-    const p = signInWithEmail(emailInput, nameInput)
-    setProfile(p)
-    setProgress(getProgress())
-    showToast(`Signed in as ${p.displayName}`)
-    unlockAudio()
-  }
-
   function handleCritterCatch(reward: CritterReward) {
     const current = loadWallet()
     const have = (current.critterStash ?? 0) + 1
@@ -3058,7 +3047,7 @@ export default function App() {
               <button type="button" className="btn ghost" onClick={() => setScreen('how')}>
                 How to play
               </button>
-              <CloudScoresButton suggestedName={playerName} />
+              <CloudScoresButton />
               <UnseenCardTile records={records} />
               {/* 9.32-j: the way back to the main site, on the home screen itself (Tony 2026-11-07).
                   Until now the only romansgame.com link in the game sat on the win screen, so a
@@ -3821,7 +3810,28 @@ export default function App() {
         <main className="panel account fit-screen has-atmo">
           <Atmosphere variant="panel" tint="#4f9dff" />
           <h2>Account</h2>
-          {profile ? (
+          {/* One account (Tony Nov 12, 2026): sign-in lives on the hub and the
+              website only — never in the game. This screen shows the hub
+              account and links out to it; the game just reads the shared
+              session. Signed in, scores save to the account; signed out,
+              progress saves on this device. */}
+          {cloud.status === 'signed-in' && cloud.name ? (
+          <div className="profile-card">
+          <p className="profile-name">{cloud.publicName ?? cloud.name}</p>
+          <p className="profile-email">Signed in — your scores save to your account.</p>
+          <a href="/" className="btn ghost">Manage on the hub</a>
+          </div>
+          ) : (
+          <div className="profile-card">
+          <p className="profile-email">Your progress saves on this device for now.</p>
+          <p className="profile-email">One account for the game, the hub, and romansgame.com — sign in once and it works everywhere.</p>
+          <a href="/?signin=1" className="btn primary">Sign in</a>
+          </div>
+          )}
+          {/* Device save (not the account): a local profile created before the
+              hub sign-in, holding this device's progress. Signing out of it
+              keeps the progress as a guest — it never touches the hub account. */}
+          {profile && (
           <div className="profile-card">
           <p className="profile-name">{profile.displayName}</p>
           <p className="profile-email">{profile.email}</p>
@@ -3837,18 +3847,6 @@ export default function App() {
           Sign out
           </button>
           </div>
-          ) : (
-          <form className="auth-form" onSubmit={handleSignIn}>
-          <label>
-          Email
-          <input type="email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} required />
-          </label>
-          <label>
-          Display name
-          <input type="text" value={nameInput} onChange={(e) => setNameInput(e.target.value)} />
-          </label>
-          <button type="submit" className="btn primary">Save with email</button>
-          </form>
           )}
           <section className="account-name">
             <label className="name-setting">
