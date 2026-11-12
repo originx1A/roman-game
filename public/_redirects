@@ -2,4 +2,9 @@
 # Netlify reads this file before netlify.toml, and the first match wins.
 # The /* rule below would otherwise serve the game's index.html for the feed.
 /news/feed.xml /.netlify/functions/news-feed 200!
+# Owner page is a path route in the game (src/main.tsx) — it must keep
+# serving the game entry at /game/, not the hub page at the root.
+/roman-owner /game/index.html 200
+# Deep links under /game/ fall back to the game entry (real files win).
+/game/* /game/index.html 200
 /* /index.html 200
