@@ -44,6 +44,88 @@ let voiceUnlocked = false
 /** One waiting line (e.g. a badge right after a win) that plays when the channel frees up */
 let waitingLine: { id: string; opts: PlayVoiceOpts; until: number } | null = null
 
+/**
+ * Stop the sound the moment the player leaves the page, so one game's audio
+ * never plays over the other. On `visibilitychange` hidden and on `pagehide`,
+ * pause every playing audio element and suspend the shared AudioContext; on
+ * becoming visible again (or `pageshow` back from the back-forward cache),
+ * resume ONLY what was playing before — never auto-start anything the player
+ * had muted or stopped. While hidden, no new sound starts at all: a beep or
+ * voice line asked for while hidden is dropped, not queued.
+ */
+let audioHeld = false
+let heldVoice = false
+let heldGiggle = false
+let heldCtx = false
+
+function audioIsHidden(): boolean {
+  return typeof document !== 'undefined' && document.hidden
+}
+
+function pauseAudioForHide() {
+  try {
+    if (voiceEl && !voiceEl.paused) {
+      voiceEl.pause()
+      heldVoice = true
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    if (petGiggleEl && !petGiggleEl.paused) {
+      petGiggleEl.pause()
+      heldGiggle = true
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    if (ctx && ctx.state === 'running') {
+      void ctx.suspend().catch(() => {})
+      heldCtx = true
+    }
+  } catch {
+    /* ignore */
+  }
+  audioHeld = true
+}
+
+function resumeAudioAfterHide() {
+  if (!audioHeld) return
+  audioHeld = false
+  // The quiet clock restarts, so the Unseen doesn't heckle the instant the player returns.
+  voiceFreeSince = 0
+  try {
+    if (heldVoice && voiceEl && !muted && voiceEnabled) void voiceEl.play().catch(() => {})
+  } catch {
+    /* ignore */
+  }
+  heldVoice = false
+  try {
+    if (heldGiggle && petGiggleEl && !muted) void petGiggleEl.play().catch(() => {})
+  } catch {
+    /* ignore */
+  }
+  heldGiggle = false
+  try {
+    if (heldCtx && ctx && ctx.state === 'suspended' && !muted) void ctx.resume().catch(() => {})
+  } catch {
+    /* ignore */
+  }
+  heldCtx = false
+}
+
+if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) pauseAudioForHide()
+    else resumeAudioAfterHide()
+  })
+  window.addEventListener('pagehide', pauseAudioForHide)
+  window.addEventListener('pageshow', (ev) => {
+    if ((ev as PageTransitionEvent).persisted) resumeAudioAfterHide()
+  })
+}
+
 const FALLBACK_TEXT: Partial<Record<VoiceLineId, string>> = {
   nice: 'Nice.',
   solid: 'Solid.',
@@ -586,7 +668,7 @@ function ac(): AudioContext {
     if (!Ctor) throw new Error('Web Audio unavailable')
     ctx = new Ctor()
   }
-  if (ctx.state !== 'running' && ctx.state !== 'closed') void ctx.resume().catch(() => {})
+  if (ctx.state !== 'running' && ctx.state !== 'closed' && !audioIsHidden()) void ctx.resume().catch(() => {})
   return ctx
 }
 
@@ -594,7 +676,7 @@ function ac(): AudioContext {
 function ensureAudio() {
   try {
     const c = ac()
-    if (c.state !== 'running' && c.state !== 'closed') void c.resume().catch(() => {})
+    if (c.state !== 'running' && c.state !== 'closed' && !audioIsHidden()) void c.resume().catch(() => {})
   } catch {
     /* ignore */
   }
@@ -766,7 +848,7 @@ export function unlockAudio() {
 }
 
 function noiseBurst(duration: number, gain = 0.08, when = 0) {
-  if (muted) return
+  if (muted || audioIsHidden()) return
   // A sound effect must never throw into a game action (Undo commits after its beep).
   try {
     noiseBurstUnsafe(duration, gain, when)
@@ -808,7 +890,7 @@ function tone(
   when = 0,
   slideTo?: number,
 ) {
-  if (muted) return
+  if (muted || audioIsHidden()) return
   try {
     toneUnsafe(freq, duration, type, gain, when, slideTo)
   } catch {
@@ -910,7 +992,7 @@ let petGiggleEl: HTMLAudioElement | null = null
 let lastPetGiggle = -1
 export const PET_GIGGLES = ['buddy_giggle_1', 'buddy_giggle_2', 'buddy_giggle_3'] as const
 export function petGiggle(opts: { quietOnly?: boolean } = {}): string | null {
-  if (muted) return null
+  if (muted || audioIsHidden()) return null
   if (opts.quietOnly && (currentLine || waitingLine)) return null
   if (currentLine || waitingLine || typeof Audio === 'undefined') {
     synthGiggle()
@@ -1126,7 +1208,7 @@ function clipObjectUrl(id: string): Promise<string | null> {
  *   equal/lower priority is skipped (or waits, with waitMs), so lines never stack or overlap.
  */
 export function playVoice(id: string, opts: PlayVoiceOpts = {}) {
-  if (muted || !voiceEnabled || !id) return
+  if (muted || !voiceEnabled || !id || audioIsHidden()) return
   const queue = [id, ...(opts.alts ?? [])].filter((clip, i, all) => isPlayableVoiceClip(clip) && all.indexOf(clip) === i).slice(0, 5)
   if (!queue.length) return
   const priority = opts.priority ?? 1

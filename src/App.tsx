@@ -681,14 +681,28 @@ export default function App() {
   }
   function maybeUnseenPop(line: { text?: string; clip?: string; speak?: boolean; silent?: boolean }) {
     if (!line.speak || line.silent || !line.text || !isUnseenClip(line.clip)) return
+    // The heckle is a board visual: it only ever appears on a board screen
+    // (play/duel). A line that starts while the player is on a menu screen
+    // still plays as audio, but its pop-up must never cover that screen's
+    // content — the aside/tip timers outlive a screen change, so a stale
+    // closure would otherwise re-show it after the player left the board.
+    if (screenNowRef.current !== 'play' && screenNowRef.current !== 'duel') return
     unseenKey.current += 1
     setUnseenPop({ text: line.text, key: unseenKey.current })
   }
   /** 9.33-a: the Unseen speaks in text (no clip) — Defender Boards moments use his pop-up directly */
   function unseenSay(text: string) {
+    if (screenNowRef.current !== 'play' && screenNowRef.current !== 'duel') return
     unseenKey.current += 1
     setUnseenPop({ text, key: unseenKey.current })
   }
+  // The heckle belongs to the board: if it fired during play and the player
+  // leaves before its 4.5s are up, it must not bleed onto the next screen
+  // and cover that screen's content (Home's Remix card, the bottom nav).
+  // A pop-up fired ON the new screen still shows — only the bleed is cut.
+  useEffect(() => {
+    if (screen !== 'play') setUnseenPop(null)
+  }, [screen])
   const [shortfall, setShortfall] = useState<null | { action: ShortfallAction; need: number; detail?: string }>(null)
   const [incoming, setIncoming] = useState<Challenge | null>(null)
   const [, setChallenges] = useState(() => loadChallenges())
@@ -3067,6 +3081,25 @@ export default function App() {
                     />
                   </svg>
                   Visit romansgame.com
+                </a>
+              )}
+              {/* Back to the game hub (play.romansgame.com) — the games live on the
+                  hub, so the home screen needs a way back to it. Same row-button
+                  pattern as the site link. Web only: store builds stay in-app. */}
+              {!isStoreBuild() && (
+                <a
+                  className="btn ghost home-hub-link"
+                  href="/"
+                  data-testid="home-hub-link"
+                  aria-label="Back to game hub — all Roman's Game games"
+                >
+                  <svg className="home-site-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                    <path
+                      fill="currentColor"
+                      d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"
+                    />
+                  </svg>
+                  Back to game hub
                 </a>
               )}
             </div>

@@ -54,9 +54,14 @@ const checks = [
   [join(dist, 'index.html'), 'href="/rings/"', 'hub page must link the Rings card to /rings/'],
   [join(dist, 'index.html'), 'id="sponsor-credit"', 'hub page must carry the sponsor credit line'],
   [join(dist, 'index.html'), '/api/sponsors-feed', 'hub sponsor line must read the sponsors feed'],
+  [join(dist, 'index.html'), 'id="hub-auth-sheet"', 'hub page must carry the sign-in sheet (not a bare link-out)'],
+  [join(dist, 'index.html'), 'id="hub-signin-btn"', 'hub sign-in button must open the sheet'],
+  [join(dist, 'index.html'), 'only saves your progress', 'hub sign-in panel must say plainly that signing in only saves progress'],
+  [join(dist, 'index.html'), 'data-form="signin"', 'hub sign-in sheet must carry the sign-in form'],
   [join(dist, 'game', 'index.html'), '<base href="/" />', 'game copy must carry <base href="/">'],
   [join(dist, 'game', 'index.html'), "Roman's Game: free logic puzzle", 'game copy must be the game entry'],
   [join(dist, 'rings', 'index.html'), 'Rings of the Keeper', 'rings copy must be the match game'],
+  [join(dist, 'rings', 'index.html'), 'ringsPauseAudio', 'rings page must stop its audio when the player leaves'],
   [join(dist, 'rings', 'index.html'), '100dvh', 'rings page must use dynamic viewport units (locked layout)'],
   [join(dist, 'rings', 'index.html'), 'overscroll-behavior: none', 'rings page must block overscroll'],
   [join(dist, 'rings', 'index.html'), 'container-type: size', 'rings board frame must size the board to the viewport'],
@@ -66,8 +71,31 @@ for (const [file, marker, why] of checks) {
   if (!readFileSync(file, 'utf8').includes(marker)) fail(`${why} (missing ${JSON.stringify(marker)} in ${file})`)
 }
 
+// The game home screen renders from the JS bundle, not from index.html —
+// check the built bundle for the home buttons.
+const gameCopyHtml = readFileSync(join(dist, 'game', 'index.html'), 'utf8')
+const bundleMatch = gameCopyHtml.match(/src="\.\/assets\/(index-[^"]+\.js)"/)
+if (!bundleMatch) fail('game copy does not reference its main JS bundle')
+const bundlePath = join(dist, 'assets', bundleMatch[1])
+if (!existsSync(bundlePath)) fail(`game bundle missing: ${bundlePath}`)
+const bundleChecks = [
+  // JSX data-testid compiles to "data-testid":"…" in the minified bundle,
+  // so check the values (they also appear in the class names).
+  ['home-hub-link', 'game home must carry the Back to game hub button'],
+  ['home-site-link', 'game home must still carry the Visit romansgame.com link'],
+  // The sound module's hide wiring is the only pagehide/pageshow listener
+  // in the game — the function names themselves are minified away.
+  ['pagehide', 'game sound module must stop audio when the player leaves'],
+  ['pageshow', 'game sound module must handle return from the back-forward cache'],
+]
+const bundleText = readFileSync(bundlePath, 'utf8')
+for (const [marker, why] of bundleChecks) {
+  if (!bundleText.includes(marker)) fail(`${why} (missing ${JSON.stringify(marker)} in the game bundle)`)
+}
+
 // Sponsor credit lives on the hub ONLY — the games must not carry it.
 const forbidden = [
+  [join(dist, 'index.html'), 'href="https://romansgame.com">Sign in', 'hub sign-in must open the sheet, not link out to romansgame.com'],
   [join(dist, 'game', 'index.html'), 'Sponsored by', 'game copy must not carry a sponsor credit'],
   [join(dist, 'game', 'index.html'), 'sponsors-feed', 'game copy must not fetch the sponsors feed'],
   [join(dist, 'game', 'index.html'), 'Northroom', 'game copy must not name the house sponsor'],

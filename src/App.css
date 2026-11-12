@@ -3658,6 +3658,20 @@ body > div[style*="z-index"][style*="fixed"] > a[href*="netlify"] {
   gap: 0.45rem;
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
+  /* The site link's label ("Visit romansgame.com") is wider than one grid
+     column, so it clipped at the left edge on phones. Both home links take
+     the full row instead — stacked, full-width, nothing cut off. */
+  grid-column: 1 / -1;
+}
+/* Back to the game hub — same row-button pattern as the site link. */
+.home-hub-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  grid-column: 1 / -1;
 }
 .home-site-icon {
   flex-shrink: 0;
@@ -6160,6 +6174,12 @@ html[data-device='tablet']:not([data-layout='wide']) .hud-pet { top: calc(max(0.
   -webkit-user-select: none;
   will-change: transform, opacity;
 }
+/* The pop-up is fixed to the viewport's bottom-right, so on any screen that
+   shows the bottom nav it sat ON the nav (and on Home it covered the Remix
+   card's "next set" line). It now clears the nav everywhere the nav shows;
+   on the board itself the nav is hidden, so it stays at the bottom edge. */
+.unseen-pop { bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
+.shell-play .unseen-pop { bottom: 0; }
 .unseen-pop.is-entering { animation: unseenIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
 .unseen-pop.is-leaving { animation: unseenOut 0.4s cubic-bezier(0.55, 0.06, 0.68, 0.19) both; }
 /* same speed/easing/hold as the 10.06 old-timer pop-up; slides in from the right edge */
