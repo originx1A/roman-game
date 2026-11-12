@@ -59,14 +59,14 @@
         border-radius: var(--radius-md);
         padding: 16px 18px;
         display: flex; align-items: center; gap: 16px;
-        max-width: 430px; flex: 1 1 320px;
+        max-width: 430px; flex: 1 1 320px; min-width: 0;
       }
       .signin .key {
         flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%;
         background: rgba(240, 185, 62, .14);
         display: grid; place-items: center;
       }
-      .signin p { margin: 0; font-size: 15.5px; color: var(--muted); }
+      .signin p { margin: 0; font-size: 15.5px; color: var(--muted); min-width: 0; overflow-wrap: break-word; }
       .signin p strong { display: block; color: var(--ink); font-size: 16.5px; }
       .btn-signin {
         flex: 0 0 auto;
@@ -74,7 +74,7 @@
         min-height: 48px; padding: 10px 22px;
         background: var(--gold); color: var(--gold-ink);
         font-family: "Baloo 2", "Nunito", sans-serif; font-weight: 800; font-size: 17px;
-        border-radius: 999px; text-decoration: none;
+        border: 0; border-radius: 999px; text-decoration: none; cursor: pointer;
         box-shadow: 0 4px 0 var(--gold-deep);
       }
       .btn-signin:hover { filter: brightness(1.06); }
@@ -186,6 +186,50 @@
       @media (prefers-reduced-motion: reduce) {
         * { transition: none !important; }
       }
+
+      /* ---------- Sign-in sheet (hub's own sign-in; same door as the game) ---------- */
+      .hub-sheet { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: calc(12px + env(safe-area-inset-top, 0px)) 14px calc(12px + env(safe-area-inset-bottom, 0px)); }
+      .hub-sheet[hidden] { display: none; }
+      .hub-sheet .scrim { position: absolute; inset: 0; background: rgba(9, 18, 20, .68); }
+      .hub-card {
+        position: relative; width: 100%; max-width: 430px;
+        max-height: calc(100dvh - 24px); max-height: calc(100svh - 24px);
+        overflow-y: auto; overscroll-behavior: contain;
+        background: #fff8e7; color: #123; border-radius: 18px;
+        border: 1px solid #e6d6ae; box-shadow: 0 20px 60px rgba(0, 0, 0, .35);
+        padding: 20px 18px calc(18px + env(safe-area-inset-bottom, 0px));
+      }
+      .hub-card h2 { margin: 0 0 4px; font-size: 23px; line-height: 1.15; color: #10222b; }
+      .hub-card p { margin: 0 0 12px; font-size: 15.5px; line-height: 1.45; color: #3d5563; }
+      .hub-card .hub-tip { background: #fff3cf; border: 1px solid #e8cf8a; border-radius: 12px; padding: 10px 12px; font-size: 14.5px; }
+      .hub-card label { display: block; font-weight: 700; font-size: 14.5px; color: #10222b; margin: 10px 0 4px; }
+      .hub-card input[type="text"], .hub-card input[type="email"], .hub-card input[type="password"] {
+        width: 100%; box-sizing: border-box; min-height: 48px; padding: 10px 12px;
+        font: inherit; font-size: 16px; color: #10222b;
+        border: 1px solid #b9c4c9; border-radius: 12px; background: #fff;
+      }
+      .hub-card input:focus { outline: 3px solid rgba(240, 185, 62, .55); outline-offset: 1px; border-color: #c9a13a; }
+      .hub-card .hub-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+      .hub-card .hub-btn {
+        min-height: 48px; padding: 10px 18px; border-radius: 999px; border: 0; cursor: pointer;
+        font-family: "Baloo 2", "Nunito", sans-serif; font-weight: 800; font-size: 16.5px;
+        background: var(--gold); color: var(--gold-ink); box-shadow: 0 3px 0 var(--gold-deep);
+      }
+      .hub-card .hub-btn[disabled] { opacity: .55; cursor: wait; }
+      .hub-card .hub-btn-ghost {
+        min-height: 44px; padding: 8px 14px; border-radius: 999px; border: 1px solid #9fb0b7; cursor: pointer;
+        font-family: "Baloo 2", "Nunito", sans-serif; font-weight: 700; font-size: 15.5px;
+        background: #fff; color: #20404f;
+      }
+      .hub-card .hub-err { display: none; background: #fdeceb; border: 1px solid #f0b4ae; color: #7c1d17; border-radius: 12px; padding: 10px 12px; font-size: 14.5px; margin-top: 12px; }
+      .hub-card .hub-err.show { display: block; }
+      .hub-card .hub-cap-slot { margin-top: 12px; }
+      .hub-card .hub-cap-slot:empty { margin-top: 0; }
+      .hub-card .hub-check { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; font-size: 14.5px; line-height: 1.4; color: #3d5563; }
+      .hub-card .hub-check input { width: 22px; height: 22px; flex: 0 0 auto; margin-top: 1px; accent-color: #0e7490; }
+      .hub-card .hub-close { position: absolute; top: 10px; right: 10px; width: 40px; height: 40px; border-radius: 50%; border: 1px solid #c9d4d8; background: #fff; color: #20404f; font-size: 20px; line-height: 1; cursor: pointer; }
+      .hub-card .hub-code { display: flex; gap: 8px; }
+      .hub-card .hub-code input { text-align: center; font-size: 22px; letter-spacing: 4px; font-weight: 800; }
     </style>
   <script>(function(){var h=location.hash||"";if(/^#(challenge|duel)=/.test(h)){location.replace("/game/"+h);}})();</script>
   </head>
@@ -198,13 +242,13 @@
           <p class="sub">Every game from <strong>Roman&rsquo;s World</strong> lives on this one page. Pick a card, press play, and jump straight in &mdash; and you can hop from one game to the other any time.</p>
         </div>
 
-        <div class="signin">
+        <div class="signin" id="hub-signin-panel">
           <div class="key" aria-hidden="true">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f0b93e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4.5"/><path d="M11.2 11.8 20 3"/><path d="M16.5 6.5 19.5 9.5"/><path d="M14 9l2.5 2.5"/></svg>
           </div>
           <p><strong>One sign-in for every game</strong>
-          Sign in once, here on this page &mdash; not again for each game.</p>
-          <a class="btn-signin" href="https://romansgame.com">Sign in</a>
+          Sign in once here &mdash; not again for each game. Signing in only saves your progress; you can play every game without it.</p>
+          <button type="button" class="btn-signin" id="hub-signin-btn">Sign in</button>
         </div>
       </div>
 
@@ -297,5 +341,765 @@
           .catch(function () { /* house line stays */ });
       })();
     </script>
+  <!-- Hub sign-in sheet: the hub's own sign-in (same door as the game).
+       Sign-in is optional — it only saves progress; playing never needs it. -->
+  <div class="hub-sheet" id="hub-auth-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="hub-sheet-title">
+    <div class="scrim" data-hub-close></div>
+    <div class="hub-card" id="hub-auth-card">
+      <button type="button" class="hub-close" data-hub-close aria-label="Close">&times;</button>
+
+      <section class="hub-screen" data-screen="start">
+        <h2 id="hub-sheet-title">Save your progress</h2>
+        <p>Sign in to save your progress and keep it across your devices. You can play every game without signing in — signing in only saves your progress.</p>
+        <p class="hub-tip">Same sign-in as romansgame.com — one account for the website and every game here.</p>
+        <div class="hub-actions">
+          <button type="button" class="hub-btn" data-goto="signin">Sign in</button>
+          <button type="button" class="hub-btn-ghost" data-goto="create">Create account</button>
+          <button type="button" class="hub-btn-ghost" data-goto="emailcode">Sign in with an email code</button>
+          <button type="button" class="hub-btn-ghost" data-hub-close>Not now — just play</button>
+        </div>
+      </section>
+
+      <section class="hub-screen" data-screen="signin" hidden>
+        <h2>Sign in</h2>
+        <p>Your player name + password — the same ones as romansgame.com.</p>
+        <form data-form="signin" novalidate>
+          <label for="hub-signin-name">Player name or email</label>
+          <input id="hub-signin-name" type="text" autocomplete="username" autocapitalize="off" spellcheck="false">
+          <label for="hub-signin-pass">Password</label>
+          <input id="hub-signin-pass" type="password" autocomplete="current-password">
+          <div class="hub-cap-slot"></div>
+          <div class="hub-err" role="alert"></div>
+          <div class="hub-actions">
+            <button type="submit" class="hub-btn">Sign in</button>
+            <button type="button" class="hub-btn-ghost" data-goto="forgot">Forgot password</button>
+            <button type="button" class="hub-btn-ghost" data-goto="create">Create an account instead</button>
+            <button type="button" class="hub-btn-ghost" data-hub-close>Not now — just play</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="hub-screen" data-screen="create" hidden>
+        <h2>Create account</h2>
+        <p>Pick a player name and a password. No email needed — you can add a recovery email later.</p>
+        <form data-form="create" novalidate>
+          <label for="hub-create-name">Player name</label>
+          <input id="hub-create-name" type="text" autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="30">
+          <label for="hub-create-pass">Password</label>
+          <input id="hub-create-pass" type="password" autocomplete="new-password">
+          <label for="hub-create-pass2">Password again</label>
+          <input id="hub-create-pass2" type="password" autocomplete="new-password">
+          <label class="hub-check"><input id="hub-create-age" type="checkbox"> I am 13 or older.</label>
+          <label class="hub-check"><input id="hub-create-terms" type="checkbox"> I agree to the terms and privacy policy.</label>
+          <div class="hub-cap-slot"></div>
+          <div class="hub-err" role="alert"></div>
+          <div class="hub-actions">
+            <button type="submit" class="hub-btn">Create account</button>
+            <button type="button" class="hub-btn-ghost" data-goto="signin">I already have an account</button>
+            <button type="button" class="hub-btn-ghost" data-hub-close>Not now — just play</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="hub-screen" data-screen="emailcode" hidden>
+        <h2>Sign in with an email code</h2>
+        <p>We&rsquo;ll email you a 6-digit code. It works for accounts made with an email code.</p>
+        <form data-form="emailcode" novalidate>
+          <label for="hub-code-email">Email</label>
+          <input id="hub-code-email" type="email" autocomplete="email" autocapitalize="off" spellcheck="false">
+          <div class="hub-err" role="alert"></div>
+          <div class="hub-actions">
+            <button type="submit" class="hub-btn">Email me a code</button>
+            <button type="button" class="hub-btn-ghost" data-goto="signin">Sign in with a password instead</button>
+            <button type="button" class="hub-btn-ghost" data-hub-close>Not now — just play</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="hub-screen" data-screen="sent" hidden>
+        <h2>Check your email</h2>
+        <p id="hub-sent-note">We sent a 6-digit code. It may take a minute to arrive — check your spam folder too.</p>
+        <form data-form="code" novalidate>
+          <label for="hub-code">Code from the email</label>
+          <div class="hub-code"><input id="hub-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8"></div>
+          <div class="hub-err" role="alert"></div>
+          <div class="hub-actions">
+            <button type="submit" class="hub-btn">Sign in with the code</button>
+            <button type="button" class="hub-btn-ghost" data-goto="emailcode">Use a different email</button>
+            <button type="button" class="hub-btn-ghost" data-hub-close>Not now — just play</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="hub-screen" data-screen="forgot" hidden>
+        <h2>Forgot password</h2>
+        <p>We&rsquo;ll email a reset code to the recovery email on your account.</p>
+        <form data-form="forgot" novalidate>
+          <label for="hub-forgot-email">Email</label>
+          <input id="hub-forgot-email" type="email" autocomplete="email" autocapitalize="off" spellcheck="false">
+          <div class="hub-cap-slot"></div>
+          <div class="hub-err" role="alert"></div>
+          <div class="hub-actions">
+            <button type="submit" class="hub-btn">Email me a reset code</button>
+            <button type="button" class="hub-btn-ghost" data-goto="signin">Back to sign in</button>
+            <button type="button" class="hub-btn-ghost" data-hub-close>Not now — just play</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="hub-screen" data-screen="reset" hidden>
+        <h2>Reset your password</h2>
+        <div id="hub-reset-code-part">
+          <p>Enter the reset code from the email.</p>
+          <form data-form="resetcode" novalidate>
+            <label for="hub-reset-code">Reset code</label>
+            <div class="hub-code"><input id="hub-reset-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8"></div>
+            <div class="hub-cap-slot"></div>
+            <div class="hub-err" role="alert"></div>
+            <div class="hub-actions">
+              <button type="submit" class="hub-btn">Continue</button>
+              <button type="button" class="hub-btn-ghost" data-goto="forgot">Send a new code</button>
+            </div>
+          </form>
+        </div>
+        <div id="hub-reset-pass-part" hidden>
+          <p id="hub-reset-pass-note">Pick a new password.</p>
+          <form data-form="resetfinish" novalidate>
+            <label for="hub-reset-pass">New password</label>
+            <input id="hub-reset-pass" type="password" autocomplete="new-password">
+            <label for="hub-reset-pass2">New password again</label>
+            <input id="hub-reset-pass2" type="password" autocomplete="new-password">
+            <div class="hub-cap-slot"></div>
+            <div class="hub-err" role="alert"></div>
+            <div class="hub-actions">
+              <button type="submit" class="hub-btn">Save my new password</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section class="hub-screen" data-screen="claim" hidden>
+        <h2>Give your account a name + password</h2>
+        <p>You signed in with an email code. A name + password means you can sign in anywhere — and your progress stays yours.</p>
+        <form data-form="claim" novalidate>
+          <label for="hub-claim-name">Player name</label>
+          <input id="hub-claim-name" type="text" autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="30">
+          <label for="hub-claim-pass">Password</label>
+          <input id="hub-claim-pass" type="password" autocomplete="new-password">
+          <label for="hub-claim-pass2">Password again</label>
+          <input id="hub-claim-pass2" type="password" autocomplete="new-password">
+          <div class="hub-cap-slot"></div>
+          <div class="hub-err" role="alert"></div>
+          <div class="hub-actions">
+            <button type="submit" class="hub-btn">Save my name + password</button>
+            <button type="button" class="hub-btn-ghost" data-goto="account">Skip for now</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="hub-screen" data-screen="account" hidden>
+        <h2>Progress is saving</h2>
+        <p id="hub-account-note">You&rsquo;re signed in.</p>
+        <div class="hub-actions">
+          <button type="button" class="hub-btn-ghost" data-goto="claim" id="hub-account-claim" hidden>Give my account a name + password</button>
+          <button type="button" class="hub-btn-ghost" data-goto="addemail" id="hub-account-addemail" hidden>Add a recovery email</button>
+          <button type="button" class="hub-btn" data-hub-close>Keep playing</button>
+          <button type="button" class="hub-btn-ghost" id="hub-signout-btn">Sign out</button>
+        </div>
+      </section>
+
+      <section class="hub-screen" data-screen="addemail" hidden>
+        <h2>Add a recovery email</h2>
+        <p>A recovery email lets you reset your password if you forget it. We&rsquo;ll send a code to confirm it&rsquo;s yours.</p>
+        <form data-form="addemail" novalidate>
+          <label for="hub-addemail">Email</label>
+          <input id="hub-addemail" type="email" autocomplete="email" autocapitalize="off" spellcheck="false">
+          <div class="hub-err" role="alert"></div>
+          <div class="hub-actions">
+            <button type="submit" class="hub-btn">Send the confirmation code</button>
+            <button type="button" class="hub-btn-ghost" data-goto="account">Back</button>
+          </div>
+        </form>
+      </section>
+
+    </div>
+  </div>
+
+  <script type="module">
+  /* Hub sign-in — the hub's own sign-in, mirroring the game's shared door
+     (src/cloud/cloud.ts). Same Supabase project and same localStorage
+     session, so /game/ and /rings/ read it with no changes to the games.
+     Sign-in is OPTIONAL: it only saves progress; playing never needs it. */
+  (function () {
+    'use strict';
+    var AUTH_BASE = 'https://romansgame.com';
+    var SUPABASE_URL = 'https://oelsglmfkpzbueqysvdm.supabase.co';
+    var SUPABASE_KEY = 'sb_publishable_-lwtjOa1ekpRv6bdjOoTmg_lL3Tmne8';
+    var FALLBACK_SITE_KEY = '0x4AAAAAAFfTs2hm1baT01HK';
+    var NAME_KEY = 'rg.hub.displayName';
+    var LIB_URL = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/+esm';
+
+    var sheet = document.getElementById('hub-auth-sheet');
+    var card = document.getElementById('hub-auth-card');
+    var panelBtn = document.getElementById('hub-signin-btn');
+    var panelText = document.querySelector('#hub-signin-panel p');
+
+    var sb = null, sbFailed = false;
+    var displayName = '';
+    try { displayName = window.localStorage.getItem(NAME_KEY) || ''; } catch (e) {}
+    var authKind = null; // 'password' | 'code'
+    var currentScreen = 'start';
+    var codeEmail = '';
+    var codeMode = 'signin'; // 'signin' | 'add'
+    var grant = null; // { resetToken, accounts }
+    var pickUser = null;
+    var cap = { token: null, widgetId: null, need: false };
+
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+    function $(id) { return document.getElementById(id); }
+    function screenEl(name) { return sheet.querySelector('[data-screen="' + name + '"]'); }
+    function errEl(name) { var s = screenEl(name); return s ? s.querySelector('.hub-err') : null; }
+    function showErr(name, msg) {
+      var el = errEl(name);
+      if (!el) return;
+      el.textContent = msg;
+      el.classList.add('show');
+    }
+    function clearErr(name) {
+      var el = errEl(name);
+      if (!el) return;
+      el.textContent = '';
+      el.classList.remove('show');
+    }
+
+    /* --- Supabase client (same project + same storage key as the game) --- */
+    function getSupabase() {
+      if (sb) return Promise.resolve(sb);
+      if (sbFailed) return Promise.resolve(null);
+      return import(LIB_URL).then(function (mod) {
+        sb = mod.createClient(SUPABASE_URL, SUPABASE_KEY, {
+          auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'implicit' }
+        });
+        return sb;
+      }).catch(function () { sbFailed = true; return null; });
+    }
+
+    /* --- Shared auth API (mirrors src/cloud/cloud.ts) --- */
+    function api(path, payload, bearer) {
+      var headers = { 'Content-Type': 'application/json' };
+      if (bearer) headers.Authorization = 'Bearer ' + bearer;
+      return fetch(AUTH_BASE + path, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(payload == null ? {} : payload)
+      }).then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (body) {
+          if (!res.ok) return Object.assign({}, body, { _http: res.status });
+          return body;
+        });
+      });
+    }
+    function authErrorMessage(e) {
+      var code = e && (e.code || e.error_code) ? String(e.code || e.error_code) : '';
+      var msg = e && typeof e.message === 'string' ? e.message : '';
+      var detail = e && e.detail ? e.detail : '';
+      if (code === 'rate_limited' || /rate limit/i.test(msg)) return 'Too many tries — give it a minute, then try again.';
+      if (code === 'turnstile_required') return 'Please prove you’re a person and try again.';
+      if (code === 'captcha_failed') return 'That check didn’t pass — try again.';
+      if (code === 'invalid_credentials') return 'That name or password doesn’t match. Check both and try again.';
+      if (code === 'user_not_found') return 'We don’t know that name or email yet. Create an account instead?';
+      if (code === 'account_not_found') return 'We don’t know that name or email yet. Create an account instead?';
+      if (code === 'email_required') return 'We need an email address to send the code to.';
+      if (code === 'code_required' || code === 'code_invalid' || code === 'code_expired') return 'That code doesn’t look right. Check the email and try again.';
+      if (code === 'verification_failed' || code === 'invalid_otp' || code === 'otp_expired' || code === 'expired_otp' || /invalid.*otp/i.test(msg) || /otp.*expired/i.test(msg)) return 'That code doesn’t look right. Check the email and try again.';
+      if (code === 'email_unconfirmed') return 'That email isn’t confirmed yet — check your inbox for the confirmation email.';
+      if (code === 'name_taken') return 'That name is already taken — try a different one.';
+      if (code === 'name_invalid') return 'Names can use letters, numbers and spaces, between 3 and 30 characters.';
+      if (code === 'password_too_short') return 'Pick a password at least 8 characters long.';
+      if (code === 'terms_required' || code === 'age_required' || code === 'age_not_confirmed' || code === 'underage') return 'You need to be 13 or older and accept the terms to create an account.';
+      if (code === 'no_accounts') return 'We don’t know that email yet — create an account instead?';
+      if (code === 'code_already_used' || code === 'token_already_used') return 'That code was already used — ask for a fresh one.';
+      if (code === 'reset_not_started' || code === 'no_reset_token') return 'Start with “Forgot password” again — that reset didn’t begin properly.';
+      if (code === 'no_accounts_for_email') return 'We don’t know that email yet — create an account instead?';
+      if (code === 'account_exists') return 'An account already uses that name or email — try signing in instead.';
+      if (code === 'no_email_account') return 'Add a recovery email first, from the account screen.';
+      if (code === 'email_not_owned') return 'That email isn’t linked to this account.';
+      if (code === 'too_many_accounts') return 'That email is on a few accounts — pick one to reset first.';
+      if (code === 'code_not_sent') return 'We couldn’t send that code. Try again in a moment.';
+      if (detail && /password is too short/i.test(detail)) return 'Pick a password at least 8 characters long.';
+      if (msg && /fetch failed/i.test(msg)) return 'We couldn’t reach the sign-in service. Check your connection and try again.';
+      if (/network|failed to fetch|load failed|timeout/i.test(msg)) return 'We couldn’t reach the sign-in service. Check your connection and try again.';
+      if (msg && msg.indexOf('Could not ') === 0) return msg;
+      return 'Something went wrong signing in. Try again in a moment.';
+    }
+    function validEmail(s) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(s || '').trim()); }
+    function validName(s) { var t = String(s || '').trim(); return t.length >= 3 && t.length <= 30 && /^[A-Za-z0-9 ]+$/.test(t); }
+
+    function landSession(client, s) {
+      if (!client || !s || !s.access_token || !s.refresh_token) return Promise.resolve(false);
+      return client.auth.setSession({ access_token: s.access_token, refresh_token: s.refresh_token })
+        .then(function (res) { return !res.error; })
+        .catch(function () { return false; });
+    }
+    function probeSession(accessToken) {
+      return api('/api/auth/session', {}, accessToken).then(function (out) {
+        if (!out || !out.ok) return null;
+        return out;
+      }).catch(function () { return null; });
+    }
+    function rememberName(name) {
+      displayName = name || '';
+      try {
+        if (displayName) window.localStorage.setItem(NAME_KEY, displayName);
+        else window.localStorage.removeItem(NAME_KEY);
+      } catch (e) {}
+    }
+
+    /* --- Person check (Turnstile), only when the API asks for it --- */
+    var tsLoading = null;
+    function loadTurnstile() {
+      if (window.turnstile) return Promise.resolve(window.turnstile);
+      if (tsLoading) return tsLoading;
+      tsLoading = new Promise(function (resolve) {
+        var s = document.createElement('script');
+        s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+        s.async = true;
+        s.onload = function () { resolve(window.turnstile || null); };
+        s.onerror = function () { resolve(null); };
+        document.head.appendChild(s);
+      });
+      return tsLoading;
+    }
+    function clearCaptcha() {
+      cap.token = null;
+      if (cap.widgetId != null && window.turnstile) {
+        try { window.turnstile.remove(cap.widgetId); } catch (e) {}
+      }
+      cap.widgetId = null;
+      sheet.querySelectorAll('.hub-cap-slot').forEach(function (slot) { slot.innerHTML = ''; });
+    }
+    function renderCaptcha() {
+      var slot = screenEl(currentScreen);
+      slot = slot ? slot.querySelector('.hub-cap-slot') : null;
+      if (!slot) return Promise.resolve(null);
+      return loadTurnstile().then(function (ts) {
+        if (!ts) return null;
+        return fetch(AUTH_BASE + '/api/auth/config').then(function (r) { return r.json(); }).catch(function () { return {}; }).then(function (cfg) {
+          var key = (cfg && (cfg.turnstileSiteKey || cfg.turnstile_site_key)) || FALLBACK_SITE_KEY;
+          slot.innerHTML = '';
+          if (cap.widgetId != null) { try { ts.remove(cap.widgetId); } catch (e) {} cap.widgetId = null; }
+          cap.widgetId = ts.render(slot, {
+            sitekey: key,
+            callback: function (token) { cap.token = token; },
+            'expired-callback': function () { cap.token = null; },
+            'error-callback': function () { cap.token = null; }
+          });
+          return cap.token;
+        });
+      });
+    }
+    function askCaptcha(msg) {
+      cap.need = true;
+      showErr(currentScreen, msg || 'One more step…');
+      return renderCaptcha();
+    }
+
+    /* --- Panel + sheet state --- */
+    function renderPanel() {
+      if (displayName) {
+        panelText.innerHTML = '<strong>Signed in as ' + esc(displayName) + '</strong>Your progress saves on this device and across games. Tap your name for your account.';
+        panelBtn.textContent = 'Sign out';
+      } else {
+        panelText.innerHTML = '<strong>One sign-in for every game</strong>Sign in once here &mdash; not again for each game. Signing in only saves your progress; you can play every game without it.';
+        panelBtn.textContent = 'Sign in';
+      }
+    }
+    function refreshSignedInUI() {
+      return getSupabase().then(function (client) {
+        if (!client) { renderPanel(); return; }
+        return client.auth.getSession().then(function (res) {
+          var s = res && res.data ? res.data.session : null;
+          if (!s || !s.access_token) { displayName = ''; authKind = null; renderPanel(); return; }
+          return probeSession(s.access_token).then(function (probe) {
+            if (probe) {
+              if (probe.player_name) { rememberName(probe.player_name); authKind = 'password'; }
+              else if (probe.email && !String(probe.email).endsWith('@players.romansgame.invalid')) { rememberName(probe.email); authKind = 'code'; }
+              else { authKind = 'code'; }
+            }
+            renderPanel();
+          });
+        });
+      }).catch(function () { renderPanel(); });
+    }
+    function showScreen(name) {
+      currentScreen = name;
+      sheet.querySelectorAll('.hub-screen').forEach(function (s) { s.hidden = s.dataset.screen !== name; });
+      clearErr(name);
+      if (name === 'account') {
+        var note = $('hub-account-note');
+        if (note) note.textContent = displayName ? ('You’re signed in as ' + displayName + '. Your progress saves on this device and across games.') : 'You’re signed in. Your progress saves on this device and across games.';
+        var claimBtn = $('hub-account-claim');
+        var addBtn = $('hub-account-addemail');
+        if (claimBtn) claimBtn.hidden = authKind !== 'code';
+        if (addBtn) addBtn.hidden = authKind !== 'password';
+      }
+      var sec = screenEl(name);
+      var first = sec ? sec.querySelector('input, button.hub-btn') : null;
+      if (first) { try { first.focus({ preventScroll: true }); } catch (e) {} }
+    }
+    function openSheet(name) {
+      sheet.hidden = false;
+      document.body.style.overflow = 'hidden';
+      showScreen(name || (displayName ? 'account' : 'start'));
+    }
+    function closeSheet() {
+      sheet.hidden = true;
+      document.body.style.overflow = '';
+      clearCaptcha();
+      showScreen(displayName ? 'account' : 'start');
+    }
+    function setBusy(form, busy) {
+      var btn = form.querySelector('button[type="submit"]');
+      if (btn) btn.disabled = busy;
+    }
+
+    /* --- Sign in (name or email + password) --- */
+    function submitSignin(form) {
+      var name = $('hub-signin-name').value.trim();
+      var pass = $('hub-signin-pass').value;
+      if (!name || !pass) { showErr('signin', 'Add your player name or email, and your password.'); return; }
+      setBusy(form, true);
+      getSupabase().then(function (client) {
+        if (!client) throw new Error('Could not load the sign-in service. Check your connection and try again.');
+        var payload = { name: name, password: pass, stay_signed_in: true };
+        if (cap.token) payload.captcha_token = cap.token;
+        return api('/api/auth/signin', payload).then(function (out) {
+          if (out && out.ok && out.session) {
+            return landSession(client, out.session).then(function (landed) {
+              if (!landed) throw new Error('Could not save the sign-in on this device. Try again.');
+              rememberName(out.display_name || out.player_name || name);
+              authKind = 'password';
+              clearCaptcha();
+              return refreshSignedInUI().then(function () { showScreen('account'); });
+            });
+          }
+          if (out && (out.code === 'turnstile_required' || out.code === 'captcha_failed')) {
+            return askCaptcha(out.code === 'captcha_failed' ? 'That check didn’t pass — try again.' : 'Please prove you’re a person and try again.');
+          }
+          showErr('signin', authErrorMessage(out));
+        });
+      }).catch(function (e) { showErr('signin', authErrorMessage(e)); })
+        .finally(function () { setBusy(form, false); });
+    }
+
+    /* --- Create account --- */
+    function submitCreate(form) {
+      var name = $('hub-create-name').value.trim();
+      var pass = $('hub-create-pass').value;
+      var pass2 = $('hub-create-pass2').value;
+      if (!validName(name)) { showErr('create', 'Pick a name with letters and numbers, between 3 and 30 characters.'); return; }
+      if (pass.length < 8) { showErr('create', 'Pick a password at least 8 characters long.'); return; }
+      if (pass !== pass2) { showErr('create', 'Those passwords don’t match. Try again.'); return; }
+      if (!$('hub-create-age').checked || !$('hub-create-terms').checked) { showErr('create', 'You need to be 13 or older and accept the terms to create an account.'); return; }
+      if (!cap.token) { askCaptcha('One more step…'); return; }
+      setBusy(form, true);
+      getSupabase().then(function (client) {
+        if (!client) throw new Error('Could not load the sign-in service. Check your connection and try again.');
+        return api('/api/auth/signup', {
+          name: name, password: pass, age_choice: '13_plus', terms_accepted: true,
+          marketing_opt_in: false, stay_signed_in: true, captcha_token: cap.token
+        }).then(function (out) {
+          if (out && out.ok && out.session) {
+            return landSession(client, out.session).then(function (landed) {
+              if (!landed) throw new Error('Could not save the sign-in on this device. Try again.');
+              rememberName(out.display_name || out.player_name || name);
+              authKind = 'password';
+              clearCaptcha();
+              return refreshSignedInUI().then(function () { showScreen('account'); });
+            });
+          }
+          if (out && (out.code === 'turnstile_required' || out.code === 'captcha_failed')) {
+            return askCaptcha(out.code === 'captcha_failed' ? 'That check didn’t pass — try again.' : 'Please prove you’re a person and try again.');
+          }
+          showErr('create', authErrorMessage(out));
+        });
+      }).catch(function (e) { showErr('create', authErrorMessage(e)); })
+        .finally(function () { setBusy(form, false); });
+    }
+
+    /* --- Sign in with an email code --- */
+    function submitEmailCode(form) {
+      var email = $('hub-code-email').value.trim();
+      if (!validEmail(email)) { showErr('emailcode', 'That email doesn’t look right. Check it and try again.'); return; }
+      setBusy(form, true);
+      getSupabase().then(function (client) {
+        if (!client) throw new Error('Could not load the sign-in service. Check your connection and try again.');
+        return client.auth.signInWithOtp({
+          email: email,
+          options: { emailRedirectTo: window.location.href, shouldCreateUser: true }
+        }).then(function (res) {
+          if (res.error) { showErr('emailcode', authErrorMessage(res.error)); return; }
+          codeEmail = email;
+          codeMode = 'signin';
+          var note = $('hub-sent-note');
+          if (note) note.textContent = 'We sent a 6-digit code to ' + email + '. It may take a minute to arrive — check your spam folder too.';
+          showScreen('sent');
+        });
+      }).catch(function (e) { showErr('emailcode', authErrorMessage(e)); })
+        .finally(function () { setBusy(form, false); });
+    }
+    function submitCode(form) {
+      var token = $('hub-code').value.trim();
+      if (!/^\d{6,8}$/.test(token)) { showErr('sent', 'That code doesn’t look right. Check the email and try again.'); return; }
+      setBusy(form, true);
+      getSupabase().then(function (client) {
+        if (!client) throw new Error('Could not load the sign-in service. Check your connection and try again.');
+        if (codeMode === 'add') {
+          return client.auth.getSession().then(function (res) {
+            var s = res && res.data ? res.data.session : null;
+            if (!s) throw new Error('You’re not signed in. Sign in first, then add an email.');
+            return api('/api/auth/email-verify', { email: codeEmail, code: token }, s.access_token).then(function (out) {
+              if (out && out.ok) { showScreen('account'); return; }
+              showErr('sent', authErrorMessage(out));
+            });
+          });
+        }
+        return client.auth.verifyOtp({ email: codeEmail, token: token, type: 'email' }).then(function (res) {
+          if (res.error) { showErr('sent', authErrorMessage(res.error)); return; }
+          var s = res.data && res.data.session ? res.data.session : null;
+          if (!s || !s.access_token) { showErr('sent', 'That code didn’t sign you in. Try again.'); return; }
+          return probeSession(s.access_token).then(function (probe) {
+            if (probe && probe.player_name) {
+              rememberName(probe.player_name);
+              authKind = 'password';
+            } else if (probe && probe.email && !String(probe.email).endsWith('@players.romansgame.invalid')) {
+              rememberName(probe.email);
+              authKind = 'code';
+            } else {
+              authKind = 'code';
+            }
+            return refreshSignedInUI().then(function () {
+              showScreen(authKind === 'code' ? 'claim' : 'account');
+            });
+          });
+        });
+      }).catch(function (e) { showErr('sent', authErrorMessage(e)); })
+        .finally(function () { setBusy(form, false); });
+    }
+
+    /* --- Forgot password (3-step code flow) --- */
+    function submitForgot(form) {
+      var email = $('hub-forgot-email').value.trim();
+      if (!validEmail(email)) { showErr('forgot', 'That email doesn’t look right. Check it and try again.'); return; }
+      if (!cap.token) { askCaptcha('One more step…'); return; }
+      setBusy(form, true);
+      api('/api/auth/recover/lost/start', { email: email, captcha_token: cap.token }).then(function (out) {
+        if (out && out.ok) {
+          codeEmail = email;
+          grant = null;
+          pickUser = null;
+          $('hub-reset-code-part').hidden = false;
+          $('hub-reset-pass-part').hidden = true;
+          clearCaptcha();
+          showScreen('reset');
+          return;
+        }
+        if (out && (out.code === 'turnstile_required' || out.code === 'captcha_failed')) {
+          return askCaptcha(out.code === 'captcha_failed' ? 'That check didn’t pass — try again.' : 'Please prove you’re a person and try again.');
+        }
+        showErr('forgot', authErrorMessage(out));
+      }).catch(function (e) { showErr('forgot', authErrorMessage(e)); })
+        .finally(function () { setBusy(form, false); });
+    }
+    function submitResetCode(form) {
+      var code = $('hub-reset-code').value.trim();
+      if (!/^\d{6,8}$/.test(code)) { showErr('reset', 'That code doesn’t look right. Check the email and try again.'); return; }
+      if (!cap.token) { askCaptcha('One more step…'); return; }
+      setBusy(form, true);
+      api('/api/auth/recover/lost/code', { email: codeEmail, code: code, captcha_token: cap.token }).then(function (out) {
+        if (out && out.ok && out.reset_token) {
+          grant = { resetToken: out.reset_token, accounts: out.accounts || [] };
+          pickUser = grant.accounts.length ? grant.accounts[0] : null;
+          var note = $('hub-reset-pass-note');
+          if (note) note.textContent = pickUser && pickUser.name ? ('Pick a new password for ' + pickUser.name + '.') : 'Pick a new password.';
+          clearCaptcha();
+          $('hub-reset-code-part').hidden = true;
+          $('hub-reset-pass-part').hidden = false;
+          var pw = $('hub-reset-pass');
+          if (pw) { try { pw.focus({ preventScroll: true }); } catch (e) {} }
+          return;
+        }
+        if (out && (out.code === 'turnstile_required' || out.code === 'captcha_failed')) {
+          return askCaptcha(out.code === 'captcha_failed' ? 'That check didn’t pass — try again.' : 'Please prove you’re a person and try again.');
+        }
+        showErr('reset', authErrorMessage(out));
+      }).catch(function (e) { showErr('reset', authErrorMessage(e)); })
+        .finally(function () { setBusy(form, false); });
+    }
+    function submitResetFinish(form) {
+      var pass = $('hub-reset-pass').value;
+      var pass2 = $('hub-reset-pass2').value;
+      if (pass.length < 8) { showErr('reset', 'Pick a password at least 8 characters long.'); return; }
+      if (pass !== pass2) { showErr('reset', 'Those passwords don’t match. Try again.'); return; }
+      if (!grant || !grant.resetToken || !pickUser) { showErr('reset', 'Start with “Forgot password” again — that reset didn’t begin properly.'); return; }
+      if (!cap.token) { askCaptcha('One more step…'); return; }
+      setBusy(form, true);
+      getSupabase().then(function (client) {
+        if (!client) throw new Error('Could not load the sign-in service. Check your connection and try again.');
+        return api('/api/auth/recover/lost/finish', {
+          reset_token: grant.resetToken, user_id: pickUser.id,
+          new_password: pass, stay_signed_in: true, captcha_token: cap.token
+        }).then(function (out) {
+          if (out && out.ok && out.session) {
+            return landSession(client, out.session).then(function (landed) {
+              if (!landed) throw new Error('Could not save the sign-in on this device. Try again.');
+              rememberName(pickUser.name || out.display_name || out.player_name || '');
+              authKind = 'password';
+              clearCaptcha();
+              grant = null;
+              return refreshSignedInUI().then(function () { showScreen('account'); });
+            });
+          }
+          if (out && (out.code === 'turnstile_required' || out.code === 'captcha_failed')) {
+            return askCaptcha(out.code === 'captcha_failed' ? 'That check didn’t pass — try again.' : 'Please prove you’re a person and try again.');
+          }
+          showErr('reset', authErrorMessage(out));
+        });
+      }).catch(function (e) { showErr('reset', authErrorMessage(e)); })
+        .finally(function () { setBusy(form, false); });
+    }
+
+    /* --- Give a code account a name + password --- */
+    function submitClaim(form) {
+      var name = $('hub-claim-name').value.trim();
+      var pass = $('hub-claim-pass').value;
+      var pass2 = $('hub-claim-pass2').value;
+      if (!validName(name)) { showErr('claim', 'Pick a name with letters and numbers, between 3 and 30 characters.'); return; }
+      if (pass.length < 8) { showErr('claim', 'Pick a password at least 8 characters long.'); return; }
+      if (pass !== pass2) { showErr('claim', 'Those passwords don’t match. Try again.'); return; }
+      setBusy(form, true);
+      getSupabase().then(function (client) {
+        if (!client) throw new Error('Could not load the sign-in service. Check your connection and try again.');
+        return client.auth.getSession().then(function (res) {
+          var s = res && res.data ? res.data.session : null;
+          if (!s) throw new Error('You’re not signed in. Sign in first, then give your account a name.');
+          var payload = { name: name, password: pass };
+          if (cap.token) payload.captcha_token = cap.token;
+          return api('/api/auth/claim', payload, s.access_token).then(function (out) {
+            if (out && out.ok && out.session) {
+              return landSession(client, out.session).then(function (landed) {
+                if (!landed) throw new Error('Could not save the sign-in on this device. Try again.');
+                rememberName(name);
+                authKind = 'password';
+                clearCaptcha();
+                return refreshSignedInUI().then(function () { showScreen('account'); });
+              });
+            }
+            if (out && (out.code === 'turnstile_required' || out.code === 'captcha_failed')) {
+              return askCaptcha(out.code === 'captcha_failed' ? 'That check didn’t pass — try again.' : 'Please prove you’re a person and try again.');
+            }
+            showErr('claim', authErrorMessage(out));
+          });
+        });
+      }).catch(function (e) { showErr('claim', authErrorMessage(e)); })
+        .finally(function () { setBusy(form, false); });
+    }
+
+    /* --- Add a recovery email --- */
+    function submitAddEmail(form) {
+      var email = $('hub-addemail').value.trim();
+      if (!validEmail(email)) { showErr('addemail', 'That email doesn’t look right. Check it and try again.'); return; }
+      setBusy(form, true);
+      getSupabase().then(function (client) {
+        if (!client) throw new Error('Could not load the sign-in service. Check your connection and try again.');
+        return client.auth.getSession().then(function (res) {
+          var s = res && res.data ? res.data.session : null;
+          if (!s) throw new Error('You’re not signed in. Sign in first, then add an email.');
+          return api('/api/auth/email-add', { email: email }, s.access_token).then(function (out) {
+            if (out && out.ok) {
+              codeEmail = email;
+              codeMode = 'add';
+              var note = $('hub-sent-note');
+              if (note) note.textContent = 'We sent a 6-digit code to ' + email + '. Enter it to confirm the address is yours.';
+              showScreen('sent');
+              return;
+            }
+            showErr('addemail', authErrorMessage(out));
+          });
+        });
+      }).catch(function (e) { showErr('addemail', authErrorMessage(e)); })
+        .finally(function () { setBusy(form, false); });
+    }
+
+    /* --- Sign out (everywhere, best effort) --- */
+    function signOut() {
+      var done = function () {
+        getSupabase().then(function (client) {
+          if (client) return client.auth.signOut({ scope: 'local' }).catch(function () {});
+        }).finally(function () {
+          rememberName('');
+          authKind = null;
+          closeSheet();
+          renderPanel();
+        });
+      };
+      getSupabase().then(function (client) {
+        if (!client) { done(); return; }
+        return client.auth.getSession().then(function (res) {
+          var s = res && res.data ? res.data.session : null;
+          if (s) return api('/api/auth/signout', {}, s.access_token).catch(function () {});
+        }).then(done, done);
+      }).catch(done);
+    }
+
+    /* --- Wiring --- */
+    sheet.addEventListener('click', function (ev) {
+      var closer = ev.target.closest('[data-hub-close]');
+      if (closer) { closeSheet(); return; }
+      var go = ev.target.closest('[data-goto]');
+      if (go) { showScreen(go.dataset.goto); return; }
+    });
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape' && !sheet.hidden) closeSheet();
+    });
+    sheet.addEventListener('focusin', function (ev) {
+      var el = ev.target;
+      if (el && el.scrollIntoView) {
+        try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {}
+      }
+    });
+    sheet.querySelectorAll('form[data-form]').forEach(function (form) {
+      form.addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        var kind = form.dataset.form;
+        if (kind === 'signin') submitSignin(form);
+        else if (kind === 'create') submitCreate(form);
+        else if (kind === 'emailcode') submitEmailCode(form);
+        else if (kind === 'code') submitCode(form);
+        else if (kind === 'forgot') submitForgot(form);
+        else if (kind === 'resetcode') submitResetCode(form);
+        else if (kind === 'resetfinish') submitResetFinish(form);
+        else if (kind === 'claim') submitClaim(form);
+        else if (kind === 'addemail') submitAddEmail(form);
+      });
+    });
+    panelBtn.addEventListener('click', function () {
+      if (displayName) { signOut(); return; }
+      openSheet('start');
+    });
+    panelText.addEventListener('click', function (ev) {
+      if (displayName && ev.target.closest('strong')) openSheet('account');
+    });
+    var signoutBtn = $('hub-signout-btn');
+    if (signoutBtn) signoutBtn.addEventListener('click', signOut);
+
+    renderPanel();
+    refreshSignedInUI();
+  })();
+  </script>
   </body>
 </html>

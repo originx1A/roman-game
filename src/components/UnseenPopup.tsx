@@ -39,7 +39,17 @@ export function UnseenPopup({ pop, holdMs = 4500 }: Props) {
   const lastKey = useRef(-1)
 
   useEffect(() => {
-    if (!pop || pop.key === lastKey.current) return
+    if (!pop) {
+      // The parent cleared the pop-up (e.g. the player left the board): hide
+      // at once. The old code only reacted to a NEW pop, so clearing the prop
+      // cancelled the auto-hide timers and stranded the pop-up on screen.
+      window.clearTimeout(hideTimer.current)
+      window.clearTimeout(leaveTimer.current)
+      setLeaving(false)
+      setVisible(false)
+      return
+    }
+    if (pop.key === lastKey.current) return
     lastKey.current = pop.key
     window.clearTimeout(hideTimer.current)
     window.clearTimeout(leaveTimer.current)
