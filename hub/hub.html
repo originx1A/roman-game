@@ -188,12 +188,16 @@
       }
 
       /* ---------- Sign-in sheet (hub's own sign-in; same door as the game) ---------- */
-      .hub-sheet { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: calc(12px + env(safe-area-inset-top, 0px)) 14px calc(12px + env(safe-area-inset-bottom, 0px)); }
+      /* Keyboard-open fit (Tony, Nov 12, 2026): the sheet tracks the
+         visual viewport (see syncHubViewport) so the card centres in the
+         strip the keyboard leaves, never under it — the card then scrolls
+         inside that strip instead of overflowing it. */
+      .hub-sheet { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: calc(12px + env(safe-area-inset-top, 0px)) 14px calc(12px + env(safe-area-inset-bottom, 0px)); top: var(--hub-vv-top, 0); bottom: auto; height: var(--hub-vv-height, 100dvh); }
       .hub-sheet[hidden] { display: none; }
       .hub-sheet .scrim { position: absolute; inset: 0; background: rgba(9, 18, 20, .68); }
       .hub-card {
         position: relative; width: 100%; max-width: 430px;
-        max-height: calc(100dvh - 24px); max-height: calc(100svh - 24px);
+        max-height: calc(var(--hub-vv-height, 100dvh) - 24px);
         overflow-y: auto; overscroll-behavior: contain;
         background: #fff8e7; color: #123; border-radius: 18px;
         border: 1px solid #e6d6ae; box-shadow: 0 20px 60px rgba(0, 0, 0, .35);
@@ -804,6 +808,7 @@
     function openSheet(name) {
       sheet.hidden = false;
       document.body.style.overflow = 'hidden';
+      syncHubViewport();
       showScreen(name || (displayName ? 'account' : 'start'));
     }
     function closeSheet() {
@@ -1129,6 +1134,30 @@
     document.addEventListener('keydown', function (ev) {
       if (ev.key === 'Escape' && !sheet.hidden) closeSheet();
     });
+    // Keyboard-open fit (Tony, Nov 12, 2026): when the keyboard opens the
+    // visual viewport shrinks to the strip it leaves; the sheet takes that
+    // strip (top + height as CSS vars) so the card centres in it and scrolls
+    // inside it, and the focused field is scrolled back into view after the
+    // sheet moves. Without this the card stays centred in the full viewport
+    // and the password field + submit sit under the keyboard at 390px.
+    function syncHubViewport() {
+      var vv = window.visualViewport;
+      if (!vv) return;
+      var top = Math.max(0, Math.round(vv.offsetTop || 0));
+      var h = Math.max(0, Math.round(vv.height || 0));
+      if (!h) return;
+      sheet.style.setProperty('--hub-vv-top', top + 'px');
+      sheet.style.setProperty('--hub-vv-height', h + 'px');
+      var ae = document.activeElement;
+      if (ae && sheet.contains(ae) && ae.scrollIntoView) {
+        try { ae.scrollIntoView({ block: 'center' }); } catch (e) {}
+      }
+    }
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', syncHubViewport);
+      window.visualViewport.addEventListener('scroll', syncHubViewport);
+    }
+    window.addEventListener('resize', syncHubViewport);
     sheet.addEventListener('focusin', function (ev) {
       var el = ev.target;
       if (el && el.scrollIntoView) {
